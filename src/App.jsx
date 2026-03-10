@@ -5,11 +5,38 @@ import './App.css';
 import Login from './Login';
 import { supabase } from './supabase';
 
+const translations = {
+  EN: {
+    morning: 'Morning', afternoon: 'Afternoon', evening: 'Evening', night: 'Night',
+    now: 'Now', actionItem: 'Action Item', today: 'Today', yesterday: 'Yesterday',
+    tmr: 'Tomorrow', thisWeek: 'This Week', nextWeek: 'Next Week', lastWeek: 'Last Week',
+    weeksAgo: 'Weeks Ago', weeksLater: 'Weeks Later', add: 'Add', timeOfDay: 'TIME OF DAY',
+    placeholder: 'e.g Buy groceries at 9pm...', setting: 'Setting', helpFeedback: 'Help & Feedback',
+    signOut: 'Sign out', language: 'Language', appearance: 'Appearance', light: 'Light', dark: 'Dark'
+  },
+  ZH: {
+    morning: '早上', afternoon: '下午', evening: '傍晚', night: '晚上',
+    now: '现在', actionItem: '待办事项', today: '今天', yesterday: '昨天',
+    tmr: '明天', thisWeek: '本周', nextWeek: '下周', lastWeek: '上周',
+    weeksAgo: '周前', weeksLater: '周后', add: '添加', timeOfDay: '时间段',
+    placeholder: '例如：晚上9点买杂货...', setting: '设置', helpFeedback: '帮助与反馈',
+    signOut: '退出登录', language: '语言', appearance: '外观', light: '浅色', dark: '深色'
+  },
+  MS: {
+    morning: 'Pagi', afternoon: 'Tengahari', evening: 'Petang', night: 'Malam',
+    now: 'Sekarang', actionItem: 'Tugasan', today: 'Hari Ini', yesterday: 'Semalam',
+    tmr: 'Esok', thisWeek: 'Minggu Ini', nextWeek: 'Minggu Depan', lastWeek: 'Minggu Lepas',
+    weeksAgo: 'Minggu Lepas', weeksLater: 'Minggu Kemudian', add: 'Tambah', timeOfDay: 'MASA',
+    placeholder: 'cth. Beli barang dapur pada 9pm...', setting: 'Tetapan', helpFeedback: 'Bantuan & Maklum Balas',
+    signOut: 'Log Keluar', language: 'Bahasa', appearance: 'Penampilan', light: 'Terang', dark: 'Gelap'
+  }
+};
+
 const timeBlocks = [
-  { id: 'Morning', label: 'Morning', start: '06:00', end: '11:00', color: '#FFE3B4', textColor: 'black', accentColor: '#ED1F1F' },
-  { id: 'Afternoon', label: 'Afternoon', start: '12:00', end: '17:00', color: '#B6DEF3', textColor: 'black', accentColor: '#0284C7' },
-  { id: 'Evening', label: 'Evening', start: '17:00', end: '21:00', color: '#EDE6FF', textColor: 'black', accentColor: '#A855F7' },
-  { id: 'Night', label: 'Night', start: '21:00', end: '00:00', color: '#E1E7F2', textColor: 'black', accentColor: '#B8C1CC' }
+  { id: 'Morning', key: 'morning', start: '06:00', end: '11:00', color: '#FFE3B4', textColor: 'black', accentColor: '#ED1F1F' },
+  { id: 'Afternoon', key: 'afternoon', start: '12:00', end: '17:00', color: '#B6DEF3', textColor: 'black', accentColor: '#0284C7' },
+  { id: 'Evening', key: 'evening', start: '17:00', end: '21:00', color: '#EDE6FF', textColor: 'black', accentColor: '#A855F7' },
+  { id: 'Night', key: 'night', start: '21:00', end: '00:00', color: '#E1E7F2', textColor: 'black', accentColor: '#B8C1CC' }
 ];
 
 function App() {
@@ -18,51 +45,45 @@ function App() {
   const [isLoginOpen, setIsLoginOpen] = useState(false);
 
   useEffect(() => {
-    // Get current session on mount
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setLoadingAuth(false);
     });
-
-    // Listen for auth state changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
       setLoadingAuth(false);
     });
-
     return () => subscription.unsubscribe();
   }, []);
 
   const [activeChip, setActiveChip] = useState('Now');
   const [inputText, setInputText] = useState('');
+  const [language, setLanguage] = useState('EN');
+  const [isLanguageDropdownOpen, setIsLanguageDropdownOpen] = useState(false);
+  const [appearance, setAppearance] = useState('light');
+  const [isAppearanceDropdownOpen, setIsAppearanceDropdownOpen] = useState(false);
 
-  // Track the actual selected date (defaults to today)
   const [selectedDate, setSelectedDate] = useState(new Date());
-
-  // Track real time for the clock display
   const [currentTime, setCurrentTime] = useState(new Date());
 
-  // Track modal states
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isCalendarOpen, setIsCalendarOpen] = useState(false);
+  const [calPickerDate, setCalPickerDate] = useState(() => new Date());
 
-  // Track how many weeks we are offset from current week (0 = this week, -1 = last week, 1 = next week)
   const [weekOffset, setWeekOffset] = useState(0);
   const [touchStart, setTouchStart] = useState(null);
   const [touchEnd, setTouchEnd] = useState(null);
 
-  // Interval to update the real time clock every second so it rolls over exactly on the minute
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
 
-  // State for todos
   const [todos, setTodos] = useState(() => {
     const saved = localStorage.getItem('todos');
     if (saved) {
-      // Parse dates out of strings
       const parsed = JSON.parse(saved);
       return parsed.map(t => ({ ...t, dateString: t.dateString || format(new Date(), 'yyyy-MM-dd') }));
     } else {
@@ -70,7 +91,6 @@ function App() {
     }
   });
 
-  // Save to local storage whenever todos change
   useEffect(() => {
     localStorage.setItem('todos', JSON.stringify(todos));
   }, [todos]);
@@ -82,11 +102,11 @@ function App() {
       text: inputText.trim(),
       timeOfDay: activeChip,
       completed: false,
-      dateString: format(selectedDate, 'yyyy-MM-dd') // Save the task to the currently selected date
+      dateString: format(selectedDate, 'yyyy-MM-dd')
     };
     setTodos([...todos, newTodo]);
     setInputText('');
-    setIsSheetOpen(false); // close modal after add
+    setIsSheetOpen(false);
   };
 
   const toggleTodo = (id) => {
@@ -104,9 +124,7 @@ function App() {
     e.dataTransfer.effectAllowed = 'move';
   };
 
-  const handleDragEnd = (e) => {
-    setDraggedTodoId(null);
-  };
+  const handleDragEnd = () => { setDraggedTodoId(null); };
 
   const handleDragOver = (e) => {
     e.preventDefault();
@@ -117,110 +135,81 @@ function App() {
     e.preventDefault();
     e.stopPropagation();
     if (!draggedTodoId || draggedTodoId === targetTodo.id) return;
-
     const rect = e.currentTarget.getBoundingClientRect();
     const isBottomHalf = e.clientY > rect.top + rect.height / 2;
-
     const todosCopy = [...todos];
     const draggedIndex = todosCopy.findIndex(t => t.id === draggedTodoId);
     if (draggedIndex === -1) return;
-
     const draggedTodo = todosCopy[draggedIndex];
     draggedTodo.timeOfDay = targetTodo.timeOfDay;
-
     todosCopy.splice(draggedIndex, 1);
-
     const newTargetIndex = todosCopy.findIndex(t => t.id === targetTodo.id);
     const insertIndex = isBottomHalf ? newTargetIndex + 1 : newTargetIndex;
-
     todosCopy.splice(insertIndex, 0, draggedTodo);
-
     setTodos(todosCopy);
   };
 
   const handleDropOnBlock = (e, blockId) => {
     e.preventDefault();
     if (!draggedTodoId) return;
-
     const todosCopy = [...todos];
     const draggedIndex = todosCopy.findIndex(t => t.id === draggedTodoId);
     if (draggedIndex === -1) return;
-
     const draggedTodo = todosCopy[draggedIndex];
     draggedTodo.timeOfDay = blockId;
-
     todosCopy.splice(draggedIndex, 1);
     todosCopy.push(draggedTodo);
-
     setTodos(todosCopy);
   };
 
-  // Generate dynamic calendar data based on selectedDate (3 days before, selectedDate, 3 days after)
-  const realToday = new Date(); // Get today's date once
-
+  const realToday = new Date();
   const calendarDays = Array.from({ length: 7 }).map((_, i) => {
-    const date = addDays(subDays(selectedDate, 3), i); // Anchor around explicitly selected day
-
-    // Compare dates ignoring time to determine strictly if it's "past"
+    const date = addDays(subDays(selectedDate, 3), i);
     const d1 = new Date(date); d1.setHours(0, 0, 0, 0);
     const d2 = new Date(realToday); d2.setHours(0, 0, 0, 0);
-
     return {
       name: format(date, 'E').toUpperCase(),
       date: format(date, 'd'),
       fullDate: date,
-      active: isSameDay(date, selectedDate), // Highlight the explicitly selected user date (which is now always in the middle)
-      isPast: d1 < d2 // True if generating a date strictly before today
+      active: isSameDay(date, selectedDate),
+      isPast: d1 < d2
     };
   });
 
-  // Filter tasks to only show ones that belong to the currently selected date
   const selectedDateTodos = todos.filter(t => t.dateString === format(selectedDate, 'yyyy-MM-dd'));
 
-  const chips = ['Now', 'Morning', 'Afternoon', 'Evening', 'Night'];
+  const chips = [
+    { id: 'Now', key: 'now' },
+    { id: 'Morning', key: 'morning' },
+    { id: 'Afternoon', key: 'afternoon' },
+    { id: 'Evening', key: 'evening' },
+    { id: 'Night', key: 'night' }
+  ];
 
-  // Swipe handlers for calendar strip
   const handleTouchStart = (e) => {
     setTouchEnd(null);
     setTouchStart(e.targetTouches[0].clientX);
   };
-
-  const handleTouchMove = (e) => {
-    setTouchEnd(e.targetTouches[0].clientX);
-  };
-
+  const handleTouchMove = (e) => { setTouchEnd(e.targetTouches[0].clientX); };
   const handleTouchEnd = () => {
     if (!touchStart || !touchEnd) return;
     const distance = touchStart - touchEnd;
-    const swipeThreshold = 30; // lower threshold makes it easier to swipe
-    const isLeftSwipe = distance > swipeThreshold;
-    const isRightSwipe = distance < -swipeThreshold;
-
-    if (isLeftSwipe) {
-      // Swipe left -> Go forward exactly 7 days
-      setSelectedDate(prev => addDays(prev, 7));
-    } else if (isRightSwipe) {
-      // Swipe right -> Go backward exactly 7 days
-      setSelectedDate(prev => subDays(prev, 7));
-    }
+    const swipeThreshold = 30;
+    if (distance > swipeThreshold) setSelectedDate(prev => addDays(prev, 7));
+    else if (distance < -swipeThreshold) setSelectedDate(prev => subDays(prev, 7));
   };
 
   const getTimeIndicatorStyle = (block) => {
     if (!isSameDay(selectedDate, currentTime)) return null;
-
     const parseTime = (timeStr) => {
       const [h, m] = timeStr.split(':').map(Number);
       return (h === 0 && timeStr === '00:00') ? 24 * 60 : h * 60 + m;
     };
-
     const startMins = parseTime(block.start);
     let endMins = parseTime(block.end);
     if (endMins <= startMins) endMins += 24 * 60;
-
     const currentMins = currentTime.getHours() * 60 + currentTime.getMinutes();
-
     let percentage = -1;
-
     if (currentMins >= startMins && currentMins <= endMins) {
       percentage = (currentMins - startMins) / (endMins - startMins);
     } else if (block.id === 'Morning' && currentMins < parseTime('06:00')) {
@@ -228,33 +217,22 @@ function App() {
     } else if (block.id === 'Morning' && currentMins > parseTime('11:00') && currentMins < parseTime('12:00')) {
       percentage = 1;
     }
-
     if (percentage >= 0 && percentage <= 1) {
       return { top: `calc(70px + (100% - 110px) * ${percentage})` };
     }
     return null;
   };
 
-  // Helper to render relative week text based on selected date vs real today
   const getRelativeWeekText = () => {
     const today = new Date();
-    // Zero out time perfectly to compare calendar days
     const d1 = new Date(selectedDate); d1.setHours(0, 0, 0, 0);
     const d2 = new Date(today); d2.setHours(0, 0, 0, 0);
     const diffDays = Math.round((d1 - d2) / (1000 * 3600 * 24));
-
-    if (diffDays === 0) return <strong>Today</strong>;
-    if (diffDays === -1) return <strong>Yesterday</strong>;
-    if (diffDays === 1) return <strong>Tmr</strong>;
-
-    if (diffDays > 1 && diffDays < 7) return <strong>This week</strong>;
-    if (diffDays < -1 && diffDays > -7) return <strong>This week</strong>;
-
-    if (diffDays >= 7 && diffDays < 14) return <strong>Next week</strong>;
-    if (diffDays <= -7 && diffDays > -14) return <strong>Last week</strong>;
-
-    if (diffDays <= -14) return <strong>{Math.abs(Math.round(diffDays / 7))} weeks ago</strong>;
-    return <strong>{Math.round(diffDays / 7)} weeks later</strong>;
+    const t = translations[language];
+    if (diffDays === 0) return <strong>{t.today}</strong>;
+    if (diffDays === -1) return <strong>{t.yesterday}</strong>;
+    if (diffDays === 1) return <strong>{t.tmr}</strong>;
+    return <strong>{format(selectedDate, 'EEE, MMM d')}</strong>;
   };
 
   if (loadingAuth) {
@@ -271,10 +249,11 @@ function App() {
       {/* Login page overlay — only shown when user explicitly clicks avatar */}
       {isLoginOpen && (
         <div className="app-container" style={{ background: '#FFFFFF', position: 'fixed', top: 0, left: '50%', transform: 'translateX(-50%)', zIndex: 200 }}>
-          <Login onClose={() => setIsLoginOpen(false)} onSuccess={() => setIsLoginOpen(false)} />
+          <Login onClose={() => setIsLoginOpen(false)} />
         </div>
       )}
-      <div className="app-container" style={{
+
+      <div className={`app-container ${appearance === 'dark' ? 'dark-theme' : ''}`} style={{
         background: `url("/background-pattern.png") lightgray 0px -92.075px / 100% 1240.631% no-repeat`
       }}>
         {/* Top Header */}
@@ -290,15 +269,23 @@ function App() {
           </div>
 
           <div className="header-center">
-            <div className="header-title" style={{ transition: 'all 0.3s', fontSize: isSameDay(selectedDate, new Date()) ? '18px' : '14px', fontStyle: isSameDay(selectedDate, new Date()) ? 'italic' : 'normal', color: '#111111', fontFamily: isSameDay(selectedDate, new Date()) ? '"LTC Bodoni 175", serif' : 'inherit', fontWeight: 400, wordWrap: 'break-word' }}>
+            <div className="header-title" style={{ transition: 'all 0.3s', fontSize: '18px', fontStyle: 'italic', color: '#111111', fontFamily: '"LTC Bodoni 175", serif', fontWeight: 400, wordWrap: 'break-word' }}>
               {getRelativeWeekText()}
             </div>
-            <div className="header-stats" style={{ visibility: isSameDay(selectedDate, new Date()) ? 'visible' : 'hidden' }}>
-              <div className="stat-pill"><span>{format(currentTime, 'hh').charAt(0)}</span></div>
-              <div className="stat-pill"><span>{format(currentTime, 'hh').charAt(1)}</span></div>
-              <div className="stat-colon">:</div>
-              <div className="stat-pill"><span>{format(currentTime, 'mm').charAt(0)}</span></div>
-              <div className="stat-pill"><span>{format(currentTime, 'mm').charAt(1)}</span></div>
+            <div className="header-sub-row">
+              {isSameDay(selectedDate, new Date()) ? (
+                <div className="header-stats">
+                  <div className="stat-pill"><span>{format(currentTime, 'hh').charAt(0)}</span></div>
+                  <div className="stat-pill"><span>{format(currentTime, 'hh').charAt(1)}</span></div>
+                  <div className="stat-colon">:</div>
+                  <div className="stat-pill"><span>{format(currentTime, 'mm').charAt(0)}</span></div>
+                  <div className="stat-pill"><span>{format(currentTime, 'mm').charAt(1)}</span></div>
+                </div>
+              ) : (
+                <button className="back-to-today-btn" onClick={() => setSelectedDate(new Date())}>
+                  {translations[language].today}
+                </button>
+              )}
             </div>
           </div>
 
@@ -306,7 +293,7 @@ function App() {
             <svg width="11" height="11" viewBox="0 0 11 11" fill="none" xmlns="http://www.w3.org/2000/svg">
               <path d="M5.5 0V11.5M0 5.5H11.5" stroke="black" strokeWidth="1.2" />
             </svg>
-            <span>Add</span>
+            <span>{translations[language].add}</span>
           </button>
         </header>
 
@@ -316,11 +303,11 @@ function App() {
           onTouchStart={handleTouchStart}
           onTouchMove={handleTouchMove}
           onTouchEnd={handleTouchEnd}
-          style={{ touchAction: 'pan-y' }} // prevent browser from hijacking horizontal swipe to go back/forward in history
+          style={{ touchAction: 'pan-y' }}
         >
           {calendarDays.map((day, idx) => (
             <div className="day-col" key={idx} onClick={() => setSelectedDate(day.fullDate)} style={{ cursor: 'pointer' }}>
-              <span className="day-name" style={{ color: day.active ? (day.isPast ? '#A0A4AB' : '#111111') : (day.isPast ? '#A0A4AB' : '#111111') }}>{day.name}</span>
+              <span className="day-name" style={{ color: day.isPast ? '#A0A4AB' : '#111111' }}>{day.name}</span>
               <span className={`day-date ${day.active ? 'active' : ''}`} style={!day.active ? { color: day.isPast ? '#A0A4AB' : '#111111' } : {}}>
                 {day.date}
               </span>
@@ -328,13 +315,12 @@ function App() {
           ))}
         </div>
 
-        {/* Main List Area Placeholder */}
+        {/* Main Timeline */}
         <main className="timeline-area">
-          {/* Render 'Now' tasks at the top if any */}
           {selectedDateTodos.filter(t => t.timeOfDay === 'Now').length > 0 && (
             <div className="time-block">
               <div className="time-col">
-                <div className="time-pill" style={{ backgroundColor: '#FF3B30', color: '#FFF' }}>Now</div>
+                <div className="time-pill" style={{ backgroundColor: '#FF3B30', color: '#FFF' }}>{translations[language].now}</div>
               </div>
               <div className="tasks-col" onDragOver={handleDragOver} onDrop={(e) => handleDropOnBlock(e, 'Now')}>
                 {selectedDateTodos.filter(t => t.timeOfDay === 'Now').map(todo => (
@@ -353,7 +339,7 @@ function App() {
                     </div>
                     <div className="task-content">
                       <span className="task-title">{todo.text}</span>
-                      <span className="task-desc">Action Item</span>
+                      <span className="task-desc">{translations[language].actionItem}</span>
                     </div>
                   </div>
                 ))}
@@ -361,7 +347,6 @@ function App() {
             </div>
           )}
 
-          {/* Render rest of the timeline blocks */}
           {timeBlocks.map((block) => {
             const blockTodos = selectedDateTodos.filter(t => t.timeOfDay === block.id);
             const indicatorStyle = getTimeIndicatorStyle(block);
@@ -369,15 +354,12 @@ function App() {
               <div className="time-block" key={block.id}>
                 <div className="time-col">
                   <div className="time-pill" style={{ backgroundColor: block.color, color: block.textColor }}>
-                    {block.label}
+                    {translations[language][block.key]}
                   </div>
                   <span className="time-text">{block.start}</span>
-
-                  {/* Visual red dot indicator - follows real time */}
                   {indicatorStyle && (
                     <div className="current-time-indicator" style={indicatorStyle}></div>
                   )}
-
                   <span className="time-text bottom">{block.end}</span>
                 </div>
                 <div className="tasks-col" onDragOver={handleDragOver} onDrop={(e) => handleDropOnBlock(e, block.id)}>
@@ -397,7 +379,7 @@ function App() {
                       </div>
                       <div className="task-content">
                         <span className="task-title">{todo.text}</span>
-                        <span className="task-desc">Action Item</span>
+                        <span className="task-desc">{translations[language].actionItem}</span>
                       </div>
                     </div>
                   ))}
@@ -418,56 +400,86 @@ function App() {
               </button>
 
               <div className="sheet-content">
-                <div className="sheet-title-row">
-                  <h1 className="sheet-title"><strong>Today</strong></h1>
-                  <svg xmlns="http://www.w3.org/2000/svg" width="9" height="14" viewBox="0 0 9 14" fill="none" className="sheet-title-icon">
+                <div className="sheet-title-row" onClick={() => {
+                  setCalPickerDate(new Date(selectedDate));
+                  setIsCalendarOpen(o => !o);
+                }} style={{ cursor: 'pointer' }}>
+                  <h1 className="sheet-title" style={{ fontSize: language === 'EN' ? '17px' : '15px' }}><strong>{getRelativeWeekText()}</strong></h1>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="9" height="14" viewBox="0 0 9 14" fill="none" className="sheet-title-icon" style={{ transform: isCalendarOpen ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.25s' }}>
                     <path fillRule="evenodd" clipRule="evenodd" d="M8.78019 6.54928C8.92094 6.66887 9 6.83098 9 7C9 7.16902 8.92094 7.33113 8.78019 7.45072L1.26401 13.8288C1.12153 13.9415 0.933079 14.0028 0.738359 13.9999C0.543638 13.997 0.357853 13.93 0.220144 13.8132C0.0824342 13.6963 0.00355271 13.5387 0.000117099 13.3734C-0.00331851 13.2082 0.06896 13.0483 0.201726 12.9274L7.18676 7L0.201726 1.07262C0.06896 0.951712 -0.00331851 0.791795 0.000117099 0.626558C0.00355271 0.461322 0.0824342 0.303668 0.220144 0.18681C0.357853 0.0699525 0.543638 0.00301477 0.738359 9.93682e-05C0.933079 -0.00281603 1.12153 0.0585185 1.26401 0.171181L8.78019 6.54928Z" fill="black" />
                   </svg>
+                </div>
+
+                {/* Inline calendar picker */}
+                <div className={`sheet-calendar-picker ${isCalendarOpen ? 'open' : ''}`}>
+                  <div className="cal-picker-header">
+                    <button className="cal-nav-btn" onClick={e => { e.stopPropagation(); setCalPickerDate(d => { const n = new Date(d); n.setMonth(n.getMonth() - 1); return n; }); }}>
+                      <svg width="7" height="12" viewBox="0 0 9 14" fill="none"><path fillRule="evenodd" clipRule="evenodd" d="M0.219809 7.45072C0.0790625 7.33113 0 7.16902 0 7C0 6.83098 0.0790625 6.66887 0.219809 6.54928L7.73599 0.171181C7.87847 0.0585185 8.06692 -0.00281603 8.26164 9.93682e-05C8.45636 0.00301477 8.64215 0.0699525 8.77986 0.18681C8.91757 0.303668 8.99645 0.461322 8.99988 0.626558C9.00332 0.791795 8.93104 0.951712 8.79827 1.07262L1.81324 7L8.79827 12.9274C8.93104 13.0483 9.00332 13.2082 8.99988 13.3734C8.99645 13.5387 8.91757 13.6963 8.77986 13.8132C8.64215 13.93 8.45636 13.997 8.26164 13.9999C8.06692 14.0028 7.87847 13.9415 7.73599 13.8288L0.219809 7.45072Z" fill="#111" /></svg>
+                    </button>
+                    <span className="cal-picker-month-label">{format(calPickerDate, 'MMMM yyyy')}</span>
+                    <button className="cal-nav-btn" onClick={e => { e.stopPropagation(); setCalPickerDate(d => { const n = new Date(d); n.setMonth(n.getMonth() + 1); return n; }); }}>
+                      <svg width="7" height="12" viewBox="0 0 9 14" fill="none"><path fillRule="evenodd" clipRule="evenodd" d="M8.78019 6.54928C8.92094 6.66887 9 6.83098 9 7C9 7.16902 8.92094 7.33113 8.78019 7.45072L1.26401 13.8288C1.12153 13.9415 0.933079 14.0028 0.738359 13.9999C0.543638 13.997 0.357853 13.93 0.220144 13.8132C0.0824342 13.6963 0.00355271 13.5387 0.000117099 13.3734C-0.00331851 13.2082 0.06896 13.0483 0.201726 12.9274L7.18676 7L0.201726 1.07262C0.06896 0.951712 -0.00331851 0.791795 0.000117099 0.626558C0.00355271 0.461322 0.0824342 0.303668 0.220144 0.18681C0.357853 0.0699525 0.543638 0.00301477 0.738359 9.93682e-05C0.933079 -0.00281603 1.12153 0.0585185 1.26401 0.171181L8.78019 6.54928Z" fill="#111" /></svg>
+                    </button>
+                  </div>
+                  <div className="cal-picker-grid">
+                    {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((d, i) => (
+                      <div key={i} className="cal-picker-dow">{d}</div>
+                    ))}
+                    {Array.from({ length: new Date(calPickerDate.getFullYear(), calPickerDate.getMonth(), 1).getDay() }).map((_, i) => (
+                      <div key={`e${i}`} />
+                    ))}
+                    {Array.from({ length: new Date(calPickerDate.getFullYear(), calPickerDate.getMonth() + 1, 0).getDate() }).map((_, i) => {
+                      const day = i + 1;
+                      const cellDate = new Date(calPickerDate.getFullYear(), calPickerDate.getMonth(), day);
+                      const isSelected = isSameDay(cellDate, selectedDate);
+                      const isToday = isSameDay(cellDate, new Date());
+                      return (
+                        <button
+                          key={day}
+                          className={`cal-picker-day ${isSelected ? 'selected' : ''} ${isToday && !isSelected ? 'today' : ''}`}
+                          onClick={e => { e.stopPropagation(); setSelectedDate(cellDate); setIsCalendarOpen(false); }}
+                        >
+                          {day}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
 
                 <div className="section-label">
                   <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 18 18" fill="none">
                     <path d="M9 4.5V9H12.375M15.75 9C15.75 9.88642 15.5754 10.7642 15.2362 11.5831C14.897 12.4021 14.3998 13.1462 13.773 13.773C13.1462 14.3998 12.4021 14.897 11.5831 15.2362C10.7642 15.5754 9.88642 15.75 9 15.75C8.11358 15.75 7.23583 15.5754 6.41689 15.2362C5.59794 14.897 4.85382 14.3998 4.22703 13.773C3.60023 13.1462 3.10303 12.4021 2.76381 11.5831C2.42459 10.7642 2.25 9.88642 2.25 9C2.25 7.20979 2.96116 5.4929 4.22703 4.22703C5.4929 2.96116 7.20979 2.25 9 2.25C10.7902 2.25 12.5071 2.96116 13.773 4.22703C15.0388 5.4929 15.75 7.20979 15.75 9Z" stroke="black" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                   </svg>
-                  TIME OF DAY
+                  {translations[language].timeOfDay}
                 </div>
 
                 <div className="chips-container">
                   {chips.map((chip, idx) => (
                     <button
                       key={idx}
-                      className={`chip ${activeChip === chip ? 'active' : ''}`}
-                      onClick={() => setActiveChip(chip)}
+                      className={`chip ${activeChip === chip.id ? 'active' : ''}`}
+                      onClick={() => setActiveChip(chip.id)}
                     >
-                      {chip}
+                      {translations[language][chip.key]}
                     </button>
                   ))}
                 </div>
               </div>
 
-              {/* Input Form at bottom of sheet */}
               <div className="sheet-input-area">
                 <button className="add-circle-btn">
                   <Plus size={20} />
                 </button>
-
                 <div className="input-wrapper">
                   <input
                     type="text"
                     className="task-input"
-                    placeholder="e.g Buy groceries at 9pm..."
+                    placeholder={translations[language].placeholder}
                     value={inputText}
                     onChange={(e) => setInputText(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        handleAddTodo();
-                      }
-                    }}
+                    onKeyDown={(e) => { if (e.key === 'Enter') handleAddTodo(); }}
                   />
-                  <button
-                    className="submit-btn"
-                    onClick={handleAddTodo}
-                  >
+                  <button className="submit-btn" onClick={handleAddTodo}>
                     <ArrowUp size={18} strokeWidth={2.5} />
                   </button>
                 </div>
@@ -476,7 +488,7 @@ function App() {
           </div>
         )}
 
-        {/* Profile Settings Modal Overlay */}
+        {/* Profile Modal */}
         {isProfileOpen && (
           <div className="backdrop" onClick={(e) => {
             if (e.target.className === 'backdrop') setIsProfileOpen(false);
@@ -485,7 +497,6 @@ function App() {
               <button className="profile-close-btn" onClick={() => setIsProfileOpen(false)}>
                 <X size={20} color="#111" />
               </button>
-
               <div className="profile-header">
                 <div className="profile-avatar-large">
                   <img src={session?.user?.user_metadata?.avatar_url || 'https://lh3.googleusercontent.com/a/default-user=s64-c'} alt="Profile Large" />
@@ -503,14 +514,14 @@ function App() {
                 <button className="menu-btn" onClick={() => setIsSettingsOpen(true)}>
                   <div className="menu-btn-left">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
-                    <span>Setting</span>
+                    <span>{translations[language].setting}</span>
                   </div>
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
                 </button>
                 <button className="menu-btn">
                   <div className="menu-btn-left">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
-                    <span>Help & Feedback</span>
+                    <span>{translations[language].helpFeedback}</span>
                   </div>
                 </button>
               </div>
@@ -522,14 +533,14 @@ function App() {
                   await supabase.auth.signOut();
                 }}>
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg>
-                  Sign out
+                  {translations[language].signOut}
                 </button>
               </div>
             </div>
           </div>
         )}
 
-        {/* Internal Settings Modal Overlay */}
+        {/* Settings Modal */}
         {isSettingsOpen && (
           <div className="backdrop" onClick={(e) => {
             if (e.target.className === 'backdrop') setIsSettingsOpen(false);
@@ -545,22 +556,50 @@ function App() {
                     <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
                       <path d="M10 17.5C11.6625 17.4999 13.2779 16.9477 14.5925 15.93C15.9072 14.9124 16.8466 13.4869 17.2633 11.8775M10 17.5C8.33751 17.4999 6.72212 16.9477 5.40748 15.93C4.09284 14.9124 3.1534 13.4869 2.73667 11.8775M10 17.5C12.0708 17.5 13.75 14.1417 13.75 10C13.75 5.85833 12.0708 2.5 10 2.5M10 17.5C7.92917 17.5 6.25 14.1417 6.25 10C6.25 5.85833 7.92917 2.5 10 2.5M17.2633 11.8775C17.4175 11.2775 17.5 10.6483 17.5 10C17.5021 8.71009 17.1699 7.44166 16.5358 6.31833M17.2633 11.8775C15.041 13.1095 12.541 13.754 10 13.75C7.365 13.75 4.88917 13.0708 2.73667 11.8775M2.73667 11.8775C2.57896 11.2641 2.49944 10.6333 2.5 10C2.5 8.6625 2.85 7.40583 3.46417 6.31833M10 2.5C11.3302 2.49945 12.6366 2.8528 13.7852 3.5238C14.9337 4.19481 15.8831 5.15931 16.5358 6.31833M10 2.5C8.6698 2.49945 7.3634 2.8528 6.21484 3.5238C5.06628 4.19481 4.11692 5.15931 3.46417 6.31833M16.5358 6.31833C14.7214 7.88994 12.4004 8.75345 10 8.75C7.50167 8.75 5.21667 7.83333 3.46417 6.31833" stroke="black" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                     </svg>
-                    <span>language</span>
+                    <span>{translations[language].language}</span>
                   </div>
-                  <div className="settings-item-right">
-                    <span>EN</span>
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#A0A4AB" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                  <div className="language-dropdown-container">
+                    <div className="settings-item-right settings-item-right-clickable" onClick={() => setIsLanguageDropdownOpen(!isLanguageDropdownOpen)}>
+                      <span>{language === 'EN' ? 'EN' : language === 'ZH' ? '中文' : 'MS'}</span>
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#A0A4AB" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ transform: isLanguageDropdownOpen ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}>
+                        <polyline points="6 9 12 15 18 9"></polyline>
+                      </svg>
+                    </div>
+                    {isLanguageDropdownOpen && (
+                      <div className="language-dropdown-menu">
+                        {['EN', 'ZH', 'MS'].map(lang => (
+                          <div key={lang} className={`language-option ${language === lang ? 'selected' : ''}`} onClick={() => { setLanguage(lang); setIsLanguageDropdownOpen(false); }}>
+                            {lang === 'EN' ? 'EN' : lang === 'ZH' ? '中文' : 'MS'}
+                            {language === lang && <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>}
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
 
                 <div className="settings-item-row">
                   <div className="settings-item-left">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2"></path><path d="M12 20v2"></path><path d="M4.93 4.93l1.41 1.41"></path><path d="M17.66 17.66l1.41 1.41"></path><path d="M2 12h2"></path><path d="M20 12h2"></path><path d="M6.34 17.66l-1.41 1.41"></path><path d="M19.07 4.93l-1.41 1.41"></path></svg>
-                    <span>Apperance</span>
+                    <span>{translations[language].appearance}</span>
                   </div>
-                  <div className="settings-item-right">
-                    <span>Light</span>
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#A0A4AB" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                  <div className="language-dropdown-container">
+                    <div className="settings-item-right settings-item-right-clickable" onClick={() => setIsAppearanceDropdownOpen(!isAppearanceDropdownOpen)}>
+                      <span>{appearance === 'light' ? translations[language].light : translations[language].dark}</span>
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#A0A4AB" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ transform: isAppearanceDropdownOpen ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}>
+                        <polyline points="6 9 12 15 18 9"></polyline>
+                      </svg>
+                    </div>
+                    {isAppearanceDropdownOpen && (
+                      <div className="language-dropdown-menu">
+                        {['light', 'dark'].map(mode => (
+                          <div key={mode} className={`language-option ${appearance === mode ? 'selected' : ''}`} onClick={() => { setAppearance(mode); setIsAppearanceDropdownOpen(false); }}>
+                            {mode === 'light' ? translations[language].light : translations[language].dark}
+                            {appearance === mode && <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>}
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
