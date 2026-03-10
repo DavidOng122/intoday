@@ -1,7 +1,7 @@
 import React from 'react';
 import { supabase } from './supabase';
 
-function Login() {
+function Login({ onClose }) {
     const handleGoogleLogin = async () => {
         await supabase.auth.signInWithOAuth({
             provider: 'google',
@@ -14,6 +14,23 @@ function Login() {
     return (
         <div style={{ width: '100%', height: '100%', position: 'relative', background: 'white', overflow: 'hidden', display: 'flex', justifyContent: 'center' }}>
             <div style={{ width: 402, height: '100%', position: 'relative' }}>
+
+                {/* Close / Back button */}
+                {onClose && (
+                    <button
+                        onClick={onClose}
+                        style={{
+                            position: 'absolute', top: 60, left: 28, zIndex: 20,
+                            background: '#F4F4F5', border: 'none', borderRadius: '50%',
+                            width: 36, height: 36, cursor: 'pointer',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center'
+                        }}
+                    >
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="black" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                            <polyline points="15 18 9 12 15 6" />
+                        </svg>
+                    </button>
+                )}
 
                 {/* Google Sign In Button */}
                 <button
