@@ -96,6 +96,8 @@ function App() {
   const [inputText, setInputText] = useState('');
   const [language, setLanguage] = useState('EN');
   const [isLanguageDropdownOpen, setIsLanguageDropdownOpen] = useState(false);
+  const [appearance, setAppearance] = useState('light');
+  const [isAppearanceDropdownOpen, setIsAppearanceDropdownOpen] = useState(false);
 
   // Track the actual selected date (defaults to today)
   const [selectedDate, setSelectedDate] = useState(new Date());
@@ -327,8 +329,8 @@ function App() {
   };
 
   return (
-    <div className="app-container" style={{
-      background: `url("/background-pattern.png") lightgray 0px -92.075px / 100% 1240.631% no-repeat`
+    <div className={`app-container ${appearance === 'dark' ? 'dark-theme' : ''}`} style={{
+      background: `url("/background-pattern.png") var(--bg-color, lightgray) 0px -92.075px / 100% 1240.631% no-repeat`
     }}>
       {/* Top Header */}
       <header className="header">
@@ -634,9 +636,35 @@ function App() {
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2"></path><path d="M12 20v2"></path><path d="M4.93 4.93l1.41 1.41"></path><path d="M17.66 17.66l1.41 1.41"></path><path d="M2 12h2"></path><path d="M20 12h2"></path><path d="M6.34 17.66l-1.41 1.41"></path><path d="M19.07 4.93l-1.41 1.41"></path></svg>
                   <span>{translations[language].appearance}</span>
                 </div>
-                <div className="settings-item-right">
-                  <span>{translations[language].light}</span>
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#A0A4AB" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                <div className="language-dropdown-container">
+                  <div
+                    className="settings-item-right settings-item-right-clickable"
+                    onClick={() => setIsAppearanceDropdownOpen(!isAppearanceDropdownOpen)}
+                  >
+                    <span>{appearance === 'light' ? translations[language].light : translations[language].dark}</span>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#A0A4AB" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ transform: isAppearanceDropdownOpen ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}>
+                      <polyline points="6 9 12 15 18 9"></polyline>
+                    </svg>
+                  </div>
+
+                  {isAppearanceDropdownOpen && (
+                    <div className="language-dropdown-menu">
+                      <div
+                        className={`language-option ${appearance === 'light' ? 'selected' : ''}`}
+                        onClick={() => { setAppearance('light'); setIsAppearanceDropdownOpen(false); }}
+                      >
+                        {translations[language].light}
+                        {appearance === 'light' && <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>}
+                      </div>
+                      <div
+                        className={`language-option ${appearance === 'dark' ? 'selected' : ''}`}
+                        onClick={() => { setAppearance('dark'); setIsAppearanceDropdownOpen(false); }}
+                      >
+                        {translations[language].dark}
+                        {appearance === 'dark' && <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
