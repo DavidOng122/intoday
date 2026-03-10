@@ -109,6 +109,10 @@ function App() {
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isCalendarOpen, setIsCalendarOpen] = useState(false);
+
+  // Calendar picker month/year navigation
+  const [calPickerDate, setCalPickerDate] = useState(() => new Date());
 
   // Track how many weeks we are offset from current week (0 = this week, -1 = last week, 1 = next week)
   const [weekOffset, setWeekOffset] = useState(0);
@@ -318,14 +322,7 @@ function App() {
     if (diffDays === -1) return <strong>{t.yesterday}</strong>;
     if (diffDays === 1) return <strong>{t.tmr}</strong>;
 
-    if (diffDays > 1 && diffDays < 7) return <strong>{t.thisWeek}</strong>;
-    if (diffDays < -1 && diffDays > -7) return <strong>{t.thisWeek}</strong>;
-
-    if (diffDays >= 7 && diffDays < 14) return <strong>{t.nextWeek}</strong>;
-    if (diffDays <= -7 && diffDays > -14) return <strong>{t.lastWeek}</strong>;
-
-    if (diffDays <= -14) return <strong>{Math.abs(Math.round(diffDays / 7))} {t.weeksAgo}</strong>;
-    return <strong>{Math.round(diffDays / 7)} {t.weeksLater}</strong>;
+    return <strong>{format(selectedDate, 'EEE, MMM d')}</strong>;
   };
 
   return (
@@ -478,11 +475,57 @@ function App() {
             </button>
 
             <div className="sheet-content">
-              <div className="sheet-title-row">
-                <h1 className="sheet-title" style={{ fontSize: language === 'EN' ? '40px' : '36px' }}><strong>{getRelativeWeekText()}</strong></h1>
-                <svg xmlns="http://www.w3.org/2000/svg" width="9" height="14" viewBox="0 0 9 14" fill="none" className="sheet-title-icon">
+              <div className="sheet-title-row" onClick={() => {
+                setCalPickerDate(new Date(selectedDate));
+                setIsCalendarOpen(o => !o);
+              }} style={{ cursor: 'pointer' }}>
+                <h1 className="sheet-title" style={{ fontSize: language === 'EN' ? '17px' : '15px' }}><strong>{getRelativeWeekText()}</strong></h1>
+                <svg xmlns="http://www.w3.org/2000/svg" width="9" height="14" viewBox="0 0 9 14" fill="none" className="sheet-title-icon" style={{ transform: isCalendarOpen ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.25s' }}>
                   <path fillRule="evenodd" clipRule="evenodd" d="M8.78019 6.54928C8.92094 6.66887 9 6.83098 9 7C9 7.16902 8.92094 7.33113 8.78019 7.45072L1.26401 13.8288C1.12153 13.9415 0.933079 14.0028 0.738359 13.9999C0.543638 13.997 0.357853 13.93 0.220144 13.8132C0.0824342 13.6963 0.00355271 13.5387 0.000117099 13.3734C-0.00331851 13.2082 0.06896 13.0483 0.201726 12.9274L7.18676 7L0.201726 1.07262C0.06896 0.951712 -0.00331851 0.791795 0.000117099 0.626558C0.00355271 0.461322 0.0824342 0.303668 0.220144 0.18681C0.357853 0.0699525 0.543638 0.00301477 0.738359 9.93682e-05C0.933079 -0.00281603 1.12153 0.0585185 1.26401 0.171181L8.78019 6.54928Z" fill="black" />
                 </svg>
+              </div>
+
+              {/* Inline sliding calendar picker */}
+              <div className={`sheet-calendar-picker ${isCalendarOpen ? 'open' : ''}`}>
+                {/* Month navigation */}
+                <div className="cal-picker-header">
+                  <button className="cal-nav-btn" onClick={e => { e.stopPropagation(); setCalPickerDate(d => { const n = new Date(d); n.setMonth(n.getMonth() - 1); return n; }); }}>
+                    <svg width="7" height="12" viewBox="0 0 9 14" fill="none"><path fillRule="evenodd" clipRule="evenodd" d="M0.219809 7.45072C0.0790625 7.33113 0 7.16902 0 7C0 6.83098 0.0790625 6.66887 0.219809 6.54928L7.73599 0.171181C7.87847 0.0585185 8.06692 -0.00281603 8.26164 9.93682e-05C8.45636 0.00301477 8.64215 0.0699525 8.77986 0.18681C8.91757 0.303668 8.99645 0.461322 8.99988 0.626558C9.00332 0.791795 8.93104 0.951712 8.79827 1.07262L1.81324 7L8.79827 12.9274C8.93104 13.0483 9.00332 13.2082 8.99988 13.3734C8.99645 13.5387 8.91757 13.6963 8.77986 13.8132C8.64215 13.93 8.45636 13.997 8.26164 13.9999C8.06692 14.0028 7.87847 13.9415 7.73599 13.8288L0.219809 7.45072Z" fill="#111" /></svg>
+                  </button>
+                  <span className="cal-picker-month-label">{format(calPickerDate, 'MMMM yyyy')}</span>
+                  <button className="cal-nav-btn" onClick={e => { e.stopPropagation(); setCalPickerDate(d => { const n = new Date(d); n.setMonth(n.getMonth() + 1); return n; }); }}>
+                    <svg width="7" height="12" viewBox="0 0 9 14" fill="none"><path fillRule="evenodd" clipRule="evenodd" d="M8.78019 6.54928C8.92094 6.66887 9 6.83098 9 7C9 7.16902 8.92094 7.33113 8.78019 7.45072L1.26401 13.8288C1.12153 13.9415 0.933079 14.0028 0.738359 13.9999C0.543638 13.997 0.357853 13.93 0.220144 13.8132C0.0824342 13.6963 0.00355271 13.5387 0.000117099 13.3734C-0.00331851 13.2082 0.06896 13.0483 0.201726 12.9274L7.18676 7L0.201726 1.07262C0.06896 0.951712 -0.00331851 0.791795 0.000117099 0.626558C0.00355271 0.461322 0.0824342 0.303668 0.220144 0.18681C0.357853 0.0699525 0.543638 0.00301477 0.738359 9.93682e-05C0.933079 -0.00281603 1.12153 0.0585185 1.26401 0.171181L8.78019 6.54928Z" fill="#111" /></svg>
+                  </button>
+                </div>
+
+                {/* Day-of-week headers */}
+                <div className="cal-picker-grid">
+                  {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((d, i) => (
+                    <div key={i} className="cal-picker-dow">{d}</div>
+                  ))}
+
+                  {/* Leading empty cells */}
+                  {Array.from({ length: new Date(calPickerDate.getFullYear(), calPickerDate.getMonth(), 1).getDay() }).map((_, i) => (
+                    <div key={`e${i}`} />
+                  ))}
+
+                  {/* Day cells */}
+                  {Array.from({ length: new Date(calPickerDate.getFullYear(), calPickerDate.getMonth() + 1, 0).getDate() }).map((_, i) => {
+                    const day = i + 1;
+                    const cellDate = new Date(calPickerDate.getFullYear(), calPickerDate.getMonth(), day);
+                    const isSelected = isSameDay(cellDate, selectedDate);
+                    const isToday = isSameDay(cellDate, new Date());
+                    return (
+                      <button
+                        key={day}
+                        className={`cal-picker-day ${isSelected ? 'selected' : ''} ${isToday && !isSelected ? 'today' : ''}`}
+                        onClick={e => { e.stopPropagation(); setSelectedDate(cellDate); setIsCalendarOpen(false); }}
+                      >
+                        {day}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
 
               <div className="section-label">

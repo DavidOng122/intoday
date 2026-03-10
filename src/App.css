@@ -861,6 +861,123 @@
 }
 
 /* ========================================================
+   INLINE CALENDAR PICKER (inside bottom sheet)
+   ======================================================== */
+.sheet-calendar-picker {
+  overflow: hidden;
+  max-height: 0;
+  opacity: 0;
+  transition: max-height 0.35s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.25s ease;
+  margin-bottom: 0;
+}
+
+.sheet-calendar-picker.open {
+  max-height: 340px;
+  opacity: 1;
+  margin-bottom: 20px;
+}
+
+.cal-picker-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.cal-picker-month-label {
+  font-family: "SF Pro", -apple-system, sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  color: #111;
+}
+
+.cal-nav-btn {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: #F4F4F5;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.cal-nav-btn:active {
+  background: #E4E4E5;
+}
+
+.cal-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+}
+
+.cal-picker-dow {
+  font-size: 11px;
+  font-weight: 600;
+  color: #A0A4AB;
+  text-align: center;
+  padding: 4px 0;
+  font-family: "SF Pro", -apple-system, sans-serif;
+  letter-spacing: 0.3px;
+}
+
+.cal-picker-day {
+  aspect-ratio: 1;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  font-size: 13px;
+  font-weight: 500;
+  color: #111;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  font-family: "SF Pro", -apple-system, sans-serif;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+}
+
+.cal-picker-day:active {
+  background: #F0F0F0;
+}
+
+.cal-picker-day.today {
+  color: #ED1F1F;
+  font-weight: 700;
+}
+
+.cal-picker-day.selected {
+  background: #111;
+  color: #fff;
+  font-weight: 600;
+}
+
+/* dark theme overrides for calendar picker */
+.dark-theme .sheet-calendar-picker .cal-picker-month-label,
+.dark-theme .sheet-calendar-picker .cal-picker-day {
+  color: var(--text-primary) !important;
+}
+
+.dark-theme .sheet-calendar-picker .cal-picker-day.selected {
+  background: #fff !important;
+  color: #111 !important;
+}
+
+.dark-theme .sheet-calendar-picker .cal-picker-day.today {
+  color: #ED1F1F !important;
+}
+
+.dark-theme .sheet-calendar-picker .cal-nav-btn {
+  background: var(--surface) !important;
+}
+
+
+
+/* ========================================================
    DARK THEME OVERRIDES
    ======================================================== */
 
