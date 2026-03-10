@@ -339,7 +339,7 @@ function App() {
         </div>
 
         <div className="header-center">
-          <div className="header-title" style={{ transition: 'all 0.3s', fontSize: isSameDay(selectedDate, new Date()) ? '18px' : '14px', fontStyle: isSameDay(selectedDate, new Date()) ? 'italic' : 'normal', color: '#111111', fontFamily: isSameDay(selectedDate, new Date()) ? '"LTC Bodoni 175", serif' : 'inherit', fontWeight: 400, wordWrap: 'break-word' }}>
+          <div className="header-title" style={{ transition: 'all 0.3s', fontSize: '18px', fontStyle: 'italic', color: '#111111', fontFamily: '"LTC Bodoni 175", serif', fontWeight: 400, wordWrap: 'break-word' }}>
             {getRelativeWeekText()}
           </div>
           <div className="header-stats" style={{ visibility: isSameDay(selectedDate, new Date()) ? 'visible' : 'hidden' }}>
