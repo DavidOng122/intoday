@@ -897,9 +897,9 @@
 }
 
 .sheet-calendar-picker.open {
-  max-height: 340px;
+  max-height: 450px;
   opacity: 1;
-  margin-bottom: 20px;
+  margin-bottom: 24px;
 }
 
 .cal-picker-header {
@@ -911,7 +911,7 @@
 
 .cal-picker-month-label {
   font-family: "SF Pro", -apple-system, sans-serif;
-  font-size: 14px;
+  font-size: 18px;
   font-weight: 600;
   color: #111;
 }
@@ -936,11 +936,11 @@
 .cal-picker-grid {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-  gap: 4px;
+  gap: 12px;
 }
 
 .cal-picker-dow {
-  font-size: 11px;
+  font-size: 14px;
   font-weight: 600;
   color: #A0A4AB;
   text-align: center;
@@ -954,7 +954,7 @@
   border-radius: 50%;
   border: none;
   background: transparent;
-  font-size: 13px;
+  font-size: 16px;
   font-weight: 500;
   color: #111;
   cursor: pointer;
