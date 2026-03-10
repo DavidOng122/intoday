@@ -243,11 +243,12 @@
 }
 
 .sheet-title {
-  display: flex;
-  width: 120px;
-  height: 33px;
-  flex-direction: column;
-  justify-content: center;
+  display: inline-flex;
+  width: auto;
+  height: auto;
+  flex-direction: row;
+  align-items: center;
+  white-space: nowrap;
   color: #000;
   -webkit-text-stroke-width: 0.3px;
   -webkit-text-stroke-color: #000;
@@ -261,6 +262,8 @@
 .sheet-title-icon {
   color: var(--text-primary);
   margin-top: 6px;
+  margin-left: 12px;
+  flex-shrink: 0;
 }
 
 /* Form Section */
