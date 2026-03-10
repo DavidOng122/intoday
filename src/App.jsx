@@ -342,6 +342,14 @@ function App() {
           <div className="header-title" style={{ transition: 'all 0.3s', fontSize: '18px', fontStyle: 'italic', color: '#111111', fontFamily: '"LTC Bodoni 175", serif', fontWeight: 400, wordWrap: 'break-word' }}>
             {getRelativeWeekText()}
           </div>
+          {!isSameDay(selectedDate, new Date()) && (
+            <button
+              className="back-to-today-btn"
+              onClick={() => setSelectedDate(new Date())}
+            >
+              {translations[language].today}
+            </button>
+          )}
           <div className="header-stats" style={{ visibility: isSameDay(selectedDate, new Date()) ? 'visible' : 'hidden' }}>
             <div className="stat-pill"><span>{format(currentTime, 'hh').charAt(0)}</span></div>
             <div className="stat-pill"><span>{format(currentTime, 'hh').charAt(1)}</span></div>
