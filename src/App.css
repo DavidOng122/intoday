@@ -9,6 +9,8 @@
   overflow: hidden;
   box-shadow: 0 0 20px rgba(0, 0, 0, 0.05);
   /* slightly elevate if shown on larger screens */
+  display: flex;
+  flex-direction: column;
 }
 
 /* TOP HEADER */
@@ -99,6 +101,7 @@
   font-family: "SF Pro", -apple-system, sans-serif;
   font-size: 16px;
   font-weight: 510;
+  word-wrap: break-word;
   padding: 0;
   flex-shrink: 0;
 }
@@ -356,11 +359,20 @@
   padding-bottom: 120px;
   /* space for bottom sheet if needed */
   background: white;
+  -ms-overflow-style: none;
+  /* IE and Edge */
+  scrollbar-width: none;
+  /* Firefox */
+}
+
+.timeline-area::-webkit-scrollbar {
+  display: none;
+  /* Chrome, Safari and Opera */
 }
 
 .time-block {
   display: flex;
-  min-height: 160px;
+  min-height: 240px;
 }
 
 .time-col {
@@ -430,7 +442,17 @@
   flex-direction: column;
   gap: 12px;
   border-bottom: 1px solid #CBD5E1;
+  overflow-y: auto;
+  -ms-overflow-style: none;
+  /* IE and Edge */
+  scrollbar-width: none;
+  /* Firefox */
   /* Updated horizontal line color from dump */
+}
+
+.tasks-col::-webkit-scrollbar {
+  display: none;
+  /* Chrome, Safari and Opera */
 }
 
 /* Hide bottom border for the last tasks col to avoid double borders, handled by flex layout visually but just in case */

@@ -131,18 +131,18 @@ function App() {
     const d2 = new Date(today); d2.setHours(0, 0, 0, 0);
     const diffDays = Math.round((d1 - d2) / (1000 * 3600 * 24));
 
-    if (diffDays === 0) return 'Today';
-    if (diffDays === -1) return 'Yesterday';
-    if (diffDays === 1) return 'Tomorrow';
+    if (diffDays === 0) return <strong>Today</strong>;
+    if (diffDays === -1) return <strong>Yesterday</strong>;
+    if (diffDays === 1) return <strong>Tmr</strong>;
 
-    if (diffDays > 1 && diffDays < 7) return 'This week';
-    if (diffDays < -1 && diffDays > -7) return 'This week';
+    if (diffDays > 1 && diffDays < 7) return <strong>This week</strong>;
+    if (diffDays < -1 && diffDays > -7) return <strong>This week</strong>;
 
-    if (diffDays >= 7 && diffDays < 14) return 'Next week';
-    if (diffDays <= -7 && diffDays > -14) return 'One week ago';
+    if (diffDays >= 7 && diffDays < 14) return <strong>Next week</strong>;
+    if (diffDays <= -7 && diffDays > -14) return <strong>Last week</strong>;
 
-    if (diffDays <= -14) return `${Math.abs(Math.round(diffDays / 7))} weeks ago`;
-    return `${Math.round(diffDays / 7)} weeks later`;
+    if (diffDays <= -14) return <strong>{Math.abs(Math.round(diffDays / 7))} weeks ago</strong>;
+    return <strong>{Math.round(diffDays / 7)} weeks later</strong>;
   };
 
   return (
@@ -159,15 +159,13 @@ function App() {
           <div className="header-title" style={{ transition: 'all 0.3s', fontSize: isSameDay(selectedDate, new Date()) ? '18px' : '14px', fontStyle: isSameDay(selectedDate, new Date()) ? 'italic' : 'normal', color: '#111111', fontFamily: isSameDay(selectedDate, new Date()) ? '"LTC Bodoni 175", serif' : 'inherit', fontWeight: 400, wordWrap: 'break-word' }}>
             {getRelativeWeekText()}
           </div>
-          {isSameDay(selectedDate, new Date()) && (
-            <div className="header-stats">
-              <div className="stat-pill"><span>{format(currentTime, 'hh').charAt(0)}</span></div>
-              <div className="stat-pill"><span>{format(currentTime, 'hh').charAt(1)}</span></div>
-              <div className="stat-colon">:</div>
-              <div className="stat-pill"><span>{format(currentTime, 'mm').charAt(0)}</span></div>
-              <div className="stat-pill"><span>{format(currentTime, 'mm').charAt(1)}</span></div>
-            </div>
-          )}
+          <div className="header-stats" style={{ visibility: isSameDay(selectedDate, new Date()) ? 'visible' : 'hidden' }}>
+            <div className="stat-pill"><span>{format(currentTime, 'hh').charAt(0)}</span></div>
+            <div className="stat-pill"><span>{format(currentTime, 'hh').charAt(1)}</span></div>
+            <div className="stat-colon">:</div>
+            <div className="stat-pill"><span>{format(currentTime, 'mm').charAt(0)}</span></div>
+            <div className="stat-pill"><span>{format(currentTime, 'mm').charAt(1)}</span></div>
+          </div>
         </div>
 
         <button className="add-btn" onClick={() => setIsSheetOpen(true)}>
@@ -272,7 +270,7 @@ function App() {
 
             <div className="sheet-content">
               <div className="sheet-title-row">
-                <h1 className="sheet-title">Today</h1>
+                <h1 className="sheet-title"><strong>Today</strong></h1>
                 <svg xmlns="http://www.w3.org/2000/svg" width="9" height="14" viewBox="0 0 9 14" fill="none" className="sheet-title-icon">
                   <path fillRule="evenodd" clipRule="evenodd" d="M8.78019 6.54928C8.92094 6.66887 9 6.83098 9 7C9 7.16902 8.92094 7.33113 8.78019 7.45072L1.26401 13.8288C1.12153 13.9415 0.933079 14.0028 0.738359 13.9999C0.543638 13.997 0.357853 13.93 0.220144 13.8132C0.0824342 13.6963 0.00355271 13.5387 0.000117099 13.3734C-0.00331851 13.2082 0.06896 13.0483 0.201726 12.9274L7.18676 7L0.201726 1.07262C0.06896 0.951712 -0.00331851 0.791795 0.000117099 0.626558C0.00355271 0.461322 0.0824342 0.303668 0.220144 0.18681C0.357853 0.0699525 0.543638 0.00301477 0.738359 9.93682e-05C0.933079 -0.00281603 1.12153 0.0585185 1.26401 0.171181L8.78019 6.54928Z" fill="black" />
                 </svg>
