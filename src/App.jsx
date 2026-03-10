@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, X, ArrowUp } from 'lucide-react';
+import { Plus, X, ArrowUp, ArrowDown } from 'lucide-react';
 import { subDays, addDays, format, isSameDay } from 'date-fns';
 import './App.css';
 
@@ -73,6 +73,66 @@ function App() {
     ));
   };
 
+  const [draggedTodoId, setDraggedTodoId] = useState(null);
+
+  const handleDragStart = (e, id) => {
+    e.stopPropagation();
+    setDraggedTodoId(id);
+    e.dataTransfer.setData('text/plain', id);
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  const handleDragEnd = (e) => {
+    setDraggedTodoId(null);
+  };
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+  };
+
+  const handleDropOnTodo = (e, targetTodo) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!draggedTodoId || draggedTodoId === targetTodo.id) return;
+
+    const rect = e.currentTarget.getBoundingClientRect();
+    const isBottomHalf = e.clientY > rect.top + rect.height / 2;
+
+    const todosCopy = [...todos];
+    const draggedIndex = todosCopy.findIndex(t => t.id === draggedTodoId);
+    if (draggedIndex === -1) return;
+
+    const draggedTodo = todosCopy[draggedIndex];
+    draggedTodo.timeOfDay = targetTodo.timeOfDay;
+
+    todosCopy.splice(draggedIndex, 1);
+
+    const newTargetIndex = todosCopy.findIndex(t => t.id === targetTodo.id);
+    const insertIndex = isBottomHalf ? newTargetIndex + 1 : newTargetIndex;
+
+    todosCopy.splice(insertIndex, 0, draggedTodo);
+
+    setTodos(todosCopy);
+  };
+
+  const handleDropOnBlock = (e, blockId) => {
+    e.preventDefault();
+    if (!draggedTodoId) return;
+
+    const todosCopy = [...todos];
+    const draggedIndex = todosCopy.findIndex(t => t.id === draggedTodoId);
+    if (draggedIndex === -1) return;
+
+    const draggedTodo = todosCopy[draggedIndex];
+    draggedTodo.timeOfDay = blockId;
+
+    todosCopy.splice(draggedIndex, 1);
+    todosCopy.push(draggedTodo);
+
+    setTodos(todosCopy);
+  };
+
   // Generate dynamic calendar data based on selectedDate (3 days before, selectedDate, 3 days after)
   const realToday = new Date(); // Get today's date once
 
@@ -121,6 +181,36 @@ function App() {
       // Swipe right -> Go backward exactly 7 days
       setSelectedDate(prev => subDays(prev, 7));
     }
+  };
+
+  const getTimeIndicatorStyle = (block) => {
+    if (!isSameDay(selectedDate, currentTime)) return null;
+
+    const parseTime = (timeStr) => {
+      const [h, m] = timeStr.split(':').map(Number);
+      return (h === 0 && timeStr === '00:00') ? 24 * 60 : h * 60 + m;
+    };
+
+    const startMins = parseTime(block.start);
+    let endMins = parseTime(block.end);
+    if (endMins <= startMins) endMins += 24 * 60;
+
+    const currentMins = currentTime.getHours() * 60 + currentTime.getMinutes();
+
+    let percentage = -1;
+
+    if (currentMins >= startMins && currentMins <= endMins) {
+      percentage = (currentMins - startMins) / (endMins - startMins);
+    } else if (block.id === 'Morning' && currentMins < parseTime('06:00')) {
+      percentage = 0;
+    } else if (block.id === 'Morning' && currentMins > parseTime('11:00') && currentMins < parseTime('12:00')) {
+      percentage = 1;
+    }
+
+    if (percentage >= 0 && percentage <= 1) {
+      return { top: `calc(70px + (100% - 110px) * ${percentage})` };
+    }
+    return null;
   };
 
   // Helper to render relative week text based on selected date vs real today
@@ -202,9 +292,18 @@ function App() {
             <div className="time-col">
               <div className="time-pill" style={{ backgroundColor: '#FF3B30', color: '#FFF' }}>Now</div>
             </div>
-            <div className="tasks-col">
+            <div className="tasks-col" onDragOver={handleDragOver} onDrop={(e) => handleDropOnBlock(e, 'Now')}>
               {selectedDateTodos.filter(t => t.timeOfDay === 'Now').map(todo => (
-                <div key={todo.id} className={`task-card ${todo.completed ? 'completed' : ''}`} onClick={() => toggleTodo(todo.id)}>
+                <div
+                  key={todo.id}
+                  className={`task-card ${todo.completed ? 'completed' : ''} ${draggedTodoId === todo.id ? 'dragging' : ''}`}
+                  onClick={() => toggleTodo(todo.id)}
+                  draggable
+                  onDragStart={(e) => handleDragStart(e, todo.id)}
+                  onDragEnd={handleDragEnd}
+                  onDragOver={handleDragOver}
+                  onDrop={(e) => handleDropOnTodo(e, todo)}
+                >
                   <div className="task-icon-placeholder" style={{ backgroundColor: '#FFECEB', color: '#FF3B30' }}>
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
                   </div>
@@ -221,6 +320,7 @@ function App() {
         {/* Render rest of the timeline blocks */}
         {timeBlocks.map((block) => {
           const blockTodos = selectedDateTodos.filter(t => t.timeOfDay === block.id);
+          const indicatorStyle = getTimeIndicatorStyle(block);
           return (
             <div className="time-block" key={block.id}>
               <div className="time-col">
@@ -229,19 +329,24 @@ function App() {
                 </div>
                 <span className="time-text">{block.start}</span>
 
-                {/* Visual red dot indicator - hardcoded for Morning block to match design screenshot */}
-                {block.id === 'Morning' && (
-                  <div className="current-time-indicator"></div>
+                {/* Visual red dot indicator - follows real time */}
+                {indicatorStyle && (
+                  <div className="current-time-indicator" style={indicatorStyle}></div>
                 )}
 
                 <span className="time-text bottom">{block.end}</span>
               </div>
-              <div className="tasks-col">
+              <div className="tasks-col" onDragOver={handleDragOver} onDrop={(e) => handleDropOnBlock(e, block.id)}>
                 {blockTodos.map(todo => (
                   <div
                     key={todo.id}
-                    className={`task-card ${todo.completed ? 'completed' : ''}`}
+                    className={`task-card ${todo.completed ? 'completed' : ''} ${draggedTodoId === todo.id ? 'dragging' : ''}`}
                     onClick={() => toggleTodo(todo.id)}
+                    draggable
+                    onDragStart={(e) => handleDragStart(e, todo.id)}
+                    onDragEnd={handleDragEnd}
+                    onDragOver={handleDragOver}
+                    onDrop={(e) => handleDropOnTodo(e, todo)}
                   >
                     <div className="task-icon-placeholder" style={{ backgroundColor: `${block.accentColor}20`, color: block.accentColor }}>
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
