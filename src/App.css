@@ -167,10 +167,9 @@
 }
 
 .day-date.active {
-  background-color: #ED1F1F;
-  color: white;
-  font-weight: 500;
-  font-size: 18px;
+  color: #ED1F1F;
+  font-weight: 700;
+  font-size: 22px;
 }
 
 /* OVERLAY BACKDROP */
@@ -976,9 +975,8 @@
 }
 
 .cal-picker-day.selected {
-  background: #ED1F1F;
-  color: #fff;
-  font-weight: 600;
+  color: #ED1F1F;
+  font-weight: 700;
 }
 
 /* dark theme overrides for calendar picker */
@@ -988,8 +986,7 @@
 }
 
 .dark-theme .sheet-calendar-picker .cal-picker-day.selected {
-  background: #fff !important;
-  color: #111 !important;
+  color: #ED1F1F !important;
 }
 
 .dark-theme .sheet-calendar-picker .cal-picker-day.today {
@@ -1069,7 +1066,7 @@
 }
 
 .dark-theme .day-date.active {
-  color: #FFF !important;
+  color: #ED1F1F !important;
 }
 
 .dark-theme .task-icon-placeholder,
