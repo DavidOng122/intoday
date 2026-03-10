@@ -469,7 +469,7 @@ function App() {
                       const day = i + 1;
                       const cellDate = new Date(calPickerDate.getFullYear(), calPickerDate.getMonth(), day);
                       const isSelected = isSameDay(cellDate, selectedDate);
-                      const isToday = isSameDay(cellDate, getLogicalToday());
+                      const isToday = isSameDay(cellDate, new Date());
                       return (
                         <button
                           key={day}
