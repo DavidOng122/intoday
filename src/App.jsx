@@ -33,12 +33,117 @@ const translations = {
 };
 
 const timeBlocks = [
-  { id: 'Morning', key: 'morning', start: '06:00', end: '11:00', color: '#FFE3B4', textColor: '#000000', strokeColor: '#F59E0B', accentColor: '#ED1F1F', pastBgColor: 'rgba(219, 203, 178, 0.20)' },
-  { id: 'Afternoon', key: 'afternoon', start: '12:00', end: '17:00', color: '#B6DEF3', textColor: '#000000', strokeColor: '#0284C7', accentColor: '#0284C7', pastBgColor: 'rgba(231, 243, 250, 0.43)' },
-  { id: 'Evening', key: 'evening', start: '17:00', end: '21:00', color: '#EDE6FF', textColor: '#000000', strokeColor: '#A855F7', accentColor: '#A855F7', pastBgColor: 'rgba(237, 230, 255, 0.20)' },
-  { id: 'Night', key: 'night', start: '21:00', end: '00:00', color: '#E1E7F2', textColor: '#000000', strokeColor: '#B8C1CC', accentColor: '#B8C1CC', pastBgColor: 'rgba(215, 229, 254, 0.53)' },
+  { id: 'Morning', key: 'morning', start: '06:00', end: '12:00', color: '#FFE3B4', textColor: '#000000', strokeColor: '#F59E0B', accentColor: '#ED1F1F', pastBgColor: 'rgba(219, 203, 178, 0.20)' },
+  { id: 'Afternoon', key: 'afternoon', start: '12:00', end: '18:00', color: '#B6DEF3', textColor: '#000000', strokeColor: '#0284C7', accentColor: '#0284C7', pastBgColor: 'rgba(231, 243, 250, 0.43)' },
+  { id: 'Evening', key: 'evening', start: '18:00', end: '22:00', color: '#EDE6FF', textColor: '#000000', strokeColor: '#A855F7', accentColor: '#A855F7', pastBgColor: 'rgba(237, 230, 255, 0.20)' },
+  { id: 'Night', key: 'night', start: '22:00', end: '00:00', color: '#E1E7F2', textColor: '#000000', strokeColor: '#B8C1CC', accentColor: '#B8C1CC', pastBgColor: 'rgba(215, 229, 254, 0.53)' },
   { id: 'Midnight', key: 'midnight', start: '00:00', end: '06:00', color: '#648BD2', textColor: '#000000', strokeColor: '#BFDCFF', accentColor: '#648BD2', pastBgColor: 'rgba(100, 139, 210, 0.38)' }
 ];
+
+const cardTypeConfig = {
+  meeting:  { icon: '/video.png',      bg: '#DCEAFB' },
+  map:      { icon: '/map.png',        bg: '#A9F1A2' },
+  document: { icon: '/document01.png', bg: '#E7CFFF' },
+  video:    { icon: '/play.png',       bg: '#FFD9D9' },
+  plain:    { icon: '/text.png',       bg: '#FFE5B9' },
+};
+
+const detectCardType = (text) => {
+  const t = text.toLowerCase();
+  // Video call / meeting links — check BEFORE generic video links
+  if (/https?:\/\/(www\.)?(meet\.google\.com|zoom\.us|teams\.microsoft\.com|teams\.live\.com|us\d+web\.zoom\.us|whereby\.com|webex\.com|gotomeeting\.com|meet\.jit\.si)/.test(t)) return 'meeting';
+  // Video links
+  if (/https?:\/\/(www\.)?(youtube\.com|youtu\.be|vimeo\.com|tiktok\.com)/.test(t)) return 'video';
+  // Map / place
+  if (/google\.com\/maps|maps\.app\.goo\.gl/.test(t)) return 'map';
+  if (/\b(address|jalan|street|avenue|blvd|road|mall|plaza|restaurant|café|cafe|mcdonald|kfc|starbucks|sunway|pavilion|mid valley)\b/.test(t)) return 'map';
+  // Document / work task
+  if (/\b(pdf|slides?|document|doc|submit|submission|export|report|file|spreadsheet|excel|powerpoint|proposal|revise|revision|review|draft|send|finale?)\b/.test(t)) return 'document';
+  // Meeting — time pattern AND a meeting keyword (for text-only entries)
+  const hasTime = /\b\d{1,2}(:\d{2})?\s*(am|pm)\b|\b\d{1,2}:\d{2}\b/.test(t);
+  const hasMeetingWord = /\b(meeting|interview|call|sync|standup|stand-up|catch up|catchup|briefing|session|zoom|teams|google meet|webinar|オンライン)\b/.test(t);
+  if (hasTime && hasMeetingWord) return 'meeting';
+  return 'plain';
+};
+
+const extractVideoUrl = (text) => {
+  const match = text.match(/https?:\/\/(www\.)?(youtube\.com|youtu\.be|vimeo\.com|tiktok\.com)\S*/i);
+  return match ? match[0] : null;
+};
+
+const fetchVideoMeta = async (url) => {
+  try {
+    if (/youtube\.com|youtu\.be/.test(url)) {
+      const res = await fetch(`https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`);
+      if (res.ok) {
+        const data = await res.json();
+        return { videoTitle: data.title, videoPlatform: 'Saved from YouTube', videoUrl: url };
+      }
+    }
+    if (/vimeo\.com/.test(url)) {
+      const res = await fetch(`https://vimeo.com/api/oembed.json?url=${encodeURIComponent(url)}`);
+      if (res.ok) {
+        const data = await res.json();
+        return { videoTitle: data.title, videoPlatform: 'Saved from Vimeo', videoUrl: url };
+      }
+    }
+    if (/tiktok\.com/.test(url)) {
+      return { videoTitle: 'TikTok Video', videoPlatform: 'Saved from TikTok', videoUrl: url };
+    }
+  } catch (_) {}
+  return { videoTitle: null, videoPlatform: 'Saved Video', videoUrl: url };
+};
+
+const extractMapUrl = (text) => {
+  const match = text.match(/https?:\/\/(www\.)?(google\.com\/maps|maps\.app\.goo\.gl)\S*/i);
+  return match ? match[0] : null;
+};
+
+// Parse place name directly from a full Google Maps URL
+const parsePlaceFromUrl = (url) => {
+  try {
+    const decoded = decodeURIComponent(url);
+    const match = decoded.match(/\/maps\/place\/([^/@?#]+)/);
+    if (match && match[1]) {
+      return match[1].replace(/\+/g, ' ').trim();
+    }
+  } catch (_) {}
+  return null;
+};
+
+const fetchMapMeta = async (url) => {
+  try {
+    // 1. If it's already a full /maps/place/ URL, parse directly – no request needed
+    const directName = parsePlaceFromUrl(url);
+    if (directName) {
+      return { mapTitle: directName, mapSubtitle: 'Google Maps', mapUrl: url };
+    }
+
+    // 2. It's a short link (maps.app.goo.gl) — resolve it via allorigins
+    //    allorigins follows redirects and returns the final page URL in status.url
+    const proxy = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
+    const res = await fetch(proxy);
+    if (res.ok) {
+      const json = await res.json();
+      const finalUrl = json?.status?.url || '';
+      const resolved = parsePlaceFromUrl(finalUrl);
+      if (resolved) {
+        return { mapTitle: resolved, mapSubtitle: 'Google Maps', mapUrl: url };
+      }
+      // Fallback: try to find the place name in the raw HTML redirect meta tag
+      const html = json?.contents || '';
+      const urlMatch = html.match(/URL=([^"']+google\.com\/maps\/place\/[^"']+)/i)
+                    || html.match(/href="(https?:\/\/[^"]*\/maps\/place\/[^"]+)"/i);
+      if (urlMatch) {
+        const name = parsePlaceFromUrl(decodeURIComponent(urlMatch[1]));
+        if (name) return { mapTitle: name, mapSubtitle: 'Google Maps', mapUrl: url };
+      }
+    }
+  } catch (err) {
+    console.error('Map meta error:', err);
+  }
+  return { mapTitle: null, mapSubtitle: 'Google Maps', mapUrl: url };
+};
 
 function App() {
   const [session, setSession] = useState(null);
@@ -108,33 +213,259 @@ function App() {
     const hour = currentTime.getHours();
     if (hour >= 0 && hour < 6) return 'Midnight';
     if (hour >= 6 && hour < 12) return 'Morning';
-    if (hour >= 12 && hour < 17) return 'Afternoon';
-    if (hour >= 17 && hour < 21) return 'Evening';
+    if (hour >= 12 && hour < 18) return 'Afternoon';
+    if (hour >= 18 && hour < 22) return 'Evening';
     return 'Night';
   };
 
   const handleAddTodo = () => {
     if (!inputText.trim()) return;
     const resolvedBlock = activeChip === 'Now' ? getCurrentTimeBlock() : activeChip;
+    const rawText = inputText.trim();
+    const cardType = detectCardType(rawText);
+
+    const newTodoId = Date.now();
+    const videoUrl = cardType === 'video' ? extractVideoUrl(rawText) : null;
+    const mapUrl = cardType === 'map' ? extractMapUrl(rawText) : null;
+
     const newTodo = {
-      id: Date.now(),
-      text: inputText.trim(),
+      id: newTodoId,
+      text: rawText,
       timeOfDay: resolvedBlock,
       completed: false,
-      dateString: format(selectedDate, 'yyyy-MM-dd')
+      dateString: format(selectedDate, 'yyyy-MM-dd'),
+      cardType,
+      videoUrl,
+      mapUrl
     };
-    setTodos([...todos, newTodo]);
+
+    setTodos(prev => [...prev, newTodo]);
     setInputText('');
     setIsSheetOpen(false);
+
+    // Fetch metadata asynchronously without blocking the UI
+    if (cardType === 'video' && videoUrl) {
+      fetchVideoMeta(videoUrl).then(meta => {
+        setTodos(prev => prev.map(t => t.id === newTodoId ? { ...t, ...meta } : t));
+      });
+    } else if (cardType === 'map' && mapUrl) {
+      fetchMapMeta(mapUrl).then(meta => {
+        setTodos(prev => prev.map(t => t.id === newTodoId ? { ...t, ...meta } : t));
+      });
+    }
   };
 
   const toggleTodo = (id) => {
-    setTodos(todos.map(todo =>
+    setTodos(prev => prev.map(todo =>
       todo.id === id ? { ...todo, completed: !todo.completed } : todo
     ));
   };
 
   const [draggedTodoId, setDraggedTodoId] = useState(null);
+  const [openSwipeId, setOpenSwipeId] = useState(null);
+  const [dragOverBlock, setDragOverBlock] = useState(null);
+  const dragOverBlockRef = React.useRef(null); // readable in onTouchEnd closure
+  const scrollBlocker = React.useRef(null);     // non-passive touchmove blocker
+
+  const swipeTouchStartX = React.useRef(null);
+  const swipeTouchStartY = React.useRef(null);
+  const swipeCurrentOffset = React.useRef(0);
+  const longPressTimer = React.useRef(null);
+  const isDragMode = React.useRef(false);
+  const dragOriginY = React.useRef(0);
+
+  // Helper: find nearest time block by vertical center proximity
+  const getNearestBlock = (touchY) => {
+    const blocks = document.querySelectorAll('[data-block-id]');
+    let nearestId = null;
+    let nearestDist = Infinity;
+    blocks.forEach(block => {
+      const rect = block.getBoundingClientRect();
+      const centerY = rect.top + rect.height / 2;
+      const dist = Math.abs(touchY - centerY);
+      if (dist < nearestDist) {
+        nearestDist = dist;
+        nearestId = block.dataset.blockId;
+      }
+    });
+    return nearestId;
+  };
+
+  const SWIPE_MAX = 136; // px — width of both action buttons
+  const SNAP_THRESHOLD = 50;
+
+  const deleteTodo = (id) => {
+    setTodos(prev => prev.filter(t => t.id !== id));
+    setOpenSwipeId(null);
+  };
+
+  const [editingTodo, setEditingTodo] = useState(null);
+  const [editText, setEditText] = useState('');
+
+  const openEdit = (todo) => {
+    setEditingTodo(todo);
+    setEditText(todo.text);
+    setOpenSwipeId(null);
+  };
+
+  const handleEditSave = () => {
+    if (!editText.trim()) return;
+    setTodos(prev => prev.map(t =>
+      t.id === editingTodo.id ? { ...t, text: editText.trim() } : t
+    ));
+    setEditingTodo(null);
+    setEditText('');
+  };
+
+  const getSwipeHandlers = (todoId) => ({
+    onTouchStart: (e) => {
+      const touch = e.touches[0];
+      swipeTouchStartX.current = touch.clientX;
+      swipeTouchStartY.current = touch.clientY;
+      isDragMode.current = false;
+
+      if (openSwipeId !== null && openSwipeId !== todoId) setOpenSwipeId(null);
+
+      // 300ms long-press to enter drag mode
+      longPressTimer.current = setTimeout(() => {
+        isDragMode.current = true;
+        swipeCurrentOffset.current = 0;
+        dragOriginY.current = swipeTouchStartY.current;
+
+        const el = document.getElementById(`swipe-card-${todoId}`);
+        const wrapper = document.getElementById(`swipe-wrapper-${todoId}`);
+        if (el) {
+          el.style.transition = 'transform 0.2s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.2s, opacity 0.2s';
+          el.style.transform = 'scale(1.06) translateY(-3px)';
+          el.style.boxShadow = '0 18px 48px rgba(0,0,0,0.22)';
+          el.style.opacity = '0.94';
+          el.style.zIndex = '100';
+          setTimeout(() => { if (el) el.style.transition = ''; }, 250);
+        }
+        // Lock page scroll during drag via non-passive listener
+        const blocker = (e) => e.preventDefault();
+        scrollBlocker.current = blocker;
+        window.addEventListener('touchmove', blocker, { passive: false });
+
+        if (wrapper) wrapper.classList.add('is-dragging');
+
+        // Highlight nearest block immediately on drag start
+        const nearest = getNearestBlock(swipeTouchStartY.current);
+        dragOverBlockRef.current = nearest;
+        setDragOverBlock(nearest);
+      }, 300);
+    },
+    onTouchMove: (e) => {
+      const touch = e.touches[0];
+
+      if (isDragMode.current) {
+        e.preventDefault();
+        const rawDy = touch.clientY - dragOriginY.current;
+        // Cap movement so card stays in view (±100px)
+        const dy = Math.max(-100, Math.min(100, rawDy));
+        const el = document.getElementById(`swipe-card-${todoId}`);
+        if (el) el.style.transform = `scale(1.06) translateY(${dy}px)`;
+
+        // Proximity-based nearest block detection
+        const nearest = getNearestBlock(touch.clientY);
+        if (nearest !== dragOverBlockRef.current) {
+          dragOverBlockRef.current = nearest;
+          setDragOverBlock(nearest);
+        }
+        return;
+      }
+
+      if (swipeTouchStartX.current === null) return;
+      const deltaX = touch.clientX - swipeTouchStartX.current;
+      const deltaY = touch.clientY - (swipeTouchStartY.current ?? touch.clientY);
+
+      // Cancel long press on vertical scroll
+      if (Math.abs(deltaY) > 10 && Math.abs(deltaY) > Math.abs(deltaX)) {
+        clearTimeout(longPressTimer.current);
+        return;
+      }
+
+      // Cancel long press on horizontal swipe
+      if (Math.abs(deltaX) > 6) clearTimeout(longPressTimer.current);
+      if (deltaX > 0) return;
+
+      const rawOffset = Math.abs(deltaX);
+      let offset;
+      if (rawOffset <= SWIPE_MAX) {
+        offset = rawOffset;
+      } else {
+        const overflow = rawOffset - SWIPE_MAX;
+        offset = SWIPE_MAX + overflow * 0.15;
+      }
+      swipeCurrentOffset.current = offset;
+      const el = document.getElementById(`swipe-card-${todoId}`);
+      if (el) el.style.transform = `translateX(-${offset}px)`;
+    },
+    onTouchEnd: (e) => {
+      clearTimeout(longPressTimer.current);
+
+      if (isDragMode.current) {
+        isDragMode.current = false;
+        const el = document.getElementById(`swipe-card-${todoId}`);
+        const wrapper = document.getElementById(`swipe-wrapper-${todoId}`);
+
+        // Use ref for stale-closure-safe latest nearest block
+        const targetBlock = dragOverBlockRef.current;
+        if (targetBlock) {
+          setTodos(prev => prev.map(t => t.id === todoId ? { ...t, timeOfDay: targetBlock } : t));
+        }
+
+        if (el) {
+          el.style.transition = 'transform 0.3s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.25s, opacity 0.2s';
+          el.style.transform = '';
+          el.style.boxShadow = '';
+          el.style.opacity = '';
+          el.style.zIndex = '';
+          setTimeout(() => { if (el) el.style.transition = ''; }, 350);
+        }
+        if (wrapper) wrapper.classList.remove('is-dragging');
+        // Release scroll lock
+        if (scrollBlocker.current) {
+          window.removeEventListener('touchmove', scrollBlocker.current);
+          scrollBlocker.current = null;
+        }
+        dragOverBlockRef.current = null;
+        setDragOverBlock(null);
+        return;
+      }
+
+      // Regular swipe snap
+      const offset = swipeCurrentOffset.current;
+      const el = document.getElementById(`swipe-card-${todoId}`);
+      if (offset >= SNAP_THRESHOLD) {
+        if (el) {
+          el.style.transition = 'transform 0.28s cubic-bezier(0.34, 1.56, 0.64, 1)';
+          el.style.transform = `translateX(-${SWIPE_MAX}px)`;
+          setTimeout(() => { if (el) el.style.transition = ''; }, 320);
+        }
+        setOpenSwipeId(todoId);
+      } else {
+        if (el) {
+          el.style.transition = 'transform 0.22s cubic-bezier(0.34, 1.56, 0.64, 1)';
+          el.style.transform = 'translateX(0)';
+          setTimeout(() => { if (el) el.style.transition = ''; }, 280);
+        }
+        setOpenSwipeId(null);
+      }
+      swipeTouchStartX.current = null;
+      swipeCurrentOffset.current = 0;
+    },
+  });
+
+  const closeSwipe = (todoId) => {
+    const el = document.getElementById(`swipe-card-${todoId}`);
+    if (el) {
+      el.style.transition = 'transform 0.22s cubic-bezier(0.34, 1.56, 0.64, 1)';
+      el.style.transform = 'translateX(0)';
+      setTimeout(() => { if (el) el.style.transition = ''; }, 280);
+    }
+    setOpenSwipeId(null);
+  };
 
   const handleDragStart = (e, id) => {
     e.stopPropagation();
@@ -399,27 +730,98 @@ function App() {
                   )}
                   <span className="time-text bottom">{block.end}</span>
                 </div>
-                <div className="tasks-col" onDragOver={handleDragOver} onDrop={(e) => handleDropOnBlock(e, block.id)}>
-                  {blockTodos.map(todo => (
-                    <div
-                      key={todo.id}
-                      className={`task-card ${todo.completed ? 'completed' : ''} ${draggedTodoId === todo.id ? 'dragging' : ''}`}
-                      onClick={() => toggleTodo(todo.id)}
-                      draggable
-                      onDragStart={(e) => handleDragStart(e, todo.id)}
-                      onDragEnd={handleDragEnd}
-                      onDragOver={handleDragOver}
-                      onDrop={(e) => handleDropOnTodo(e, todo)}
-                    >
-                      <div className="task-icon-placeholder" style={{ backgroundColor: `${block.accentColor}20`, color: block.accentColor }}>
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+                <div
+                  className={`tasks-col ${dragOverBlock === block.id ? 'drag-over' : ''}`}
+                  data-block-id={block.id}
+                  onDragOver={handleDragOver}
+                  onDrop={(e) => handleDropOnBlock(e, block.id)}
+                >
+                  {blockTodos.map(todo => {
+                    const cType = todo.cardType || 'plain';
+                    const cfg = cardTypeConfig[cType] || cardTypeConfig.plain;
+                    const isVideo = cType === 'video';
+                    const isMap = cType === 'map';
+                    const isMeeting = cType === 'meeting';
+                    
+                    let displayTitle = todo.text;
+                    let displaySub = translations[language].actionItem;
+                    let redirectUrl = null;
+                    
+                    if (isVideo && todo.videoTitle) {
+                      displayTitle = todo.videoTitle;
+                      displaySub = todo.videoPlatform || 'Saved Video';
+                      redirectUrl = todo.videoUrl;
+                    } else if (isMap && todo.mapTitle) {
+                      displayTitle = todo.mapTitle;
+                      displaySub = todo.mapSubtitle || 'Location';
+                      redirectUrl = todo.mapUrl;
+                    } else if (isMeeting) {
+                      // Extract just the time (e.g. "14:00", "9:00 AM") from the raw text
+                      const timeMatch = todo.text.match(/\b(\d{1,2}:\d{2}(?:\s*[APap][Mm])?|\d{1,2}\s*[APap][Mm])\b/);
+                      displaySub = timeMatch ? timeMatch[1].trim() : 'Video Call';
+                      redirectUrl = todo.redirectUrl || null;
+                      // Clean display title: strip URLs, date lines, metadata labels
+                      displayTitle = todo.text
+                        .split(/\n|　/)  // split on newlines or full-width space
+                        .map(l => l.trim())
+                        .filter(l =>
+                          l.length > 0 &&
+                          !/https?:\/\//i.test(l) &&               // remove URL lines
+                          !/^開催日時|^開催方法|^date:|^time:|^method:/i.test(l) // remove label lines
+                        )
+                        .join(' ')
+                        .replace(/https?:\/\/\S+/gi, '')           // remove any inline URLs
+                        .replace(/\d{4}\/\d{2}\/\d{2}\s*\d{1,2}:\d{2}～?/g, '') // strip full datetime
+                        .replace(/\s{2,}/g, ' ')
+                        .trim() || todo.text;
+                    } else if (isVideo && todo.videoUrl) {
+                      redirectUrl = todo.videoUrl;
+                    } else if (isMap && todo.mapUrl) {
+                      redirectUrl = todo.mapUrl;
+                    }
+
+                    return (
+                    <div key={todo.id} id={`swipe-wrapper-${todo.id}`} className="swipe-wrapper">
+                      {/* Action buttons revealed behind the card */}
+                      <div className="swipe-actions">
+                        <button className="swipe-btn edit" onClick={() => openEdit(todo)}>
+                          <img src="/edit.png" alt="Edit" className="swipe-icon" />
+                        </button>
+                        <button className="swipe-btn delete" onClick={() => deleteTodo(todo.id)}>
+                          <img src="/delete.png" alt="Delete" className="swipe-icon" />
+                        </button>
                       </div>
-                      <div className="task-content">
-                        <span className="task-title">{todo.text}</span>
-                        <span className="task-desc">{translations[language].actionItem}</span>
+
+                      {/* The card itself */}
+                      <div
+                        id={`swipe-card-${todo.id}`}
+                        className={`task-card ${todo.completed ? 'completed' : ''} ${draggedTodoId === todo.id ? 'dragging' : ''}`}
+                        onClick={() => {
+                          if (openSwipeId === todo.id) { closeSwipe(todo.id); return; }
+                          if (redirectUrl) {
+                            window.open(redirectUrl, '_blank', 'noopener,noreferrer');
+                          } else {
+                            toggleTodo(todo.id);
+                          }
+                        }}
+                        draggable
+                        onDragStart={(e) => handleDragStart(e, todo.id)}
+                        onDragEnd={handleDragEnd}
+                        onDragOver={handleDragOver}
+                        onDrop={(e) => handleDropOnTodo(e, todo)}
+                        {...getSwipeHandlers(todo.id)}
+                      >
+                        <div className="task-icon-placeholder" style={{ backgroundColor: cfg.bg }}>
+                          <img src={cfg.icon} alt={cType} className="task-card-icon" />
+                        </div>
+                        <div className="task-content">
+                          <span className="task-title">{displayTitle}</span>
+                          <span className="task-desc">{displaySub}</span>
+                        </div>
                       </div>
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             );
@@ -449,15 +851,24 @@ function App() {
 
                 {/* Inline calendar picker */}
                 <div className={`sheet-calendar-picker ${isCalendarOpen ? 'open' : ''}`}>
+                  {(() => {
+                    const today = getLogicalToday();
+                    const minDate = today;
+                    const maxDate = addDays(today, 30);
+                    const isAtMinMonth = calPickerDate.getFullYear() === minDate.getFullYear() && calPickerDate.getMonth() === minDate.getMonth();
+                    const isAtMaxMonth = calPickerDate.getFullYear() === maxDate.getFullYear() && calPickerDate.getMonth() === maxDate.getMonth();
+                    return (
                   <div className="cal-picker-header">
-                    <button className="cal-nav-btn" onClick={e => { e.stopPropagation(); setCalPickerDate(d => { const n = new Date(d); n.setMonth(n.getMonth() - 1); return n; }); }}>
+                    <button className="cal-nav-btn" disabled={isAtMinMonth} onClick={e => { e.stopPropagation(); setCalPickerDate(d => { const n = new Date(d); n.setMonth(n.getMonth() - 1); return n; }); }}>
                       <svg width="7" height="12" viewBox="0 0 9 14" fill="none"><path fillRule="evenodd" clipRule="evenodd" d="M0.219809 7.45072C0.0790625 7.33113 0 7.16902 0 7C0 6.83098 0.0790625 6.66887 0.219809 6.54928L7.73599 0.171181C7.87847 0.0585185 8.06692 -0.00281603 8.26164 9.93682e-05C8.45636 0.00301477 8.64215 0.0699525 8.77986 0.18681C8.91757 0.303668 8.99645 0.461322 8.99988 0.626558C9.00332 0.791795 8.93104 0.951712 8.79827 1.07262L1.81324 7L8.79827 12.9274C8.93104 13.0483 9.00332 13.2082 8.99988 13.3734C8.99645 13.5387 8.91757 13.6963 8.77986 13.8132C8.64215 13.93 8.45636 13.997 8.26164 13.9999C8.06692 14.0028 7.87847 13.9415 7.73599 13.8288L0.219809 7.45072Z" fill="#111" /></svg>
                     </button>
-                    <span className="cal-picker-month-label">{format(calPickerDate, 'MMMM yyyy')}</span>
-                    <button className="cal-nav-btn" onClick={e => { e.stopPropagation(); setCalPickerDate(d => { const n = new Date(d); n.setMonth(n.getMonth() + 1); return n; }); }}>
+                    <span className="cal-picker-month-label">{format(calPickerDate, 'MMM yyyy')}</span>
+                    <button className="cal-nav-btn" disabled={isAtMaxMonth} onClick={e => { e.stopPropagation(); setCalPickerDate(d => { const n = new Date(d); n.setMonth(n.getMonth() + 1); return n; }); }}>
                       <svg width="7" height="12" viewBox="0 0 9 14" fill="none"><path fillRule="evenodd" clipRule="evenodd" d="M8.78019 6.54928C8.92094 6.66887 9 6.83098 9 7C9 7.16902 8.92094 7.33113 8.78019 7.45072L1.26401 13.8288C1.12153 13.9415 0.933079 14.0028 0.738359 13.9999C0.543638 13.997 0.357853 13.93 0.220144 13.8132C0.0824342 13.6963 0.00355271 13.5387 0.000117099 13.3734C-0.00331851 13.2082 0.06896 13.0483 0.201726 12.9274L7.18676 7L0.201726 1.07262C0.06896 0.951712 -0.00331851 0.791795 0.000117099 0.626558C0.00355271 0.461322 0.0824342 0.303668 0.220144 0.18681C0.357853 0.0699525 0.543638 0.00301477 0.738359 9.93682e-05C0.933079 -0.00281603 1.12153 0.0585185 1.26401 0.171181L8.78019 6.54928Z" fill="#111" /></svg>
                     </button>
                   </div>
+                    );
+                  })()}
                   <div className="cal-picker-grid">
                     {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((d, i) => (
                       <div key={i} className="cal-picker-dow">{d}</div>
@@ -465,21 +876,33 @@ function App() {
                     {Array.from({ length: new Date(calPickerDate.getFullYear(), calPickerDate.getMonth(), 1).getDay() }).map((_, i) => (
                       <div key={`e${i}`} />
                     ))}
-                    {Array.from({ length: new Date(calPickerDate.getFullYear(), calPickerDate.getMonth() + 1, 0).getDate() }).map((_, i) => {
-                      const day = i + 1;
-                      const cellDate = new Date(calPickerDate.getFullYear(), calPickerDate.getMonth(), day);
-                      const isSelected = isSameDay(cellDate, selectedDate);
-                      const isToday = isSameDay(cellDate, new Date());
-                      return (
-                        <button
-                          key={day}
-                          className={`cal-picker-day ${isSelected ? 'selected' : ''} ${isToday && !isSelected ? 'today' : ''}`}
-                          onClick={e => { e.stopPropagation(); setSelectedDate(cellDate); setIsCalendarOpen(false); }}
-                        >
-                          {day}
-                        </button>
-                      );
-                    })}
+                    {(() => {
+                      const today = getLogicalToday();
+                      const minDate = today;
+                      const maxDate = addDays(today, 30);
+                      const year = calPickerDate.getFullYear();
+                      const month = calPickerDate.getMonth();
+                      const startOffset = new Date(year, month, 1).getDay();
+                      const daysInMonth = new Date(year, month + 1, 0).getDate();
+                      const trailingCells = 42 - startOffset - daysInMonth;
+                      return Array.from({ length: daysInMonth }).map((_, i) => {
+                        const day = i + 1;
+                        const cellDate = new Date(year, month, day);
+                        const isSelected = isSameDay(cellDate, selectedDate);
+                        const isToday = isSameDay(cellDate, new Date());
+                        const isInRange = cellDate >= minDate && cellDate <= maxDate;
+                        return (
+                          <button
+                            key={day}
+                            className={`cal-picker-day ${isSelected ? 'selected' : ''} ${isToday && !isSelected ? 'today' : ''} ${!isInRange ? 'out-of-range' : ''}`}
+                            disabled={!isInRange}
+                            onClick={e => { if (!isInRange) return; e.stopPropagation(); setSelectedDate(cellDate); setIsCalendarOpen(false); }}
+                          >
+                            {day}
+                          </button>
+                        );
+                      }).concat(Array.from({ length: trailingCells > 0 ? trailingCells : 0 }).map((_, i) => <div key={`t${i}`} />));
+                    })()}
                   </div>
                 </div>
 
@@ -642,6 +1065,36 @@ function App() {
                       </div>
                     )}
                   </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+        {/* Edit Todo Modal */}
+        {editingTodo && (
+          <div className="backdrop" onClick={() => { setEditingTodo(null); setEditText(''); }}>
+            <div className="bottom-sheet edit-sheet" onClick={(e) => e.stopPropagation()}>
+              <div className="edit-sheet-header">
+                <span className="edit-sheet-title">Edit</span>
+                <button className="sheet-close" onClick={() => { setEditingTodo(null); setEditText(''); }}>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 22 22" fill="none">
+                    <path fillRule="evenodd" clipRule="evenodd" d="M5.01417 5.01423C5.14308 4.88548 5.31782 4.81316 5.50001 4.81316C5.68219 4.81316 5.85693 4.88548 5.98584 5.01423L11 10.0284L16.0142 5.01423C16.0771 4.94668 16.153 4.8925 16.2373 4.85493C16.3217 4.81735 16.4127 4.79715 16.505 4.79552C16.5973 4.79389 16.689 4.81087 16.7746 4.84545C16.8602 4.88002 16.938 4.93149 17.0033 4.99677C17.0686 5.06206 17.12 5.13982 17.1546 5.22543C17.1892 5.31103 17.2062 5.40273 17.2045 5.49504C17.2029 5.58735 17.1827 5.67839 17.1451 5.76272C17.1076 5.84705 17.0534 5.92295 16.9858 5.98589L11.9717 11.0001L16.9858 16.0142C17.0534 16.0772 17.1076 16.1531 17.1451 16.2374C17.1827 16.3217 17.2029 16.4128 17.2045 16.5051C17.2062 16.5974 17.1892 16.6891 17.1546 16.7747C17.12 16.8603 17.0686 16.9381 17.0033 17.0033C16.938 17.0686 16.8602 17.1201 16.7746 17.1547C16.689 17.1892 16.5973 17.2062 16.505 17.2046C16.4127 17.203 16.3217 17.1828 16.2373 17.1452C16.153 17.1076 16.0771 17.0534 16.0142 16.9859L11 11.9717L5.98584 16.9859C5.85551 17.1073 5.68314 17.1734 5.50503 17.1703C5.32692 17.1672 5.15698 17.095 5.03102 16.969C4.90506 16.8431 4.8329 16.6731 4.82976 16.495C4.82662 16.3169 4.89273 16.1446 5.01417 16.0142L10.0283 11.0001L5.01417 5.98589C4.88543 5.85699 4.81311 5.68225 4.81311 5.50006C4.81311 5.31787 4.88543 5.14313 5.01417 5.01423Z" fill="black" />
+                  </svg>
+                </button>
+              </div>
+              <div className="sheet-input-area">
+                <div className="input-wrapper" style={{ flex: 1 }}>
+                  <input
+                    type="text"
+                    className="task-input"
+                    value={editText}
+                    onChange={(e) => setEditText(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') handleEditSave(); }}
+                    autoFocus
+                  />
+                  <button className="submit-btn" onClick={handleEditSave}>
+                    <ArrowUp size={18} strokeWidth={2.5} />
+                  </button>
                 </div>
               </div>
             </div>
