@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Plus, X, ArrowUp, ArrowDown } from 'lucide-react';
 import { subDays, addDays, format, isSameDay } from 'date-fns';
 import './App.css';
@@ -12,7 +12,9 @@ const translations = {
     tmr: 'Tomorrow', thisWeek: 'This Week', nextWeek: 'Next Week', lastWeek: 'Last Week',
     weeksAgo: 'Weeks Ago', weeksLater: 'Weeks Later', add: 'Add', timeOfDay: 'TIME OF DAY',
     placeholder: 'e.g Buy groceries at 9pm...', setting: 'Setting', helpFeedback: 'Help & Feedback',
-    signOut: 'Sign out', language: 'Language', appearance: 'Appearance', light: 'Light', dark: 'Dark'
+    signOut: 'Sign out', language: 'Language', appearance: 'Appearance', light: 'Light', dark: 'Dark',
+    backToToday: 'Back to Today',
+    dayNames: ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT']
   },
   ZH: {
     morning: '早上', afternoon: '下午', evening: '傍晚', night: '晚上', midnight: '午夜',
@@ -20,7 +22,9 @@ const translations = {
     tmr: '明天', thisWeek: '本周', nextWeek: '下周', lastWeek: '上周',
     weeksAgo: '周前', weeksLater: '周后', add: '添加', timeOfDay: '时间段',
     placeholder: '例如：晚上9点买杂货...', setting: '设置', helpFeedback: '帮助与反馈',
-    signOut: '退出登录', language: '语言', appearance: '外观', light: '浅色', dark: '深色'
+    signOut: '退出登录', language: '语言', appearance: '外观', light: '浅色', dark: '深色',
+    backToToday: '返回今天',
+    dayNames: ['日', '一', '二', '三', '四', '五', '六']
   },
   MS: {
     morning: 'Pagi', afternoon: 'Tengahari', evening: 'Petang', night: 'Malam', midnight: 'Tengah Malam',
@@ -28,7 +32,29 @@ const translations = {
     tmr: 'Esok', thisWeek: 'Minggu Ini', nextWeek: 'Minggu Depan', lastWeek: 'Minggu Lepas',
     weeksAgo: 'Minggu Lepas', weeksLater: 'Minggu Kemudian', add: 'Tambah', timeOfDay: 'MASA',
     placeholder: 'cth. Beli barang dapur pada 9pm...', setting: 'Tetapan', helpFeedback: 'Bantuan & Maklum Balas',
-    signOut: 'Log Keluar', language: 'Bahasa', appearance: 'Penampilan', light: 'Terang', dark: 'Gelap'
+    signOut: 'Log Keluar', language: 'Bahasa', appearance: 'Penampilan', light: 'Terang', dark: 'Gelap',
+    backToToday: 'Kembali ke Hari Ini',
+    dayNames: ['AHD', 'ISN', 'SEL', 'RAB', 'KHA', 'JUM', 'SAB']
+  },
+  JA: {
+    morning: '朝', afternoon: '昼', evening: '夕方', night: '夜', midnight: '深夜',
+    now: '今', actionItem: 'タスク', today: '今日', yesterday: '昨日',
+    tmr: '明日', thisWeek: '今週', nextWeek: '来週', lastWeek: '先週',
+    weeksAgo: '週間前', weeksLater: '週間後', add: '追加', timeOfDay: '時間帯',
+    placeholder: '例：21時に食料品を買う...', setting: '設定', helpFeedback: 'ヘルプとフィードバック',
+    signOut: 'サインアウト', language: '言語', appearance: '外観', light: 'ライト', dark: 'ダーク',
+    backToToday: '今日に戻る',
+    dayNames: ['日', '月', '火', '水', '木', '金', '土']
+  },
+  TH: {
+    morning: 'เช้า', afternoon: 'บ่าย', evening: 'เย็น', night: 'กลางคืน', midnight: 'เที่ยงคืน',
+    now: 'ตอนนี้', actionItem: 'รายการที่ต้องทำ', today: 'วันนี้', yesterday: 'เมื่อวาน',
+    tmr: 'พรุ่งนี้', thisWeek: 'สัปดาห์นี้', nextWeek: 'สัปดาห์หน้า', lastWeek: 'สัปดาห์ที่แล้ว',
+    weeksAgo: 'สัปดาห์ก่อน', weeksLater: 'สัปดาห์หน้า', add: 'เพิ่ม', timeOfDay: 'ช่วงเวลา',
+    placeholder: 'เช่น ซื้อของเวลา 21:00...', setting: 'การตั้งค่า', helpFeedback: 'ความช่วยเหลือและคำแนะนำ',
+    signOut: 'ออกจากระบบ', language: 'ภาษา', appearance: 'รูปแบบ', light: 'สว่าง', dark: 'มืด',
+    backToToday: 'กลับไปวันนี้',
+    dayNames: ['อา.', 'จ.', 'อ.', 'พ.', 'พฤ.', 'ศ.', 'ส.']
   }
 };
 
@@ -41,11 +67,11 @@ const timeBlocks = [
 ];
 
 const cardTypeConfig = {
-  meeting:  { icon: '/video.png',      bg: '#DCEAFB' },
-  map:      { icon: '/map.png',        bg: '#A9F1A2' },
-  document: { icon: '/document01.png', bg: '#E7CFFF' },
-  video:    { icon: '/play.png',       bg: '#FFD9D9' },
-  plain:    { icon: '/text.png',       bg: '#FFE5B9' },
+  meeting:  { icon: '/video.png',      bg: '#DCEAFB', darkBg: '#276F94B3', darkStroke: '#7698C2' },
+  map:      { icon: '/map.png',        bg: '#A9F1A2', darkBg: '#437A3FB3', darkStroke: '#64C15E' },
+  document: { icon: '/document01.png', bg: '#E7CFFF', darkBg: '#57307EB3', darkStroke: '#715A87' },
+  video:    { icon: '/play.png',       bg: '#FFD9D9', darkBg: '#5C2727B3', darkStroke: '#4D2727' },
+  plain:    { icon: '/text.png',       bg: '#FFE5B9', darkBg: '#8B622AB3', darkStroke: '#BF8A30' },
 };
 
 const detectCardType = (text) => {
@@ -168,6 +194,15 @@ function App() {
   const [isLanguageDropdownOpen, setIsLanguageDropdownOpen] = useState(false);
   const [appearance, setAppearance] = useState('light');
   const [isAppearanceDropdownOpen, setIsAppearanceDropdownOpen] = useState(false);
+  const taskInputRef = useRef(null);
+
+  useEffect(() => {
+    const textarea = taskInputRef.current;
+    if (!textarea) return;
+    textarea.style.height = 'auto';
+    const nextHeight = Math.min(textarea.scrollHeight, 110); // 110px approx 5 lines
+    textarea.style.height = `${nextHeight}px`;
+  }, [inputText]);
 
   // Day boundary is 06:00 AM — midnight–05:59 belongs to the previous calendar day.
   const getLogicalToday = () => {
@@ -182,17 +217,59 @@ function App() {
 
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [isClosingProfile, setIsClosingProfile] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isClosingSettings, setIsClosingSettings] = useState(false);
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const [calPickerDate, setCalPickerDate] = useState(() => getLogicalToday());
 
+  const closeProfile = () => {
+    setIsProfileOpen(false);
+  };
+  const closeSettings = () => {
+    setIsSettingsOpen(false);
+  };
+
   const [weekOffset, setWeekOffset] = useState(0);
-  const [touchStart, setTouchStart] = useState(null);
-  const [touchEnd, setTouchEnd] = useState(null);
+  const [contentKey, setContentKey] = useState(0);
+  const stripRef = React.useRef(null);
+  const dayRefs = React.useRef({});
+  const timelineRef = React.useRef(null);
+
+  const scrollToCurrentTime = (behavior = 'smooth') => {
+    if (!isSameDay(selectedDate, getLogicalToday())) return;
+    const currentBlockId = getCurrentTimeBlock();
+    const el = document.querySelector(`[data-block-id="${currentBlockId}"]`);
+    if (el && timelineRef.current) {
+      el.scrollIntoView({ behavior, block: 'start' });
+    }
+  };
+
+  // Auto-scroll the selected day into center of the strip
+  useEffect(() => {
+    const key = format(selectedDate, 'yyyy-MM-dd');
+    const el = dayRefs.current[key];
+    if (el && stripRef.current) {
+      el.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+    }
+    if (isSameDay(selectedDate, getLogicalToday())) {
+      setTimeout(() => scrollToCurrentTime(), 400);
+    }
+    setContentKey(k => k + 1);
+  }, [selectedDate]);
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
+  }, []);
+
+  // Initial scroll to current time on mount
+  useEffect(() => {
+    // Small delay to ensure layout is ready
+    const timer = setTimeout(() => {
+      scrollToCurrentTime('auto');
+    }, 100);
+    return () => clearTimeout(timer);
   }, []);
 
   const [todos, setTodos] = useState(() => {
@@ -517,8 +594,11 @@ function App() {
     const date = addDays(subDays(selectedDate, 3), i);
     const d1 = new Date(date); d1.setHours(0, 0, 0, 0);
     const d2 = new Date(logicalToday); d2.setHours(0, 0, 0, 0);
+    const dayIndex = date.getDay();
+    const localizedDayName = translations[language].dayNames[dayIndex];
+    
     return {
-      name: format(date, 'E').toUpperCase(),
+      name: localizedDayName,
       date: format(date, 'd'),
       fullDate: date,
       active: isSameDay(date, selectedDate),
@@ -539,18 +619,6 @@ function App() {
     { id: 'Midnight', key: 'midnight' }
   ];
 
-  const handleTouchStart = (e) => {
-    setTouchEnd(null);
-    setTouchStart(e.targetTouches[0].clientX);
-  };
-  const handleTouchMove = (e) => { setTouchEnd(e.targetTouches[0].clientX); };
-  const handleTouchEnd = () => {
-    if (!touchStart || !touchEnd) return;
-    const distance = touchStart - touchEnd;
-    const swipeThreshold = 30;
-    if (distance > swipeThreshold) setSelectedDate(prev => addDays(prev, 7));
-    else if (distance < -swipeThreshold) setSelectedDate(prev => subDays(prev, 7));
-  };
 
   const getTimeIndicatorStyle = (block) => {
     if (!isSameDay(selectedDate, getLogicalToday())) return null;
@@ -607,7 +675,10 @@ function App() {
     if (diffDays === 0) return <strong>{t.today}</strong>;
     if (diffDays === -1) return <strong>{t.yesterday}</strong>;
     if (diffDays === 1) return <strong>{t.tmr}</strong>;
-    return <strong>{format(selectedDate, 'EEE, MMM d')}</strong>;
+    
+    const dayIndex = selectedDate.getDay();
+    const localizedDayName = t.dayNames[dayIndex];
+    return <strong>{localizedDayName}, {format(selectedDate, 'MMM d')}</strong>;
   };
 
   if (loadingAuth) {
@@ -636,9 +707,7 @@ function App() {
         </div>
       )}
 
-      <div className={`app-container ${appearance === 'dark' ? 'dark-theme' : ''}`} style={{
-        background: `url("/background-pattern.png") lightgray 0px -92.075px / 100% 1240.631% no-repeat`
-      }}>
+      <div className={`app-container ${appearance === 'dark' ? 'dark-theme' : ''}`}>
         {/* Top Header */}
         <header className="header">
           <div className="avatar" onClick={() => {
@@ -651,12 +720,17 @@ function App() {
             <img src={session?.user?.user_metadata?.avatar_url || 'https://lh3.googleusercontent.com/a/default-user=s64-c'} alt="Profile" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
           </div>
 
-          <div className="header-center">
-            <div className="header-title" style={{ transition: 'all 0.3s', fontSize: '18px', fontStyle: 'italic', color: '#111111', fontFamily: '"LTC Bodoni 175", serif', fontWeight: 400, wordWrap: 'break-word' }}>
-              {getRelativeWeekText()}
+          <div className="header-center" style={{ justifyContent: isSameDay(selectedDate, getLogicalToday()) ? 'flex-start' : 'center' }}>
+            <div className="header-title-container" style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: !isSameDay(selectedDate, getLogicalToday()) ? 'pointer' : 'default' }} onClick={() => { if (!isSameDay(selectedDate, getLogicalToday())) { setSelectedDate(getLogicalToday()); setTimeout(() => scrollToCurrentTime(), 300); } }}>
+              {!isSameDay(selectedDate, getLogicalToday()) && (
+                <img src={appearance === 'dark' ? '/whiteuturn.png' : '/uturn.png'} alt="Back to Today" style={{ width: '16px', height: '16px', objectFit: 'contain' }} />
+              )}
+              <div className="header-title" style={{ transition: 'all 0.3s', fontSize: isSameDay(selectedDate, getLogicalToday()) ? '18px' : '23px', fontStyle: 'italic', fontFamily: '"LTC Bodoni 175", serif', fontWeight: 400, wordWrap: 'break-word', margin: 0 }}>
+                {getRelativeWeekText()}
+              </div>
             </div>
-            <div className="header-sub-row">
-              {isSameDay(selectedDate, getLogicalToday()) ? (
+            {isSameDay(selectedDate, getLogicalToday()) && (
+              <div className="header-sub-row">
                 <div className="header-stats">
                   <div className="stat-pill"><span>{format(currentTime, 'hh').charAt(0)}</span></div>
                   <div className="stat-pill"><span>{format(currentTime, 'hh').charAt(1)}</span></div>
@@ -664,42 +738,42 @@ function App() {
                   <div className="stat-pill"><span>{format(currentTime, 'mm').charAt(0)}</span></div>
                   <div className="stat-pill"><span>{format(currentTime, 'mm').charAt(1)}</span></div>
                 </div>
-              ) : (
-                <button className="back-to-today-btn" onClick={() => setSelectedDate(getLogicalToday())}>
-                  {translations[language].today}
-                </button>
-              )}
-            </div>
+              </div>
+            )}
           </div>
 
           <button className="add-btn" onClick={() => setIsSheetOpen(true)}>
-            <svg width="11" height="11" viewBox="0 0 11 11" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M5.5 0V11.5M0 5.5H11.5" stroke="black" strokeWidth="1.2" />
+            <svg width="11" height="11" viewBox="0 0 11 11" fill="none" className="add-btn-icon" xmlns="http://www.w3.org/2000/svg">
+              <path d="M5.5 0V11.5M0 5.5H11.5" stroke="currentColor" strokeWidth="1.2" />
             </svg>
             <span>{translations[language].add}</span>
           </button>
         </header>
 
-        {/* Calendar Strip with Swipe */}
+        {/* Calendar Strip — native horizontal scroll with snap */}
         <div
+          ref={stripRef}
           className="calendar-strip"
-          onTouchStart={handleTouchStart}
-          onTouchMove={handleTouchMove}
-          onTouchEnd={handleTouchEnd}
-          style={{ touchAction: 'pan-y' }}
         >
           {calendarDays.map((day, idx) => (
-            <div className="day-col" key={idx} onClick={() => setSelectedDate(day.fullDate)} style={{ cursor: 'pointer' }}>
-              <span className={`day-name ${day.active ? 'active' : ''}`} style={!day.active ? { color: day.isPast ? '#989FAC' : '#000000' } : {}}>{day.name}</span>
-              <span className={`day-date ${day.active ? 'active' : ''}`} style={!day.active ? { color: day.isPast ? '#989FAC' : '#000000' } : {}}>
+            <div
+              className="day-col"
+              key={idx}
+              ref={el => { dayRefs.current[format(day.fullDate, 'yyyy-MM-dd')] = el; }}
+              onClick={() => setSelectedDate(day.fullDate)}
+              style={{ cursor: 'pointer' }}
+            >
+              <span className={`day-name ${day.active ? 'active' : ''} ${day.isPast && !day.active ? 'past' : ''}`}>{day.name}</span>
+              <span className={`day-date ${day.active ? 'active' : ''} ${day.isPast && !day.active ? 'past' : ''}`}>
                 {day.date}
               </span>
+              {day.isToday && !day.active && <span className="today-dot" />}
             </div>
           ))}
         </div>
 
-        {/* Main Timeline */}
-        <main className="timeline-area">
+        {/* Main Timeline — keyed for fade-in on date change */}
+        <main ref={timelineRef} key={contentKey} className="timeline-area timeline-fade">
 
           {timeBlocks.map((block) => {
             const blockTodos = selectedDateTodos.filter(t => t.timeOfDay === block.id);
@@ -711,7 +785,7 @@ function App() {
                   className={`time-col ${isPast ? 'past-block' : ''}`}
                   style={isPast ? { backgroundColor: block.pastBgColor } : {}}
                 >
-                  <div className="time-pill" style={{
+                  <div className="time-pill" data-block-id={block.id} style={{
                     backgroundColor: block.color,
                     color: block.textColor,
                     WebkitTextStroke: `0.3px ${block.strokeColor}`,
@@ -811,8 +885,14 @@ function App() {
                         onDrop={(e) => handleDropOnTodo(e, todo)}
                         {...getSwipeHandlers(todo.id)}
                       >
-                        <div className="task-icon-placeholder" style={{ backgroundColor: cfg.bg }}>
-                          <img src={cfg.icon} alt={cType} className="task-card-icon" />
+                        <div 
+                          className="task-icon-placeholder" 
+                          style={{ 
+                            backgroundColor: appearance === 'dark' ? cfg.darkBg : cfg.bg,
+                            border: appearance === 'dark' ? `1px solid ${cfg.darkStroke}` : 'none'
+                          }}
+                        >
+                          <img src={cfg.icon} alt={cType} className="task-card-icon" style={{ position: 'relative', zIndex: 10 }} />
                         </div>
                         <div className="task-content">
                           <span className="task-title">{displayTitle}</span>
@@ -909,9 +989,13 @@ function App() {
                 {!isCalendarOpen && (
                   <>
                     <div className="section-label">
-                      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 18 18" fill="none">
-                        <path d="M9 4.5V9H12.375M15.75 9C15.75 9.88642 15.5754 10.7642 15.2362 11.5831C14.897 12.4021 14.3998 13.1462 13.773 13.773C13.1462 14.3998 12.4021 14.897 11.5831 15.2362C10.7642 15.5754 9.88642 15.75 9 15.75C8.11358 15.75 7.23583 15.5754 6.41689 15.2362C5.59794 14.897 4.85382 14.3998 4.22703 13.773C3.60023 13.1462 3.10303 12.4021 2.76381 11.5831C2.42459 10.7642 2.25 9.88642 2.25 9C2.25 7.20979 2.96116 5.4929 4.22703 4.22703C5.4929 2.96116 7.20979 2.25 9 2.25C10.7902 2.25 12.5071 2.96116 13.773 4.22703C15.0388 5.4929 15.75 7.20979 15.75 9Z" stroke="black" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                      </svg>
+                      {appearance === 'dark' ? (
+                        <img src="/timewhite.png" alt="Time" style={{ width: '14px', height: '14px' }} />
+                      ) : (
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 18 18" fill="none">
+                          <path d="M9 4.5V9H12.375M15.75 9C15.75 9.88642 15.5754 10.7642 15.2362 11.5831C14.897 12.4021 14.3998 13.1462 13.773 13.773C13.1462 14.3998 12.4021 14.897 11.5831 15.2362C10.7642 15.5754 9.88642 15.75 9 15.75C8.11358 15.75 7.23583 15.5754 6.41689 15.2362C5.59794 14.897 4.85382 14.3998 4.22703 13.773C3.60023 13.1462 3.10303 12.4021 2.76381 11.5831C2.42459 10.7642 2.25 9.88642 2.25 9C2.25 7.20979 2.96116 5.4929 4.22703 4.22703C5.4929 2.96116 7.20979 2.25 9 2.25C10.7902 2.25 12.5071 2.96116 13.773 4.22703C15.0388 5.4929 15.75 7.20979 15.75 9Z" stroke="black" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                      )}
                       {translations[language].timeOfDay}
                     </div>
 
@@ -935,13 +1019,19 @@ function App() {
                   <Plus size={20} />
                 </button>
                 <div className="input-wrapper">
-                  <input
-                    type="text"
+                  <textarea
+                    ref={taskInputRef}
                     className="task-input"
                     placeholder={translations[language].placeholder}
                     value={inputText}
+                    rows={1}
                     onChange={(e) => setInputText(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === 'Enter') handleAddTodo(); }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        handleAddTodo();
+                      }
+                    }}
                   />
                   <button className="submit-btn" onClick={handleAddTodo}>
                     <ArrowUp size={18} strokeWidth={2.5} />
@@ -954,11 +1044,11 @@ function App() {
 
         {/* Profile Modal */}
         {isProfileOpen && (
-          <div className="backdrop" onClick={(e) => {
-            if (e.target.className === 'backdrop') setIsProfileOpen(false);
+          <div className="backdrop modal-backdrop" onClick={(e) => {
+            if (e.target.classList.contains('backdrop')) closeProfile();
           }}>
-            <div className="profile-modal">
-              <button className="profile-close-btn" onClick={() => setIsProfileOpen(false)}>
+            <div className="profile-modal panel-enter">
+              <button className="profile-close-btn" onClick={closeProfile}>
                 <X size={20} color="#111" />
               </button>
               <div className="profile-header">
@@ -993,7 +1083,7 @@ function App() {
               <div className="profile-footer">
                 <button className="signout-btn" style={{ cursor: 'pointer', position: 'relative', zIndex: 100 }} onClick={async (e) => {
                   e.stopPropagation();
-                  setIsProfileOpen(false);
+                  closeProfile();
                   await supabase.auth.signOut();
                 }}>
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg>
@@ -1006,12 +1096,14 @@ function App() {
 
         {/* Settings Modal */}
         {isSettingsOpen && (
-          <div className="backdrop" onClick={(e) => {
-            if (e.target.className === 'backdrop') setIsSettingsOpen(false);
+          <div className="backdrop modal-backdrop" onClick={(e) => {
+            if (e.target.classList.contains('backdrop')) closeSettings();
           }}>
-            <div className="settings-modal">
-              <button className="settings-back-btn" onClick={() => setIsSettingsOpen(false)}>
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="black" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+            <div className={`settings-modal panel-enter`}>
+              <button className="settings-back-btn" onClick={closeSettings}>
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M15 18L9 12L15 6" />
+                </svg>
               </button>
 
               <div className="settings-panel">
@@ -1024,17 +1116,17 @@ function App() {
                   </div>
                   <div className="language-dropdown-container">
                     <div className="settings-item-right settings-item-right-clickable" onClick={() => setIsLanguageDropdownOpen(!isLanguageDropdownOpen)}>
-                      <span>{language === 'EN' ? 'EN' : language === 'ZH' ? '中文' : 'MS'}</span>
+                      <span>{language === 'EN' ? 'EN' : language === 'ZH' ? '中文' : language === 'MS' ? 'MS' : language === 'JA' ? '日本語' : 'ไทย'}</span>
                       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#A0A4AB" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ transform: isLanguageDropdownOpen ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}>
                         <polyline points="6 9 12 15 18 9"></polyline>
                       </svg>
                     </div>
                     {isLanguageDropdownOpen && (
                       <div className="language-dropdown-menu">
-                        {['EN', 'ZH', 'MS'].map(lang => (
+                        {['EN', 'ZH', 'MS', 'JA', 'TH'].map(lang => (
                           <div key={lang} className={`language-option ${language === lang ? 'selected' : ''}`} onClick={() => { setLanguage(lang); setIsLanguageDropdownOpen(false); }}>
-                            {lang === 'EN' ? 'EN' : lang === 'ZH' ? '中文' : 'MS'}
-                            {language === lang && <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>}
+                            <span>{lang === 'EN' ? 'EN' : lang === 'ZH' ? '中文' : lang === 'MS' ? 'MS' : lang === 'JA' ? '日本語' : 'ไทย'}</span>
+                            {language === lang && <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>}
                           </div>
                         ))}
                       </div>
@@ -1058,8 +1150,8 @@ function App() {
                       <div className="language-dropdown-menu">
                         {['light', 'dark'].map(mode => (
                           <div key={mode} className={`language-option ${appearance === mode ? 'selected' : ''}`} onClick={() => { setAppearance(mode); setIsAppearanceDropdownOpen(false); }}>
-                            {mode === 'light' ? translations[language].light : translations[language].dark}
-                            {appearance === mode && <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>}
+                            <span>{mode === 'light' ? translations[language].light : translations[language].dark}</span>
+                            {appearance === mode && <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>}
                           </div>
                         ))}
                       </div>
@@ -1072,30 +1164,30 @@ function App() {
         )}
         {/* Edit Todo Modal */}
         {editingTodo && (
-          <div className="backdrop" onClick={() => { setEditingTodo(null); setEditText(''); }}>
-            <div className="bottom-sheet edit-sheet" onClick={(e) => e.stopPropagation()}>
-              <div className="edit-sheet-header">
-                <span className="edit-sheet-title">Edit</span>
-                <button className="sheet-close" onClick={() => { setEditingTodo(null); setEditText(''); }}>
-                  <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 22 22" fill="none">
-                    <path fillRule="evenodd" clipRule="evenodd" d="M5.01417 5.01423C5.14308 4.88548 5.31782 4.81316 5.50001 4.81316C5.68219 4.81316 5.85693 4.88548 5.98584 5.01423L11 10.0284L16.0142 5.01423C16.0771 4.94668 16.153 4.8925 16.2373 4.85493C16.3217 4.81735 16.4127 4.79715 16.505 4.79552C16.5973 4.79389 16.689 4.81087 16.7746 4.84545C16.8602 4.88002 16.938 4.93149 17.0033 4.99677C17.0686 5.06206 17.12 5.13982 17.1546 5.22543C17.1892 5.31103 17.2062 5.40273 17.2045 5.49504C17.2029 5.58735 17.1827 5.67839 17.1451 5.76272C17.1076 5.84705 17.0534 5.92295 16.9858 5.98589L11.9717 11.0001L16.9858 16.0142C17.0534 16.0772 17.1076 16.1531 17.1451 16.2374C17.1827 16.3217 17.2029 16.4128 17.2045 16.5051C17.2062 16.5974 17.1892 16.6891 17.1546 16.7747C17.12 16.8603 17.0686 16.9381 17.0033 17.0033C16.938 17.0686 16.8602 17.1201 16.7746 17.1547C16.689 17.1892 16.5973 17.2062 16.505 17.2046C16.4127 17.203 16.3217 17.1828 16.2373 17.1452C16.153 17.1076 16.0771 17.0534 16.0142 16.9859L11 11.9717L5.98584 16.9859C5.85551 17.1073 5.68314 17.1734 5.50503 17.1703C5.32692 17.1672 5.15698 17.095 5.03102 16.969C4.90506 16.8431 4.8329 16.6731 4.82976 16.495C4.82662 16.3169 4.89273 16.1446 5.01417 16.0142L10.0283 11.0001L5.01417 5.98589C4.88543 5.85699 4.81311 5.68225 4.81311 5.50006C4.81311 5.31787 4.88543 5.14313 5.01417 5.01423Z" fill="black" />
-                  </svg>
+          <div className="backdrop modal-backdrop" onClick={() => { setEditingTodo(null); setEditText(''); }}>
+            <div className="edit-modal" onClick={(e) => e.stopPropagation()}>
+              <div className="edit-modal-header">
+                <h2 className="edit-modal-title">Edit</h2>
+                <button className="edit-modal-close" onClick={() => { setEditingTodo(null); setEditText(''); }}>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="black" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
                 </button>
               </div>
-              <div className="sheet-input-area">
-                <div className="input-wrapper" style={{ flex: 1 }}>
-                  <input
-                    type="text"
-                    className="task-input"
-                    value={editText}
-                    onChange={(e) => setEditText(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === 'Enter') handleEditSave(); }}
-                    autoFocus
-                  />
-                  <button className="submit-btn" onClick={handleEditSave}>
-                    <ArrowUp size={18} strokeWidth={2.5} />
-                  </button>
-                </div>
+              <div className="edit-modal-body">
+                <textarea
+                  className="edit-modal-textarea"
+                  value={editText}
+                  onChange={(e) => setEditText(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                      handleEditSave();
+                    }
+                  }}
+                  autoFocus
+                  placeholder="Edit task..."
+                />
+                <button className="edit-modal-save-btn" onClick={handleEditSave}>
+                  Save Changes
+                </button>
               </div>
             </div>
           </div>
