@@ -320,7 +320,7 @@
   display: flex;
   align-items: center;
   gap: 12px;
-  margin-bottom: 46px;
+  margin-bottom: 28px;
 }
 
 .sheet-title {
@@ -334,7 +334,7 @@
   -webkit-text-stroke-width: 0.3px;
   -webkit-text-stroke-color: #000;
   font-family: "LTC Bodoni 175", var(--font-serif);
-  font-size: 52px;
+  font-size: 44px;
   font-style: italic;
   font-weight: 400;
   line-height: 0.92;
@@ -364,20 +364,20 @@
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   width: min(100%, 330px);
-  gap: 10px 12px;
-  margin-bottom: 36px;
+  gap: 8px 10px;
+  margin-bottom: 34px;
 }
 
 .chip {
   width: 100%;
   min-width: 0;
-  height: 38px;
-  padding: 0 10px;
-  border-radius: 16px;
+  height: 34px;
+  padding: 0 6px;
+  border-radius: 14px;
   background: #F5F4F2;
   color: var(--text-primary);
   font-family: "SF Pro", -apple-system, sans-serif;
-  font-size: 13px;
+  font-size: 12px;
   font-style: normal;
   font-weight: 500;
   line-height: normal;
@@ -390,7 +390,7 @@
 
 .chip.active {
   background: #FF1E1E;
-  border-radius: 16px;
+  border-radius: 14px;
   color: #FFF;
 }
 
