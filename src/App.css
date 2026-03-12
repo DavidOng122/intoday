@@ -268,13 +268,18 @@
 
 .sheet-backdrop {
   position: fixed;
-  inset: 0;
+  top: 0;
+  left: 0;
+  right: 0;
   padding-bottom: 0;
   overscroll-behavior: none;
+  overflow: hidden;
+  touch-action: none;
 }
 
 .sheet-backdrop .bottom-sheet {
   margin-bottom: 0;
+  flex-shrink: 0;
 }
 
 /* BOTTOM SHEET */
@@ -293,6 +298,7 @@
   overflow: hidden;
   box-shadow: 0 12px 48px rgba(0, 0, 0, 0.12);
   margin-bottom: -24px;
+  touch-action: auto;
 }
 
 .sheet-close {

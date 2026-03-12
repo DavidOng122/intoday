@@ -1305,7 +1305,11 @@ function App() {
 
         {/* Bottom Sheet Modal */}
         {isSheetOpen && (
-          <div className="backdrop sheet-backdrop" onClick={() => setIsSheetOpen(false)}>
+          <div
+            className="backdrop sheet-backdrop"
+            onClick={() => setIsSheetOpen(false)}
+            style={sheetBaseViewportHeight ? { height: `${sheetBaseViewportHeight}px`, maxHeight: `${sheetBaseViewportHeight}px`, bottom: 'auto' } : undefined}
+          >
             <div
               className="bottom-sheet"
               onClick={(e) => e.stopPropagation()}
