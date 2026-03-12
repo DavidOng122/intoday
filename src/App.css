@@ -307,7 +307,7 @@
   flex-direction: column;
   justify-content: flex-start;
   align-items: flex-start;
-  transition: transform 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+  transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .sheet-content.input-active {
@@ -422,7 +422,7 @@
   border-radius: 32px;
   box-shadow: 0 10px 26px rgba(0, 0, 0, 0.05);
   margin: 0 auto;
-  transition: transform 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+  transition: transform 0.18s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .mic-circle-btn {

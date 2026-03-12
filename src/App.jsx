@@ -344,7 +344,7 @@ function App() {
   }, [isSheetOpen, sheetBaseViewportHeight]);
 
   const keyboardLiftOffset = sheetKeyboardOffset > 120 ? sheetKeyboardOffset : 0;
-  const sheetGapCollapse = 118;
+  const sheetGapCollapse = 146;
   const composerLift = keyboardLiftOffset > 0
     ? Math.min(
       keyboardLiftOffset,
