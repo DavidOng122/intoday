@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Plus, X, ArrowUp, ArrowDown } from 'lucide-react';
 import { subDays, addDays, format, isSameDay } from 'date-fns';
 import './App.css';
@@ -67,11 +67,11 @@ const timeBlocks = [
 ];
 
 const cardTypeConfig = {
-  meeting:  { icon: '/video.png',      bg: '#DCEAFB', darkBg: '#276F94B3', darkStroke: '#7698C2' },
-  map:      { icon: '/map.png',        bg: '#A9F1A2', darkBg: '#437A3FB3', darkStroke: '#64C15E' },
+  meeting: { icon: '/video.png', bg: '#DCEAFB', darkBg: '#276F94B3', darkStroke: '#7698C2' },
+  map: { icon: '/map.png', bg: '#A9F1A2', darkBg: '#437A3FB3', darkStroke: '#64C15E' },
   document: { icon: '/document01.png', bg: '#E7CFFF', darkBg: '#57307EB3', darkStroke: '#715A87' },
-  video:    { icon: '/play.png',       bg: '#FFD9D9', darkBg: '#5C2727B3', darkStroke: '#4D2727' },
-  plain:    { icon: '/text.png',       bg: '#FFE5B9', darkBg: '#8B622AB3', darkStroke: '#BF8A30' },
+  video: { icon: '/play.png', bg: '#FFD9D9', darkBg: '#5C2727B3', darkStroke: '#4D2727' },
+  plain: { icon: '/text.png', bg: '#FFE5B9', darkBg: '#8B622AB3', darkStroke: '#BF8A30' },
 };
 
 const detectCardType = (text) => {
@@ -116,7 +116,7 @@ const fetchVideoMeta = async (url) => {
     if (/tiktok\.com/.test(url)) {
       return { videoTitle: 'TikTok Video', videoPlatform: 'Saved from TikTok', videoUrl: url };
     }
-  } catch (_) {}
+  } catch (_) { }
   return { videoTitle: null, videoPlatform: 'Saved Video', videoUrl: url };
 };
 
@@ -133,7 +133,7 @@ const parsePlaceFromUrl = (url) => {
     if (match && match[1]) {
       return match[1].replace(/\+/g, ' ').trim();
     }
-  } catch (_) {}
+  } catch (_) { }
   return null;
 };
 
@@ -159,7 +159,7 @@ const fetchMapMeta = async (url) => {
       // Fallback: try to find the place name in the raw HTML redirect meta tag
       const html = json?.contents || '';
       const urlMatch = html.match(/URL=([^"']+google\.com\/maps\/place\/[^"']+)/i)
-                    || html.match(/href="(https?:\/\/[^"]*\/maps\/place\/[^"]+)"/i);
+        || html.match(/href="(https?:\/\/[^"]*\/maps\/place\/[^"]+)"/i);
       if (urlMatch) {
         const name = parsePlaceFromUrl(decodeURIComponent(urlMatch[1]));
         if (name) return { mapTitle: name, mapSubtitle: 'Google Maps', mapUrl: url };
@@ -195,6 +195,33 @@ function App() {
   const [appearance, setAppearance] = useState('light');
   const [isAppearanceDropdownOpen, setIsAppearanceDropdownOpen] = useState(false);
   const taskInputRef = useRef(null);
+  const [isRecording, setIsRecording] = useState(false);
+  const recognitionRef = useRef(null);
+
+  const startVoiceInput = useCallback(() => {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      alert('Speech recognition is not supported in this browser.');
+      return;
+    }
+    if (isRecording) {
+      recognitionRef.current?.stop();
+      return;
+    }
+    const recognition = new SpeechRecognition();
+    recognition.continuous = false;
+    recognition.interimResults = false;
+    recognition.lang = language === 'ZH' ? 'zh-CN' : language === 'MS' ? 'ms-MY' : language === 'JA' ? 'ja-JP' : language === 'TH' ? 'th-TH' : 'en-US';
+    recognition.onstart = () => setIsRecording(true);
+    recognition.onend = () => setIsRecording(false);
+    recognition.onerror = () => setIsRecording(false);
+    recognition.onresult = (event) => {
+      const transcript = event.results[0][0].transcript;
+      setInputText(prev => prev ? prev + ' ' + transcript : transcript);
+    };
+    recognitionRef.current = recognition;
+    recognition.start();
+  }, [isRecording, language]);
 
   useEffect(() => {
     const textarea = taskInputRef.current;
@@ -596,7 +623,7 @@ function App() {
     const d2 = new Date(logicalToday); d2.setHours(0, 0, 0, 0);
     const dayIndex = date.getDay();
     const localizedDayName = translations[language].dayNames[dayIndex];
-    
+
     return {
       name: localizedDayName,
       date: format(date, 'd'),
@@ -675,7 +702,7 @@ function App() {
     if (diffDays === 0) return <strong>{t.today}</strong>;
     if (diffDays === -1) return <strong>{t.yesterday}</strong>;
     if (diffDays === 1) return <strong>{t.tmr}</strong>;
-    
+
     const dayIndex = selectedDate.getDay();
     const localizedDayName = t.dayNames[dayIndex];
     return <strong>{localizedDayName}, {format(selectedDate, 'MMM d')}</strong>;
@@ -725,7 +752,7 @@ function App() {
               {!isSameDay(selectedDate, getLogicalToday()) && (
                 <img src={appearance === 'dark' ? '/whiteuturn.png' : '/uturn.png'} alt="Back to Today" style={{ width: '16px', height: '16px', objectFit: 'contain' }} />
               )}
-              <div className="header-title" style={{ transition: 'all 0.3s', fontSize: isSameDay(selectedDate, getLogicalToday()) ? '18px' : '23px', fontStyle: 'italic', fontFamily: '"LTC Bodoni 175", serif', fontWeight: 400, wordWrap: 'break-word', margin: 0 }}>
+              <div className="header-title" style={{ transition: 'all 0.3s', fontSize: isSameDay(selectedDate, getLogicalToday()) ? '16px' : '20px', fontStyle: 'italic', fontFamily: '"LTC Bodoni 175", serif', fontWeight: 400, wordWrap: 'break-word', margin: 0 }}>
                 {getRelativeWeekText()}
               </div>
             </div>
@@ -816,11 +843,11 @@ function App() {
                     const isVideo = cType === 'video';
                     const isMap = cType === 'map';
                     const isMeeting = cType === 'meeting';
-                    
+
                     let displayTitle = todo.text;
                     let displaySub = translations[language].actionItem;
                     let redirectUrl = null;
-                    
+
                     if (isVideo && todo.videoTitle) {
                       displayTitle = todo.videoTitle;
                       displaySub = todo.videoPlatform || 'Saved Video';
@@ -855,51 +882,51 @@ function App() {
                     }
 
                     return (
-                    <div key={todo.id} id={`swipe-wrapper-${todo.id}`} className="swipe-wrapper">
-                      {/* Action buttons revealed behind the card */}
-                      <div className="swipe-actions">
-                        <button className="swipe-btn edit" onClick={() => openEdit(todo)}>
-                          <img src="/edit.png" alt="Edit" className="swipe-icon" />
-                        </button>
-                        <button className="swipe-btn delete" onClick={() => deleteTodo(todo.id)}>
-                          <img src="/delete.png" alt="Delete" className="swipe-icon" />
-                        </button>
-                      </div>
+                      <div key={todo.id} id={`swipe-wrapper-${todo.id}`} className="swipe-wrapper">
+                        {/* Action buttons revealed behind the card */}
+                        <div className="swipe-actions">
+                          <button className="swipe-btn edit" onClick={() => openEdit(todo)}>
+                            <img src="/edit.png" alt="Edit" className="swipe-icon" />
+                          </button>
+                          <button className="swipe-btn delete" onClick={() => deleteTodo(todo.id)}>
+                            <img src="/delete.png" alt="Delete" className="swipe-icon" />
+                          </button>
+                        </div>
 
-                      {/* The card itself */}
-                      <div
-                        id={`swipe-card-${todo.id}`}
-                        className={`task-card ${todo.completed ? 'completed' : ''} ${draggedTodoId === todo.id ? 'dragging' : ''}`}
-                        onClick={() => {
-                          if (openSwipeId === todo.id) { closeSwipe(todo.id); return; }
-                          if (redirectUrl) {
-                            window.open(redirectUrl, '_blank', 'noopener,noreferrer');
-                          } else {
-                            toggleTodo(todo.id);
-                          }
-                        }}
-                        draggable
-                        onDragStart={(e) => handleDragStart(e, todo.id)}
-                        onDragEnd={handleDragEnd}
-                        onDragOver={handleDragOver}
-                        onDrop={(e) => handleDropOnTodo(e, todo)}
-                        {...getSwipeHandlers(todo.id)}
-                      >
-                        <div 
-                          className="task-icon-placeholder" 
-                          style={{ 
-                            backgroundColor: appearance === 'dark' ? cfg.darkBg : cfg.bg,
-                            border: appearance === 'dark' ? `1px solid ${cfg.darkStroke}` : 'none'
+                        {/* The card itself */}
+                        <div
+                          id={`swipe-card-${todo.id}`}
+                          className={`task-card ${todo.completed ? 'completed' : ''} ${draggedTodoId === todo.id ? 'dragging' : ''}`}
+                          onClick={() => {
+                            if (openSwipeId === todo.id) { closeSwipe(todo.id); return; }
+                            if (redirectUrl) {
+                              window.open(redirectUrl, '_blank', 'noopener,noreferrer');
+                            } else {
+                              toggleTodo(todo.id);
+                            }
                           }}
+                          draggable
+                          onDragStart={(e) => handleDragStart(e, todo.id)}
+                          onDragEnd={handleDragEnd}
+                          onDragOver={handleDragOver}
+                          onDrop={(e) => handleDropOnTodo(e, todo)}
+                          {...getSwipeHandlers(todo.id)}
                         >
-                          <img src={cfg.icon} alt={cType} className="task-card-icon" style={{ position: 'relative', zIndex: 10 }} />
-                        </div>
-                        <div className="task-content">
-                          <span className="task-title">{displayTitle}</span>
-                          <span className="task-desc">{displaySub}</span>
+                          <div
+                            className="task-icon-placeholder"
+                            style={{
+                              backgroundColor: appearance === 'dark' ? cfg.darkBg : cfg.bg,
+                              border: appearance === 'dark' ? `1px solid ${cfg.darkStroke}` : 'none'
+                            }}
+                          >
+                            <img src={cfg.icon} alt={cType} className="task-card-icon" style={{ position: 'relative', zIndex: 10 }} />
+                          </div>
+                          <div className="task-content">
+                            <span className="task-title">{displayTitle}</span>
+                            <span className="task-desc">{displaySub}</span>
+                          </div>
                         </div>
                       </div>
-                    </div>
                     );
                   })}
                 </div>
@@ -938,15 +965,15 @@ function App() {
                     const isAtMinMonth = calPickerDate.getFullYear() === minDate.getFullYear() && calPickerDate.getMonth() === minDate.getMonth();
                     const isAtMaxMonth = calPickerDate.getFullYear() === maxDate.getFullYear() && calPickerDate.getMonth() === maxDate.getMonth();
                     return (
-                  <div className="cal-picker-header">
-                    <button className="cal-nav-btn" disabled={isAtMinMonth} onClick={e => { e.stopPropagation(); setCalPickerDate(d => { const n = new Date(d); n.setMonth(n.getMonth() - 1); return n; }); }}>
-                      <svg width="7" height="12" viewBox="0 0 9 14" fill="none"><path fillRule="evenodd" clipRule="evenodd" d="M0.219809 7.45072C0.0790625 7.33113 0 7.16902 0 7C0 6.83098 0.0790625 6.66887 0.219809 6.54928L7.73599 0.171181C7.87847 0.0585185 8.06692 -0.00281603 8.26164 9.93682e-05C8.45636 0.00301477 8.64215 0.0699525 8.77986 0.18681C8.91757 0.303668 8.99645 0.461322 8.99988 0.626558C9.00332 0.791795 8.93104 0.951712 8.79827 1.07262L1.81324 7L8.79827 12.9274C8.93104 13.0483 9.00332 13.2082 8.99988 13.3734C8.99645 13.5387 8.91757 13.6963 8.77986 13.8132C8.64215 13.93 8.45636 13.997 8.26164 13.9999C8.06692 14.0028 7.87847 13.9415 7.73599 13.8288L0.219809 7.45072Z" fill="#111" /></svg>
-                    </button>
-                    <span className="cal-picker-month-label">{format(calPickerDate, 'MMM yyyy')}</span>
-                    <button className="cal-nav-btn" disabled={isAtMaxMonth} onClick={e => { e.stopPropagation(); setCalPickerDate(d => { const n = new Date(d); n.setMonth(n.getMonth() + 1); return n; }); }}>
-                      <svg width="7" height="12" viewBox="0 0 9 14" fill="none"><path fillRule="evenodd" clipRule="evenodd" d="M8.78019 6.54928C8.92094 6.66887 9 6.83098 9 7C9 7.16902 8.92094 7.33113 8.78019 7.45072L1.26401 13.8288C1.12153 13.9415 0.933079 14.0028 0.738359 13.9999C0.543638 13.997 0.357853 13.93 0.220144 13.8132C0.0824342 13.6963 0.00355271 13.5387 0.000117099 13.3734C-0.00331851 13.2082 0.06896 13.0483 0.201726 12.9274L7.18676 7L0.201726 1.07262C0.06896 0.951712 -0.00331851 0.791795 0.000117099 0.626558C0.00355271 0.461322 0.0824342 0.303668 0.220144 0.18681C0.357853 0.0699525 0.543638 0.00301477 0.738359 9.93682e-05C0.933079 -0.00281603 1.12153 0.0585185 1.26401 0.171181L8.78019 6.54928Z" fill="#111" /></svg>
-                    </button>
-                  </div>
+                      <div className="cal-picker-header">
+                        <button className="cal-nav-btn" disabled={isAtMinMonth} onClick={e => { e.stopPropagation(); setCalPickerDate(d => { const n = new Date(d); n.setMonth(n.getMonth() - 1); return n; }); }}>
+                          <svg width="7" height="12" viewBox="0 0 9 14" fill="none"><path fillRule="evenodd" clipRule="evenodd" d="M0.219809 7.45072C0.0790625 7.33113 0 7.16902 0 7C0 6.83098 0.0790625 6.66887 0.219809 6.54928L7.73599 0.171181C7.87847 0.0585185 8.06692 -0.00281603 8.26164 9.93682e-05C8.45636 0.00301477 8.64215 0.0699525 8.77986 0.18681C8.91757 0.303668 8.99645 0.461322 8.99988 0.626558C9.00332 0.791795 8.93104 0.951712 8.79827 1.07262L1.81324 7L8.79827 12.9274C8.93104 13.0483 9.00332 13.2082 8.99988 13.3734C8.99645 13.5387 8.91757 13.6963 8.77986 13.8132C8.64215 13.93 8.45636 13.997 8.26164 13.9999C8.06692 14.0028 7.87847 13.9415 7.73599 13.8288L0.219809 7.45072Z" fill="#111" /></svg>
+                        </button>
+                        <span className="cal-picker-month-label">{format(calPickerDate, 'MMM yyyy')}</span>
+                        <button className="cal-nav-btn" disabled={isAtMaxMonth} onClick={e => { e.stopPropagation(); setCalPickerDate(d => { const n = new Date(d); n.setMonth(n.getMonth() + 1); return n; }); }}>
+                          <svg width="7" height="12" viewBox="0 0 9 14" fill="none"><path fillRule="evenodd" clipRule="evenodd" d="M8.78019 6.54928C8.92094 6.66887 9 6.83098 9 7C9 7.16902 8.92094 7.33113 8.78019 7.45072L1.26401 13.8288C1.12153 13.9415 0.933079 14.0028 0.738359 13.9999C0.543638 13.997 0.357853 13.93 0.220144 13.8132C0.0824342 13.6963 0.00355271 13.5387 0.000117099 13.3734C-0.00331851 13.2082 0.06896 13.0483 0.201726 12.9274L7.18676 7L0.201726 1.07262C0.06896 0.951712 -0.00331851 0.791795 0.000117099 0.626558C0.00355271 0.461322 0.0824342 0.303668 0.220144 0.18681C0.357853 0.0699525 0.543638 0.00301477 0.738359 9.93682e-05C0.933079 -0.00281603 1.12153 0.0585185 1.26401 0.171181L8.78019 6.54928Z" fill="#111" /></svg>
+                        </button>
+                      </div>
                     );
                   })()}
                   <div className="cal-picker-grid">
@@ -1015,8 +1042,24 @@ function App() {
               </div>
 
               <div className="sheet-input-area">
-                <button className="add-circle-btn">
-                  <Plus size={20} />
+                <button
+                  className={`mic-circle-btn ${isRecording ? 'recording' : ''}`}
+                  onClick={startVoiceInput}
+                  title={isRecording ? 'Stop recording' : 'Voice input'}
+                >
+                  {isRecording ? (
+                    // Mic-off / stop icon while recording
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                      <rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor" />
+                    </svg>
+                  ) : (
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" xmlns="http://www.w3.org/2000/svg">
+                      <rect x="9" y="2" width="6" height="13" rx="3" />
+                      <path d="M5 10a7 7 0 0 0 14 0" />
+                      <line x1="12" y1="19" x2="12" y2="22" />
+                      <line x1="9" y1="22" x2="15" y2="22" />
+                    </svg>
+                  )}
                 </button>
                 <div className="input-wrapper">
                   <textarea

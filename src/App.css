@@ -19,16 +19,15 @@
   align-items: center;
   /* Let flex manage the avatar and button centering */
   justify-content: space-between;
-  padding: 61px 20px 18px 20px;
-  /* Matched Figma avatar top: 61px, bottom gap to strip */
+  padding: 0px 20px 10px 20px;
   background-color: #FFFFFF;
   z-index: 10;
 }
 
 .avatar {
-  width: 36px;
-  height: 36px;
-  border-radius: 17px;
+  width: 28px;
+  height: 28px;
+  border-radius: 14px;
   background-color: #f0f0f0;
   border: 1px solid #C9C4C4;
   object-fit: cover;
@@ -39,11 +38,11 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 8px;
+  gap: 4px;
   /* Gap between title and pills */
-  margin-top: 7px;
+  margin-top: 4px;
   /* Fixed height to prevent layout shift when today-btn shows/hides */
-  min-height: 55px;
+  min-height: 42px;
 }
 
 .header-title {
@@ -100,16 +99,16 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 9px;
-  width: 72px;
-  height: 29px;
+  gap: 6px;
+  width: 60px;
+  height: 26px;
   background-color: #F6F6F6;
-  border-radius: 13px;
+  border-radius: 10px;
   border: 1px solid #D4DAE0;
   box-sizing: border-box;
   color: black;
   font-family: "SF Pro", -apple-system, sans-serif;
-  font-size: 16px;
+  font-size: 14px;
   font-weight: 510;
   word-wrap: break-word;
   padding: 0;
@@ -119,7 +118,7 @@
 /* CALENDAR WEEK VIEW */
 .calendar-strip {
   display: flex;
-  padding: 12px 0;
+  padding: 6px 0;
   overflow-x: auto;
   scrollbar-width: none;
   -webkit-overflow-scrolling: touch;
@@ -139,11 +138,11 @@
   align-items: center;
   flex: 0 0 calc(100% / 7);
   scroll-snap-align: center;
-  gap: 5px;
+  gap: 0px;
 }
 
 .day-name {
-  font-size: 12px;
+  font-size: 10px;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -157,11 +156,11 @@
 
 .day-date {
   font-family: "SF Pro", -apple-system, sans-serif;
-  font-size: 22px;
+  font-size: 15px;
   font-weight: 400;
   color: #000000;
-  width: 40px;
-  height: 40px;
+  width: 28px;
+  height: 28px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -177,7 +176,7 @@
   background-color: #ED1F1F;
   color: white;
   font-weight: 500;
-  font-size: 18px;
+  font-size: 14px;
 }
 
 .today-dot {
@@ -376,7 +375,7 @@
   right: 0;
 }
 
-.add-circle-btn {
+.mic-circle-btn {
   width: 44px;
   height: 44px;
   min-width: 44px;
@@ -387,6 +386,22 @@
   justify-content: center;
   color: var(--text-primary);
   background: white;
+  transition: background 0.2s, color 0.2s, border-color 0.2s, box-shadow 0.2s;
+  position: relative;
+}
+
+.mic-circle-btn.recording {
+  background: #ED1F1F;
+  border-color: #ED1F1F;
+  color: white;
+  box-shadow: 0 0 0 0 rgba(237, 31, 31, 0.5);
+  animation: micPulse 1.2s ease-out infinite;
+}
+
+@keyframes micPulse {
+  0%   { box-shadow: 0 0 0 0 rgba(237, 31, 31, 0.45); }
+  70%  { box-shadow: 0 0 0 12px rgba(237, 31, 31, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(237, 31, 31, 0); }
 }
 
 .input-wrapper {
