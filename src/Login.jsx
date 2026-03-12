@@ -1,8 +1,9 @@
 import React from 'react';
-import { supabase } from './supabase';
+import { supabase, isSupabaseConfigured, supabaseConfigError } from './supabase';
 
 function Login({ onClose }) {
     const handleGoogleLogin = async () => {
+        if (!supabase) return;
         await supabase.auth.signInWithOAuth({
             provider: 'google',
             options: {
@@ -122,26 +123,46 @@ function Login({ onClose }) {
                 left: 32,
                 right: 32,
                 display: 'flex',
-                justifyContent: 'center'
+                justifyContent: 'center',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: 12,
             }}>
+                {!isSupabaseConfigured && (
+                    <div style={{
+                        width: '100%',
+                        maxWidth: 320,
+                        padding: '12px 14px',
+                        borderRadius: 16,
+                        background: '#FFF1F1',
+                        color: '#A12626',
+                        fontSize: 13,
+                        lineHeight: 1.4,
+                        boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
+                    }}>
+                        {supabaseConfigError}
+                    </div>
+                )}
                 <button
                     onClick={handleGoogleLogin}
+                    disabled={!isSupabaseConfigured}
                     style={{
                         width: '100%',
                         maxWidth: 320,
                         height: 54,
-                        background: 'white',
+                        background: isSupabaseConfigured ? 'white' : '#F2F2F2',
                         borderRadius: 19,
                         border: 'none',
-                        cursor: 'pointer',
+                        cursor: isSupabaseConfigured ? 'pointer' : 'not-allowed',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
                         gap: 10,
                         boxShadow: '0 1px 4px rgba(0,0,0,0.08)',
                         transition: 'transform 0.12s ease, box-shadow 0.12s ease',
+                        opacity: isSupabaseConfigured ? 1 : 0.7,
                     }}
-                    onMouseDown={e => e.currentTarget.style.transform = 'scale(0.97)'}
+                    onMouseDown={e => { if (isSupabaseConfigured) e.currentTarget.style.transform = 'scale(0.97)' }}
                     onMouseUp={e => e.currentTarget.style.transform = 'scale(1)'}
                 >
                     <svg width="20" height="20" viewBox="0 0 48 48">

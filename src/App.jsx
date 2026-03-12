@@ -3,7 +3,7 @@ import { X, ArrowUp } from 'lucide-react';
 import { subDays, addDays, format, isSameDay } from 'date-fns';
 import './App.css';
 import Login from './Login';
-import { supabase } from './supabase';
+import { supabase, isSupabaseConfigured } from './supabase';
 import { SendIntent } from 'send-intent';
 
 const translations = {
@@ -200,6 +200,11 @@ function App() {
   const [isLoginOpen, setIsLoginOpen] = useState(false);
 
   useEffect(() => {
+    if (!isSupabaseConfigured || !supabase) {
+      setLoadingAuth(false);
+      return;
+    }
+
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setLoadingAuth(false);
@@ -1484,7 +1489,9 @@ function App() {
                 <button className="signout-btn" style={{ cursor: 'pointer', position: 'relative', zIndex: 100 }} onClick={async (e) => {
                   e.stopPropagation();
                   closeProfile();
-                  await supabase.auth.signOut();
+                  if (supabase) {
+                    await supabase.auth.signOut();
+                  }
                 }}>
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg>
                   {translations[language].signOut}
