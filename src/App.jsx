@@ -241,6 +241,10 @@ function App() {
   const taskInputRef = useRef(null);
   const [isRecording, setIsRecording] = useState(false);
   const recognitionRef = useRef(null);
+  const [isTaskInputFocused, setIsTaskInputFocused] = useState(false);
+  const [sheetBaseHeight, setSheetBaseHeight] = useState(null);
+  const [sheetKeyboardOffset, setSheetKeyboardOffset] = useState(0);
+  const [sheetBaseViewportHeight, setSheetBaseViewportHeight] = useState(0);
 
   const startVoiceInput = useCallback(() => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -293,6 +297,46 @@ function App() {
   const [isClosingSettings, setIsClosingSettings] = useState(false);
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const [calPickerDate, setCalPickerDate] = useState(() => getLogicalToday());
+
+  useEffect(() => {
+    if (!isSheetOpen) {
+      setIsTaskInputFocused(false);
+      setSheetKeyboardOffset(0);
+      setSheetBaseHeight(null);
+      setSheetBaseViewportHeight(0);
+      return;
+    }
+
+    const baseViewportHeight = window.innerHeight;
+    setSheetBaseViewportHeight(baseViewportHeight);
+    setSheetBaseHeight(Math.min(760, Math.max(0, baseViewportHeight - 24)));
+  }, [isSheetOpen]);
+
+  useEffect(() => {
+    if (!isSheetOpen || !sheetBaseViewportHeight) return;
+
+    const updateKeyboardOffset = () => {
+      const vv = window.visualViewport;
+      if (!vv) {
+        setSheetKeyboardOffset(0);
+        return;
+      }
+
+      const offset = Math.max(0, Math.round(sheetBaseViewportHeight - vv.height - vv.offsetTop));
+      setSheetKeyboardOffset(offset);
+    };
+
+    updateKeyboardOffset();
+
+    const vv = window.visualViewport;
+    vv?.addEventListener('resize', updateKeyboardOffset);
+    vv?.addEventListener('scroll', updateKeyboardOffset);
+
+    return () => {
+      vv?.removeEventListener('resize', updateKeyboardOffset);
+      vv?.removeEventListener('scroll', updateKeyboardOffset);
+    };
+  }, [isSheetOpen, sheetBaseViewportHeight]);
 
   const closeProfile = (isSwipe = false) => {
     if (isSwipe) {
@@ -1229,14 +1273,20 @@ function App() {
         {/* Bottom Sheet Modal */}
         {isSheetOpen && (
           <div className="backdrop" onClick={() => setIsSheetOpen(false)}>
-            <div className="bottom-sheet" onClick={(e) => e.stopPropagation()}>
+            <div
+              className="bottom-sheet"
+              onClick={(e) => e.stopPropagation()}
+              style={sheetBaseHeight ? { height: `${sheetBaseHeight}px`, maxHeight: `${sheetBaseHeight}px` } : undefined}
+            >
               <button className="sheet-close" onClick={() => setIsSheetOpen(false)}>
                 <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 22 22" fill="none">
                   <path fillRule="evenodd" clipRule="evenodd" d="M5.01417 5.01423C5.14308 4.88548 5.31782 4.81316 5.50001 4.81316C5.68219 4.81316 5.85693 4.88548 5.98584 5.01423L11 10.0284L16.0142 5.01423C16.0771 4.94668 16.153 4.8925 16.2373 4.85493C16.3217 4.81735 16.4127 4.79715 16.505 4.79552C16.5973 4.79389 16.689 4.81087 16.7746 4.84545C16.8602 4.88002 16.938 4.93149 17.0033 4.99677C17.0686 5.06206 17.12 5.13982 17.1546 5.22543C17.1892 5.31103 17.2062 5.40273 17.2045 5.49504C17.2029 5.58735 17.1827 5.67839 17.1451 5.76272C17.1076 5.84705 17.0534 5.92295 16.9858 5.98589L11.9717 11.0001L16.9858 16.0142C17.0534 16.0772 17.1076 16.1531 17.1451 16.2374C17.1827 16.3217 17.2029 16.4128 17.2045 16.5051C17.2062 16.5974 17.1892 16.6891 17.1546 16.7747C17.12 16.8603 17.0686 16.9381 17.0033 17.0033C16.938 17.0686 16.8602 17.1201 16.7746 17.1547C16.689 17.1892 16.5973 17.2062 16.505 17.2046C16.4127 17.203 16.3217 17.1828 16.2373 17.1452C16.153 17.1076 16.0771 17.0534 16.0142 16.9859L11 11.9717L5.98584 16.9859C5.85551 17.1073 5.68314 17.1734 5.50503 17.1703C5.32692 17.1672 5.15698 17.095 5.03102 16.969C4.90506 16.8431 4.8329 16.6731 4.82976 16.495C4.82662 16.3169 4.89273 16.1446 5.01417 16.0142L10.0283 11.0001L5.01417 5.98589C4.88543 5.85699 4.81311 5.68225 4.81311 5.50006C4.81311 5.31787 4.88543 5.14313 5.01417 5.01423Z" fill="black" />
                 </svg>
               </button>
-
-              <div className="sheet-content">
+              <div
+                className={`sheet-content ${isTaskInputFocused ? 'input-active' : ''}`}
+                style={isTaskInputFocused ? { transform: `translateY(-${sheetKeyboardOffset > 0 ? Math.min(92, Math.max(56, Math.round(sheetKeyboardOffset * 0.32))) : 60}px)` } : undefined}
+              >
                 {!isCalendarOpen && (
                   <div className="sheet-hero-icon">
                     <SheetPebbleIcon />
@@ -1337,7 +1387,10 @@ function App() {
                 )}
               </div>
 
-              <div className="sheet-input-area">
+              <div
+                className="sheet-input-area"
+                style={sheetKeyboardOffset > 0 ? { transform: `translateY(-${sheetKeyboardOffset}px)` } : undefined}
+              >
                 <div className="composer-shell">
                   <button
                     className={`mic-circle-btn ${isRecording ? 'recording' : ''}`}
@@ -1364,6 +1417,8 @@ function App() {
                       placeholder={translations[language].placeholder}
                       value={inputText}
                       rows={1}
+                      onFocus={() => setIsTaskInputFocused(true)}
+                      onBlur={() => setIsTaskInputFocused(false)}
                       onChange={(e) => setInputText(e.target.value)}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter' && !e.shiftKey) {

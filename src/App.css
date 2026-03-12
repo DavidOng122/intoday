@@ -300,19 +300,20 @@
 }
 
 .sheet-content {
-  padding: 80px 28px 160px;
+  padding: 96px 28px 160px;
   flex: 1;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
   justify-content: flex-start;
   align-items: flex-start;
+  transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .sheet-hero-icon {
   width: 42px;
   height: 38px;
-  margin: 132px 0 28px;
+  margin: 148px 0 28px;
 }
 
 .sheet-title-row {
@@ -398,14 +399,16 @@
   background: linear-gradient(180deg, rgba(255, 255, 255, 0) 0%, #FFFFFF 22%, #FFFFFF 100%);
   display: flex;
   align-items: center;
+  justify-content: center;
   position: absolute;
   bottom: 0;
   left: 0;
   right: 0;
+  transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .composer-shell {
-  width: 100%;
+  width: min(100%, 366px);
   display: flex;
   align-items: center;
   gap: 0;
@@ -414,6 +417,7 @@
   border: 1px solid #D8D3CC;
   border-radius: 32px;
   box-shadow: 0 10px 26px rgba(0, 0, 0, 0.05);
+  margin: 0 auto;
 }
 
 .mic-circle-btn {
@@ -491,11 +495,11 @@
 
 @media (max-height: 780px) {
   .sheet-content {
-    padding-top: 64px;
+    padding-top: 72px;
   }
 
   .sheet-hero-icon {
-    margin-top: 92px;
+    margin-top: 112px;
   }
 }
 
