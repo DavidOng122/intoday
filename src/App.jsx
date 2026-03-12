@@ -250,11 +250,99 @@ function App() {
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const [calPickerDate, setCalPickerDate] = useState(() => getLogicalToday());
 
-  const closeProfile = () => {
-    setIsProfileOpen(false);
+  const closeProfile = (isSwipe = false) => {
+    if (isSwipe) {
+      setIsProfileOpen(false);
+      return;
+    }
+    setIsClosingProfile(true);
+    setTimeout(() => {
+      setIsProfileOpen(false);
+      setIsClosingProfile(false);
+    }, 250);
   };
-  const closeSettings = () => {
-    setIsSettingsOpen(false);
+  const closeSettings = (isSwipe = false) => {
+    if (isSwipe) {
+      setIsSettingsOpen(false);
+      return;
+    }
+    setIsClosingSettings(true);
+    setTimeout(() => {
+      setIsSettingsOpen(false);
+      setIsClosingSettings(false);
+    }, 250);
+  };
+
+  // --- Profile Swipe-to-Close State ---
+  const profileTouchStartY = React.useRef(null);
+  const profileCurrentY = React.useRef(0);
+
+  const handleProfileTouchStart = (e) => {
+    profileTouchStartY.current = e.touches[0].clientY;
+  };
+  const handleProfileTouchMove = (e) => {
+    if (profileTouchStartY.current === null) return;
+    const dy = e.touches[0].clientY - profileTouchStartY.current;
+    if (dy > 0) {
+      profileCurrentY.current = dy;
+      const el = e.currentTarget;
+      el.style.transform = `translateX(-50%) translateY(${dy}px)`;
+      el.style.transition = 'none';
+    }
+  };
+  const handleProfileTouchEnd = (e) => {
+    if (profileTouchStartY.current === null) return;
+    const dy = profileCurrentY.current;
+    const el = e.currentTarget;
+    if (dy > 120) {
+      el.style.transition = 'transform 0.25s ease-out';
+      el.style.transform = `translateX(-50%) translateY(100vh)`;
+      setTimeout(() => closeProfile(true), 200);
+    } else {
+      el.style.transition = 'transform 0.25s cubic-bezier(0.22, 1, 0.36, 1)';
+      el.style.transform = `translateX(-50%) translateY(0)`;
+    }
+    profileTouchStartY.current = null;
+    profileCurrentY.current = 0;
+  };
+
+  // --- Settings Swipe-to-Close State ---
+  const settingsTouchStartY = React.useRef(null);
+  const settingsCurrentY = React.useRef(0);
+
+  const handleSettingsTouchStart = (e) => {
+    settingsTouchStartY.current = e.touches[0].clientY;
+  };
+  const handleSettingsTouchMove = (e) => {
+    const scrollEl = e.currentTarget.querySelector('.settings-panel');
+    // Only allow swipe down if we are at the top of the scrollable area
+    if (scrollEl && scrollEl.scrollTop > 0) return;
+    
+    if (settingsTouchStartY.current === null) return;
+    const dy = e.touches[0].clientY - settingsTouchStartY.current;
+    if (dy > 0) {
+      settingsCurrentY.current = dy;
+      const el = e.currentTarget;
+      el.style.transform = `translateX(-50%) translateY(${dy}px)`;
+      el.style.transition = 'none';
+      // Prevent scrolling while swiping down
+      if (e.cancelable) e.preventDefault();
+    }
+  };
+  const handleSettingsTouchEnd = (e) => {
+    if (settingsTouchStartY.current === null) return;
+    const dy = settingsCurrentY.current;
+    const el = e.currentTarget;
+    if (dy > 120) {
+      el.style.transition = 'transform 0.25s ease-out';
+      el.style.transform = `translateX(-50%) translateY(100vh)`;
+      setTimeout(() => closeSettings(true), 200);
+    } else {
+      el.style.transition = 'transform 0.25s cubic-bezier(0.22, 1, 0.36, 1)';
+      el.style.transform = `translateX(-50%) translateY(0)`;
+    }
+    settingsTouchStartY.current = null;
+    settingsCurrentY.current = 0;
   };
 
   // ── Android Back Button (PWA) ──────────────────────────────────────────────
@@ -1118,10 +1206,15 @@ function App() {
 
         {/* Profile Modal */}
         {isProfileOpen && (
-          <div className="backdrop modal-backdrop" onClick={(e) => {
+          <div className={`backdrop modal-backdrop ${isClosingProfile ? 'fade-out' : ''}`} onClick={(e) => {
             if (e.target.classList.contains('backdrop')) closeProfile();
           }}>
-            <div className="profile-modal panel-enter">
+            <div 
+              className={`profile-modal ${isClosingProfile ? 'panel-exit' : 'panel-enter'}`}
+              onTouchStart={handleProfileTouchStart}
+              onTouchMove={handleProfileTouchMove}
+              onTouchEnd={handleProfileTouchEnd}
+            >
               <button className="profile-close-btn" onClick={closeProfile}>
                 <X size={20} color="#111" />
               </button>
@@ -1170,10 +1263,15 @@ function App() {
 
         {/* Settings Modal */}
         {isSettingsOpen && (
-          <div className="backdrop modal-backdrop" onClick={(e) => {
+          <div className={`backdrop modal-backdrop ${isClosingSettings ? 'fade-out' : ''}`} onClick={(e) => {
             if (e.target.classList.contains('backdrop')) closeSettings();
           }}>
-            <div className={`settings-modal panel-enter`}>
+            <div 
+              className={`settings-modal ${isClosingSettings ? 'panel-exit' : 'panel-enter'}`}
+              onTouchStart={handleSettingsTouchStart}
+              onTouchMove={handleSettingsTouchMove}
+              onTouchEnd={handleSettingsTouchEnd}
+            >
               <button className="settings-back-btn" onClick={closeSettings}>
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M15 18L9 12L15 6" />

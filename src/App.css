@@ -223,6 +223,30 @@
   }
 }
 
+.panel-exit {
+  animation: panelSlideOut 0.25s ease-out forwards;
+}
+
+@keyframes panelSlideOut {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(40px) scale(0.96);
+  }
+}
+
+.fade-out {
+  animation: fadeOut 0.25s ease-out forwards;
+}
+
+@keyframes fadeOut {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
 
 .backdrop {
   position: absolute;
@@ -499,12 +523,14 @@
 .time-pill {
   width: 54px;
   height: 16px;
-  font-size: 9px;
+  font-size: 7.5px;
+  letter-spacing: -0.3px;
   font-family: "LTC Bodoni 175", serif;
   font-style: italic;
   font-weight: 700;
   line-height: 16px;
-  word-wrap: break-word;
+  white-space: nowrap;
+  overflow: hidden;
   border-radius: 8px;
   margin-bottom: 8px;
   display: flex;
