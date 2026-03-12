@@ -1045,12 +1045,12 @@
 }
 
 .settings-back-btn {
-  position: relative;
-  align-self: flex-start;
-  margin-bottom: 16px;
-  width: 34px;
-  height: 34px;
-  background: #F4F4F5;
+  position: absolute;
+  top: 36px;
+  left: 24px;
+  width: 36px;
+  height: 36px;
+  background: #EBEBEB; /* Slightly darker to ensure it's visible even on white */
   border-radius: 50%;
   border: none;
   display: flex;
@@ -1060,7 +1060,7 @@
   padding: 0;
   color: #111;
   transition: background 0.2s;
-  flex-shrink: 0;
+  z-index: 1000;
 }
 
 .settings-back-btn:active {
@@ -1068,10 +1068,12 @@
 }
 
 .settings-panel {
-  margin-top: 0;
+  margin-top: 60px;
   background: #FAFAFB;
   border-radius: 16px;
   padding: 8px 0;
+  position: relative;
+  z-index: 10;
 }
 
 .settings-item-row {
