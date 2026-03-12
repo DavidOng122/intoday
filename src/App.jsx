@@ -257,6 +257,35 @@ function App() {
     setIsSettingsOpen(false);
   };
 
+  // ── Android Back Button (PWA) ──────────────────────────────────────────────
+  // When any overlay is open we push a dummy history entry so the Android
+  // hardware back-button fires `popstate` instead of closing the whole app.
+  const anyOverlayOpen =
+    isSheetOpen || isProfileOpen || isSettingsOpen ||
+    isCalendarOpen || !!editingTodo || isLoginOpen;
+
+  useEffect(() => {
+    if (anyOverlayOpen) {
+      // Push a state so the back gesture has somewhere to go back TO.
+      window.history.pushState({ modal: true }, '');
+    }
+  }, [anyOverlayOpen]);
+
+  useEffect(() => {
+    const handlePopState = () => {
+      // Close overlays from top (most-modal) to bottom
+      if (editingTodo) { setEditingTodo(null); setEditText(''); return; }
+      if (isSettingsOpen) { setIsSettingsOpen(false); return; }
+      if (isProfileOpen) { setIsProfileOpen(false); return; }
+      if (isCalendarOpen) { setIsCalendarOpen(false); return; }
+      if (isSheetOpen) { setIsSheetOpen(false); return; }
+      if (isLoginOpen) { setIsLoginOpen(false); return; }
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [editingTodo, isSettingsOpen, isProfileOpen, isCalendarOpen, isSheetOpen, isLoginOpen]);
+  // ─────────────────────────────────────────────────────────────────────────
+
   const [weekOffset, setWeekOffset] = useState(0);
   const [contentKey, setContentKey] = useState(0);
   const stripRef = React.useRef(null);
