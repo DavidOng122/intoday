@@ -280,7 +280,7 @@ function App() {
     const textarea = taskInputRef.current;
     if (!textarea) return;
     textarea.style.height = 'auto';
-    const nextHeight = Math.min(textarea.scrollHeight, 110); // 110px approx 5 lines
+    const nextHeight = textarea.scrollHeight;
     textarea.style.height = `${nextHeight}px`;
   }, [inputText]);
 
