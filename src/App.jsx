@@ -322,24 +322,33 @@ function App() {
 
     const updateKeyboardOffset = () => {
       const vv = window.visualViewport;
-      if (!vv) {
-        setSheetKeyboardOffset(0);
-        return;
-      }
+      const visualViewportOffset = vv
+        ? Math.max(0, Math.round(sheetBaseViewportHeight - vv.height - vv.offsetTop))
+        : 0;
+      const virtualKeyboardOffset = navigator.virtualKeyboard?.boundingRect?.height
+        ? Math.round(navigator.virtualKeyboard.boundingRect.height)
+        : 0;
 
-      const offset = Math.max(0, Math.round(sheetBaseViewportHeight - vv.height - vv.offsetTop));
-      setSheetKeyboardOffset(offset);
+      setSheetKeyboardOffset(Math.max(visualViewportOffset, virtualKeyboardOffset));
     };
 
     updateKeyboardOffset();
 
     const vv = window.visualViewport;
+    const vk = navigator.virtualKeyboard;
+
+    if (vk) {
+      vk.overlaysContent = true;
+    }
+
     vv?.addEventListener('resize', updateKeyboardOffset);
     vv?.addEventListener('scroll', updateKeyboardOffset);
+    vk?.addEventListener('geometrychange', updateKeyboardOffset);
 
     return () => {
       vv?.removeEventListener('resize', updateKeyboardOffset);
       vv?.removeEventListener('scroll', updateKeyboardOffset);
+      vk?.removeEventListener('geometrychange', updateKeyboardOffset);
     };
   }, [isSheetOpen, sheetBaseViewportHeight]);
 
