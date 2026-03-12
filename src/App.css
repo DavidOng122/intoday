@@ -19,7 +19,7 @@
   align-items: center;
   /* Let flex manage the avatar and button centering */
   justify-content: space-between;
-  padding: 0px 20px 10px 20px;
+  padding: calc(10px + env(safe-area-inset-top)) 20px 10px 20px;
   background-color: #FFFFFF;
   z-index: 10;
 }
@@ -40,7 +40,7 @@
   align-items: center;
   gap: 4px;
   /* Gap between title and pills */
-  margin-top: 4px;
+  margin-top: 0;
   /* Fixed height to prevent layout shift when today-btn shows/hides */
   min-height: 42px;
 }
@@ -826,7 +826,7 @@
    ======================================================== */
 .profile-modal {
   position: absolute;
-  top: 130px;
+  top: calc(130px + env(safe-area-inset-top));
   /* aligned to new dump top offset */
   left: 50%;
   transform: translateX(-50%);
@@ -1017,9 +1017,9 @@
    ======================================================== */
 .settings-modal {
   position: absolute;
-  top: 50%;
+  top: calc(100px + env(safe-area-inset-top));
   left: 50%;
-  transform: translate(-50%, -50%);
+  transform: translateX(-50%);
   width: 382px;
   height: 850px;
   background: white;
@@ -1036,18 +1036,18 @@
 @keyframes settingSlideUp {
   from {
     opacity: 0;
-    transform: translate(-50%, calc(-50% + 22px)) scale(0.98);
+    transform: translateX(-50%) translateY(22px) scale(0.98);
   }
   to {
     opacity: 1;
-    transform: translate(-50%, -50%) scale(1);
+    transform: translateX(-50%) translateY(0) scale(1);
   }
 }
 
 .settings-back-btn {
-  position: absolute;
-  top: 32px;
-  left: 24px;
+  position: relative;
+  align-self: flex-start;
+  margin-bottom: 16px;
   width: 34px;
   height: 34px;
   background: #F4F4F5;
@@ -1060,6 +1060,7 @@
   padding: 0;
   color: #111;
   transition: background 0.2s;
+  flex-shrink: 0;
 }
 
 .settings-back-btn:active {
@@ -1067,7 +1068,7 @@
 }
 
 .settings-panel {
-  margin-top: 60px;
+  margin-top: 0;
   background: #FAFAFB;
   border-radius: 16px;
   padding: 8px 0;
