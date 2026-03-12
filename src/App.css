@@ -456,6 +456,14 @@
   display: flex;
   min-height: 240px;
   border-bottom: 1px solid #F0F0F0;
+  position: relative;
+  z-index: 1; /* Base index */
+}
+
+/* Must elevate the z-index of the block containing the dragging card 
+   so it renders ON TOP of sibling blocks that come after it (e.g. Morning over Night) */
+.time-block.is-dragging-parent {
+  z-index: 999;
 }
 
 .time-col {
@@ -536,15 +544,21 @@
 }
 
 .tasks-col.drag-over {
-  background: rgba(99, 102, 241, 0.06);
   border-radius: 12px;
-  outline: 2px dashed rgba(99, 102, 241, 0.35);
-  outline-offset: -4px;
+  background: rgba(0, 0, 0, 0.03);
 }
 
 .tasks-col::-webkit-scrollbar {
   display: none;
   /* Chrome, Safari and Opera */
+}
+
+/* Allow cards to float freely over all containers when ANY card is dragging */
+body.is-dragging-global .timeline-area,
+body.is-dragging-global .tasks-col,
+body.is-dragging-global .time-col,
+body.is-dragging-global .time-block {
+  overflow: visible !important;
 }
 
 /* Hide bottom border for the last tasks col to avoid double borders, handled by flex layout visually but just in case */
@@ -558,6 +572,12 @@
   border-radius: 11px;
 }
 
+/* Card must fill full width so it covers the action buttons behind it */
+.swipe-wrapper .task-card {
+  width: 100%;
+  box-sizing: border-box;
+}
+
 .swipe-actions {
   position: absolute;
   top: 0;
@@ -568,6 +588,13 @@
   align-items: stretch;
   border-radius: 0 11px 11px 0;
   overflow: hidden;
+  /* Buttons sit behind the card. JS will inject inline opacity and transform for the reveal. */
+  pointer-events: none;
+}
+
+/* Buttons become tappable once card is fully swiped open */
+.swipe-wrapper.swipe-open .swipe-actions {
+  pointer-events: auto;
 }
 
 .swipe-btn {
@@ -602,17 +629,19 @@
   background: #FFD9D9;
 }
 
-/* Drag placeholder — shown at the original position during long-press drag */
+/* Drag placeholder — shown at the original position during drag */
 .swipe-wrapper.is-dragging {
   min-height: 60px;
-  border-radius: 16px;
-  border: 2px dashed rgba(99, 102, 241, 0.35);
-  background: rgba(99, 102, 241, 0.04);
-  transition: background 0.2s;
+  border-radius: 11px;
+  background: transparent;
+  /* Crucial: allow the card to be seen when dragged outside the wrapper bounds */
+  overflow: visible;
 }
-.swipe-wrapper.is-dragging .swipe-actions {
+.swipe-wrapper.is-dragging .swipe-actions,
+.swipe-wrapper:has(.dragging) .swipe-actions {
   pointer-events: none;
   opacity: 0;
+  display: none !important;
 }
 
 /* Edit Modal (Bottom Aligned) */
@@ -775,9 +804,10 @@
 }
 
 .task-card.dragging {
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.12);
   border-color: #E2E2E2;
-  opacity: 0.5;
+  opacity: 0.95;
+  transform: scale(1.04);
 }
 
 .task-title {

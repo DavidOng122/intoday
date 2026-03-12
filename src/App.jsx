@@ -4,6 +4,7 @@ import { subDays, addDays, format, isSameDay } from 'date-fns';
 import './App.css';
 import Login from './Login';
 import { supabase } from './supabase';
+import { SendIntent } from 'send-intent';
 
 const translations = {
   EN: {
@@ -188,6 +189,27 @@ function App() {
     return () => subscription.unsubscribe();
   }, []);
 
+  // Handle incoming share intent from other apps (YouTube, Instagram, etc.)
+  useEffect(() => {
+    const handleShareIntent = async () => {
+      try {
+        const result = await SendIntent.checkSendIntentReceived();
+        if (result && (result.url || result.title || result.description)) {
+          // Prefer URL, fallback to title or description
+          const sharedText = result.url || result.title || result.description || '';
+          if (sharedText) {
+            setInputText(sharedText);
+            setActiveChip(getCurrentTimeBlock());
+            setIsSheetOpen(true);
+          }
+        }
+      } catch (_) {
+        // Not running in Capacitor (e.g. browser dev mode) — skip silently
+      }
+    };
+    handleShareIntent();
+  }, []);
+
   const [activeChip, setActiveChip] = useState('Morning');
   const [inputText, setInputText] = useState('');
   const [language, setLanguage] = useState('EN');
@@ -341,6 +363,53 @@ function App() {
   const [draggedTodoId, setDraggedTodoId] = useState(null);
   const [openSwipeId, setOpenSwipeId] = useState(null);
   const [dragOverBlock, setDragOverBlock] = useState(null);
+
+  // Sync swipe-open CSS class with openSwipeId state
+  const prevOpenSwipeId = React.useRef(null);
+  useEffect(() => {
+    // Remove class from previously open wrapper
+    if (prevOpenSwipeId.current !== null) {
+      const prev = document.getElementById(`swipe-wrapper-${prevOpenSwipeId.current}`);
+      if (prev) prev.classList.remove('swipe-open');
+    }
+    // Add class to newly open wrapper
+    if (openSwipeId !== null) {
+      const next = document.getElementById(`swipe-wrapper-${openSwipeId}`);
+      if (next) next.classList.add('swipe-open');
+    }
+    prevOpenSwipeId.current = openSwipeId;
+  }, [openSwipeId]);
+
+  // Close any open swipe when tapping outside the swiped card
+  useEffect(() => {
+    if (openSwipeId === null) return;
+    const handleOutsideTap = (e) => {
+      const wrapper = document.getElementById(`swipe-wrapper-${openSwipeId}`);
+      if (wrapper && !wrapper.contains(e.target)) {
+        const el = document.getElementById(`swipe-card-${openSwipeId}`);
+        const actionsEl = document.querySelector(`#swipe-wrapper-${openSwipeId} .swipe-actions`);
+        if (el) {
+          el.style.transition = 'transform 0.22s cubic-bezier(0.34, 1.56, 0.64, 1)';
+          el.style.transform = 'translateX(0)';
+          setTimeout(() => { if (el) el.style.transition = ''; }, 280);
+        }
+        if (actionsEl) {
+          actionsEl.style.transition = 'opacity 0.18s ease, transform 0.18s ease';
+          actionsEl.style.opacity = '0';
+          actionsEl.style.transform = 'translateX(20px)';
+          setTimeout(() => { if (actionsEl) actionsEl.style.transition = ''; }, 220);
+        }
+        setOpenSwipeId(null);
+      }
+    };
+    document.addEventListener('touchstart', handleOutsideTap, { passive: true });
+    document.addEventListener('mousedown', handleOutsideTap);
+    return () => {
+      document.removeEventListener('touchstart', handleOutsideTap);
+      document.removeEventListener('mousedown', handleOutsideTap);
+    };
+  }, [openSwipeId]);
+
   const dragOverBlockRef = React.useRef(null); // readable in onTouchEnd closure
   const scrollBlocker = React.useRef(null);     // non-passive touchmove blocker
 
@@ -350,6 +419,8 @@ function App() {
   const longPressTimer = React.useRef(null);
   const isDragMode = React.useRef(false);
   const dragOriginY = React.useRef(0);
+  const autoScrollRef = React.useRef(null);
+  const dragScrollOffset = React.useRef(0);
 
   // Helper: find nearest time block by vertical center proximity
   const getNearestBlock = (touchY) => {
@@ -399,51 +470,79 @@ function App() {
       const touch = e.touches[0];
       swipeTouchStartX.current = touch.clientX;
       swipeTouchStartY.current = touch.clientY;
-      isDragMode.current = false;
+      isDragMode.current = false; // wait for direction detection in onTouchMove
+      swipeCurrentOffset.current = 0;
 
       if (openSwipeId !== null && openSwipeId !== todoId) setOpenSwipeId(null);
-
-      // 300ms long-press to enter drag mode
-      longPressTimer.current = setTimeout(() => {
-        isDragMode.current = true;
-        swipeCurrentOffset.current = 0;
-        dragOriginY.current = swipeTouchStartY.current;
-
-        const el = document.getElementById(`swipe-card-${todoId}`);
-        const wrapper = document.getElementById(`swipe-wrapper-${todoId}`);
-        if (el) {
-          el.style.transition = 'transform 0.2s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.2s, opacity 0.2s';
-          el.style.transform = 'scale(1.06) translateY(-3px)';
-          el.style.boxShadow = '0 18px 48px rgba(0,0,0,0.22)';
-          el.style.opacity = '0.94';
-          el.style.zIndex = '100';
-          setTimeout(() => { if (el) el.style.transition = ''; }, 250);
-        }
-        // Lock page scroll during drag via non-passive listener
-        const blocker = (e) => e.preventDefault();
-        scrollBlocker.current = blocker;
-        window.addEventListener('touchmove', blocker, { passive: false });
-
-        if (wrapper) wrapper.classList.add('is-dragging');
-
-        // Highlight nearest block immediately on drag start
-        const nearest = getNearestBlock(swipeTouchStartY.current);
-        dragOverBlockRef.current = nearest;
-        setDragOverBlock(nearest);
-      }, 300);
     },
     onTouchMove: (e) => {
       const touch = e.touches[0];
+      if (swipeTouchStartX.current === null) return;
 
+      const deltaX = touch.clientX - swipeTouchStartX.current;
+      const deltaY = touch.clientY - swipeTouchStartY.current;
+
+      // If already in drag mode, handle vertical dragging
       if (isDragMode.current) {
         e.preventDefault();
-        const rawDy = touch.clientY - dragOriginY.current;
-        // Cap movement so card stays in view (±100px)
-        const dy = Math.max(-100, Math.min(100, rawDy));
-        const el = document.getElementById(`swipe-card-${todoId}`);
-        if (el) el.style.transform = `scale(1.06) translateY(${dy}px)`;
+        
+        // --- 1. Edge Auto-Scroll Logic ---
+        const SCROLL_ZONE = 100; // pixels from top/bottom to start scrolling
+        const MAX_SPEED = 15;
+        const timelineEl = document.querySelector('.timeline-area');
+        
+        if (timelineEl) {
+          const rect = timelineEl.getBoundingClientRect();
+          const touchY = touch.clientY;
+          let speed = 0;
+          
+          if (touchY < rect.top + SCROLL_ZONE) {
+            // Near top
+            const intensity = 1 - (touchY - rect.top) / SCROLL_ZONE;
+            speed = -MAX_SPEED * Math.max(0, intensity);
+          } else if (touchY > rect.bottom - SCROLL_ZONE) {
+            // Near bottom
+            const intensity = 1 - (rect.bottom - touchY) / SCROLL_ZONE;
+            speed = MAX_SPEED * Math.max(0, intensity);
+          }
 
-        // Proximity-based nearest block detection
+          if (speed !== 0) {
+            if (!autoScrollRef.current) {
+              autoScrollRef.current = setInterval(() => {
+                timelineEl.scrollTop += speed;
+                dragScrollOffset.current += speed;
+                // Update card position immediately during scroll tick
+                const el = document.getElementById(`swipe-card-${todoId}`);
+                if (el) {
+                  const rawDy = touch.clientY - dragOriginY.current + dragScrollOffset.current;
+                  const dy = Math.max(-2000, Math.min(2000, rawDy));
+                  el.style.transform = `scale(1.04) translateY(${dy}px)`;
+                }
+                
+                // Re-calculate drag over block since content scrolled
+                const nearest = getNearestBlock(touch.clientY);
+                if (nearest !== dragOverBlockRef.current) {
+                  dragOverBlockRef.current = nearest;
+                  setDragOverBlock(nearest);
+                }
+              }, 16);
+            }
+          } else {
+            if (autoScrollRef.current) {
+              clearInterval(autoScrollRef.current);
+              autoScrollRef.current = null;
+            }
+          }
+        }
+        
+        // --- 2. Card Drag Translate ---
+        // Combine finger movement with artificial scroll offset
+        const rawDy = touch.clientY - dragOriginY.current + dragScrollOffset.current;
+        // Increase the max drag bounds significantly or remove them so the card can go far
+        const dy = Math.max(-2000, Math.min(2000, rawDy)); 
+        const el = document.getElementById(`swipe-card-${todoId}`);
+        if (el) el.style.transform = `scale(1.04) translateY(${dy}px)`;
+        
         const nearest = getNearestBlock(touch.clientY);
         if (nearest !== dragOverBlockRef.current) {
           dragOverBlockRef.current = nearest;
@@ -452,34 +551,71 @@ function App() {
         return;
       }
 
-      if (swipeTouchStartX.current === null) return;
-      const deltaX = touch.clientX - swipeTouchStartX.current;
-      const deltaY = touch.clientY - (swipeTouchStartY.current ?? touch.clientY);
+      // Direction detection threshold
+      const DIRECTION_THRESHOLD = 8;
+      if (Math.abs(deltaX) < DIRECTION_THRESHOLD && Math.abs(deltaY) < DIRECTION_THRESHOLD) return;
 
-      // Cancel long press on vertical scroll
-      if (Math.abs(deltaY) > 10 && Math.abs(deltaY) > Math.abs(deltaX)) {
-        clearTimeout(longPressTimer.current);
-        return;
-      }
+      if (Math.abs(deltaY) > Math.abs(deltaX)) {
+        // Vertical movement → activate drag immediately (no long press)
+        isDragMode.current = true;
+        dragOriginY.current = swipeTouchStartY.current;
+        dragScrollOffset.current = 0;
 
-      // Cancel long press on horizontal swipe
-      if (Math.abs(deltaX) > 6) clearTimeout(longPressTimer.current);
-      if (deltaX > 0) return;
+        const el = document.getElementById(`swipe-card-${todoId}`);
+        const wrapper = document.getElementById(`swipe-wrapper-${todoId}`);
+        if (el) {
+          el.style.transition = 'transform 0.15s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.15s, opacity 0.15s';
+          el.style.transform = 'scale(1.04) translateY(-3px)';
+          el.style.boxShadow = '0 12px 30px rgba(0, 0, 0, 0.12)';
+          el.style.opacity = '0.95';
+          el.style.zIndex = '100';
+          setTimeout(() => { if (el) el.style.transition = ''; }, 200);
+        }
+        // Lock page scroll
+        const blocker = (ev) => ev.preventDefault();
+        scrollBlocker.current = blocker;
+        window.addEventListener('touchmove', blocker, { passive: false });
 
-      const rawOffset = Math.abs(deltaX);
-      let offset;
-      if (rawOffset <= SWIPE_MAX) {
-        offset = rawOffset;
+        if (wrapper) {
+          wrapper.classList.add('is-dragging');
+          const parentBlock = wrapper.closest('.time-block');
+          if (parentBlock) parentBlock.classList.add('is-dragging-parent');
+        }
+        document.body.classList.add('is-dragging-global');
+
+        const nearest = getNearestBlock(touch.clientY);
+        dragOverBlockRef.current = nearest;
+        setDragOverBlock(nearest);
       } else {
-        const overflow = rawOffset - SWIPE_MAX;
-        offset = SWIPE_MAX + overflow * 0.15;
+        // Horizontal movement → swipe to reveal actions with fade (left only)
+        if (deltaX > 0) return;
+        const rawOffset = Math.abs(deltaX);
+        let offset;
+        if (rawOffset <= SWIPE_MAX) {
+          offset = rawOffset;
+        } else {
+          const overflow = rawOffset - SWIPE_MAX;
+          offset = SWIPE_MAX + overflow * 0.15;
+        }
+        swipeCurrentOffset.current = offset;
+        const el = document.getElementById(`swipe-card-${todoId}`);
+        const actionsEl = document.querySelector(`#swipe-wrapper-${todoId} .swipe-actions`);
+        if (el) el.style.transform = `translateX(-${offset}px)`;
+        if (actionsEl) {
+          const progress = Math.min(offset / SWIPE_MAX, 1);
+          actionsEl.style.opacity = progress;
+          // Slide in from 20px to 0px as you swipe, sitting perfectly behind the card
+          const slideX = 20 * (1 - progress);
+          actionsEl.style.transform = `translateX(${slideX}px)`;
+        }
       }
-      swipeCurrentOffset.current = offset;
-      const el = document.getElementById(`swipe-card-${todoId}`);
-      if (el) el.style.transform = `translateX(-${offset}px)`;
     },
     onTouchEnd: (e) => {
       clearTimeout(longPressTimer.current);
+      if (autoScrollRef.current) {
+        clearInterval(autoScrollRef.current);
+        autoScrollRef.current = null;
+      }
 
       if (isDragMode.current) {
         isDragMode.current = false;
@@ -500,7 +636,12 @@ function App() {
           el.style.zIndex = '';
           setTimeout(() => { if (el) el.style.transition = ''; }, 350);
         }
-        if (wrapper) wrapper.classList.remove('is-dragging');
+        if (wrapper) {
+          wrapper.classList.remove('is-dragging');
+          const parentBlock = wrapper.closest('.time-block');
+          if (parentBlock) parentBlock.classList.remove('is-dragging-parent');
+        }
+        document.body.classList.remove('is-dragging-global');
         // Release scroll lock
         if (scrollBlocker.current) {
           window.removeEventListener('touchmove', scrollBlocker.current);
@@ -514,11 +655,19 @@ function App() {
       // Regular swipe snap
       const offset = swipeCurrentOffset.current;
       const el = document.getElementById(`swipe-card-${todoId}`);
+      const actionsEl = document.querySelector(`#swipe-wrapper-${todoId} .swipe-actions`);
       if (offset >= SNAP_THRESHOLD) {
         if (el) {
           el.style.transition = 'transform 0.28s cubic-bezier(0.34, 1.56, 0.64, 1)';
           el.style.transform = `translateX(-${SWIPE_MAX}px)`;
           setTimeout(() => { if (el) el.style.transition = ''; }, 320);
+        }
+        if (actionsEl) {
+          actionsEl.style.transition = 'opacity 0.25s ease, transform 0.25s cubic-bezier(0.34,1.56,0.64,1)';
+          actionsEl.style.opacity = '1';
+          actionsEl.style.transform = 'translateX(0)';
+          actionsEl.style.pointerEvents = 'auto'; // enable clicks immediately
+          setTimeout(() => { if (actionsEl) { actionsEl.style.transition = ''; } }, 300);
         }
         setOpenSwipeId(todoId);
       } else {
@@ -526,6 +675,13 @@ function App() {
           el.style.transition = 'transform 0.22s cubic-bezier(0.34, 1.56, 0.64, 1)';
           el.style.transform = 'translateX(0)';
           setTimeout(() => { if (el) el.style.transition = ''; }, 280);
+        }
+        if (actionsEl) {
+          actionsEl.style.transition = 'opacity 0.18s ease, transform 0.18s ease';
+          actionsEl.style.opacity = '0';
+          actionsEl.style.transform = 'translateX(20px)';
+          actionsEl.style.pointerEvents = 'none';
+          setTimeout(() => { if (actionsEl) { actionsEl.style.transition = ''; } }, 220);
         }
         setOpenSwipeId(null);
       }
