@@ -745,7 +745,7 @@ function App() {
         const rawDy = touch.clientY - dragOriginY.current;
         const dy = Math.max(-2000, Math.min(2000, rawDy)); 
         const el = document.getElementById(`swipe-card-${todoId}`);
-        if (el) el.style.transform = `scale(1.04) translateY(${dy}px)`;
+        if (el) el.style.transform = `translate3d(0, ${dy}px, 0) scale(1.04)`;
 
         const nearest = getNearestBlock(touch.clientY);
         if (nearest !== dragOverBlockRef.current) {
@@ -769,12 +769,14 @@ function App() {
         const el = document.getElementById(`swipe-card-${todoId}`);
         const wrapper = document.getElementById(`swipe-wrapper-${todoId}`);
         if (el) {
-          el.style.transition = 'transform 0.15s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.15s, opacity 0.15s';
-          el.style.transform = 'scale(1.04) translateY(-3px)';
+          const rawDy = touch.clientY - dragOriginY.current;
+          const dy = Math.max(-2000, Math.min(2000, rawDy));
+          el.style.transition = 'box-shadow 0.12s ease, opacity 0.12s ease';
+          el.style.transform = `translate3d(0, ${dy}px, 0) scale(1.04)`;
           el.style.boxShadow = '0 12px 30px rgba(0, 0, 0, 0.12)';
           el.style.opacity = '0.95';
           el.style.zIndex = '100';
-          setTimeout(() => { if (el) el.style.transition = ''; }, 200);
+          el.style.willChange = 'transform';
         }
         // Lock page scroll
         const blocker = (ev) => ev.preventDefault();
@@ -833,6 +835,7 @@ function App() {
           el.style.boxShadow = '';
           el.style.opacity = '';
           el.style.zIndex = '';
+          el.style.willChange = '';
           setTimeout(() => { if (el) el.style.transition = ''; }, 350);
         }
         if (wrapper) {

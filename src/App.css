@@ -921,10 +921,12 @@ body.is-dragging-global .time-block {
 }
 
 .task-card.dragging {
+  transition: none !important;
   box-shadow: 0 12px 30px rgba(0, 0, 0, 0.12);
   border-color: #E2E2E2;
   opacity: 0.95;
   transform: scale(1.04);
+  will-change: transform;
 }
 
 .task-title {
