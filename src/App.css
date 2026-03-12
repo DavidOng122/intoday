@@ -576,12 +576,7 @@
   transition: background 0.2s;
 }
 
-.tasks-col.drag-over {
-  background: rgba(99, 102, 241, 0.06);
-  border-radius: 12px;
-  outline: 2px dashed rgba(99, 102, 241, 0.35);
-  outline-offset: -4px;
-}
+
 
 .tasks-col::-webkit-scrollbar {
   display: none;
@@ -643,13 +638,9 @@
   background: #FFD9D9;
 }
 
-/* Drag placeholder — shown at the original position during long-press drag */
+/* Drag placeholder — shown at the original position during drag */
 .swipe-wrapper.is-dragging {
   min-height: 60px;
-  border-radius: 16px;
-  border: 2px dashed rgba(99, 102, 241, 0.35);
-  background: rgba(99, 102, 241, 0.04);
-  transition: background 0.2s;
 }
 .swipe-wrapper.is-dragging .swipe-actions {
   pointer-events: none;

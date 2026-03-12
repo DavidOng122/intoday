@@ -487,14 +487,12 @@ function App() {
 
   const [draggedTodoId, setDraggedTodoId] = useState(null);
   const [openSwipeId, setOpenSwipeId] = useState(null);
-  const [dragOverBlock, setDragOverBlock] = useState(null);
   const dragOverBlockRef = React.useRef(null); // readable in onTouchEnd closure
   const scrollBlocker = React.useRef(null);     // non-passive touchmove blocker
 
   const swipeTouchStartX = React.useRef(null);
   const swipeTouchStartY = React.useRef(null);
   const swipeCurrentOffset = React.useRef(0);
-  const longPressTimer = React.useRef(null);
   const isDragMode = React.useRef(false);
   const dragOriginY = React.useRef(0);
 
@@ -548,9 +546,16 @@ function App() {
       isDragMode.current = false;
 
       if (openSwipeId !== null && openSwipeId !== todoId) setOpenSwipeId(null);
+    },
+    onTouchMove: (e) => {
+      const touch = e.touches[0];
 
-      // 300ms long-press to enter drag mode
-      longPressTimer.current = setTimeout(() => {
+      if (swipeTouchStartX.current === null) return;
+      const deltaX = touch.clientX - swipeTouchStartX.current;
+      const deltaY = touch.clientY - (swipeTouchStartY.current ?? touch.clientY);
+
+      // Start drag mode immediately on vertical drag
+      if (!isDragMode.current && Math.abs(deltaY) > 5 && Math.abs(deltaY) > Math.abs(deltaX)) {
         isDragMode.current = true;
         swipeCurrentOffset.current = 0;
         dragOriginY.current = swipeTouchStartY.current;
@@ -566,20 +571,14 @@ function App() {
           setTimeout(() => { if (el) el.style.transition = ''; }, 250);
         }
         // Lock page scroll during drag via non-passive listener
-        const blocker = (e) => e.preventDefault();
+        const blocker = (ev) => ev.preventDefault();
         scrollBlocker.current = blocker;
         window.addEventListener('touchmove', blocker, { passive: false });
 
         if (wrapper) wrapper.classList.add('is-dragging');
-
-        // Highlight nearest block immediately on drag start
-        const nearest = getNearestBlock(swipeTouchStartY.current);
-        dragOverBlockRef.current = nearest;
-        setDragOverBlock(nearest);
-      }, 300);
-    },
-    onTouchMove: (e) => {
-      const touch = e.touches[0];
+        
+        // Removed nearest block highlighting to match desktop behavior
+      }
 
       if (isDragMode.current) {
         e.preventDefault();
@@ -589,27 +588,14 @@ function App() {
         const el = document.getElementById(`swipe-card-${todoId}`);
         if (el) el.style.transform = `scale(1.06) translateY(${dy}px)`;
 
-        // Proximity-based nearest block detection
+        // Keep track of the nearest block purely for drop logic without highlighting
         const nearest = getNearestBlock(touch.clientY);
         if (nearest !== dragOverBlockRef.current) {
           dragOverBlockRef.current = nearest;
-          setDragOverBlock(nearest);
         }
         return;
       }
 
-      if (swipeTouchStartX.current === null) return;
-      const deltaX = touch.clientX - swipeTouchStartX.current;
-      const deltaY = touch.clientY - (swipeTouchStartY.current ?? touch.clientY);
-
-      // Cancel long press on vertical scroll
-      if (Math.abs(deltaY) > 10 && Math.abs(deltaY) > Math.abs(deltaX)) {
-        clearTimeout(longPressTimer.current);
-        return;
-      }
-
-      // Cancel long press on horizontal swipe
-      if (Math.abs(deltaX) > 6) clearTimeout(longPressTimer.current);
       if (deltaX > 0) return;
 
       const rawOffset = Math.abs(deltaX);
@@ -625,8 +611,6 @@ function App() {
       if (el) el.style.transform = `translateX(-${offset}px)`;
     },
     onTouchEnd: (e) => {
-      clearTimeout(longPressTimer.current);
-
       if (isDragMode.current) {
         isDragMode.current = false;
         const el = document.getElementById(`swipe-card-${todoId}`);
@@ -653,7 +637,6 @@ function App() {
           scrollBlocker.current = null;
         }
         dragOverBlockRef.current = null;
-        setDragOverBlock(null);
         return;
       }
 
@@ -951,7 +934,7 @@ function App() {
                   <span className="time-text bottom">{block.end}</span>
                 </div>
                 <div
-                  className={`tasks-col ${dragOverBlock === block.id ? 'drag-over' : ''}`}
+                  className="tasks-col"
                   data-block-id={block.id}
                   onDragOver={handleDragOver}
                   onDrop={(e) => handleDropOnBlock(e, block.id)}
