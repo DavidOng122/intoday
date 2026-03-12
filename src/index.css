@@ -38,6 +38,11 @@ html, body {
   display: flex;
   flex-direction: column;
   position: relative;
+  /* Honour iOS safe areas so Dynamic Island / notch never covers UI */
+  padding-top: env(safe-area-inset-top);
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+  background-color: var(--bg-color);
 }
 
 /* Base interactive elements reset */

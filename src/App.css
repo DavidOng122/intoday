@@ -19,7 +19,7 @@
   align-items: center;
   /* Let flex manage the avatar and button centering */
   justify-content: space-between;
-  padding: calc(10px + env(safe-area-inset-top)) 20px 10px 20px;
+  padding: 10px 20px;
   background-color: #FFFFFF;
   z-index: 10;
 }
@@ -826,7 +826,7 @@
    ======================================================== */
 .profile-modal {
   position: absolute;
-  top: calc(130px + env(safe-area-inset-top));
+  top: 130px;
   /* aligned to new dump top offset */
   left: 50%;
   transform: translateX(-50%);
@@ -1017,7 +1017,7 @@
    ======================================================== */
 .settings-modal {
   position: absolute;
-  top: calc(100px + env(safe-area-inset-top));
+  top: 100px;
   left: 50%;
   transform: translateX(-50%);
   width: 382px;
