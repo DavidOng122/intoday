@@ -54,5 +54,6 @@ export default defineConfig({
   ],
   server: {
     host: true  // allows LAN access for testing on phone
-  }
+  },
+  base: './',
 })
