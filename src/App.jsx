@@ -1330,7 +1330,10 @@ function App() {
                 </svg>
               </button>
               <div className="sheet-content">
-                <div className="sheet-main-stack">
+                <div
+                  className="sheet-main-stack"
+                  style={sheetContentLift > 0 ? { transform: `translateY(-${sheetContentLift}px)` } : undefined}
+                >
                   {!isCalendarOpen && (
                     <div className="sheet-hero-icon">
                       <SheetPebbleIcon />
@@ -1346,10 +1349,7 @@ function App() {
                     </svg>
                   </div>
 
-                  <div
-                    className={`sheet-lower-stack ${keyboardLiftOffset > 0 ? 'input-active' : ''}`}
-                    style={sheetContentLift > 0 ? { transform: `translateY(-${sheetContentLift}px)` } : undefined}
-                  >
+                  <div className="sheet-lower-stack">
                     {/* Inline calendar picker */}
                     <div className={`sheet-calendar-picker ${isCalendarOpen ? 'open' : ''}`}>
                       {(() => {
