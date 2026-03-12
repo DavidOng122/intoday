@@ -345,8 +345,14 @@ function App() {
 
   const keyboardLiftOffset = sheetKeyboardOffset > 120 ? sheetKeyboardOffset : 0;
   const sheetGapCollapse = 118;
-  const sheetContentLift = keyboardLiftOffset > sheetGapCollapse
-    ? keyboardLiftOffset - sheetGapCollapse
+  const composerLift = keyboardLiftOffset > 0
+    ? Math.min(
+      keyboardLiftOffset,
+      Math.max(0, (sheetBaseHeight || 0) - 170)
+    )
+    : 0;
+  const sheetContentLift = composerLift > sheetGapCollapse
+    ? composerLift - sheetGapCollapse
     : 0;
 
   const closeProfile = (isSwipe = false) => {
@@ -1400,9 +1406,11 @@ function App() {
 
               <div
                 className="sheet-input-area"
-                style={keyboardLiftOffset > 0 ? { transform: `translateY(-${keyboardLiftOffset}px)` } : undefined}
               >
-                <div className="composer-shell">
+                <div
+                  className="composer-shell"
+                  style={composerLift > 0 ? { transform: `translateY(-${composerLift}px)` } : undefined}
+                >
                   <button
                     className={`mic-circle-btn ${isRecording ? 'recording' : ''}`}
                     onClick={startVoiceInput}
