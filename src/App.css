@@ -307,12 +307,6 @@
   flex-direction: column;
   justify-content: flex-start;
   align-items: flex-start;
-  transition: padding-bottom 0.18s cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-.sheet-content.input-active {
-  padding-bottom: 72px;
-  transition: padding-bottom 0.12s cubic-bezier(0.22, 1, 0.36, 1) 0.1s;
 }
 
 .sheet-main-stack {
