@@ -324,11 +324,17 @@
 .sheet-content {
   padding: 96px 28px 160px;
   flex: 1;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-width: none;
   display: flex;
   flex-direction: column;
   justify-content: flex-start;
   align-items: flex-start;
+}
+
+.sheet-content::-webkit-scrollbar {
+  display: none;
 }
 
 .sheet-main-stack {
@@ -346,10 +352,20 @@
   transition: transform 0.12s cubic-bezier(0.22, 1, 0.36, 1) 0.1s;
 }
 
+.sheet-lower-stack.calendar-open {
+  margin-top: 4px;
+}
+
 .sheet-hero-icon {
   width: 42px;
   height: 38px;
   margin: 148px 0 22px;
+}
+
+.sheet-hero-icon.calendar-open {
+  width: 36px;
+  height: 32px;
+  margin: 2px 0 10px;
 }
 
 .sheet-title-row {
@@ -357,6 +373,11 @@
   align-items: center;
   gap: 10px;
   margin-bottom: 14px;
+}
+
+.sheet-title-row.calendar-open {
+  margin-bottom: 8px;
+  transform: translateY(-8px);
 }
 
 .sheet-title {
@@ -383,6 +404,10 @@
   flex-shrink: 0;
 }
 
+.sheet-title-row.calendar-open .sheet-title-icon {
+  margin-top: 5px;
+}
+
 /* Form Section */
 .section-label {
   display: flex;
@@ -396,12 +421,20 @@
   letter-spacing: 0.02em;
 }
 
+.section-label.calendar-open {
+  margin-top: 10px;
+}
+
 .chips-container {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   gap: 7px;
   margin-bottom: 28px;
+}
+
+.chips-container.calendar-open {
+  transform: translateY(8px);
 }
 
 .chips-row {
@@ -549,6 +582,10 @@
 
   .sheet-hero-icon {
     margin-top: 112px;
+  }
+
+  .sheet-hero-icon.calendar-open {
+    margin-top: 0;
   }
 }
 
@@ -1354,7 +1391,7 @@ body.is-dragging-global .time-block {
 .sheet-calendar-picker.open {
   max-height: 460px;
   opacity: 1;
-  margin-bottom: 24px;
+  margin-bottom: 14px;
 }
 
 .cal-picker-header {
