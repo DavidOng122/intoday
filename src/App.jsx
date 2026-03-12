@@ -969,6 +969,7 @@ function App() {
   };
 
   const logicalToday = getLogicalToday();
+  const chipOrder = ['Morning', 'Afternoon', 'Evening', 'Night', 'Midnight'];
   const calendarDays = Array.from({ length: 7 }).map((_, i) => {
     const date = addDays(subDays(selectedDate, 3), i);
     const d1 = new Date(date); d1.setHours(0, 0, 0, 0);
@@ -989,7 +990,7 @@ function App() {
 
   const selectedDateTodos = todos.filter(t => t.dateString === format(selectedDate, 'yyyy-MM-dd'));
 
-  const chips = [
+  const allChips = [
     { id: 'Now', key: 'now' },
     { id: 'Morning', key: 'morning' },
     { id: 'Afternoon', key: 'afternoon' },
@@ -997,6 +998,21 @@ function App() {
     { id: 'Night', key: 'night' },
     { id: 'Midnight', key: 'midnight' }
   ];
+  const chips = isSameDay(selectedDate, logicalToday)
+    ? allChips.filter((chip) => (
+      chip.id === 'Now' || chipOrder.indexOf(chip.id) >= chipOrder.indexOf(getCurrentTimeBlock())
+    ))
+    : allChips;
+  const chipRows = Array.from(
+    { length: Math.ceil(chips.length / 3) },
+    (_, idx) => chips.slice(idx * 3, idx * 3 + 3)
+  );
+
+  useEffect(() => {
+    if (!chips.some((chip) => chip.id === activeChip)) {
+      setActiveChip(chips[0]?.id || 'Now');
+    }
+  }, [chips, activeChip]);
 
 
   const getTimeIndicatorStyle = (block) => {
@@ -1300,108 +1316,114 @@ function App() {
                   <path fillRule="evenodd" clipRule="evenodd" d="M5.01417 5.01423C5.14308 4.88548 5.31782 4.81316 5.50001 4.81316C5.68219 4.81316 5.85693 4.88548 5.98584 5.01423L11 10.0284L16.0142 5.01423C16.0771 4.94668 16.153 4.8925 16.2373 4.85493C16.3217 4.81735 16.4127 4.79715 16.505 4.79552C16.5973 4.79389 16.689 4.81087 16.7746 4.84545C16.8602 4.88002 16.938 4.93149 17.0033 4.99677C17.0686 5.06206 17.12 5.13982 17.1546 5.22543C17.1892 5.31103 17.2062 5.40273 17.2045 5.49504C17.2029 5.58735 17.1827 5.67839 17.1451 5.76272C17.1076 5.84705 17.0534 5.92295 16.9858 5.98589L11.9717 11.0001L16.9858 16.0142C17.0534 16.0772 17.1076 16.1531 17.1451 16.2374C17.1827 16.3217 17.2029 16.4128 17.2045 16.5051C17.2062 16.5974 17.1892 16.6891 17.1546 16.7747C17.12 16.8603 17.0686 16.9381 17.0033 17.0033C16.938 17.0686 16.8602 17.1201 16.7746 17.1547C16.689 17.1892 16.5973 17.2062 16.505 17.2046C16.4127 17.203 16.3217 17.1828 16.2373 17.1452C16.153 17.1076 16.0771 17.0534 16.0142 16.9859L11 11.9717L5.98584 16.9859C5.85551 17.1073 5.68314 17.1734 5.50503 17.1703C5.32692 17.1672 5.15698 17.095 5.03102 16.969C4.90506 16.8431 4.8329 16.6731 4.82976 16.495C4.82662 16.3169 4.89273 16.1446 5.01417 16.0142L10.0283 11.0001L5.01417 5.98589C4.88543 5.85699 4.81311 5.68225 4.81311 5.50006C4.81311 5.31787 4.88543 5.14313 5.01417 5.01423Z" fill="black" />
                 </svg>
               </button>
-              <div
-                className={`sheet-content ${keyboardLiftOffset > 0 ? 'input-active' : ''}`}
-                style={sheetContentLift > 0 ? { transform: `translateY(-${sheetContentLift}px)` } : undefined}
-              >
-                {!isCalendarOpen && (
-                  <div className="sheet-hero-icon">
-                    <SheetPebbleIcon />
+              <div className={`sheet-content ${keyboardLiftOffset > 0 ? 'input-active' : ''}`}>
+                <div
+                  className={`sheet-main-stack ${keyboardLiftOffset > 0 ? 'input-active' : ''}`}
+                  style={sheetContentLift > 0 ? { transform: `translateY(-${sheetContentLift}px)` } : undefined}
+                >
+                  {!isCalendarOpen && (
+                    <div className="sheet-hero-icon">
+                      <SheetPebbleIcon />
+                    </div>
+                  )}
+                  <div className="sheet-title-row" onClick={() => {
+                    setCalPickerDate(new Date(selectedDate));
+                    setIsCalendarOpen(o => !o);
+                  }} style={{ cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
+                    <h1 className="sheet-title" style={{ margin: 0, lineHeight: 1 }}><strong>{getRelativeWeekText()}</strong></h1>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="10" height="16" viewBox="0 0 9 14" fill="none" className="sheet-title-icon" style={{ transform: isCalendarOpen ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.25s' }}>
+                      <path fillRule="evenodd" clipRule="evenodd" d="M8.78019 6.54928C8.92094 6.66887 9 6.83098 9 7C9 7.16902 8.92094 7.33113 8.78019 7.45072L1.26401 13.8288C1.12153 13.9415 0.933079 14.0028 0.738359 13.9999C0.543638 13.997 0.357853 13.93 0.220144 13.8132C0.0824342 13.6963 0.00355271 13.5387 0.000117099 13.3734C-0.00331851 13.2082 0.06896 13.0483 0.201726 12.9274L7.18676 7L0.201726 1.07262C0.06896 0.951712 -0.00331851 0.791795 0.000117099 0.626558C0.00355271 0.461322 0.0824342 0.303668 0.220144 0.18681C0.357853 0.0699525 0.543638 0.00301477 0.738359 9.93682e-05C0.933079 -0.00281603 1.12153 0.0585185 1.26401 0.171181L8.78019 6.54928Z" fill="black" />
+                    </svg>
                   </div>
-                )}
-                <div className="sheet-title-row" onClick={() => {
-                  setCalPickerDate(new Date(selectedDate));
-                  setIsCalendarOpen(o => !o);
-                }} style={{ cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
-                  <h1 className="sheet-title" style={{ margin: 0, lineHeight: 1 }}><strong>{getRelativeWeekText()}</strong></h1>
-                  <svg xmlns="http://www.w3.org/2000/svg" width="10" height="16" viewBox="0 0 9 14" fill="none" className="sheet-title-icon" style={{ transform: isCalendarOpen ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.25s' }}>
-                    <path fillRule="evenodd" clipRule="evenodd" d="M8.78019 6.54928C8.92094 6.66887 9 6.83098 9 7C9 7.16902 8.92094 7.33113 8.78019 7.45072L1.26401 13.8288C1.12153 13.9415 0.933079 14.0028 0.738359 13.9999C0.543638 13.997 0.357853 13.93 0.220144 13.8132C0.0824342 13.6963 0.00355271 13.5387 0.000117099 13.3734C-0.00331851 13.2082 0.06896 13.0483 0.201726 12.9274L7.18676 7L0.201726 1.07262C0.06896 0.951712 -0.00331851 0.791795 0.000117099 0.626558C0.00355271 0.461322 0.0824342 0.303668 0.220144 0.18681C0.357853 0.0699525 0.543638 0.00301477 0.738359 9.93682e-05C0.933079 -0.00281603 1.12153 0.0585185 1.26401 0.171181L8.78019 6.54928Z" fill="black" />
-                  </svg>
-                </div>
 
-                {/* Inline calendar picker */}
-                <div className={`sheet-calendar-picker ${isCalendarOpen ? 'open' : ''}`}>
-                  {(() => {
-                    const today = getLogicalToday();
-                    const minDate = today;
-                    const maxDate = addDays(today, 30);
-                    const isAtMinMonth = calPickerDate.getFullYear() === minDate.getFullYear() && calPickerDate.getMonth() === minDate.getMonth();
-                    const isAtMaxMonth = calPickerDate.getFullYear() === maxDate.getFullYear() && calPickerDate.getMonth() === maxDate.getMonth();
-                    return (
-                      <div className="cal-picker-header">
-                        <button className="cal-nav-btn" disabled={isAtMinMonth} onClick={e => { e.stopPropagation(); setCalPickerDate(d => { const n = new Date(d); n.setMonth(n.getMonth() - 1); return n; }); }}>
-                          <svg width="7" height="12" viewBox="0 0 9 14" fill="none"><path fillRule="evenodd" clipRule="evenodd" d="M0.219809 7.45072C0.0790625 7.33113 0 7.16902 0 7C0 6.83098 0.0790625 6.66887 0.219809 6.54928L7.73599 0.171181C7.87847 0.0585185 8.06692 -0.00281603 8.26164 9.93682e-05C8.45636 0.00301477 8.64215 0.0699525 8.77986 0.18681C8.91757 0.303668 8.99645 0.461322 8.99988 0.626558C9.00332 0.791795 8.93104 0.951712 8.79827 1.07262L1.81324 7L8.79827 12.9274C8.93104 13.0483 9.00332 13.2082 8.99988 13.3734C8.99645 13.5387 8.91757 13.6963 8.77986 13.8132C8.64215 13.93 8.45636 13.997 8.26164 13.9999C8.06692 14.0028 7.87847 13.9415 7.73599 13.8288L0.219809 7.45072Z" fill="#111" /></svg>
-                        </button>
-                        <span className="cal-picker-month-label">{format(calPickerDate, 'MMM yyyy')}</span>
-                        <button className="cal-nav-btn" disabled={isAtMaxMonth} onClick={e => { e.stopPropagation(); setCalPickerDate(d => { const n = new Date(d); n.setMonth(n.getMonth() + 1); return n; }); }}>
-                          <svg width="7" height="12" viewBox="0 0 9 14" fill="none"><path fillRule="evenodd" clipRule="evenodd" d="M8.78019 6.54928C8.92094 6.66887 9 6.83098 9 7C9 7.16902 8.92094 7.33113 8.78019 7.45072L1.26401 13.8288C1.12153 13.9415 0.933079 14.0028 0.738359 13.9999C0.543638 13.997 0.357853 13.93 0.220144 13.8132C0.0824342 13.6963 0.00355271 13.5387 0.000117099 13.3734C-0.00331851 13.2082 0.06896 13.0483 0.201726 12.9274L7.18676 7L0.201726 1.07262C0.06896 0.951712 -0.00331851 0.791795 0.000117099 0.626558C0.00355271 0.461322 0.0824342 0.303668 0.220144 0.18681C0.357853 0.0699525 0.543638 0.00301477 0.738359 9.93682e-05C0.933079 -0.00281603 1.12153 0.0585185 1.26401 0.171181L8.78019 6.54928Z" fill="#111" /></svg>
-                        </button>
-                      </div>
-                    );
-                  })()}
-                  <div className="cal-picker-grid">
-                    {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((d, i) => (
-                      <div key={i} className="cal-picker-dow">{d}</div>
-                    ))}
-                    {Array.from({ length: new Date(calPickerDate.getFullYear(), calPickerDate.getMonth(), 1).getDay() }).map((_, i) => (
-                      <div key={`e${i}`} />
-                    ))}
+                  {/* Inline calendar picker */}
+                  <div className={`sheet-calendar-picker ${isCalendarOpen ? 'open' : ''}`}>
                     {(() => {
                       const today = getLogicalToday();
                       const minDate = today;
                       const maxDate = addDays(today, 30);
-                      const year = calPickerDate.getFullYear();
-                      const month = calPickerDate.getMonth();
-                      const startOffset = new Date(year, month, 1).getDay();
-                      const daysInMonth = new Date(year, month + 1, 0).getDate();
-                      const trailingCells = 42 - startOffset - daysInMonth;
-                      return Array.from({ length: daysInMonth }).map((_, i) => {
-                        const day = i + 1;
-                        const cellDate = new Date(year, month, day);
-                        const isSelected = isSameDay(cellDate, selectedDate);
-                        const isToday = isSameDay(cellDate, new Date());
-                        const isInRange = cellDate >= minDate && cellDate <= maxDate;
-                        return (
-                          <button
-                            key={day}
-                            className={`cal-picker-day ${isSelected ? 'selected' : ''} ${isToday && !isSelected ? 'today' : ''} ${!isInRange ? 'out-of-range' : ''}`}
-                            disabled={!isInRange}
-                            onClick={e => { if (!isInRange) return; e.stopPropagation(); setSelectedDate(cellDate); setIsCalendarOpen(false); }}
-                          >
-                            {day}
+                      const isAtMinMonth = calPickerDate.getFullYear() === minDate.getFullYear() && calPickerDate.getMonth() === minDate.getMonth();
+                      const isAtMaxMonth = calPickerDate.getFullYear() === maxDate.getFullYear() && calPickerDate.getMonth() === maxDate.getMonth();
+                      return (
+                        <div className="cal-picker-header">
+                          <button className="cal-nav-btn" disabled={isAtMinMonth} onClick={e => { e.stopPropagation(); setCalPickerDate(d => { const n = new Date(d); n.setMonth(n.getMonth() - 1); return n; }); }}>
+                            <svg width="7" height="12" viewBox="0 0 9 14" fill="none"><path fillRule="evenodd" clipRule="evenodd" d="M0.219809 7.45072C0.0790625 7.33113 0 7.16902 0 7C0 6.83098 0.0790625 6.66887 0.219809 6.54928L7.73599 0.171181C7.87847 0.0585185 8.06692 -0.00281603 8.26164 9.93682e-05C8.45636 0.00301477 8.64215 0.0699525 8.77986 0.18681C8.91757 0.303668 8.99645 0.461322 8.99988 0.626558C9.00332 0.791795 8.93104 0.951712 8.79827 1.07262L1.81324 7L8.79827 12.9274C8.93104 13.0483 9.00332 13.2082 8.99988 13.3734C8.99645 13.5387 8.91757 13.6963 8.77986 13.8132C8.64215 13.93 8.45636 13.997 8.26164 13.9999C8.06692 14.0028 7.87847 13.9415 7.73599 13.8288L0.219809 7.45072Z" fill="#111" /></svg>
                           </button>
-                        );
-                      }).concat(Array.from({ length: trailingCells > 0 ? trailingCells : 0 }).map((_, i) => <div key={`t${i}`} />));
+                          <span className="cal-picker-month-label">{format(calPickerDate, 'MMM yyyy')}</span>
+                          <button className="cal-nav-btn" disabled={isAtMaxMonth} onClick={e => { e.stopPropagation(); setCalPickerDate(d => { const n = new Date(d); n.setMonth(n.getMonth() + 1); return n; }); }}>
+                            <svg width="7" height="12" viewBox="0 0 9 14" fill="none"><path fillRule="evenodd" clipRule="evenodd" d="M8.78019 6.54928C8.92094 6.66887 9 6.83098 9 7C9 7.16902 8.92094 7.33113 8.78019 7.45072L1.26401 13.8288C1.12153 13.9415 0.933079 14.0028 0.738359 13.9999C0.543638 13.997 0.357853 13.93 0.220144 13.8132C0.0824342 13.6963 0.00355271 13.5387 0.000117099 13.3734C-0.00331851 13.2082 0.06896 13.0483 0.201726 12.9274L7.18676 7L0.201726 1.07262C0.06896 0.951712 -0.00331851 0.791795 0.000117099 0.626558C0.00355271 0.461322 0.0824342 0.303668 0.220144 0.18681C0.357853 0.0699525 0.543638 0.00301477 0.738359 9.93682e-05C0.933079 -0.00281603 1.12153 0.0585185 1.26401 0.171181L8.78019 6.54928Z" fill="#111" /></svg>
+                          </button>
+                        </div>
+                      );
                     })()}
-                  </div>
-                </div>
-
-                {!isCalendarOpen && (
-                  <>
-                    <div className="section-label">
-                      {appearance === 'dark' ? (
-                        <img src="/timewhite.png" alt="Time" style={{ width: '14px', height: '14px' }} />
-                      ) : (
-                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 18 18" fill="none">
-                          <path d="M9 4.5V9H12.375M15.75 9C15.75 9.88642 15.5754 10.7642 15.2362 11.5831C14.897 12.4021 14.3998 13.1462 13.773 13.773C13.1462 14.3998 12.4021 14.897 11.5831 15.2362C10.7642 15.5754 9.88642 15.75 9 15.75C8.11358 15.75 7.23583 15.5754 6.41689 15.2362C5.59794 14.897 4.85382 14.3998 4.22703 13.773C3.60023 13.1462 3.10303 12.4021 2.76381 11.5831C2.42459 10.7642 2.25 9.88642 2.25 9C2.25 7.20979 2.96116 5.4929 4.22703 4.22703C5.4929 2.96116 7.20979 2.25 9 2.25C10.7902 2.25 12.5071 2.96116 13.773 4.22703C15.0388 5.4929 15.75 7.20979 15.75 9Z" stroke="black" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                        </svg>
-                      )}
-                      {translations[language].timeOfDay}
-                    </div>
-
-                    <div className="chips-container">
-                      {chips.map((chip, idx) => (
-                        <button
-                          key={idx}
-                          className={`chip ${activeChip === chip.id ? 'active' : ''}`}
-                          onClick={() => setActiveChip(chip.id)}
-                        >
-                          {translations[language][chip.key]}
-                        </button>
+                    <div className="cal-picker-grid">
+                      {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((d, i) => (
+                        <div key={i} className="cal-picker-dow">{d}</div>
                       ))}
+                      {Array.from({ length: new Date(calPickerDate.getFullYear(), calPickerDate.getMonth(), 1).getDay() }).map((_, i) => (
+                        <div key={`e${i}`} />
+                      ))}
+                      {(() => {
+                        const today = getLogicalToday();
+                        const minDate = today;
+                        const maxDate = addDays(today, 30);
+                        const year = calPickerDate.getFullYear();
+                        const month = calPickerDate.getMonth();
+                        const startOffset = new Date(year, month, 1).getDay();
+                        const daysInMonth = new Date(year, month + 1, 0).getDate();
+                        const trailingCells = 42 - startOffset - daysInMonth;
+                        return Array.from({ length: daysInMonth }).map((_, i) => {
+                          const day = i + 1;
+                          const cellDate = new Date(year, month, day);
+                          const isSelected = isSameDay(cellDate, selectedDate);
+                          const isToday = isSameDay(cellDate, new Date());
+                          const isInRange = cellDate >= minDate && cellDate <= maxDate;
+                          return (
+                            <button
+                              key={day}
+                              className={`cal-picker-day ${isSelected ? 'selected' : ''} ${isToday && !isSelected ? 'today' : ''} ${!isInRange ? 'out-of-range' : ''}`}
+                              disabled={!isInRange}
+                              onClick={e => { if (!isInRange) return; e.stopPropagation(); setSelectedDate(cellDate); setIsCalendarOpen(false); }}
+                            >
+                              {day}
+                            </button>
+                          );
+                        }).concat(Array.from({ length: trailingCells > 0 ? trailingCells : 0 }).map((_, i) => <div key={`t${i}`} />));
+                      })()}
                     </div>
-                  </>
-                )}
+                  </div>
+
+                  {!isCalendarOpen && (
+                    <>
+                      <div className="section-label">
+                        {appearance === 'dark' ? (
+                          <img src="/timewhite.png" alt="Time" style={{ width: '14px', height: '14px' }} />
+                        ) : (
+                          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 18 18" fill="none">
+                            <path d="M9 4.5V9H12.375M15.75 9C15.75 9.88642 15.5754 10.7642 15.2362 11.5831C14.897 12.4021 14.3998 13.1462 13.773 13.773C13.1462 14.3998 12.4021 14.897 11.5831 15.2362C10.7642 15.5754 9.88642 15.75 9 15.75C8.11358 15.75 7.23583 15.5754 6.41689 15.2362C5.59794 14.897 4.85382 14.3998 4.22703 13.773C3.60023 13.1462 3.10303 12.4021 2.76381 11.5831C2.42459 10.7642 2.25 9.88642 2.25 9C2.25 7.20979 2.96116 5.4929 4.22703 4.22703C5.4929 2.96116 7.20979 2.25 9 2.25C10.7902 2.25 12.5071 2.96116 13.773 4.22703C15.0388 5.4929 15.75 7.20979 15.75 9Z" stroke="black" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                          </svg>
+                        )}
+                        {translations[language].timeOfDay}
+                      </div>
+
+                      <div className="chips-container">
+                        {chipRows.map((row, rowIdx) => (
+                          <div key={rowIdx} className="chips-row">
+                            {row.map((chip) => (
+                              <button
+                                key={chip.id}
+                                className={`chip ${activeChip === chip.id ? 'active' : ''}`}
+                                onClick={() => setActiveChip(chip.id)}
+                              >
+                                {translations[language][chip.key]}
+                              </button>
+                            ))}
+                          </div>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </div>
               </div>
 
               <div

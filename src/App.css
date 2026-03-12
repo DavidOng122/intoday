@@ -307,12 +307,24 @@
   flex-direction: column;
   justify-content: flex-start;
   align-items: flex-start;
-  transition: transform 0.18s cubic-bezier(0.22, 1, 0.36, 1), padding-bottom 0.18s cubic-bezier(0.22, 1, 0.36, 1);
+  transition: padding-bottom 0.18s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .sheet-content.input-active {
   padding-bottom: 72px;
-  transition: transform 0.12s cubic-bezier(0.22, 1, 0.36, 1) 0.1s, padding-bottom 0.12s cubic-bezier(0.22, 1, 0.36, 1) 0.1s;
+  transition: padding-bottom 0.12s cubic-bezier(0.22, 1, 0.36, 1) 0.1s;
+}
+
+.sheet-main-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  width: 100%;
+  transition: transform 0.12s cubic-bezier(0.22, 1, 0.36, 1) 0.1s;
+}
+
+.sheet-main-stack.input-active {
+  transition: transform 0.12s cubic-bezier(0.22, 1, 0.36, 1) 0.1s;
 }
 
 .sheet-hero-icon {
@@ -339,7 +351,7 @@
   -webkit-text-stroke-width: 0.3px;
   -webkit-text-stroke-color: #000;
   font-family: "LTC Bodoni 175", var(--font-serif);
-  font-size: 38px;
+  font-size: 33px;
   font-style: italic;
   font-weight: 400;
   line-height: 0.92;
@@ -356,8 +368,8 @@
 .section-label {
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-size: 14px;
+  gap: 7px;
+  font-size: 11px;
   font-weight: 700;
   color: var(--text-primary);
   text-transform: uppercase;
@@ -366,23 +378,30 @@
 }
 
 .chips-container {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  width: min(100%, 312px);
-  gap: 7px 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 7px;
   margin-bottom: 28px;
 }
 
+.chips-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: nowrap;
+}
+
 .chip {
-  width: 100%;
+  width: auto;
   min-width: 0;
   height: 31px;
-  padding: 0 4px;
+  padding: 0 8px;
   border-radius: 13px;
   background: #F5F4F2;
   color: var(--text-primary);
   font-family: "SF Pro", -apple-system, sans-serif;
-  font-size: 11px;
+  font-size: 13px;
   font-style: normal;
   font-weight: 500;
   line-height: normal;
