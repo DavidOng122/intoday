@@ -260,6 +260,9 @@ function App() {
   // ── Android Back Button (PWA) ──────────────────────────────────────────────
   // When any overlay is open we push a dummy history entry so the Android
   // hardware back-button fires `popstate` instead of closing the whole app.
+  const [editingTodo, setEditingTodo] = useState(null);
+  const [editText, setEditText] = useState('');
+
   const anyOverlayOpen =
     isSheetOpen || isProfileOpen || isSettingsOpen ||
     isCalendarOpen || !!editingTodo || isLoginOpen;
@@ -432,8 +435,7 @@ function App() {
     setOpenSwipeId(null);
   };
 
-  const [editingTodo, setEditingTodo] = useState(null);
-  const [editText, setEditText] = useState('');
+
 
   const openEdit = (todo) => {
     setEditingTodo(todo);
