@@ -361,22 +361,23 @@
 }
 
 .chips-container {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-start;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  width: min(100%, 330px);
   gap: 10px 12px;
   margin-bottom: 36px;
 }
 
 .chip {
-  min-width: 98px;
-  height: 42px;
-  padding: 0 16px;
-  border-radius: 18px;
+  width: 100%;
+  min-width: 0;
+  height: 38px;
+  padding: 0 10px;
+  border-radius: 16px;
   background: #F5F4F2;
   color: var(--text-primary);
   font-family: "SF Pro", -apple-system, sans-serif;
-  font-size: 14px;
+  font-size: 13px;
   font-style: normal;
   font-weight: 500;
   line-height: normal;
@@ -389,7 +390,7 @@
 
 .chip.active {
   background: #FF1E1E;
-  border-radius: 18px;
+  border-radius: 16px;
   color: #FFF;
 }
 
@@ -412,7 +413,7 @@
   display: flex;
   align-items: center;
   gap: 0;
-  padding: 8px 10px 8px 8px;
+  padding: 6px 8px 6px 6px;
   background: #FFFFFF;
   border: 1px solid #D8D3CC;
   border-radius: 32px;
@@ -421,9 +422,9 @@
 }
 
 .mic-circle-btn {
-  width: 48px;
-  height: 48px;
-  min-width: 48px;
+  width: 40px;
+  height: 40px;
+  min-width: 40px;
   border-radius: 50%;
   border: none;
   display: flex;
@@ -456,8 +457,8 @@
   background: transparent;
   border: none;
   border-radius: 0;
-  padding: 0 0 0 16px;
-  min-height: 52px;
+  padding: 0 0 0 12px;
+  min-height: 44px;
   height: auto;
   box-shadow: none;
 }
@@ -482,8 +483,8 @@
 }
 
 .submit-btn {
-  width: 48px;
-  height: 48px;
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
   background: #000;
   color: white;

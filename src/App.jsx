@@ -343,6 +343,11 @@ function App() {
     };
   }, [isSheetOpen, sheetBaseViewportHeight]);
 
+  const keyboardLiftOffset = sheetKeyboardOffset > 120 ? sheetKeyboardOffset : 0;
+  const sheetContentLift = keyboardLiftOffset > 0
+    ? Math.min(92, Math.max(56, Math.round(keyboardLiftOffset * 0.32)))
+    : 0;
+
   const closeProfile = (isSwipe = false) => {
     if (isSwipe) {
       setIsProfileOpen(false);
@@ -1289,8 +1294,8 @@ function App() {
                 </svg>
               </button>
               <div
-                className={`sheet-content ${isTaskInputFocused ? 'input-active' : ''}`}
-                style={isTaskInputFocused ? { transform: `translateY(-${sheetKeyboardOffset > 0 ? Math.min(92, Math.max(56, Math.round(sheetKeyboardOffset * 0.32))) : 60}px)` } : undefined}
+                className={`sheet-content ${keyboardLiftOffset > 0 ? 'input-active' : ''}`}
+                style={sheetContentLift > 0 ? { transform: `translateY(-${sheetContentLift}px)` } : undefined}
               >
                 {!isCalendarOpen && (
                   <div className="sheet-hero-icon">
@@ -1394,7 +1399,7 @@ function App() {
 
               <div
                 className="sheet-input-area"
-                style={sheetKeyboardOffset > 0 ? { transform: `translateY(-${sheetKeyboardOffset}px)` } : undefined}
+                style={keyboardLiftOffset > 0 ? { transform: `translateY(-${keyboardLiftOffset}px)` } : undefined}
               >
                 <div className="composer-shell">
                   <button
