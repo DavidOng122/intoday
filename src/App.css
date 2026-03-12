@@ -266,6 +266,17 @@
   /* Space from very bottom of screen */
 }
 
+.sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  padding-bottom: 0;
+  overscroll-behavior: none;
+}
+
+.sheet-backdrop .bottom-sheet {
+  margin-bottom: 0;
+}
+
 /* BOTTOM SHEET */
 .bottom-sheet {
   width: 100%;
@@ -302,16 +313,11 @@
 .sheet-content {
   padding: 96px 28px 160px;
   flex: 1;
-  overflow-y: auto;
-  scrollbar-width: none;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
   justify-content: flex-start;
   align-items: flex-start;
-}
-
-.sheet-content::-webkit-scrollbar {
-  display: none;
 }
 
 .sheet-main-stack {

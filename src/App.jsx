@@ -1305,7 +1305,7 @@ function App() {
 
         {/* Bottom Sheet Modal */}
         {isSheetOpen && (
-          <div className="backdrop" onClick={() => setIsSheetOpen(false)}>
+          <div className="backdrop sheet-backdrop" onClick={() => setIsSheetOpen(false)}>
             <div
               className="bottom-sheet"
               onClick={(e) => e.stopPropagation()}
