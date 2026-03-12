@@ -657,8 +657,22 @@ function App() {
   const swipeCurrentOffset = React.useRef(0);
   const isDragMode = React.useRef(false);
   const dragOriginY = React.useRef(0);
-  const autoScrollRef = React.useRef(null);
-  const dragScrollOffset = React.useRef(0);
+  const lockedTimelineScrollTop = React.useRef(0);
+
+  const lockTimelineScroll = useCallback(() => {
+    const timelineEl = timelineRef.current;
+    if (!timelineEl) return;
+    lockedTimelineScrollTop.current = timelineEl.scrollTop;
+    timelineEl.classList.add('drag-scroll-locked');
+    timelineEl.scrollTop = lockedTimelineScrollTop.current;
+  }, []);
+
+  const unlockTimelineScroll = useCallback(() => {
+    const timelineEl = timelineRef.current;
+    if (!timelineEl) return;
+    timelineEl.classList.remove('drag-scroll-locked');
+    timelineEl.scrollTop = lockedTimelineScrollTop.current;
+  }, []);
 
   // Helper: find nearest time block by vertical center proximity
   const getNearestBlock = (touchY) => {
@@ -722,59 +736,13 @@ function App() {
       // If already in drag mode, handle vertical dragging
       if (isDragMode.current) {
         e.preventDefault();
-        
-        // --- 1. Edge Auto-Scroll Logic ---
-        const SCROLL_ZONE = 100; // pixels from top/bottom to start scrolling
-        const MAX_SPEED = 15;
-        const timelineEl = document.querySelector('.timeline-area');
-        
-        if (timelineEl) {
-          const rect = timelineEl.getBoundingClientRect();
-          const touchY = touch.clientY;
-          let speed = 0;
-          
-          if (touchY < rect.top + SCROLL_ZONE) {
-            // Near top
-            const intensity = 1 - (touchY - rect.top) / SCROLL_ZONE;
-            speed = -MAX_SPEED * Math.max(0, intensity);
-          } else if (touchY > rect.bottom - SCROLL_ZONE) {
-            // Near bottom
-            const intensity = 1 - (rect.bottom - touchY) / SCROLL_ZONE;
-            speed = MAX_SPEED * Math.max(0, intensity);
-          }
-
-          if (speed !== 0) {
-            if (!autoScrollRef.current) {
-              autoScrollRef.current = setInterval(() => {
-                timelineEl.scrollTop += speed;
-                dragScrollOffset.current += speed;
-                // Update card position immediately during scroll tick
-                const el = document.getElementById(`swipe-card-${todoId}`);
-                if (el) {
-                  const rawDy = touch.clientY - dragOriginY.current + dragScrollOffset.current;
-                  const dy = Math.max(-2000, Math.min(2000, rawDy));
-                  el.style.transform = `scale(1.04) translateY(${dy}px)`;
-                }
-                
-                // Re-calculate drag over block since content scrolled
-                const nearest = getNearestBlock(touch.clientY);
-                if (nearest !== dragOverBlockRef.current) {
-                  dragOverBlockRef.current = nearest;
-                  setDragOverBlock(nearest);
-                }
-              }, 16);
-            }
-          } else {
-            if (autoScrollRef.current) {
-              clearInterval(autoScrollRef.current);
-              autoScrollRef.current = null;
-            }
-          }
+        const timelineEl = timelineRef.current;
+        if (timelineEl && timelineEl.scrollTop !== lockedTimelineScrollTop.current) {
+          timelineEl.scrollTop = lockedTimelineScrollTop.current;
         }
-        
-        // --- 2. Card Drag Translate ---
-        // Combine finger movement with artificial scroll offset
-        const rawDy = touch.clientY - dragOriginY.current + dragScrollOffset.current;
+
+        // Keep the timeline background fixed while the card moves independently.
+        const rawDy = touch.clientY - dragOriginY.current;
         const dy = Math.max(-2000, Math.min(2000, rawDy)); 
         const el = document.getElementById(`swipe-card-${todoId}`);
         if (el) el.style.transform = `scale(1.04) translateY(${dy}px)`;
@@ -792,9 +760,11 @@ function App() {
 
       if (Math.abs(deltaY) > Math.abs(deltaX)) {
         // Vertical movement → activate drag immediately (no long press)
+        e.preventDefault();
         isDragMode.current = true;
         dragOriginY.current = swipeTouchStartY.current;
-        dragScrollOffset.current = 0;
+        setDraggedTodoId(todoId);
+        lockTimelineScroll();
 
         const el = document.getElementById(`swipe-card-${todoId}`);
         const wrapper = document.getElementById(`swipe-wrapper-${todoId}`);
@@ -846,10 +816,6 @@ function App() {
       }
     },
     onTouchEnd: (e) => {
-      if (autoScrollRef.current) {
-        clearInterval(autoScrollRef.current);
-        autoScrollRef.current = null;
-      }
       if (isDragMode.current) {
         isDragMode.current = false;
         const el = document.getElementById(`swipe-card-${todoId}`);
@@ -875,12 +841,18 @@ function App() {
           if (parentBlock) parentBlock.classList.remove('is-dragging-parent');
         }
         document.body.classList.remove('is-dragging-global');
+        unlockTimelineScroll();
+        setDraggedTodoId(null);
+        setDragOverBlock(null);
         // Release scroll lock
         if (scrollBlocker.current) {
           window.removeEventListener('touchmove', scrollBlocker.current);
           scrollBlocker.current = null;
         }
         dragOverBlockRef.current = null;
+        swipeTouchStartX.current = null;
+        swipeTouchStartY.current = null;
+        swipeCurrentOffset.current = 0;
         return;
       }
 
@@ -918,6 +890,7 @@ function App() {
         setOpenSwipeId(null);
       }
       swipeTouchStartX.current = null;
+      swipeTouchStartY.current = null;
       swipeCurrentOffset.current = 0;
     },
   });

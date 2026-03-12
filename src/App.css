@@ -548,6 +548,7 @@
   padding-bottom: 120px;
   /* space for bottom sheet if needed */
   background: white;
+  overscroll-behavior-y: none;
   -ms-overflow-style: none;
   /* IE and Edge */
   scrollbar-width: none;
@@ -662,8 +663,14 @@
   /* Chrome, Safari and Opera */
 }
 
-/* Allow cards to float freely over all containers when ANY card is dragging */
-body.is-dragging-global .timeline-area,
+/* Allow cards to float freely over sibling task containers while keeping the
+   scrollable timeline itself fixed during mobile drag. */
+body.is-dragging-global .timeline-area.drag-scroll-locked {
+  overflow-y: hidden !important;
+  overscroll-behavior: none;
+  touch-action: none;
+}
+
 body.is-dragging-global .tasks-col,
 body.is-dragging-global .time-col,
 body.is-dragging-global .time-block {
@@ -873,6 +880,7 @@ body.is-dragging-global .time-block {
   cursor: pointer;
   position: relative;
   z-index: 2;
+  touch-action: none;
 }
 
 .task-card:active {
