@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Plus, X, ArrowUp, ArrowDown } from 'lucide-react';
+import { X, ArrowUp } from 'lucide-react';
 import { subDays, addDays, format, isSameDay } from 'date-fns';
 import './App.css';
 import Login from './Login';
@@ -74,6 +74,28 @@ const cardTypeConfig = {
   video: { icon: '/play.png', bg: '#FFD9D9', darkBg: '#5C2727B3', darkStroke: '#4D2727' },
   plain: { icon: '/text.png', bg: '#FFE5B9', darkBg: '#8B622AB3', darkStroke: '#BF8A30' },
 };
+
+const SheetPebbleIcon = () => (
+  <svg width="42" height="38" viewBox="0 0 42 38" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <ellipse cx="21" cy="27.125" rx="21" ry="10.5" fill="url(#sheet_pebble_0)" />
+    <ellipse cx="27.125" cy="19.25" rx="13.125" ry="7" fill="url(#sheet_pebble_1)" />
+    <ellipse cx="21.875" cy="8.3125" rx="14.875" ry="8.3125" fill="url(#sheet_pebble_2)" />
+    <defs>
+      <linearGradient id="sheet_pebble_0" x1="21" y1="16.625" x2="21" y2="44.625" gradientUnits="userSpaceOnUse">
+        <stop stopColor="#625F57" />
+        <stop offset="1" stopColor="#C8C1B2" />
+      </linearGradient>
+      <linearGradient id="sheet_pebble_1" x1="27.125" y1="12.25" x2="27.125" y2="38.0625" gradientUnits="userSpaceOnUse">
+        <stop stopColor="#707070" />
+        <stop offset="1" />
+      </linearGradient>
+      <linearGradient id="sheet_pebble_2" x1="21.875" y1="0" x2="21.875" y2="24.9375" gradientUnits="userSpaceOnUse">
+        <stop offset="0.182692" stopColor="#E6D2A8" />
+        <stop offset="1" stopColor="#80755D" />
+      </linearGradient>
+    </defs>
+  </svg>
+);
 
 const detectCardType = (text) => {
   const t = text.toLowerCase();
@@ -1215,12 +1237,17 @@ function App() {
               </button>
 
               <div className="sheet-content">
+                {!isCalendarOpen && (
+                  <div className="sheet-hero-icon">
+                    <SheetPebbleIcon />
+                  </div>
+                )}
                 <div className="sheet-title-row" onClick={() => {
                   setCalPickerDate(new Date(selectedDate));
                   setIsCalendarOpen(o => !o);
                 }} style={{ cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
                   <h1 className="sheet-title" style={{ margin: 0, lineHeight: 1 }}><strong>{getRelativeWeekText()}</strong></h1>
-                  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="19" viewBox="0 0 9 14" fill="none" className="sheet-title-icon" style={{ transform: isCalendarOpen ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.25s', marginLeft: '12px' }}>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="19" viewBox="0 0 9 14" fill="none" className="sheet-title-icon" style={{ transform: isCalendarOpen ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.25s' }}>
                     <path fillRule="evenodd" clipRule="evenodd" d="M8.78019 6.54928C8.92094 6.66887 9 6.83098 9 7C9 7.16902 8.92094 7.33113 8.78019 7.45072L1.26401 13.8288C1.12153 13.9415 0.933079 14.0028 0.738359 13.9999C0.543638 13.997 0.357853 13.93 0.220144 13.8132C0.0824342 13.6963 0.00355271 13.5387 0.000117099 13.3734C-0.00331851 13.2082 0.06896 13.0483 0.201726 12.9274L7.18676 7L0.201726 1.07262C0.06896 0.951712 -0.00331851 0.791795 0.000117099 0.626558C0.00355271 0.461322 0.0824342 0.303668 0.220144 0.18681C0.357853 0.0699525 0.543638 0.00301477 0.738359 9.93682e-05C0.933079 -0.00281603 1.12153 0.0585185 1.26401 0.171181L8.78019 6.54928Z" fill="black" />
                   </svg>
                 </div>
@@ -1311,43 +1338,44 @@ function App() {
               </div>
 
               <div className="sheet-input-area">
-                <button
-                  className={`mic-circle-btn ${isRecording ? 'recording' : ''}`}
-                  onClick={startVoiceInput}
-                  title={isRecording ? 'Stop recording' : 'Voice input'}
-                >
-                  {isRecording ? (
-                    // Mic-off / stop icon while recording
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
-                      <rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor" />
-                    </svg>
-                  ) : (
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" xmlns="http://www.w3.org/2000/svg">
-                      <rect x="9" y="2" width="6" height="13" rx="3" />
-                      <path d="M5 10a7 7 0 0 0 14 0" />
-                      <line x1="12" y1="19" x2="12" y2="22" />
-                      <line x1="9" y1="22" x2="15" y2="22" />
-                    </svg>
-                  )}
-                </button>
-                <div className="input-wrapper">
-                  <textarea
-                    ref={taskInputRef}
-                    className="task-input"
-                    placeholder={translations[language].placeholder}
-                    value={inputText}
-                    rows={1}
-                    onChange={(e) => setInputText(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && !e.shiftKey) {
-                        e.preventDefault();
-                        handleAddTodo();
-                      }
-                    }}
-                  />
-                  <button className="submit-btn" onClick={handleAddTodo}>
-                    <ArrowUp size={18} strokeWidth={2.5} />
+                <div className="composer-shell">
+                  <button
+                    className={`mic-circle-btn ${isRecording ? 'recording' : ''}`}
+                    onClick={startVoiceInput}
+                    title={isRecording ? 'Stop recording' : 'Voice input'}
+                  >
+                    {isRecording ? (
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                        <rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor" />
+                      </svg>
+                    ) : (
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" xmlns="http://www.w3.org/2000/svg">
+                        <rect x="9" y="2" width="6" height="13" rx="3" />
+                        <path d="M5 10a7 7 0 0 0 14 0" />
+                        <line x1="12" y1="19" x2="12" y2="22" />
+                        <line x1="9" y1="22" x2="15" y2="22" />
+                      </svg>
+                    )}
                   </button>
+                  <div className="input-wrapper">
+                    <textarea
+                      ref={taskInputRef}
+                      className="task-input"
+                      placeholder={translations[language].placeholder}
+                      value={inputText}
+                      rows={1}
+                      onChange={(e) => setInputText(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && !e.shiftKey) {
+                          e.preventDefault();
+                          handleAddTodo();
+                        }
+                      }}
+                    />
+                    <button className="submit-btn" onClick={handleAddTodo}>
+                      <ArrowUp size={18} strokeWidth={2.5} />
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
