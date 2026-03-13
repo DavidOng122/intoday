@@ -664,9 +664,9 @@
 }
 
 /* Allow cards to float freely over sibling task containers while keeping the
-   scrollable timeline itself fixed during mobile drag. */
+   drag gesture under app control. */
 body.is-dragging-global .timeline-area.drag-scroll-locked {
-  overflow-y: hidden !important;
+  overflow-y: auto !important;
   overscroll-behavior: none;
   touch-action: none;
 }

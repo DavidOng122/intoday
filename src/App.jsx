@@ -657,21 +657,24 @@ function App() {
   const swipeCurrentOffset = React.useRef(0);
   const isDragMode = React.useRef(false);
   const dragOriginY = React.useRef(0);
+  const dragTouchY = React.useRef(0);
+  const activeDragTodoIdRef = React.useRef(null);
   const lockedTimelineScrollTop = React.useRef(0);
+  const autoScrollVelocity = React.useRef(0);
+  const autoScrollFrameRef = React.useRef(null);
+  const autoScrollLastTsRef = React.useRef(null);
 
   const lockTimelineScroll = useCallback(() => {
     const timelineEl = timelineRef.current;
     if (!timelineEl) return;
     lockedTimelineScrollTop.current = timelineEl.scrollTop;
     timelineEl.classList.add('drag-scroll-locked');
-    timelineEl.scrollTop = lockedTimelineScrollTop.current;
   }, []);
 
   const unlockTimelineScroll = useCallback(() => {
     const timelineEl = timelineRef.current;
     if (!timelineEl) return;
     timelineEl.classList.remove('drag-scroll-locked');
-    timelineEl.scrollTop = lockedTimelineScrollTop.current;
   }, []);
 
   // Helper: find nearest time block by vertical center proximity
@@ -690,6 +693,98 @@ function App() {
     });
     return nearestId;
   };
+
+  const syncDraggedCardPosition = (todoId, touchY) => {
+    const timelineEl = timelineRef.current;
+    const scrollDelta = timelineEl ? timelineEl.scrollTop - lockedTimelineScrollTop.current : 0;
+    const rawDy = touchY - dragOriginY.current + scrollDelta;
+    const dy = Math.max(-2000, Math.min(2000, rawDy));
+    const el = document.getElementById(`swipe-card-${todoId}`);
+    if (el) el.style.transform = `translate3d(0, ${dy}px, 0) scale(1.04)`;
+
+    const nearest = getNearestBlock(touchY);
+    if (nearest !== dragOverBlockRef.current) {
+      dragOverBlockRef.current = nearest;
+      setDragOverBlock(nearest);
+    }
+  };
+
+  const stopAutoScroll = useCallback(() => {
+    autoScrollVelocity.current = 0;
+    autoScrollLastTsRef.current = null;
+    if (autoScrollFrameRef.current !== null) {
+      cancelAnimationFrame(autoScrollFrameRef.current);
+      autoScrollFrameRef.current = null;
+    }
+  }, []);
+
+  const runAutoScroll = useCallback((timestamp) => {
+    if (!isDragMode.current) {
+      stopAutoScroll();
+      return;
+    }
+
+    const timelineEl = timelineRef.current;
+    const todoId = activeDragTodoIdRef.current;
+    if (!timelineEl || !todoId) {
+      stopAutoScroll();
+      return;
+    }
+
+    if (autoScrollLastTsRef.current === null) {
+      autoScrollLastTsRef.current = timestamp;
+    }
+
+    const elapsed = Math.min(timestamp - autoScrollLastTsRef.current, 32);
+    autoScrollLastTsRef.current = timestamp;
+
+    if (autoScrollVelocity.current !== 0) {
+      const prevScrollTop = timelineEl.scrollTop;
+      const maxScrollTop = Math.max(0, timelineEl.scrollHeight - timelineEl.clientHeight);
+      const nextScrollTop = Math.max(
+        0,
+        Math.min(maxScrollTop, prevScrollTop + autoScrollVelocity.current * elapsed)
+      );
+      if (nextScrollTop !== prevScrollTop) {
+        timelineEl.scrollTop = nextScrollTop;
+        syncDraggedCardPosition(todoId, dragTouchY.current);
+      }
+    }
+
+    if (autoScrollVelocity.current !== 0) {
+      autoScrollFrameRef.current = requestAnimationFrame(runAutoScroll);
+    } else {
+      autoScrollFrameRef.current = null;
+      autoScrollLastTsRef.current = null;
+    }
+  }, [stopAutoScroll]);
+
+  const updateAutoScroll = useCallback((touchY) => {
+    const timelineEl = timelineRef.current;
+    if (!timelineEl) return;
+
+    const rect = timelineEl.getBoundingClientRect();
+    const SCROLL_ZONE = 96;
+    const MAX_SPEED = 1.35; // px per ms
+
+    let velocity = 0;
+
+    if (touchY < rect.top + SCROLL_ZONE) {
+      const intensity = (rect.top + SCROLL_ZONE - touchY) / SCROLL_ZONE;
+      velocity = -MAX_SPEED * Math.min(Math.max(intensity, 0), 1);
+    } else if (touchY > rect.bottom - SCROLL_ZONE) {
+      const intensity = (touchY - (rect.bottom - SCROLL_ZONE)) / SCROLL_ZONE;
+      velocity = MAX_SPEED * Math.min(Math.max(intensity, 0), 1);
+    }
+
+    autoScrollVelocity.current = velocity;
+
+    if (velocity !== 0 && autoScrollFrameRef.current === null) {
+      autoScrollFrameRef.current = requestAnimationFrame(runAutoScroll);
+    } else if (velocity === 0) {
+      stopAutoScroll();
+    }
+  }, [runAutoScroll, stopAutoScroll]);
 
   const SWIPE_MAX = 136; // px — width of both action buttons
   const SNAP_THRESHOLD = 50;
@@ -736,21 +831,9 @@ function App() {
       // If already in drag mode, handle vertical dragging
       if (isDragMode.current) {
         e.preventDefault();
-        const timelineEl = timelineRef.current;
-        if (timelineEl && timelineEl.scrollTop !== lockedTimelineScrollTop.current) {
-          timelineEl.scrollTop = lockedTimelineScrollTop.current;
-        }
-
-        // Keep the timeline background fixed while the card moves independently.
-        const rawDy = touch.clientY - dragOriginY.current;
-        const dy = Math.max(-2000, Math.min(2000, rawDy)); 
-        const el = document.getElementById(`swipe-card-${todoId}`);
-        if (el) el.style.transform = `translate3d(0, ${dy}px, 0) scale(1.04)`;
-
-        const nearest = getNearestBlock(touch.clientY);
-        if (nearest !== dragOverBlockRef.current) {
-          dragOverBlockRef.current = nearest;
-        }
+        dragTouchY.current = touch.clientY;
+        updateAutoScroll(touch.clientY);
+        syncDraggedCardPosition(todoId, touch.clientY);
         return;
       }
 
@@ -763,16 +846,15 @@ function App() {
         e.preventDefault();
         isDragMode.current = true;
         dragOriginY.current = swipeTouchStartY.current;
+        dragTouchY.current = touch.clientY;
+        activeDragTodoIdRef.current = todoId;
         setDraggedTodoId(todoId);
         lockTimelineScroll();
 
         const el = document.getElementById(`swipe-card-${todoId}`);
         const wrapper = document.getElementById(`swipe-wrapper-${todoId}`);
         if (el) {
-          const rawDy = touch.clientY - dragOriginY.current;
-          const dy = Math.max(-2000, Math.min(2000, rawDy));
           el.style.transition = 'box-shadow 0.12s ease, opacity 0.12s ease';
-          el.style.transform = `translate3d(0, ${dy}px, 0) scale(1.04)`;
           el.style.boxShadow = '0 12px 30px rgba(0, 0, 0, 0.12)';
           el.style.opacity = '0.95';
           el.style.zIndex = '100';
@@ -790,9 +872,8 @@ function App() {
         }
         document.body.classList.add('is-dragging-global');
 
-        const nearest = getNearestBlock(touch.clientY);
-        dragOverBlockRef.current = nearest;
-        setDragOverBlock(nearest);
+        syncDraggedCardPosition(todoId, touch.clientY);
+        updateAutoScroll(touch.clientY);
       } else {
         // Horizontal movement → swipe to reveal actions with fade (left only)
         if (deltaX > 0) return;
@@ -820,6 +901,7 @@ function App() {
     onTouchEnd: (e) => {
       if (isDragMode.current) {
         isDragMode.current = false;
+        stopAutoScroll();
         const el = document.getElementById(`swipe-card-${todoId}`);
         const wrapper = document.getElementById(`swipe-wrapper-${todoId}`);
 
@@ -845,6 +927,7 @@ function App() {
         }
         document.body.classList.remove('is-dragging-global');
         unlockTimelineScroll();
+        activeDragTodoIdRef.current = null;
         setDraggedTodoId(null);
         setDragOverBlock(null);
         // Release scroll lock
