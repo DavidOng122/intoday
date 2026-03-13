@@ -301,15 +301,7 @@
   background-color: #ED1F1F;
 }
 
-/* Timeline fade-in on day switch */
-.timeline-fade {
-  animation: fadeContent 0.22s ease;
-}
-
-@keyframes fadeContent {
-  from { opacity: 0; transform: translateY(5px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
+/* Day switching should feel like a pure horizontal replacement with no fade. */
 
 /* Modal backdrop — light dim */
 .modal-backdrop {
@@ -915,12 +907,15 @@
 .timeline-stage {
   position: relative;
   min-height: 100%;
+  overflow: hidden;
 }
 
 .timeline-panel {
   width: 100%;
   min-height: 100%;
   background: inherit;
+  backface-visibility: hidden;
+  transform: translateZ(0);
 }
 
 .timeline-panel-current,

@@ -1900,7 +1900,7 @@ function App() {
         {/* Main Timeline — only the day content track slides during a day swipe */}
         <main
           ref={timelineRef}
-          className={`timeline-area ${dayTransition ? 'timeline-swiping' : 'timeline-fade'}`}
+          className={`timeline-area ${dayTransition ? 'timeline-swiping' : ''}`}
           onScroll={persistCurrentDayScroll}
         >
           <div className="timeline-stage">
