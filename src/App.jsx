@@ -11,7 +11,7 @@ const translations = {
     morning: 'Morning', afternoon: 'Afternoon', evening: 'Evening', night: 'Night', midnight: 'Midnight',
     now: 'Now', actionItem: 'Action Item', today: 'Today', yesterday: 'Yesterday',
     tmr: 'Tomorrow', thisWeek: 'This Week', nextWeek: 'Next Week', lastWeek: 'Last Week',
-    weeksAgo: 'Weeks Ago', weeksLater: 'Weeks Later', add: 'Add', timeOfDay: 'TIME OF DAY',
+    weeksAgo: 'Weeks Ago', weeksLater: 'Weeks Later', add: 'Add', addTask: '+ Add task', addTaskAria: 'Add task', timeOfDay: 'TIME OF DAY',
     timeLabel: 'Time', notSelected: 'Not selected',
     placeholder: 'e.g Buy groceries at 9pm...', setting: 'Setting', helpFeedback: 'Help & Feedback',
     signOut: 'Sign out', language: 'Language', appearance: 'Appearance', light: 'Light', dark: 'Dark',
@@ -22,7 +22,7 @@ const translations = {
     morning: '早上', afternoon: '下午', evening: '傍晚', night: '晚上', midnight: '午夜',
     now: '现在', actionItem: '待办事项', today: '今天', yesterday: '昨天',
     tmr: '明天', thisWeek: '本周', nextWeek: '下周', lastWeek: '上周',
-    weeksAgo: '周前', weeksLater: '周后', add: '添加', timeOfDay: '时间段',
+    weeksAgo: '周前', weeksLater: '周后', add: '添加', addTask: '+ 添加任务', addTaskAria: '添加任务', timeOfDay: '时间段',
     timeLabel: '时间', notSelected: '未选择',
     placeholder: '例如：晚上9点买杂货...', setting: '设置', helpFeedback: '帮助与反馈',
     signOut: '退出登录', language: '语言', appearance: '外观', light: '浅色', dark: '深色',
@@ -33,7 +33,7 @@ const translations = {
     morning: 'Pagi', afternoon: 'Tengahari', evening: 'Petang', night: 'Malam', midnight: 'Tengah Malam',
     now: 'Sekarang', actionItem: 'Tugasan', today: 'Hari Ini', yesterday: 'Semalam',
     tmr: 'Esok', thisWeek: 'Minggu Ini', nextWeek: 'Minggu Depan', lastWeek: 'Minggu Lepas',
-    weeksAgo: 'Minggu Lepas', weeksLater: 'Minggu Kemudian', add: 'Tambah', timeOfDay: 'MASA',
+    weeksAgo: 'Minggu Lepas', weeksLater: 'Minggu Kemudian', add: 'Tambah', addTask: '+ Tambah tugasan', addTaskAria: 'Tambah tugasan', timeOfDay: 'MASA',
     timeLabel: 'Masa', notSelected: 'Belum dipilih',
     placeholder: 'cth. Beli barang dapur pada 9pm...', setting: 'Tetapan', helpFeedback: 'Bantuan & Maklum Balas',
     signOut: 'Log Keluar', language: 'Bahasa', appearance: 'Penampilan', light: 'Terang', dark: 'Gelap',
@@ -44,7 +44,7 @@ const translations = {
     morning: '朝', afternoon: '昼', evening: '夕方', night: '夜', midnight: '深夜',
     now: '今', actionItem: 'タスク', today: '今日', yesterday: '昨日',
     tmr: '明日', thisWeek: '今週', nextWeek: '来週', lastWeek: '先週',
-    weeksAgo: '週間前', weeksLater: '週間後', add: '追加', timeOfDay: '時間帯',
+    weeksAgo: '週間前', weeksLater: '週間後', add: '追加', addTask: '+ タスクを追加', addTaskAria: 'タスクを追加', timeOfDay: '時間帯',
     timeLabel: '時間', notSelected: '未選択',
     placeholder: '例：21時に食料品を買う...', setting: '設定', helpFeedback: 'ヘルプとフィードバック',
     signOut: 'サインアウト', language: '言語', appearance: '外観', light: 'ライト', dark: 'ダーク',
@@ -55,7 +55,7 @@ const translations = {
     morning: 'เช้า', afternoon: 'บ่าย', evening: 'เย็น', night: 'กลางคืน', midnight: 'เที่ยงคืน',
     now: 'ตอนนี้', actionItem: 'รายการที่ต้องทำ', today: 'วันนี้', yesterday: 'เมื่อวาน',
     tmr: 'พรุ่งนี้', thisWeek: 'สัปดาห์นี้', nextWeek: 'สัปดาห์หน้า', lastWeek: 'สัปดาห์ที่แล้ว',
-    weeksAgo: 'สัปดาห์ก่อน', weeksLater: 'สัปดาห์หน้า', add: 'เพิ่ม', timeOfDay: 'ช่วงเวลา',
+    weeksAgo: 'สัปดาห์ก่อน', weeksLater: 'สัปดาห์หน้า', add: 'เพิ่ม', addTask: '+ เพิ่มงาน', addTaskAria: 'เพิ่มงาน', timeOfDay: 'ช่วงเวลา',
     timeLabel: 'เวลา', notSelected: 'ยังไม่ได้เลือก',
     placeholder: 'เช่น ซื้อของเวลา 21:00...', setting: 'การตั้งค่า', helpFeedback: 'ความช่วยเหลือและคำแนะนำ',
     signOut: 'ออกจากระบบ', language: 'ภาษา', appearance: 'รูปแบบ', light: 'สว่าง', dark: 'มืด',
@@ -531,6 +531,10 @@ function App() {
   const closeSheet = useCallback(() => {
     setIsCalendarOpen(false);
     setIsSheetOpen(false);
+  }, []);
+
+  const openQuickAdd = useCallback(() => {
+    setIsSheetOpen(true);
   }, []);
 
   const resetProfilePanel = () => {
@@ -1386,11 +1390,13 @@ function App() {
             )}
           </div>
 
-          <button className="add-btn" onClick={() => setIsSheetOpen(true)}>
-            <svg width="11" height="11" viewBox="0 0 11 11" fill="none" className="add-btn-icon" xmlns="http://www.w3.org/2000/svg">
-              <path d="M5.5 0V11.5M0 5.5H11.5" stroke="currentColor" strokeWidth="1.2" />
-            </svg>
-            <span>{translations[language].add}</span>
+          <button
+            type="button"
+            className="add-btn desktop-add-btn"
+            onClick={openQuickAdd}
+            aria-label={translations[language].addTaskAria}
+          >
+            <span>{translations[language].addTask}</span>
           </button>
         </header>
 
@@ -1552,6 +1558,15 @@ function App() {
             );
           })}
         </main>
+
+        <button
+          type="button"
+          className="mobile-fab"
+          onClick={openQuickAdd}
+          aria-label={translations[language].addTaskAria}
+        >
+          <span aria-hidden="true">+</span>
+        </button>
 
         {/* Bottom Sheet Modal */}
         {isSheetOpen && (
@@ -1755,7 +1770,7 @@ function App() {
 
                 <div className="profile-settings-section">
                   <div className="settings-panel profile-settings-panel">
-                    <div className="settings-item-row" style={{ borderBottom: '1px solid #F0F0F0' }}>
+                    <div className="settings-item-row">
                       <div className="settings-item-left">
                         <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
                           <path d="M10 17.5C11.6625 17.4999 13.2779 16.9477 14.5925 15.93C15.9072 14.9124 16.8466 13.4869 17.2633 11.8775M10 17.5C8.33751 17.4999 6.72212 16.9477 5.40748 15.93C4.09284 14.9124 3.1534 13.4869 2.73667 11.8775M10 17.5C12.0708 17.5 13.75 14.1417 13.75 10C13.75 5.85833 12.0708 2.5 10 2.5M10 17.5C7.92917 17.5 6.25 14.1417 6.25 10C6.25 5.85833 7.92917 2.5 10 2.5M17.2633 11.8775C17.4175 11.2775 17.5 10.6483 17.5 10C17.5021 8.71009 17.1699 7.44166 16.5358 6.31833M17.2633 11.8775C15.041 13.1095 12.541 13.754 10 13.75C7.365 13.75 4.88917 13.0708 2.73667 11.8775M2.73667 11.8775C2.57896 11.2641 2.49944 10.6333 2.5 10C2.5 8.6625 2.85 7.40583 3.46417 6.31833M10 2.5C11.3302 2.49945 12.6366 2.8528 13.7852 3.5238C14.9337 4.19481 15.8831 5.15931 16.5358 6.31833M10 2.5C8.6698 2.49945 7.3634 2.8528 6.21484 3.5238C5.06628 4.19481 4.11692 5.15931 3.46417 6.31833M16.5358 6.31833C14.7214 7.88994 12.4004 8.75345 10 8.75C7.50167 8.75 5.21667 7.83333 3.46417 6.31833" stroke="black" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
