@@ -704,11 +704,16 @@ body.is-dragging-global .time-block {
   border-radius: 0 11px 11px 0;
   overflow: hidden;
   /* Buttons sit behind the card. JS will inject inline opacity and transform for the reveal. */
+  opacity: 0;
+  transform: translateX(20px);
+  transition: opacity 0.18s ease, transform 0.18s ease;
   pointer-events: none;
 }
 
 /* Buttons become tappable once card is fully swiped open */
 .swipe-wrapper.swipe-open .swipe-actions {
+  opacity: 1;
+  transform: translateX(0);
   pointer-events: auto;
 }
 
