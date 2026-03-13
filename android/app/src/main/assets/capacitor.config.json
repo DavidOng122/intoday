@@ -1,0 +1,10 @@
+{
+	"appId": "com.memotask.app",
+	"appName": "MemoTask",
+	"webDir": "dist",
+	"plugins": {
+		"SplashScreen": {
+			"launchAutoHide": true
+		}
+	}
+}
