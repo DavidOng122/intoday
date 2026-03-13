@@ -545,8 +545,7 @@
 .timeline-area {
   flex: 1;
   overflow-y: auto;
-  padding-bottom: 120px;
-  /* space for bottom sheet if needed */
+  padding-bottom: 0;
   background: white;
   overscroll-behavior-y: none;
   -ms-overflow-style: none;
