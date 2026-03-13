@@ -428,14 +428,14 @@
 
 .sheet-title-icon {
   color: var(--text-primary);
-  margin-top: 5px;
-  margin-left: 2px;
+  margin-top: 4px;
+  margin-left: 1px;
   flex-shrink: 0;
   opacity: 0.82;
 }
 
 .sheet-title-row.calendar-open .sheet-title-icon {
-  margin-top: 4px;
+  margin-top: 3px;
 }
 
 /* Form Section */
@@ -455,6 +455,44 @@
 
 .section-label.calendar-open {
   margin-top: 6px;
+}
+
+.sheet-time-summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 28px;
+  margin-top: 6px;
+  margin-bottom: 8px;
+  color: rgba(17, 17, 17, 0.72);
+}
+
+.sheet-time-summary-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.sheet-time-summary-text {
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+
+.sheet-time-summary-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 28px;
+  padding: 0 12px;
+  border-radius: 999px;
+  background: #F1ECE5;
+  border: 1px solid rgba(17, 17, 17, 0.04);
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
 }
 
 .chips-container {
@@ -1632,6 +1670,7 @@ body.is-dragging-global .time-block {
 .dark-theme .task-desc,
 .dark-theme .day-name,
 .dark-theme .section-label,
+.dark-theme .sheet-time-summary,
 .dark-theme .profile-email,
 .dark-theme .settings-item-right span {
   color: var(--text-secondary) !important;
@@ -1684,6 +1723,12 @@ body.is-dragging-global .time-block {
 .dark-theme .chip.active {
   background: #ED1F1F !important;
   color: #FFFFFF !important;
+}
+
+.dark-theme .sheet-time-summary-pill {
+  background: #333333 !important;
+  border-color: #454545 !important;
+  color: var(--text-primary) !important;
 }
 
 .dark-theme .composer-shell {

@@ -12,6 +12,7 @@ const translations = {
     now: 'Now', actionItem: 'Action Item', today: 'Today', yesterday: 'Yesterday',
     tmr: 'Tomorrow', thisWeek: 'This Week', nextWeek: 'Next Week', lastWeek: 'Last Week',
     weeksAgo: 'Weeks Ago', weeksLater: 'Weeks Later', add: 'Add', timeOfDay: 'TIME OF DAY',
+    timeLabel: 'Time', notSelected: 'Not selected',
     placeholder: 'e.g Buy groceries at 9pm...', setting: 'Setting', helpFeedback: 'Help & Feedback',
     signOut: 'Sign out', language: 'Language', appearance: 'Appearance', light: 'Light', dark: 'Dark',
     backToToday: 'Back to Today',
@@ -22,6 +23,7 @@ const translations = {
     now: '现在', actionItem: '待办事项', today: '今天', yesterday: '昨天',
     tmr: '明天', thisWeek: '本周', nextWeek: '下周', lastWeek: '上周',
     weeksAgo: '周前', weeksLater: '周后', add: '添加', timeOfDay: '时间段',
+    timeLabel: '时间', notSelected: '未选择',
     placeholder: '例如：晚上9点买杂货...', setting: '设置', helpFeedback: '帮助与反馈',
     signOut: '退出登录', language: '语言', appearance: '外观', light: '浅色', dark: '深色',
     backToToday: '返回今天',
@@ -32,6 +34,7 @@ const translations = {
     now: 'Sekarang', actionItem: 'Tugasan', today: 'Hari Ini', yesterday: 'Semalam',
     tmr: 'Esok', thisWeek: 'Minggu Ini', nextWeek: 'Minggu Depan', lastWeek: 'Minggu Lepas',
     weeksAgo: 'Minggu Lepas', weeksLater: 'Minggu Kemudian', add: 'Tambah', timeOfDay: 'MASA',
+    timeLabel: 'Masa', notSelected: 'Belum dipilih',
     placeholder: 'cth. Beli barang dapur pada 9pm...', setting: 'Tetapan', helpFeedback: 'Bantuan & Maklum Balas',
     signOut: 'Log Keluar', language: 'Bahasa', appearance: 'Penampilan', light: 'Terang', dark: 'Gelap',
     backToToday: 'Kembali ke Hari Ini',
@@ -42,6 +45,7 @@ const translations = {
     now: '今', actionItem: 'タスク', today: '今日', yesterday: '昨日',
     tmr: '明日', thisWeek: '今週', nextWeek: '来週', lastWeek: '先週',
     weeksAgo: '週間前', weeksLater: '週間後', add: '追加', timeOfDay: '時間帯',
+    timeLabel: '時間', notSelected: '未選択',
     placeholder: '例：21時に食料品を買う...', setting: '設定', helpFeedback: 'ヘルプとフィードバック',
     signOut: 'サインアウト', language: '言語', appearance: '外観', light: 'ライト', dark: 'ダーク',
     backToToday: '今日に戻る',
@@ -52,6 +56,7 @@ const translations = {
     now: 'ตอนนี้', actionItem: 'รายการที่ต้องทำ', today: 'วันนี้', yesterday: 'เมื่อวาน',
     tmr: 'พรุ่งนี้', thisWeek: 'สัปดาห์นี้', nextWeek: 'สัปดาห์หน้า', lastWeek: 'สัปดาห์ที่แล้ว',
     weeksAgo: 'สัปดาห์ก่อน', weeksLater: 'สัปดาห์หน้า', add: 'เพิ่ม', timeOfDay: 'ช่วงเวลา',
+    timeLabel: 'เวลา', notSelected: 'ยังไม่ได้เลือก',
     placeholder: 'เช่น ซื้อของเวลา 21:00...', setting: 'การตั้งค่า', helpFeedback: 'ความช่วยเหลือและคำแนะนำ',
     signOut: 'ออกจากระบบ', language: 'ภาษา', appearance: 'รูปแบบ', light: 'สว่าง', dark: 'มืด',
     backToToday: 'กลับไปวันนี้',
@@ -1158,6 +1163,8 @@ function App() {
         { length: Math.ceil(chips.length / 3) },
         (_, idx) => chips.slice(idx * 3, idx * 3 + 3)
       );
+  const activeChipMeta = allChips.find((chip) => chip.id === activeChip) || null;
+  const activeChipLabel = activeChipMeta ? translations[language][activeChipMeta.key] : '';
 
   useEffect(() => {
     if (!chips.some((chip) => chip.id === activeChip)) {
@@ -1491,7 +1498,7 @@ function App() {
                     setIsCalendarOpen(o => !o);
                   }} style={{ cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
                     <h1 className="sheet-title" style={{ margin: 0, lineHeight: 1 }}>{getRelativeWeekLabel()}</h1>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="10" height="16" viewBox="0 0 9 14" fill="none" className="sheet-title-icon" style={{ transform: isCalendarOpen ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.24s cubic-bezier(0.16, 1, 0.3, 1)' }}>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="8" height="13" viewBox="0 0 9 14" fill="none" className="sheet-title-icon" style={{ transform: isCalendarOpen ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.24s cubic-bezier(0.16, 1, 0.3, 1)' }}>
                       <path fillRule="evenodd" clipRule="evenodd" d="M8.78019 6.54928C8.92094 6.66887 9 6.83098 9 7C9 7.16902 8.92094 7.33113 8.78019 7.45072L1.26401 13.8288C1.12153 13.9415 0.933079 14.0028 0.738359 13.9999C0.543638 13.997 0.357853 13.93 0.220144 13.8132C0.0824342 13.6963 0.00355271 13.5387 0.000117099 13.3734C-0.00331851 13.2082 0.06896 13.0483 0.201726 12.9274L7.18676 7L0.201726 1.07262C0.06896 0.951712 -0.00331851 0.791795 0.000117099 0.626558C0.00355271 0.461322 0.0824342 0.303668 0.220144 0.18681C0.357853 0.0699525 0.543638 0.00301477 0.738359 9.93682e-05C0.933079 -0.00281603 1.12153 0.0585185 1.26401 0.171181L8.78019 6.54928Z" fill="black" />
                     </svg>
                   </div>
@@ -1553,32 +1560,45 @@ function App() {
                       </div>
                     </div>
 
-                    <div className={`section-label ${isCalendarOpen ? 'calendar-open' : ''}`}>
-                      {appearance === 'dark' ? (
-                        <img src="/timewhite.png" alt="Time" style={{ width: '14px', height: '14px' }} />
-                      ) : (
-                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 18 18" fill="none">
-                          <path d="M9 4.5V9H12.375M15.75 9C15.75 9.88642 15.5754 10.7642 15.2362 11.5831C14.897 12.4021 14.3998 13.1462 13.773 13.773C13.1462 14.3998 12.4021 14.897 11.5831 15.2362C10.7642 15.5754 9.88642 15.75 9 15.75C8.11358 15.75 7.23583 15.5754 6.41689 15.2362C5.59794 14.897 4.85382 14.3998 4.22703 13.773C3.60023 13.1462 3.10303 12.4021 2.76381 11.5831C2.42459 10.7642 2.25 9.88642 2.25 9C2.25 7.20979 2.96116 5.4929 4.22703 4.22703C5.4929 2.96116 7.20979 2.25 9 2.25C10.7902 2.25 12.5071 2.96116 13.773 4.22703C15.0388 5.4929 15.75 7.20979 15.75 9Z" stroke="black" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                        </svg>
-                      )}
-                      {translations[language].timeOfDay}
-                    </div>
+                    {isCalendarOpen ? (
+                      <div className="sheet-time-summary" aria-live="polite">
+                        <span className="sheet-time-summary-label">{translations[language].timeLabel}</span>
+                        {activeChipLabel ? (
+                          <span className="sheet-time-summary-pill">{activeChipLabel}</span>
+                        ) : (
+                          <span className="sheet-time-summary-text">{translations[language].notSelected}</span>
+                        )}
+                      </div>
+                    ) : (
+                      <>
+                        <div className="section-label">
+                          {appearance === 'dark' ? (
+                            <img src="/timewhite.png" alt="Time" style={{ width: '14px', height: '14px' }} />
+                          ) : (
+                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 18 18" fill="none">
+                              <path d="M9 4.5V9H12.375M15.75 9C15.75 9.88642 15.5754 10.7642 15.2362 11.5831C14.897 12.4021 14.3998 13.1462 13.773 13.773C13.1462 14.3998 12.4021 14.897 11.5831 15.2362C10.7642 15.5754 9.88642 15.75 9 15.75C8.11358 15.75 7.23583 15.5754 6.41689 15.2362C5.59794 14.897 4.85382 14.3998 4.22703 13.773C3.60023 13.1462 3.10303 12.4021 2.76381 11.5831C2.42459 10.7642 2.25 9.88642 2.25 9C2.25 7.20979 2.96116 5.4929 4.22703 4.22703C5.4929 2.96116 7.20979 2.25 9 2.25C10.7902 2.25 12.5071 2.96116 13.773 4.22703C15.0388 5.4929 15.75 7.20979 15.75 9Z" stroke="black" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                            </svg>
+                          )}
+                          {translations[language].timeOfDay}
+                        </div>
 
-                    <div className={`chips-container ${isCalendarOpen ? 'calendar-open' : ''}`}>
-                      {chipRows.map((row, rowIdx) => (
-                        <div key={rowIdx} className={`chips-row chips-row-${row.length}`}>
-                          {row.map((chip) => (
-                            <button
-                              key={chip.id}
-                              className={`chip ${activeChip === chip.id ? 'active' : ''}`}
-                              onClick={() => setActiveChip(chip.id)}
-                            >
-                              {translations[language][chip.key]}
-                            </button>
+                        <div className="chips-container">
+                          {chipRows.map((row, rowIdx) => (
+                            <div key={rowIdx} className={`chips-row chips-row-${row.length}`}>
+                              {row.map((chip) => (
+                                <button
+                                  key={chip.id}
+                                  className={`chip ${activeChip === chip.id ? 'active' : ''}`}
+                                  onClick={() => setActiveChip(chip.id)}
+                                >
+                                  {translations[language][chip.key]}
+                                </button>
+                              ))}
+                            </div>
                           ))}
                         </div>
-                      ))}
-                    </div>
+                      </>
+                    )}
                   </div>
                 </div>
               </div>
