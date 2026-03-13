@@ -1342,7 +1342,7 @@ function App() {
                     setIsCalendarOpen(o => !o);
                   }} style={{ cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
                     <h1 className="sheet-title" style={{ margin: 0, lineHeight: 1 }}><strong>{getRelativeWeekText()}</strong></h1>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="10" height="16" viewBox="0 0 9 14" fill="none" className="sheet-title-icon" style={{ transform: isCalendarOpen ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.38s cubic-bezier(0.22, 1, 0.36, 1)' }}>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="10" height="16" viewBox="0 0 9 14" fill="none" className="sheet-title-icon" style={{ transform: isCalendarOpen ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.52s cubic-bezier(0.22, 1, 0.36, 1)' }}>
                       <path fillRule="evenodd" clipRule="evenodd" d="M8.78019 6.54928C8.92094 6.66887 9 6.83098 9 7C9 7.16902 8.92094 7.33113 8.78019 7.45072L1.26401 13.8288C1.12153 13.9415 0.933079 14.0028 0.738359 13.9999C0.543638 13.997 0.357853 13.93 0.220144 13.8132C0.0824342 13.6963 0.00355271 13.5387 0.000117099 13.3734C-0.00331851 13.2082 0.06896 13.0483 0.201726 12.9274L7.18676 7L0.201726 1.07262C0.06896 0.951712 -0.00331851 0.791795 0.000117099 0.626558C0.00355271 0.461322 0.0824342 0.303668 0.220144 0.18681C0.357853 0.0699525 0.543638 0.00301477 0.738359 9.93682e-05C0.933079 -0.00281603 1.12153 0.0585185 1.26401 0.171181L8.78019 6.54928Z" fill="black" />
                     </svg>
                   </div>
