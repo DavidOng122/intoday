@@ -580,8 +580,8 @@
 }
 
 .composer-expand-trigger {
-  width: 34px;
-  height: 34px;
+  width: 32px;
+  height: 32px;
   border-radius: 50%;
   border: none;
   background: rgba(17, 17, 17, 0.045);
@@ -638,7 +638,7 @@
   line-height: 22px;
   min-height: 58px;
   max-height: 130px;
-  padding: 15px 60px 11px 16px;
+  padding: 15px 58px 11px 16px;
   overflow-y: hidden;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
@@ -708,8 +708,8 @@
 }
 
 .submit-btn {
-  width: 42px;
-  height: 42px;
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
   background: #111111;
   color: white;
