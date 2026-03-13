@@ -445,6 +445,41 @@ function App() {
   }, [isSheetOpen]);
 
   useEffect(() => {
+    if (!isSheetOpen) return undefined;
+
+    let frameA = 0;
+    let frameB = 0;
+
+    const focusTaskInput = () => {
+      const textarea = taskInputRef.current;
+      if (!textarea) return;
+
+      try {
+        textarea.focus({ preventScroll: true });
+      } catch (_) {
+        textarea.focus();
+      }
+
+      const caretPosition = textarea.value.length;
+      try {
+        textarea.setSelectionRange(caretPosition, caretPosition);
+      } catch (_) {
+        // Some mobile browsers do not allow selection updates on every focus.
+      }
+    };
+
+    // Wait until the sheet is mounted and starts animating before focusing.
+    frameA = window.requestAnimationFrame(() => {
+      frameB = window.requestAnimationFrame(focusTaskInput);
+    });
+
+    return () => {
+      window.cancelAnimationFrame(frameA);
+      window.cancelAnimationFrame(frameB);
+    };
+  }, [isSheetOpen]);
+
+  useEffect(() => {
     if (!isSheetOpen || !sheetBaseViewportHeight) return;
 
     const updateKeyboardOffset = () => {
@@ -1559,6 +1594,7 @@ function App() {
                     <textarea
                       ref={taskInputRef}
                       className="task-input"
+                      autoFocus
                       placeholder={translations[language].placeholder}
                       value={inputText}
                       rows={1}
