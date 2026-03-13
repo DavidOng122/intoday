@@ -563,7 +563,7 @@
   width: min(100%, 382px);
   display: flex;
   align-items: flex-end;
-  gap: 12px;
+  gap: 0;
   padding: 0;
   background: transparent;
   border: none;
@@ -571,36 +571,6 @@
   box-shadow: none;
   margin: 0 auto;
   transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.mic-circle-btn {
-  width: 46px;
-  height: 46px;
-  min-width: 46px;
-  border-radius: 50%;
-  border: 1px solid #E3DDD5;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--text-primary);
-  background: #F7F4EE;
-  transition: background 0.2s, color 0.2s, border-color 0.2s, box-shadow 0.2s;
-  position: relative;
-  box-shadow: 0 10px 24px rgba(23, 20, 15, 0.06);
-}
-
-.mic-circle-btn.recording {
-  background: #ED1F1F;
-  border-color: #ED1F1F;
-  color: white;
-  box-shadow: 0 0 0 0 rgba(237, 31, 31, 0.5);
-  animation: micPulse 1.2s ease-out infinite;
-}
-
-@keyframes micPulse {
-  0%   { box-shadow: 0 0 0 0 rgba(237, 31, 31, 0.45); }
-  70%  { box-shadow: 0 0 0 12px rgba(237, 31, 31, 0); }
-  100% { box-shadow: 0 0 0 0 rgba(237, 31, 31, 0); }
 }
 
 @keyframes slideUpCentered {
@@ -680,9 +650,9 @@
 .timeline-area {
   flex: 1;
   overflow-y: auto;
-  padding-bottom: 120px;
-  /* space for bottom sheet if needed */
+  padding-bottom: 0;
   background: white;
+  overscroll-behavior-y: none;
   -ms-overflow-style: none;
   /* IE and Edge */
   scrollbar-width: none;
@@ -718,18 +688,6 @@
   position: relative;
   flex-shrink: 0;
 }
-
-.time-block.expired {
-  opacity: 0.53;
-  filter: grayscale(0.2);
-}
-
-.time-block.expired .task-card {
-  box-shadow: none;
-  background: rgba(255, 255, 255, 0.5);
-}
-
-
 
 .time-pill {
   width: 54px;
@@ -797,8 +755,14 @@
   /* Chrome, Safari and Opera */
 }
 
-/* Allow cards to float freely over all containers when ANY card is dragging */
-body.is-dragging-global .timeline-area,
+/* Allow cards to float freely over sibling task containers while keeping the
+   drag gesture under app control. */
+body.is-dragging-global .timeline-area.drag-scroll-locked {
+  overflow-y: auto !important;
+  overscroll-behavior: none;
+  touch-action: none;
+}
+
 body.is-dragging-global .tasks-col,
 body.is-dragging-global .time-col,
 body.is-dragging-global .time-block {
@@ -833,11 +797,16 @@ body.is-dragging-global .time-block {
   border-radius: 0 11px 11px 0;
   overflow: hidden;
   /* Buttons sit behind the card. JS will inject inline opacity and transform for the reveal. */
+  opacity: 0;
+  transform: translateX(20px);
+  transition: opacity 0.18s ease, transform 0.18s ease;
   pointer-events: none;
 }
 
 /* Buttons become tappable once card is fully swiped open */
 .swipe-wrapper.swipe-open .swipe-actions {
+  opacity: 1;
+  transform: translateX(0);
   pointer-events: auto;
 }
 
@@ -1008,6 +977,7 @@ body.is-dragging-global .time-block {
   cursor: pointer;
   position: relative;
   z-index: 2;
+  touch-action: none;
 }
 
 .task-card:active {
@@ -1048,10 +1018,12 @@ body.is-dragging-global .time-block {
 }
 
 .task-card.dragging {
+  transition: none !important;
   box-shadow: 0 12px 30px rgba(0, 0, 0, 0.12);
   border-color: #E2E2E2;
   opacity: 0.95;
   transform: scale(1.04);
+  will-change: transform;
 }
 
 .task-title {
@@ -1083,61 +1055,67 @@ body.is-dragging-global .time-block {
 /* ========================================================
    PROFILE MODAL
    ======================================================== */
+.account-backdrop {
+  padding-bottom: 0;
+}
+
 .profile-modal {
   position: absolute;
-  top: 130px;
-  /* aligned to new dump top offset */
-  left: 50%;
-  transform: translateX(-50%);
-  width: 382px;
-  height: 734px;
+  inset: 0;
+  width: 100%;
+  height: 100%;
   background: white;
-  border-radius: 45px;
-  padding: 32px 24px;
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.12);
+  border-radius: 0;
+  padding: 0;
+  box-shadow: none;
   z-index: 50;
   display: flex;
   flex-direction: column;
-  animation: profileSlideUp 0.26s cubic-bezier(0.22, 1, 0.36, 1) forwards;
   overflow: hidden;
   touch-action: none;
   will-change: transform;
 }
 
-@keyframes profileSlideUp {
-  from {
-    opacity: 0;
-    transform: translateX(-50%) translateY(22px) scale(0.98);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(-50%) translateY(0) scale(1);
-  }
+.profile-scroll {
+  position: relative;
+  min-height: 100%;
+  height: 100%;
+  padding: calc(env(safe-area-inset-top, 0px) + 24px) 24px calc(env(safe-area-inset-bottom, 0px) + 24px);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
-.profile-close-btn {
+.profile-back-btn {
   position: absolute;
-  top: 23px;
-  right: 19px;
-  width: 34px;
-  height: 34px;
+  top: 8px;
+  left: 8px;
+  width: 36px;
+  height: 36px;
   border-radius: 50%;
-  background: #F2F1EF;
+  background: #EBEBEB;
   border: none;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   padding: 0;
+  color: #111;
+  transition: background 0.2s;
+  z-index: 20;
+}
+
+.profile-back-btn:active {
+  background: #E4E4E5;
 }
 
 .profile-header {
   display: flex;
   flex-direction: column;
   align-items: center;
-  margin-top: 60px;
-  margin-bottom: 120px;
-  /* Increased from 32px to create the drastic gap seen in the screenshot */
+  margin-top: 56px;
+  margin-bottom: 40px;
 }
 
 .profile-avatar-large {
@@ -1194,7 +1172,7 @@ body.is-dragging-global .time-block {
   display: flex;
   flex-direction: column;
   gap: 14px;
-  margin-bottom: 32px;
+  margin-bottom: 24px;
   padding: 0 14px;
 }
 
@@ -1273,6 +1251,15 @@ body.is-dragging-global .time-block {
   }
 }
 
+.profile-settings-section {
+  padding: 0 14px;
+  margin-bottom: 24px;
+}
+
+.profile-settings-panel {
+  margin-top: 0;
+}
+
 /* ========================================================
    SETTINGS MODAL
    ======================================================== */
@@ -1294,40 +1281,6 @@ body.is-dragging-global .time-block {
   overflow: hidden;
   touch-action: none;
   will-change: transform;
-}
-
-@keyframes settingSlideUp {
-  from {
-    opacity: 0;
-    transform: translateX(-50%) translateY(22px) scale(0.98);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(-50%) translateY(0) scale(1);
-  }
-}
-
-.settings-back-btn {
-  position: absolute;
-  top: 36px;
-  left: 24px;
-  width: 36px;
-  height: 36px;
-  background: #EBEBEB; /* Slightly darker to ensure it's visible even on white */
-  border-radius: 50%;
-  border: none;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  padding: 0;
-  color: #111;
-  transition: background 0.2s;
-  z-index: 1000;
-}
-
-.settings-back-btn:active {
-  background: #E4E4E5;
 }
 
 .settings-panel {
@@ -1638,7 +1591,6 @@ body.is-dragging-global .time-block {
 .dark-theme .timeline-area,
 .dark-theme .bottom-sheet,
 .dark-theme .profile-modal,
-.dark-theme .settings-modal,
 .dark-theme .sheet-input-area,
 .dark-theme .language-dropdown-menu,
 .dark-theme .task-card {
@@ -1718,9 +1670,8 @@ body.is-dragging-global .time-block {
 
 .dark-theme .chip,
 .dark-theme .add-circle-btn,
-.dark-theme .profile-close-btn,
+.dark-theme .profile-back-btn,
 .dark-theme .menu-btn,
-.dark-theme .settings-back-btn,
 .dark-theme .add-btn,
 .dark-theme .sheet-close {
   background: var(--surface) !important;
@@ -1743,13 +1694,6 @@ body.is-dragging-global .time-block {
   background: transparent !important;
   border-color: transparent !important;
   box-shadow: none;
-}
-
-.dark-theme .mic-circle-btn {
-  background: #3A3A3A !important;
-  border-color: #4B4B4B !important;
-  color: var(--text-primary) !important;
-  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.22);
 }
 
 .dark-theme .sheet-input-area {
@@ -1826,7 +1770,7 @@ body.is-dragging-global .time-block {
   background: var(--surface) !important;
 }
 
-.dark-theme .profile-close-btn,
+.dark-theme .profile-back-btn,
 .dark-theme .settings-close-btn {
   background: #595959;
   border: none;

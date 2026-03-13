@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { X, ArrowUp } from 'lucide-react';
+import { ChevronLeft, ArrowUp } from 'lucide-react';
 import { subDays, addDays, format, isSameDay } from 'date-fns';
 import './App.css';
 import Login from './Login';
@@ -65,11 +65,11 @@ const translations = {
 };
 
 const timeBlocks = [
-  { id: 'Morning', key: 'morning', start: '06:00', end: '12:00', color: '#FFE3B4', textColor: '#000000', strokeColor: '#F59E0B', accentColor: '#ED1F1F', pastBgColor: 'rgba(219, 203, 178, 0.20)' },
-  { id: 'Afternoon', key: 'afternoon', start: '12:00', end: '18:00', color: '#B6DEF3', textColor: '#000000', strokeColor: '#0284C7', accentColor: '#0284C7', pastBgColor: 'rgba(231, 243, 250, 0.43)' },
-  { id: 'Evening', key: 'evening', start: '18:00', end: '22:00', color: '#EDE6FF', textColor: '#000000', strokeColor: '#A855F7', accentColor: '#A855F7', pastBgColor: 'rgba(237, 230, 255, 0.20)' },
-  { id: 'Night', key: 'night', start: '22:00', end: '00:00', color: '#E1E7F2', textColor: '#000000', strokeColor: '#B8C1CC', accentColor: '#B8C1CC', pastBgColor: 'rgba(215, 229, 254, 0.53)' },
-  { id: 'Midnight', key: 'midnight', start: '00:00', end: '06:00', color: '#648BD2', textColor: '#000000', strokeColor: '#BFDCFF', accentColor: '#648BD2', pastBgColor: 'rgba(100, 139, 210, 0.38)' }
+  { id: 'Morning', key: 'morning', start: '06:00', end: '12:00', color: '#FFE3B4', textColor: '#000000', strokeColor: '#F59E0B', accentColor: '#ED1F1F' },
+  { id: 'Afternoon', key: 'afternoon', start: '12:00', end: '18:00', color: '#B6DEF3', textColor: '#000000', strokeColor: '#0284C7', accentColor: '#0284C7' },
+  { id: 'Evening', key: 'evening', start: '18:00', end: '22:00', color: '#EDE6FF', textColor: '#000000', strokeColor: '#A855F7', accentColor: '#A855F7' },
+  { id: 'Night', key: 'night', start: '22:00', end: '00:00', color: '#E1E7F2', textColor: '#000000', strokeColor: '#B8C1CC', accentColor: '#B8C1CC' },
+  { id: 'Midnight', key: 'midnight', start: '00:00', end: '06:00', color: '#648BD2', textColor: '#000000', strokeColor: '#BFDCFF', accentColor: '#648BD2' }
 ];
 
 const cardTypeConfig = {
@@ -390,37 +390,10 @@ function App() {
   const [appearance, setAppearance] = useState('light');
   const [isAppearanceDropdownOpen, setIsAppearanceDropdownOpen] = useState(false);
   const taskInputRef = useRef(null);
-  const [isRecording, setIsRecording] = useState(false);
-  const recognitionRef = useRef(null);
   const [isTaskInputFocused, setIsTaskInputFocused] = useState(false);
   const [sheetBaseHeight, setSheetBaseHeight] = useState(null);
   const [sheetKeyboardOffset, setSheetKeyboardOffset] = useState(0);
   const [sheetBaseViewportHeight, setSheetBaseViewportHeight] = useState(0);
-
-  const startVoiceInput = useCallback(() => {
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SpeechRecognition) {
-      alert('Speech recognition is not supported in this browser.');
-      return;
-    }
-    if (isRecording) {
-      recognitionRef.current?.stop();
-      return;
-    }
-    const recognition = new SpeechRecognition();
-    recognition.continuous = false;
-    recognition.interimResults = false;
-    recognition.lang = language === 'ZH' ? 'zh-CN' : language === 'MS' ? 'ms-MY' : language === 'JA' ? 'ja-JP' : language === 'TH' ? 'th-TH' : 'en-US';
-    recognition.onstart = () => setIsRecording(true);
-    recognition.onend = () => setIsRecording(false);
-    recognition.onerror = () => setIsRecording(false);
-    recognition.onresult = (event) => {
-      const transcript = event.results[0][0].transcript;
-      setInputText(prev => prev ? prev + ' ' + transcript : transcript);
-    };
-    recognitionRef.current = recognition;
-    recognition.start();
-  }, [isRecording, language]);
 
   useEffect(() => {
     const textarea = taskInputRef.current;
@@ -455,10 +428,9 @@ function App() {
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isClosingProfile, setIsClosingProfile] = useState(false);
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [isClosingSettings, setIsClosingSettings] = useState(false);
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const [calPickerDate, setCalPickerDate] = useState(() => getLogicalToday());
+  const profileScrollRef = React.useRef(null);
 
   useEffect(() => {
     if (!isSheetOpen) {
@@ -561,29 +533,72 @@ function App() {
     setIsSheetOpen(false);
   }, []);
 
-  const closeProfile = useCallback((isSwipe = false) => {
+  const resetProfilePanel = () => {
+    setIsLanguageDropdownOpen(false);
+    setIsAppearanceDropdownOpen(false);
+    if (profileScrollRef.current) {
+      profileScrollRef.current.scrollTop = 0;
+    }
+  };
+
+  const openProfilePanel = () => {
+    resetProfilePanel();
+    setIsClosingProfile(false);
+    setIsProfileOpen(true);
+  };
+
+  const closeProfile = (isSwipe = false) => {
     if (isSwipe) {
       setIsProfileOpen(false);
+      setIsClosingProfile(false);
+      resetProfilePanel();
       return;
     }
     setIsClosingProfile(true);
     setTimeout(() => {
       setIsProfileOpen(false);
       setIsClosingProfile(false);
+      resetProfilePanel();
     }, 250);
-  }, []);
+  };
 
-  const closeSettings = useCallback((isSwipe = false) => {
-    if (isSwipe) {
-      setIsSettingsOpen(false);
-      return;
+  const accountTouchStartY = React.useRef(null);
+  const accountCurrentY = React.useRef(0);
+
+  const handleAccountTouchStart = (e) => {
+    accountTouchStartY.current = e.touches[0].clientY;
+  };
+  const handleAccountTouchMove = (e) => {
+    const canSwipeToClose = !profileScrollRef.current || profileScrollRef.current.scrollTop <= 0;
+
+    if (!canSwipeToClose || accountTouchStartY.current === null) return;
+
+    const dy = e.touches[0].clientY - accountTouchStartY.current;
+    if (dy > 0) {
+      accountCurrentY.current = dy;
+      const el = e.currentTarget;
+      el.style.transform = `translateY(${dy}px)`;
+      el.style.transition = 'none';
+      if (e.cancelable) {
+        e.preventDefault();
+      }
     }
-    setIsClosingSettings(true);
-    setTimeout(() => {
-      setIsSettingsOpen(false);
-      setIsClosingSettings(false);
-    }, 250);
-  }, []);
+  };
+  const handleAccountTouchEnd = (e) => {
+    if (accountTouchStartY.current === null) return;
+    const dy = accountCurrentY.current;
+    const el = e.currentTarget;
+    if (dy > 120) {
+      el.style.transition = 'transform 0.25s ease-out';
+      el.style.transform = 'translateY(100vh)';
+      setTimeout(() => closeProfile(true), 200);
+    } else {
+      el.style.transition = 'transform 0.25s cubic-bezier(0.22, 1, 0.36, 1)';
+      el.style.transform = 'translateY(0)';
+    }
+    accountTouchStartY.current = null;
+    accountCurrentY.current = 0;
+  };
 
   // ── Android Back Button (PWA) ──────────────────────────────────────────────
   // When any overlay is open we push a dummy history entry so the Android
@@ -603,15 +618,6 @@ function App() {
     onClose: closeSheet,
     getScrollElement: '.sheet-content',
   });
-  const profileSwipeHandlers = useSwipeDownToClose({
-    enabled: isProfileOpen,
-    onClose: closeProfile,
-  });
-  const settingsSwipeHandlers = useSwipeDownToClose({
-    enabled: isSettingsOpen,
-    onClose: closeSettings,
-    getScrollElement: '.settings-panel',
-  });
   const editSwipeHandlers = useSwipeDownToClose({
     enabled: !!editingTodo,
     onClose: closeEditModal,
@@ -623,7 +629,7 @@ function App() {
   });
 
   const anyOverlayOpen =
-    isSheetOpen || isProfileOpen || isSettingsOpen ||
+    isSheetOpen || isProfileOpen ||
     isCalendarOpen || !!editingTodo || isLoginOpen;
 
   useEffect(() => {
@@ -637,15 +643,14 @@ function App() {
     const handlePopState = () => {
       // Close overlays from top (most-modal) to bottom
       if (editingTodo) { closeEditModal(); return; }
-      if (isSettingsOpen) { setIsSettingsOpen(false); return; }
-      if (isProfileOpen) { setIsProfileOpen(false); return; }
+      if (isProfileOpen) { closeProfile(true); return; }
       if (isCalendarOpen) { setIsCalendarOpen(false); return; }
       if (isSheetOpen) { closeSheet(); return; }
       if (isLoginOpen) { closeLoginOverlay(); return; }
     };
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
-  }, [closeEditModal, closeLoginOverlay, closeSheet, editingTodo, isSettingsOpen, isProfileOpen, isCalendarOpen, isSheetOpen, isLoginOpen]);
+  }, [closeEditModal, closeLoginOverlay, closeProfile, closeSheet, editingTodo, isProfileOpen, isCalendarOpen, isSheetOpen, isLoginOpen]);
   // ─────────────────────────────────────────────────────────────────────────
 
   const [weekOffset, setWeekOffset] = useState(0);
@@ -814,8 +819,25 @@ function App() {
   const swipeCurrentOffset = React.useRef(0);
   const isDragMode = React.useRef(false);
   const dragOriginY = React.useRef(0);
-  const autoScrollRef = React.useRef(null);
-  const dragScrollOffset = React.useRef(0);
+  const dragTouchY = React.useRef(0);
+  const activeDragTodoIdRef = React.useRef(null);
+  const lockedTimelineScrollTop = React.useRef(0);
+  const autoScrollVelocity = React.useRef(0);
+  const autoScrollFrameRef = React.useRef(null);
+  const autoScrollLastTsRef = React.useRef(null);
+
+  const lockTimelineScroll = useCallback(() => {
+    const timelineEl = timelineRef.current;
+    if (!timelineEl) return;
+    lockedTimelineScrollTop.current = timelineEl.scrollTop;
+    timelineEl.classList.add('drag-scroll-locked');
+  }, []);
+
+  const unlockTimelineScroll = useCallback(() => {
+    const timelineEl = timelineRef.current;
+    if (!timelineEl) return;
+    timelineEl.classList.remove('drag-scroll-locked');
+  }, []);
 
   // Helper: find nearest time block by vertical center proximity
   const getNearestBlock = (touchY) => {
@@ -833,6 +855,106 @@ function App() {
     });
     return nearestId;
   };
+
+  const syncDraggedCardPosition = (todoId, touchY) => {
+    const timelineEl = timelineRef.current;
+    const scrollDelta = timelineEl ? timelineEl.scrollTop - lockedTimelineScrollTop.current : 0;
+    const rawDy = touchY - dragOriginY.current + scrollDelta;
+    const dy = Math.max(-2000, Math.min(2000, rawDy));
+    const el = document.getElementById(`swipe-card-${todoId}`);
+    if (el) el.style.transform = `translate3d(0, ${dy}px, 0) scale(1.04)`;
+
+    const nearest = getNearestBlock(touchY);
+    if (nearest !== dragOverBlockRef.current) {
+      dragOverBlockRef.current = nearest;
+      setDragOverBlock(nearest);
+    }
+  };
+
+  const stopAutoScroll = useCallback(() => {
+    autoScrollVelocity.current = 0;
+    autoScrollLastTsRef.current = null;
+    if (autoScrollFrameRef.current !== null) {
+      cancelAnimationFrame(autoScrollFrameRef.current);
+      autoScrollFrameRef.current = null;
+    }
+  }, []);
+
+  const runAutoScroll = useCallback((timestamp) => {
+    if (!isDragMode.current) {
+      stopAutoScroll();
+      return;
+    }
+
+    const timelineEl = timelineRef.current;
+    const todoId = activeDragTodoIdRef.current;
+    if (!timelineEl || !todoId) {
+      stopAutoScroll();
+      return;
+    }
+
+    if (autoScrollLastTsRef.current === null) {
+      autoScrollLastTsRef.current = timestamp;
+    }
+
+    const elapsed = Math.min(timestamp - autoScrollLastTsRef.current, 32);
+    autoScrollLastTsRef.current = timestamp;
+
+    if (autoScrollVelocity.current !== 0) {
+      const prevScrollTop = timelineEl.scrollTop;
+      const maxScrollTop = Math.max(0, timelineEl.scrollHeight - timelineEl.clientHeight);
+      const nextScrollTop = Math.max(
+        0,
+        Math.min(maxScrollTop, prevScrollTop + autoScrollVelocity.current * elapsed)
+      );
+      if (nextScrollTop !== prevScrollTop) {
+        timelineEl.scrollTop = nextScrollTop;
+        syncDraggedCardPosition(todoId, dragTouchY.current);
+      } else {
+        stopAutoScroll();
+        return;
+      }
+    }
+
+    if (autoScrollVelocity.current !== 0) {
+      autoScrollFrameRef.current = requestAnimationFrame(runAutoScroll);
+    } else {
+      autoScrollFrameRef.current = null;
+      autoScrollLastTsRef.current = null;
+    }
+  }, [stopAutoScroll]);
+
+  const updateAutoScroll = useCallback((touchY) => {
+    const timelineEl = timelineRef.current;
+    if (!timelineEl) return;
+
+    const rect = timelineEl.getBoundingClientRect();
+    const SCROLL_ZONE = 96;
+    const MAX_SPEED = 1.35; // px per ms
+    const maxScrollTop = Math.max(0, timelineEl.scrollHeight - timelineEl.clientHeight);
+
+    let velocity = 0;
+
+    if (touchY < rect.top + SCROLL_ZONE) {
+      const intensity = (rect.top + SCROLL_ZONE - touchY) / SCROLL_ZONE;
+      velocity = -MAX_SPEED * Math.min(Math.max(intensity, 0), 1);
+    } else if (touchY > rect.bottom - SCROLL_ZONE) {
+      const intensity = (touchY - (rect.bottom - SCROLL_ZONE)) / SCROLL_ZONE;
+      velocity = MAX_SPEED * Math.min(Math.max(intensity, 0), 1);
+    }
+
+    if ((velocity < 0 && timelineEl.scrollTop <= 0) || (velocity > 0 && timelineEl.scrollTop >= maxScrollTop)) {
+      velocity = 0;
+    }
+
+    autoScrollVelocity.current = velocity;
+
+    if (velocity !== 0 && autoScrollFrameRef.current === null) {
+      autoScrollFrameRef.current = requestAnimationFrame(runAutoScroll);
+    } else if (velocity === 0) {
+      stopAutoScroll();
+    }
+  }, [runAutoScroll, stopAutoScroll]);
 
   const SWIPE_MAX = 136; // px — width of both action buttons
   const SNAP_THRESHOLD = 50;
@@ -878,67 +1000,9 @@ function App() {
       // If already in drag mode, handle vertical dragging
       if (isDragMode.current) {
         e.preventDefault();
-        
-        // --- 1. Edge Auto-Scroll Logic ---
-        const SCROLL_ZONE = 100; // pixels from top/bottom to start scrolling
-        const MAX_SPEED = 15;
-        const timelineEl = document.querySelector('.timeline-area');
-        
-        if (timelineEl) {
-          const rect = timelineEl.getBoundingClientRect();
-          const touchY = touch.clientY;
-          let speed = 0;
-          
-          if (touchY < rect.top + SCROLL_ZONE) {
-            // Near top
-            const intensity = 1 - (touchY - rect.top) / SCROLL_ZONE;
-            speed = -MAX_SPEED * Math.max(0, intensity);
-          } else if (touchY > rect.bottom - SCROLL_ZONE) {
-            // Near bottom
-            const intensity = 1 - (rect.bottom - touchY) / SCROLL_ZONE;
-            speed = MAX_SPEED * Math.max(0, intensity);
-          }
-
-          if (speed !== 0) {
-            if (!autoScrollRef.current) {
-              autoScrollRef.current = setInterval(() => {
-                timelineEl.scrollTop += speed;
-                dragScrollOffset.current += speed;
-                // Update card position immediately during scroll tick
-                const el = document.getElementById(`swipe-card-${todoId}`);
-                if (el) {
-                  const rawDy = touch.clientY - dragOriginY.current + dragScrollOffset.current;
-                  const dy = Math.max(-2000, Math.min(2000, rawDy));
-                  el.style.transform = `scale(1.04) translateY(${dy}px)`;
-                }
-                
-                // Re-calculate drag over block since content scrolled
-                const nearest = getNearestBlock(touch.clientY);
-                if (nearest !== dragOverBlockRef.current) {
-                  dragOverBlockRef.current = nearest;
-                  setDragOverBlock(nearest);
-                }
-              }, 16);
-            }
-          } else {
-            if (autoScrollRef.current) {
-              clearInterval(autoScrollRef.current);
-              autoScrollRef.current = null;
-            }
-          }
-        }
-        
-        // --- 2. Card Drag Translate ---
-        // Combine finger movement with artificial scroll offset
-        const rawDy = touch.clientY - dragOriginY.current + dragScrollOffset.current;
-        const dy = Math.max(-2000, Math.min(2000, rawDy)); 
-        const el = document.getElementById(`swipe-card-${todoId}`);
-        if (el) el.style.transform = `scale(1.04) translateY(${dy}px)`;
-
-        const nearest = getNearestBlock(touch.clientY);
-        if (nearest !== dragOverBlockRef.current) {
-          dragOverBlockRef.current = nearest;
-        }
+        dragTouchY.current = touch.clientY;
+        updateAutoScroll(touch.clientY);
+        syncDraggedCardPosition(todoId, touch.clientY);
         return;
       }
 
@@ -948,19 +1012,22 @@ function App() {
 
       if (Math.abs(deltaY) > Math.abs(deltaX)) {
         // Vertical movement → activate drag immediately (no long press)
+        e.preventDefault();
         isDragMode.current = true;
         dragOriginY.current = swipeTouchStartY.current;
-        dragScrollOffset.current = 0;
+        dragTouchY.current = touch.clientY;
+        activeDragTodoIdRef.current = todoId;
+        setDraggedTodoId(todoId);
+        lockTimelineScroll();
 
         const el = document.getElementById(`swipe-card-${todoId}`);
         const wrapper = document.getElementById(`swipe-wrapper-${todoId}`);
         if (el) {
-          el.style.transition = 'transform 0.15s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.15s, opacity 0.15s';
-          el.style.transform = 'scale(1.04) translateY(-3px)';
+          el.style.transition = 'box-shadow 0.12s ease, opacity 0.12s ease';
           el.style.boxShadow = '0 12px 30px rgba(0, 0, 0, 0.12)';
           el.style.opacity = '0.95';
           el.style.zIndex = '100';
-          setTimeout(() => { if (el) el.style.transition = ''; }, 200);
+          el.style.willChange = 'transform';
         }
         // Lock page scroll
         const blocker = (ev) => ev.preventDefault();
@@ -974,9 +1041,8 @@ function App() {
         }
         document.body.classList.add('is-dragging-global');
 
-        const nearest = getNearestBlock(touch.clientY);
-        dragOverBlockRef.current = nearest;
-        setDragOverBlock(nearest);
+        syncDraggedCardPosition(todoId, touch.clientY);
+        updateAutoScroll(touch.clientY);
       } else {
         // Horizontal movement → swipe to reveal actions with fade (left only)
         if (deltaX > 0) return;
@@ -1002,12 +1068,9 @@ function App() {
       }
     },
     onTouchEnd: (e) => {
-      if (autoScrollRef.current) {
-        clearInterval(autoScrollRef.current);
-        autoScrollRef.current = null;
-      }
       if (isDragMode.current) {
         isDragMode.current = false;
+        stopAutoScroll();
         const el = document.getElementById(`swipe-card-${todoId}`);
         const wrapper = document.getElementById(`swipe-wrapper-${todoId}`);
 
@@ -1023,6 +1086,7 @@ function App() {
           el.style.boxShadow = '';
           el.style.opacity = '';
           el.style.zIndex = '';
+          el.style.willChange = '';
           setTimeout(() => { if (el) el.style.transition = ''; }, 350);
         }
         if (wrapper) {
@@ -1031,12 +1095,19 @@ function App() {
           if (parentBlock) parentBlock.classList.remove('is-dragging-parent');
         }
         document.body.classList.remove('is-dragging-global');
+        unlockTimelineScroll();
+        activeDragTodoIdRef.current = null;
+        setDraggedTodoId(null);
+        setDragOverBlock(null);
         // Release scroll lock
         if (scrollBlocker.current) {
           window.removeEventListener('touchmove', scrollBlocker.current);
           scrollBlocker.current = null;
         }
         dragOverBlockRef.current = null;
+        swipeTouchStartX.current = null;
+        swipeTouchStartY.current = null;
+        swipeCurrentOffset.current = 0;
         return;
       }
 
@@ -1074,6 +1145,7 @@ function App() {
         setOpenSwipeId(null);
       }
       swipeTouchStartX.current = null;
+      swipeTouchStartY.current = null;
       swipeCurrentOffset.current = 0;
     },
   });
@@ -1284,7 +1356,7 @@ function App() {
         <header className="header">
           <div className="avatar" onClick={() => {
             if (session) {
-              setIsProfileOpen(true);
+              openProfilePanel();
             } else {
               setIsLoginOpen(true);
             }
@@ -1350,13 +1422,9 @@ function App() {
           {timeBlocks.map((block) => {
             const blockTodos = selectedDateTodos.filter(t => t.timeOfDay === block.id);
             const indicatorStyle = getTimeIndicatorStyle(block);
-            const isPast = isTimeBlockPast(block);
             return (
-              <div className={`time-block ${isPast ? 'expired' : ''}`} key={block.id}>
-                <div
-                  className={`time-col ${isPast ? 'past-block' : ''}`}
-                  style={isPast ? { backgroundColor: block.pastBgColor } : {}}
-                >
+              <div className="time-block" key={block.id}>
+                <div className="time-col">
                   <div className="time-pill" data-block-id={block.id} style={{
                     backgroundColor: block.color,
                     color: block.textColor,
@@ -1388,6 +1456,7 @@ function App() {
                     const isVideo = cType === 'video';
                     const isMap = cType === 'map';
                     const isMeeting = cType === 'meeting';
+                    const isPlain = cType === 'plain';
 
                     let displayTitle = todo.text;
                     let displaySub = translations[language].actionItem;
@@ -1444,6 +1513,10 @@ function App() {
                           className={`task-card ${todo.completed ? 'completed' : ''} ${draggedTodoId === todo.id ? 'dragging' : ''}`}
                           onClick={() => {
                             if (openSwipeId === todo.id) { closeSwipe(todo.id); return; }
+                            if (isPlain) {
+                              openEdit(todo);
+                              return;
+                            }
                             if (redirectUrl) {
                               window.open(redirectUrl, '_blank', 'noopener,noreferrer');
                             } else {
@@ -1623,24 +1696,6 @@ function App() {
                   className="composer-shell"
                   style={composerLift > 0 ? { transform: `translateY(-${composerLift}px)` } : undefined}
                 >
-                  <button
-                    className={`mic-circle-btn ${isRecording ? 'recording' : ''}`}
-                    onClick={startVoiceInput}
-                    title={isRecording ? 'Stop recording' : 'Voice input'}
-                  >
-                    {isRecording ? (
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
-                        <rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor" />
-                      </svg>
-                    ) : (
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" xmlns="http://www.w3.org/2000/svg">
-                        <rect x="9" y="2" width="6" height="13" rx="3" />
-                        <path d="M5 10a7 7 0 0 0 14 0" />
-                        <line x1="12" y1="19" x2="12" y2="22" />
-                        <line x1="9" y1="22" x2="15" y2="22" />
-                      </svg>
-                    )}
-                  </button>
                   <div className="input-wrapper">
                     <textarea
                       ref={taskInputRef}
@@ -1671,127 +1726,109 @@ function App() {
 
         {/* Profile Modal */}
         {isProfileOpen && (
-          <div className={`backdrop modal-backdrop ${isClosingProfile ? 'fade-out' : ''}`} onClick={(e) => {
+          <div className={`backdrop modal-backdrop account-backdrop ${isClosingProfile ? 'fade-out' : ''}`} onClick={(e) => {
             if (e.target.classList.contains('backdrop')) closeProfile();
           }}>
             <div 
-              className={`profile-modal ${isClosingProfile ? 'centered-panel-exit' : ''}`}
-              {...profileSwipeHandlers}
+              className={`profile-modal ${isClosingProfile ? 'panel-exit' : 'panel-enter'}`}
+              onTouchStart={handleAccountTouchStart}
+              onTouchMove={handleAccountTouchMove}
+              onTouchEnd={handleAccountTouchEnd}
+              onTouchCancel={handleAccountTouchEnd}
             >
-              <button className="profile-close-btn" onClick={closeProfile}>
-                <X size={20} color="#111" />
-              </button>
-              <div className="profile-header">
-                <div className="profile-avatar-large">
-                  <img src={session?.user?.user_metadata?.avatar_url || 'https://lh3.googleusercontent.com/a/default-user=s64-c'} alt="Profile Large" />
-                  <div className="edit-badge">
-                    <svg width="11" height="11" viewBox="0 0 11 11" fill="none" xmlns="http://www.w3.org/2000/svg">
-                      <path d="M10.5974 0.402648C10.3395 0.144835 9.98979 0 9.62516 0C9.26052 0 8.91082 0.144835 8.65296 0.402648L8.04692 1.0087L9.9913 2.95308L10.5974 2.34703C10.8552 2.08918 11 1.73947 11 1.37484C11 1.01021 10.8552 0.660505 10.5974 0.402648ZM9.43554 3.50885L7.49115 1.56446L1.12685 7.92876C0.803581 8.25187 0.565942 8.65046 0.43542 9.08848L0.0163715 10.4949C-0.0038601 10.5628 -0.00536903 10.6349 0.0120044 10.7035C0.0293779 10.7722 0.0649875 10.8349 0.115066 10.8849C0.165143 10.935 0.227827 10.9706 0.296484 10.988C0.365141 11.0054 0.437217 11.0039 0.505087 10.9836L1.91152 10.5646C2.34954 10.4341 2.74813 10.1964 3.07124 9.87315L9.43554 3.50885Z" fill="white" />
-                    </svg>
-                  </div>
-                </div>
-                <h2 className="profile-name">{session?.user?.user_metadata?.full_name?.toUpperCase() || 'USER'}</h2>
-                <p className="profile-email">{session?.user?.email || ''}</p>
-              </div>
-
-              <div className="profile-menu">
-                <button className="menu-btn" onClick={() => setIsSettingsOpen(true)}>
-                  <div className="menu-btn-left">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
-                    <span>{translations[language].setting}</span>
-                  </div>
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+              <div className="profile-scroll" ref={profileScrollRef}>
+                <button className="profile-back-btn" onClick={closeProfile}>
+                  <ChevronLeft size={22} color="#111" />
                 </button>
-                <button className="menu-btn">
-                  <div className="menu-btn-left">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
-                    <span>{translations[language].helpFeedback}</span>
-                  </div>
-                </button>
-              </div>
-
-              <div className="profile-footer">
-                <button className="signout-btn" style={{ cursor: 'pointer', position: 'relative', zIndex: 100 }} onClick={async (e) => {
-                  e.stopPropagation();
-                  closeProfile();
-                  if (supabase) {
-                    await supabase.auth.signOut();
-                  }
-                }}>
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg>
-                  {translations[language].signOut}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Settings Modal */}
-        {isSettingsOpen && (
-          <div className={`backdrop modal-backdrop ${isClosingSettings ? 'fade-out' : ''}`} onClick={(e) => {
-            if (e.target.classList.contains('backdrop')) closeSettings();
-          }}>
-            <div 
-              className={`settings-modal ${isClosingSettings ? 'centered-panel-exit' : ''}`}
-              {...settingsSwipeHandlers}
-            >
-              <button className="settings-back-btn" onClick={closeSettings}>
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M15 18L9 12L15 6" />
-                </svg>
-              </button>
-
-              <div className="settings-panel">
-                <div className="settings-item-row" style={{ borderBottom: '1px solid #F0F0F0' }}>
-                  <div className="settings-item-left">
-                    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-                      <path d="M10 17.5C11.6625 17.4999 13.2779 16.9477 14.5925 15.93C15.9072 14.9124 16.8466 13.4869 17.2633 11.8775M10 17.5C8.33751 17.4999 6.72212 16.9477 5.40748 15.93C4.09284 14.9124 3.1534 13.4869 2.73667 11.8775M10 17.5C12.0708 17.5 13.75 14.1417 13.75 10C13.75 5.85833 12.0708 2.5 10 2.5M10 17.5C7.92917 17.5 6.25 14.1417 6.25 10C6.25 5.85833 7.92917 2.5 10 2.5M17.2633 11.8775C17.4175 11.2775 17.5 10.6483 17.5 10C17.5021 8.71009 17.1699 7.44166 16.5358 6.31833M17.2633 11.8775C15.041 13.1095 12.541 13.754 10 13.75C7.365 13.75 4.88917 13.0708 2.73667 11.8775M2.73667 11.8775C2.57896 11.2641 2.49944 10.6333 2.5 10C2.5 8.6625 2.85 7.40583 3.46417 6.31833M10 2.5C11.3302 2.49945 12.6366 2.8528 13.7852 3.5238C14.9337 4.19481 15.8831 5.15931 16.5358 6.31833M10 2.5C8.6698 2.49945 7.3634 2.8528 6.21484 3.5238C5.06628 4.19481 4.11692 5.15931 3.46417 6.31833M16.5358 6.31833C14.7214 7.88994 12.4004 8.75345 10 8.75C7.50167 8.75 5.21667 7.83333 3.46417 6.31833" stroke="black" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
-                    <span>{translations[language].language}</span>
-                  </div>
-                  <div className="language-dropdown-container">
-                    <div className="settings-item-right settings-item-right-clickable" onClick={() => setIsLanguageDropdownOpen(!isLanguageDropdownOpen)}>
-                      <span>{language === 'EN' ? 'EN' : language === 'ZH' ? '中文' : language === 'MS' ? 'MS' : language === 'JA' ? '日本語' : 'ไทย'}</span>
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#A0A4AB" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ transform: isLanguageDropdownOpen ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}>
-                        <polyline points="6 9 12 15 18 9"></polyline>
+                <div className="profile-header">
+                  <div className="profile-avatar-large">
+                    <img src={session?.user?.user_metadata?.avatar_url || 'https://lh3.googleusercontent.com/a/default-user=s64-c'} alt="Profile Large" />
+                    <div className="edit-badge">
+                      <svg width="11" height="11" viewBox="0 0 11 11" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M10.5974 0.402648C10.3395 0.144835 9.98979 0 9.62516 0C9.26052 0 8.91082 0.144835 8.65296 0.402648L8.04692 1.0087L9.9913 2.95308L10.5974 2.34703C10.8552 2.08918 11 1.73947 11 1.37484C11 1.01021 10.8552 0.660505 10.5974 0.402648ZM9.43554 3.50885L7.49115 1.56446L1.12685 7.92876C0.803581 8.25187 0.565942 8.65046 0.43542 9.08848L0.0163715 10.4949C-0.0038601 10.5628 -0.00536903 10.6349 0.0120044 10.7035C0.0293779 10.7722 0.0649875 10.8349 0.115066 10.8849C0.165143 10.935 0.227827 10.9706 0.296484 10.988C0.365141 11.0054 0.437217 11.0039 0.505087 10.9836L1.91152 10.5646C2.34954 10.4341 2.74813 10.1964 3.07124 9.87315L9.43554 3.50885Z" fill="white" />
                       </svg>
                     </div>
-                    {isLanguageDropdownOpen && (
-                      <div className="language-dropdown-menu">
-                        {['EN', 'ZH', 'MS', 'JA', 'TH'].map(lang => (
-                          <div key={lang} className={`language-option ${language === lang ? 'selected' : ''}`} onClick={() => { setLanguage(lang); setIsLanguageDropdownOpen(false); }}>
-                            <span>{lang === 'EN' ? 'EN' : lang === 'ZH' ? '中文' : lang === 'MS' ? 'MS' : lang === 'JA' ? '日本語' : 'ไทย'}</span>
-                            {language === lang && <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>}
-                          </div>
-                        ))}
+                  </div>
+                  <h2 className="profile-name">{session?.user?.user_metadata?.full_name?.toUpperCase() || 'USER'}</h2>
+                  <p className="profile-email">{session?.user?.email || ''}</p>
+                </div>
+
+                <div className="profile-settings-section">
+                  <div className="settings-panel profile-settings-panel">
+                    <div className="settings-item-row" style={{ borderBottom: '1px solid #F0F0F0' }}>
+                      <div className="settings-item-left">
+                        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                          <path d="M10 17.5C11.6625 17.4999 13.2779 16.9477 14.5925 15.93C15.9072 14.9124 16.8466 13.4869 17.2633 11.8775M10 17.5C8.33751 17.4999 6.72212 16.9477 5.40748 15.93C4.09284 14.9124 3.1534 13.4869 2.73667 11.8775M10 17.5C12.0708 17.5 13.75 14.1417 13.75 10C13.75 5.85833 12.0708 2.5 10 2.5M10 17.5C7.92917 17.5 6.25 14.1417 6.25 10C6.25 5.85833 7.92917 2.5 10 2.5M17.2633 11.8775C17.4175 11.2775 17.5 10.6483 17.5 10C17.5021 8.71009 17.1699 7.44166 16.5358 6.31833M17.2633 11.8775C15.041 13.1095 12.541 13.754 10 13.75C7.365 13.75 4.88917 13.0708 2.73667 11.8775M2.73667 11.8775C2.57896 11.2641 2.49944 10.6333 2.5 10C2.5 8.6625 2.85 7.40583 3.46417 6.31833M10 2.5C11.3302 2.49945 12.6366 2.8528 13.7852 3.5238C14.9337 4.19481 15.8831 5.15931 16.5358 6.31833M10 2.5C8.6698 2.49945 7.3634 2.8528 6.21484 3.5238C5.06628 4.19481 4.11692 5.15931 3.46417 6.31833M16.5358 6.31833C14.7214 7.88994 12.4004 8.75345 10 8.75C7.50167 8.75 5.21667 7.83333 3.46417 6.31833" stroke="black" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                        <span>{translations[language].language}</span>
                       </div>
-                    )}
+                      <div className="language-dropdown-container">
+                        <div className="settings-item-right settings-item-right-clickable" onClick={() => setIsLanguageDropdownOpen(!isLanguageDropdownOpen)}>
+                          <span>{language === 'EN' ? 'EN' : language === 'ZH' ? '中文' : language === 'MS' ? 'MS' : language === 'JA' ? '日本語' : 'ไทย'}</span>
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#A0A4AB" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ transform: isLanguageDropdownOpen ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}>
+                            <polyline points="6 9 12 15 18 9"></polyline>
+                          </svg>
+                        </div>
+                        {isLanguageDropdownOpen && (
+                          <div className="language-dropdown-menu">
+                            {['EN', 'ZH', 'MS', 'JA', 'TH'].map(lang => (
+                              <div key={lang} className={`language-option ${language === lang ? 'selected' : ''}`} onClick={() => { setLanguage(lang); setIsLanguageDropdownOpen(false); }}>
+                                <span>{lang === 'EN' ? 'EN' : lang === 'ZH' ? '中文' : lang === 'MS' ? 'MS' : lang === 'JA' ? '日本語' : 'ไทย'}</span>
+                                {language === lang && <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="settings-item-row">
+                      <div className="settings-item-left">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2"></path><path d="M12 20v2"></path><path d="M4.93 4.93l1.41 1.41"></path><path d="M17.66 17.66l1.41 1.41"></path><path d="M2 12h2"></path><path d="M20 12h2"></path><path d="M6.34 17.66l-1.41 1.41"></path><path d="M19.07 4.93l-1.41 1.41"></path></svg>
+                        <span>{translations[language].appearance}</span>
+                      </div>
+                      <div className="language-dropdown-container">
+                        <div className="settings-item-right settings-item-right-clickable" onClick={() => setIsAppearanceDropdownOpen(!isAppearanceDropdownOpen)}>
+                          <span>{appearance === 'light' ? translations[language].light : translations[language].dark}</span>
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#A0A4AB" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ transform: isAppearanceDropdownOpen ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}>
+                            <polyline points="6 9 12 15 18 9"></polyline>
+                          </svg>
+                        </div>
+                        {isAppearanceDropdownOpen && (
+                          <div className="language-dropdown-menu">
+                            {['light', 'dark'].map(mode => (
+                              <div key={mode} className={`language-option ${appearance === mode ? 'selected' : ''}`} onClick={() => { setAppearance(mode); setIsAppearanceDropdownOpen(false); }}>
+                                <span>{mode === 'light' ? translations[language].light : translations[language].dark}</span>
+                                {appearance === mode && <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
                   </div>
                 </div>
 
-                <div className="settings-item-row">
-                  <div className="settings-item-left">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2"></path><path d="M12 20v2"></path><path d="M4.93 4.93l1.41 1.41"></path><path d="M17.66 17.66l1.41 1.41"></path><path d="M2 12h2"></path><path d="M20 12h2"></path><path d="M6.34 17.66l-1.41 1.41"></path><path d="M19.07 4.93l-1.41 1.41"></path></svg>
-                    <span>{translations[language].appearance}</span>
-                  </div>
-                  <div className="language-dropdown-container">
-                    <div className="settings-item-right settings-item-right-clickable" onClick={() => setIsAppearanceDropdownOpen(!isAppearanceDropdownOpen)}>
-                      <span>{appearance === 'light' ? translations[language].light : translations[language].dark}</span>
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#A0A4AB" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ transform: isAppearanceDropdownOpen ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}>
-                        <polyline points="6 9 12 15 18 9"></polyline>
-                      </svg>
+                <div className="profile-menu">
+                  <button className="menu-btn">
+                    <div className="menu-btn-left">
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+                      <span>{translations[language].helpFeedback}</span>
                     </div>
-                    {isAppearanceDropdownOpen && (
-                      <div className="language-dropdown-menu">
-                        {['light', 'dark'].map(mode => (
-                          <div key={mode} className={`language-option ${appearance === mode ? 'selected' : ''}`} onClick={() => { setAppearance(mode); setIsAppearanceDropdownOpen(false); }}>
-                            <span>{mode === 'light' ? translations[language].light : translations[language].dark}</span>
-                            {appearance === mode && <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
+                  </button>
+                </div>
+
+                <div className="profile-footer">
+                  <button className="signout-btn" style={{ cursor: 'pointer', position: 'relative', zIndex: 100 }} onClick={async (e) => {
+                    e.stopPropagation();
+                    closeProfile();
+                    if (supabase) {
+                      await supabase.auth.signOut();
+                    }
+                  }}>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg>
+                    {translations[language].signOut}
+                  </button>
                 </div>
               </div>
             </div>
