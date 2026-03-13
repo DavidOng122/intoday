@@ -1034,6 +1034,8 @@ body.is-dragging-global .time-block {
   flex-direction: column;
   animation: profileSlideUp 0.26s cubic-bezier(0.22, 1, 0.36, 1) forwards;
   overflow: hidden;
+  touch-action: none;
+  will-change: transform;
 }
 
 @keyframes profileSlideUp {
@@ -1224,6 +1226,8 @@ body.is-dragging-global .time-block {
   flex-direction: column;
   animation: settingSlideUp 0.26s cubic-bezier(0.22, 1, 0.36, 1) forwards;
   overflow: hidden;
+  touch-action: none;
+  will-change: transform;
 }
 
 @keyframes settingSlideUp {

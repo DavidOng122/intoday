@@ -199,7 +199,15 @@ const SWIPE_CLOSE_SETTLE_MS = 200;
 const SWIPE_CLOSE_OFFSCREEN_PADDING = 120;
 const SWIPE_CLOSE_TRANSITION = 'transform 0.25s ease-out';
 const SWIPE_RESET_TRANSITION = 'transform 0.25s cubic-bezier(0.22, 1, 0.36, 1)';
+const SWIPE_FREE_DRAG_DISTANCE = 18;
+const SWIPE_DRAG_RESISTANCE = 0.92;
 const centeredSwipeTransform = (offsetY = 0) => `translateX(-50%) translateY(${offsetY}px)`;
+
+const getSwipeVisualOffset = (offsetY) => {
+  if (offsetY <= 0) return 0;
+  if (offsetY <= SWIPE_FREE_DRAG_DISTANCE) return offsetY;
+  return SWIPE_FREE_DRAG_DISTANCE + ((offsetY - SWIPE_FREE_DRAG_DISTANCE) * SWIPE_DRAG_RESISTANCE);
+};
 
 const resolveSwipeScrollElement = (container, eventTarget, getScrollElement) => {
   if (!getScrollElement) return null;
@@ -273,6 +281,10 @@ function useSwipeDownToClose({
       return;
     }
 
+    // Cancel any entrance animation so drag uses the live transform immediately.
+    container.style.animation = 'none';
+    container.style.willChange = 'transform';
+    container.style.transform = baseTransform(0);
     touchStartY.current = touch.clientY;
     currentOffsetY.current = 0;
     isSwiping.current = true;
@@ -296,7 +308,7 @@ function useSwipeDownToClose({
 
     currentOffsetY.current = offsetY;
     container.style.transition = 'none';
-    container.style.transform = baseTransform(offsetY);
+    container.style.transform = baseTransform(getSwipeVisualOffset(offsetY));
 
     if (e.cancelable) {
       e.preventDefault();
