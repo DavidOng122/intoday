@@ -111,7 +111,8 @@ const DAY_SWIPE_CONFIG = {
   VELOCITY_THRESHOLD_PX_PER_MS: 0.45,
   DRAG_RESISTANCE: 0.35,
   MAX_DRAG_OFFSET_PX: 140,
-  ANIMATION_DURATION_MS: 250,
+  SWIPE_ANIMATION_DURATION_MS: 250,
+  TAP_ANIMATION_DURATION_MS: 220,
 };
 
 const detectCardType = (text) => {
@@ -727,6 +728,8 @@ function App() {
   const stripRef = React.useRef(null);
   const dayRefs = React.useRef({});
   const timelineRef = React.useRef(null);
+  const dayScrollPositionsRef = React.useRef({});
+  const hasAutoScrolledToTodayRef = React.useRef(false);
   const daySwipeStateRef = React.useRef({
     pointerId: null,
     startX: 0,
@@ -762,6 +765,12 @@ function App() {
     }
   };
 
+  const persistCurrentDayScroll = useCallback(() => {
+    const timelineEl = timelineRef.current;
+    if (!timelineEl) return;
+    dayScrollPositionsRef.current[format(selectedDate, 'yyyy-MM-dd')] = timelineEl.scrollTop;
+  }, [selectedDate]);
+
   // Auto-scroll the selected day into center of the strip
   useEffect(() => {
     const key = format(selectedDate, 'yyyy-MM-dd');
@@ -769,10 +778,31 @@ function App() {
     if (el && stripRef.current) {
       el.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
     }
-    if (isSameDay(selectedDate, getLogicalToday())) {
-      setTimeout(() => scrollToCurrentTime(), 400);
-    }
     setContentKey(k => k + 1);
+  }, [selectedDate]);
+
+  useEffect(() => {
+    const timelineEl = timelineRef.current;
+    if (!timelineEl) return undefined;
+
+    const currentDateKey = format(selectedDate, 'yyyy-MM-dd');
+    const restoreTimer = window.setTimeout(() => {
+      const savedScrollTop = dayScrollPositionsRef.current[currentDateKey];
+
+      if (typeof savedScrollTop === 'number') {
+        timelineEl.scrollTop = savedScrollTop;
+        return;
+      }
+
+      if (isSameDay(selectedDate, getLogicalToday()) && !hasAutoScrolledToTodayRef.current) {
+        hasAutoScrolledToTodayRef.current = true;
+        scrollToCurrentTime('auto');
+      } else {
+        timelineEl.scrollTop = 0;
+      }
+    }, 0);
+
+    return () => window.clearTimeout(restoreTimer);
   }, [selectedDate]);
 
   useEffect(() => {
@@ -799,21 +829,26 @@ function App() {
     transitionTimeoutRef.current = null;
   }, []);
 
-  const beginDayTransition = useCallback((direction) => {
+  const transitionToDate = useCallback((nextDate, options = {}) => {
+    if ((!options.bypassOverlayGuard && anyOverlayOpen) || dayTransition || isSameDay(nextDate, selectedDate)) return;
+
+    persistCurrentDayScroll();
+
+    const direction = nextDate > selectedDate ? 'next' : 'previous';
     if (transitionTimeoutRef.current) {
       window.clearTimeout(transitionTimeoutRef.current);
     }
-
-    const nextDate = direction === 'next' ? addDays(selectedDate, 1) : subDays(selectedDate, 1);
     const viewportWidth = timelineRef.current?.clientWidth || window.innerWidth || 360;
     const exitOffset = direction === 'next' ? -viewportWidth : viewportWidth;
     const enterOffset = direction === 'next' ? viewportWidth : -viewportWidth;
+    const durationMs = options.durationMs ?? DAY_SWIPE_CONFIG.SWIPE_ANIMATION_DURATION_MS;
 
     setDayTransition({
       direction,
       nextDate,
       currentOffset: daySwipeOffset,
       nextOffset: enterOffset,
+      durationMs,
     });
 
     requestAnimationFrame(() => {
@@ -822,22 +857,14 @@ function App() {
         nextDate,
         currentOffset: exitOffset,
         nextOffset: 0,
+        durationMs,
       });
     });
 
     transitionTimeoutRef.current = window.setTimeout(() => {
       finishDayTransition(nextDate);
-    }, DAY_SWIPE_CONFIG.ANIMATION_DURATION_MS);
-  }, [daySwipeOffset, finishDayTransition, selectedDate]);
-
-  // Initial scroll to current time on mount
-  useEffect(() => {
-    // Small delay to ensure layout is ready
-    const timer = setTimeout(() => {
-      scrollToCurrentTime('auto');
-    }, 100);
-    return () => clearTimeout(timer);
-  }, []);
+    }, durationMs);
+  }, [anyOverlayOpen, daySwipeOffset, dayTransition, finishDayTransition, persistCurrentDayScroll, selectedDate]);
 
   const [todos, setTodos] = useState(() => {
     const saved = localStorage.getItem('todos');
@@ -1548,13 +1575,16 @@ function App() {
     );
 
     if (shouldChangeDay && !dayTransition && !anyOverlayOpen) {
-      beginDayTransition(totalDx < 0 ? 'next' : 'previous');
+      const nextDate = totalDx < 0 ? addDays(selectedDate, 1) : subDays(selectedDate, 1);
+      transitionToDate(nextDate, {
+        durationMs: DAY_SWIPE_CONFIG.SWIPE_ANIMATION_DURATION_MS,
+      });
     } else {
       setDaySwipeOffset(0);
     }
 
     resetDaySwipeState();
-  }, [anyOverlayOpen, beginDayTransition, dayTransition, resetDaySwipeState]);
+  }, [anyOverlayOpen, dayTransition, resetDaySwipeState, selectedDate, transitionToDate]);
 
   const renderTimelineBlocks = useCallback((date, options = {}) => {
     const dayTodos = getDayTodos(date);
@@ -1770,7 +1800,7 @@ function App() {
           </div>
 
           <div className={`header-center ${isAndroid ? 'header-center-android' : 'header-center-ios'}`} style={{ justifyContent: isSameDay(selectedDate, getLogicalToday()) ? 'flex-start' : 'center' }}>
-            <div className="header-title-container" style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: !isSameDay(selectedDate, getLogicalToday()) ? 'pointer' : 'default' }} onClick={() => { if (!isSameDay(selectedDate, getLogicalToday())) { setSelectedDate(getLogicalToday()); setTimeout(() => scrollToCurrentTime(), 300); } }}>
+            <div className="header-title-container" style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: !isSameDay(selectedDate, getLogicalToday()) ? 'pointer' : 'default' }} onClick={() => { if (!isSameDay(selectedDate, getLogicalToday())) { transitionToDate(getLogicalToday(), { durationMs: DAY_SWIPE_CONFIG.TAP_ANIMATION_DURATION_MS }); } }}>
               {!isSameDay(selectedDate, getLogicalToday()) && (
                 <img src={appearance === 'dark' ? '/whiteuturn.png' : '/uturn.png'} alt="Back to Today" style={{ width: '16px', height: '16px', objectFit: 'contain' }} />
               )}
@@ -1817,7 +1847,7 @@ function App() {
               className="day-col"
               key={idx}
               ref={el => { dayRefs.current[format(day.fullDate, 'yyyy-MM-dd')] = el; }}
-              onClick={() => setSelectedDate(day.fullDate)}
+              onClick={() => transitionToDate(day.fullDate, { durationMs: DAY_SWIPE_CONFIG.TAP_ANIMATION_DURATION_MS })}
               style={{ cursor: 'pointer' }}
             >
               <span className={`day-name ${day.active ? 'active' : ''} ${day.isPast && !day.active ? 'past' : ''}`}>{day.name}</span>
@@ -1834,13 +1864,17 @@ function App() {
           ref={timelineRef}
           key={contentKey}
           className={`timeline-area ${dayTransition ? 'timeline-swiping' : 'timeline-fade'}`}
+          onScroll={persistCurrentDayScroll}
         >
           <div className="timeline-stage">
             {timelinePanels.map((panel) => (
               <div
                 key={panel.key}
                 className={`${panel.className} ${dayTransition ? 'timeline-panel-animating' : ''}`}
-                style={panel.style}
+                style={{
+                  ...panel.style,
+                  transitionDuration: dayTransition ? `${dayTransition.durationMs}ms` : undefined,
+                }}
               >
                 {renderTimelineBlocks(panel.date, { isStatic: panel.isStatic })}
               </div>
@@ -1940,7 +1974,15 @@ function App() {
                                 key={day}
                                 className={`cal-picker-day ${isSelected ? 'selected' : ''} ${isToday && !isSelected ? 'today' : ''} ${!isInRange ? 'out-of-range' : ''}`}
                                 disabled={!isInRange}
-                                onClick={e => { if (!isInRange) return; e.stopPropagation(); setSelectedDate(cellDate); setIsCalendarOpen(false); }}
+                                onClick={e => {
+                                  if (!isInRange) return;
+                                  e.stopPropagation();
+                                  transitionToDate(cellDate, {
+                                    durationMs: DAY_SWIPE_CONFIG.TAP_ANIMATION_DURATION_MS,
+                                    bypassOverlayGuard: true,
+                                  });
+                                  setIsCalendarOpen(false);
+                                }}
                               >
                                 {day}
                               </button>
