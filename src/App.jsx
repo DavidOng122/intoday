@@ -233,6 +233,7 @@ function useSwipeDownToClose({
   onClose,
   baseTransform = centeredSwipeTransform,
   getScrollElement,
+  ignoreSwipeFrom,
   threshold = SWIPE_CLOSE_THRESHOLD,
 }) {
   const touchStartY = useRef(null);
@@ -245,10 +246,22 @@ function useSwipeDownToClose({
     isSwiping.current = false;
   }, []);
 
+  const shouldIgnoreSwipeTarget = useCallback((eventTarget) => {
+    if (!ignoreSwipeFrom || !(eventTarget instanceof Element)) return false;
+    if (typeof ignoreSwipeFrom === 'function') {
+      return !!ignoreSwipeFrom(eventTarget);
+    }
+    if (typeof ignoreSwipeFrom === 'string') {
+      return !!eventTarget.closest(ignoreSwipeFrom);
+    }
+    return false;
+  }, [ignoreSwipeFrom]);
+
   const canSwipeFromTarget = useCallback((container, eventTarget) => {
+    if (shouldIgnoreSwipeTarget(eventTarget)) return false;
     const scrollEl = resolveSwipeScrollElement(container, eventTarget, getScrollElement);
     return !(scrollEl && scrollEl.scrollTop > 0);
-  }, [getScrollElement]);
+  }, [getScrollElement, shouldIgnoreSwipeTarget]);
 
   const restorePosition = useCallback((container) => {
     container.style.transition = SWIPE_RESET_TRANSITION;
@@ -617,6 +630,7 @@ function App() {
     enabled: isSheetOpen,
     onClose: closeSheet,
     getScrollElement: '.sheet-content',
+    ignoreSwipeFrom: '.sheet-input-area',
   });
   const editSwipeHandlers = useSwipeDownToClose({
     enabled: !!editingTodo,
@@ -1715,7 +1729,7 @@ function App() {
                       }}
                     />
                     <button className="submit-btn" onClick={handleAddTodo}>
-                      <ArrowUp size={18} strokeWidth={2.5} />
+                      <ArrowUp size={12} strokeWidth={2.5} />
                     </button>
                   </div>
                 </div>

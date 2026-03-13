@@ -606,6 +606,8 @@
   padding: 10px 0 9px;
   overflow-y: hidden;
   overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
   scrollbar-width: none;
   font-family: inherit;
 }
@@ -619,8 +621,8 @@
 }
 
 .submit-btn {
-  width: 42px;
-  height: 42px;
+  width: 24px;
+  height: 24px;
   border-radius: 50%;
   background: #000;
   color: white;
