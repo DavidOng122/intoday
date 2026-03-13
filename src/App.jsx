@@ -721,7 +721,6 @@ function App() {
   // ─────────────────────────────────────────────────────────────────────────
 
   const [weekOffset, setWeekOffset] = useState(0);
-  const [contentKey, setContentKey] = useState(0);
   const [isCoarsePointer, setIsCoarsePointer] = useState(false);
   const [daySwipeOffset, setDaySwipeOffset] = useState(0);
   const [dayTransition, setDayTransition] = useState(null);
@@ -797,7 +796,6 @@ function App() {
     if (el && stripRef.current) {
       el.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
     }
-    setContentKey(k => k + 1);
   }, [selectedDate]);
 
   useLayoutEffect(() => {
@@ -1902,7 +1900,6 @@ function App() {
         {/* Main Timeline — only the day content track slides during a day swipe */}
         <main
           ref={timelineRef}
-          key={contentKey}
           className={`timeline-area ${dayTransition ? 'timeline-swiping' : 'timeline-fade'}`}
           onScroll={persistCurrentDayScroll}
         >
