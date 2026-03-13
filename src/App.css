@@ -349,7 +349,7 @@
   flex-direction: column;
   align-items: flex-start;
   width: 100%;
-  transition: transform 0.12s cubic-bezier(0.22, 1, 0.36, 1) 0.1s;
+  transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1) 0.04s, margin-top 0.28s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .sheet-lower-stack.calendar-open {
@@ -360,12 +360,13 @@
   width: 42px;
   height: 38px;
   margin: 148px 0 22px;
+  transition: width 0.28s cubic-bezier(0.22, 1, 0.36, 1), height 0.28s cubic-bezier(0.22, 1, 0.36, 1), margin 0.28s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .sheet-hero-icon.calendar-open {
   width: 36px;
   height: 32px;
-  margin: 2px 0 10px;
+  margin: 2px 0 6px;
 }
 
 .sheet-title-row {
@@ -373,11 +374,12 @@
   align-items: center;
   gap: 10px;
   margin-bottom: 14px;
+  transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1), margin-bottom 0.28s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .sheet-title-row.calendar-open {
-  margin-bottom: 8px;
-  transform: translateY(-8px);
+  margin-bottom: 6px;
+  transform: translateY(-10px);
 }
 
 .sheet-title {
@@ -419,10 +421,11 @@
   text-transform: uppercase;
   margin-bottom: 12px;
   letter-spacing: 0.02em;
+  transition: margin-top 0.28s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .section-label.calendar-open {
-  margin-top: 10px;
+  margin-top: 4px;
 }
 
 .chips-container {
@@ -431,6 +434,7 @@
   align-items: flex-start;
   gap: 7px;
   margin-bottom: 28px;
+  transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .chips-container.calendar-open {
@@ -1384,14 +1388,14 @@ body.is-dragging-global .time-block {
   overflow: hidden;
   max-height: 0;
   opacity: 0;
-  transition: max-height 0.35s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.25s ease;
+  transition: max-height 0.5s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.34s ease, margin-bottom 0.5s cubic-bezier(0.16, 1, 0.3, 1);
   margin-bottom: 0;
 }
 
 .sheet-calendar-picker.open {
   max-height: 460px;
   opacity: 1;
-  margin-bottom: 14px;
+  margin-bottom: 8px;
 }
 
 .cal-picker-header {
