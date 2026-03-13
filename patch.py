@@ -5,15 +5,15 @@ def main():
         content = f.read()
 
     # 1. Add imports
-    content = content.replace("import { subDays, addDays, format, isSameDay } from 'date-fns';",
-        "import { subDays, addDays, format, isSameDay } from 'date-fns';\n"
+    content = content.replace("import { ChevronLeft, ArrowUp, Maximize2, Minimize2 } from 'lucide-react';",
+        "import { ChevronLeft, ArrowUp, Maximize2, Minimize2 } from 'lucide-react';\n"
         "import { DndContext, DragOverlay, closestCorners, KeyboardSensor, PointerSensor, useSensor, useSensors, defaultDropAnimationSideEffects, useDroppable } from '@dnd-kit/core';\n"
         "import { SortableContext, arrayMove, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';\n"
         "import { CSS } from '@dnd-kit/utilities';\n")
     
-    # 2. Remove ArrowDown and ArrowUp imports
-    content = content.replace("import { Plus, X, ArrowUp, ArrowDown } from 'lucide-react';", 
-                              "import { Plus, X, ArrowUp } from 'lucide-react';")
+    # 2. Add Plus and X if needed (not in current App.jsx but script expects them)
+    if "Plus" not in content and "lucide-react" in content:
+         content = content.replace("from 'lucide-react';", ", Plus, X, ArrowDown } from 'lucide-react';")
     
     # 3. Insert SortableTask, TaskCardOverlay, DroppableSection, just before function App()
     new_components = """
