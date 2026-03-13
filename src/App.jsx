@@ -827,6 +827,12 @@ function App() {
     pendingTimelineScrollActionRef.current = null;
   }, [scrollTimelineToCurrentTime, selectedDate]);
 
+  useLayoutEffect(() => {
+    const timelineEl = timelineRef.current;
+    if (!timelineEl || !dayTransition || typeof dayTransition.preservedScrollTop !== 'number') return;
+    timelineEl.scrollTop = dayTransition.preservedScrollTop;
+  }, [dayTransition]);
+
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
@@ -855,6 +861,9 @@ function App() {
     if ((!options.bypassOverlayGuard && anyOverlayOpen) || dayTransition || isSameDay(nextDate, selectedDate)) return;
 
     const currentScrollTop = timelineRef.current?.scrollTop ?? 0;
+    const currentScrollHeight = timelineRef.current?.scrollHeight ?? 0;
+    const currentViewportHeight = timelineRef.current?.clientHeight ?? 0;
+    const stageHeight = Math.max(currentScrollHeight, currentViewportHeight);
     persistCurrentDayScroll();
     // Horizontal day changes preserve the visible vertical window unless the
     // caller explicitly requests a jump to the current-time area.
@@ -877,6 +886,8 @@ function App() {
       currentOffset: daySwipeOffset,
       nextOffset: enterOffset,
       durationMs,
+      preservedScrollTop: currentScrollTop,
+      stageHeight,
     });
 
     requestAnimationFrame(() => {
@@ -886,6 +897,8 @@ function App() {
         currentOffset: exitOffset,
         nextOffset: 0,
         durationMs,
+        preservedScrollTop: currentScrollTop,
+        stageHeight,
       });
     });
 
@@ -1903,7 +1916,10 @@ function App() {
           className={`timeline-area ${dayTransition ? 'timeline-swiping' : ''}`}
           onScroll={persistCurrentDayScroll}
         >
-          <div className="timeline-stage">
+          <div
+            className="timeline-stage"
+            style={dayTransition?.stageHeight ? { height: `${dayTransition.stageHeight}px` } : undefined}
+          >
             {timelinePanels.map((panel) => (
               <div
                 key={panel.key}
