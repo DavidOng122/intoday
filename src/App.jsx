@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { ChevronLeft, ArrowUp } from 'lucide-react';
+import { ChevronLeft, ArrowUp, Maximize2, Minimize2 } from 'lucide-react';
 import { subDays, addDays, format, isSameDay } from 'date-fns';
 import './App.css';
 import Login from './Login';
@@ -403,14 +403,17 @@ function App() {
   const [appearance, setAppearance] = useState('light');
   const [isAppearanceDropdownOpen, setIsAppearanceDropdownOpen] = useState(false);
   const taskInputRef = useRef(null);
+  const expandedTaskInputRef = useRef(null);
   const [isTaskInputFocused, setIsTaskInputFocused] = useState(false);
+  const [canExpandComposer, setCanExpandComposer] = useState(false);
+  const [isComposerExpanded, setIsComposerExpanded] = useState(false);
   const [sheetBaseHeight, setSheetBaseHeight] = useState(null);
   const [sheetKeyboardOffset, setSheetKeyboardOffset] = useState(0);
   const [sheetBaseViewportHeight, setSheetBaseViewportHeight] = useState(0);
 
   useEffect(() => {
     const textarea = taskInputRef.current;
-    if (!textarea) return;
+    if (!textarea || isComposerExpanded) return;
     const styles = window.getComputedStyle(textarea);
     const lineHeight = parseFloat(styles.lineHeight) || 22;
     const paddingTop = parseFloat(styles.paddingTop) || 0;
@@ -425,7 +428,8 @@ function App() {
     const nextHeight = textarea.scrollHeight;
     textarea.style.height = `${Math.min(nextHeight, maxHeight)}px`;
     textarea.style.overflowY = nextHeight > maxHeight ? 'auto' : 'hidden';
-  }, [inputText]);
+    setCanExpandComposer(nextHeight > maxHeight + 1);
+  }, [inputText, isComposerExpanded]);
 
   // Day boundary is 06:00 AM — midnight–05:59 belongs to the previous calendar day.
   const getLogicalToday = () => {
@@ -448,6 +452,8 @@ function App() {
   useEffect(() => {
     if (!isSheetOpen) {
       setIsTaskInputFocused(false);
+      setCanExpandComposer(false);
+      setIsComposerExpanded(false);
       setSheetKeyboardOffset(0);
       setSheetBaseHeight(null);
       setSheetBaseViewportHeight(0);
@@ -493,6 +499,33 @@ function App() {
       window.cancelAnimationFrame(frameB);
     };
   }, [isSheetOpen]);
+
+  useEffect(() => {
+    if (!isComposerExpanded) return undefined;
+
+    let frame = 0;
+    frame = window.requestAnimationFrame(() => {
+      const textarea = expandedTaskInputRef.current;
+      if (!textarea) return;
+
+      try {
+        textarea.focus({ preventScroll: true });
+      } catch (_) {
+        textarea.focus();
+      }
+
+      const caretPosition = textarea.value.length;
+      try {
+        textarea.setSelectionRange(caretPosition, caretPosition);
+      } catch (_) {
+        // Some mobile browsers do not allow selection updates on every focus.
+      }
+    });
+
+    return () => {
+      window.cancelAnimationFrame(frame);
+    };
+  }, [isComposerExpanded]);
 
   useEffect(() => {
     if (!isSheetOpen || !sheetBaseViewportHeight) return;
@@ -543,6 +576,7 @@ function App() {
 
   const closeSheet = useCallback(() => {
     setIsCalendarOpen(false);
+    setIsComposerExpanded(false);
     setIsSheetOpen(false);
   }, []);
 
@@ -1333,6 +1367,17 @@ function App() {
     return `${localizedDayName}, ${format(selectedDate, 'MMM d')}`;
   };
 
+  const handleComposerChange = (e) => {
+    setInputText(e.target.value);
+  };
+
+  const handleComposerKeyDown = (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleAddTodo();
+    }
+  };
+
   const getRelativeWeekText = () => <strong>{getRelativeWeekLabel()}</strong>;
 
   if (loadingAuth) {
@@ -1707,31 +1752,63 @@ function App() {
                 className="sheet-input-area"
               >
                 <div
-                  className="composer-shell"
+                  className={`composer-frame ${isComposerExpanded ? 'expanded' : ''}`}
                   style={composerLift > 0 ? { transform: `translateY(-${composerLift}px)` } : undefined}
                 >
-                  <div className="input-wrapper">
-                    <textarea
-                      ref={taskInputRef}
-                      className="task-input"
-                      autoFocus
-                      placeholder={translations[language].placeholder}
-                      value={inputText}
-                      rows={1}
-                      onFocus={() => setIsTaskInputFocused(true)}
-                      onBlur={() => setIsTaskInputFocused(false)}
-                      onChange={(e) => setInputText(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' && !e.shiftKey) {
-                          e.preventDefault();
-                          handleAddTodo();
-                        }
-                      }}
-                    />
-                    <button className="submit-btn" onClick={handleAddTodo}>
-                      <ArrowUp size={12} strokeWidth={2.5} />
+                  {(canExpandComposer || isComposerExpanded) && (
+                    <button
+                      className={`composer-expand-trigger ${isComposerExpanded ? 'expanded' : ''}`}
+                      onClick={() => setIsComposerExpanded((open) => !open)}
+                      title={isComposerExpanded ? 'Collapse composer' : 'Expand composer'}
+                    >
+                      {isComposerExpanded ? (
+                        <Minimize2 size={13} strokeWidth={1.9} />
+                      ) : (
+                        <Maximize2 size={13} strokeWidth={1.9} />
+                      )}
                     </button>
-                  </div>
+                  )}
+                  {!isComposerExpanded ? (
+                    <div className="composer-shell">
+                      <div className="input-wrapper">
+                        <textarea
+                          ref={taskInputRef}
+                          className="task-input"
+                          autoFocus
+                          placeholder={translations[language].placeholder}
+                          value={inputText}
+                          rows={1}
+                          onFocus={() => setIsTaskInputFocused(true)}
+                          onBlur={() => setIsTaskInputFocused(false)}
+                          onChange={handleComposerChange}
+                          onKeyDown={handleComposerKeyDown}
+                        />
+                        <button className="submit-btn" onClick={handleAddTodo}>
+                          <ArrowUp size={12} strokeWidth={2.5} />
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="expanded-composer-shell">
+                      <textarea
+                        ref={expandedTaskInputRef}
+                        className="expanded-task-input"
+                        autoFocus
+                        placeholder={translations[language].placeholder}
+                        value={inputText}
+                        rows={8}
+                        onFocus={() => setIsTaskInputFocused(true)}
+                        onBlur={() => setIsTaskInputFocused(false)}
+                        onChange={handleComposerChange}
+                        onKeyDown={handleComposerKeyDown}
+                      />
+                      <div className="expanded-composer-footer">
+                        <button className="submit-btn" onClick={handleAddTodo}>
+                          <ArrowUp size={12} strokeWidth={2.5} />
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
