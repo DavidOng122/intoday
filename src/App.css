@@ -907,11 +907,38 @@
   /* IE and Edge */
   scrollbar-width: none;
   /* Firefox */
+  position: relative;
+  overflow-x: hidden;
 }
 
 .timeline-area::-webkit-scrollbar {
   display: none;
   /* Chrome, Safari and Opera */
+}
+
+.timeline-stage {
+  position: relative;
+  min-height: 100%;
+}
+
+.timeline-panel {
+  width: 100%;
+  min-height: 100%;
+  background: inherit;
+}
+
+.timeline-panel-current,
+.timeline-panel-incoming {
+  position: absolute;
+  inset: 0;
+}
+
+.timeline-panel-animating {
+  transition: transform 250ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.timeline-swiping .timeline-panel {
+  will-change: transform;
 }
 
 .time-block {
@@ -993,6 +1020,11 @@
   scrollbar-width: none;
   /* Firefox */
   transition: background 0.2s;
+}
+
+.tasks-col-swipe-enabled {
+  touch-action: pan-y;
+  user-select: none;
 }
 
 .tasks-col.drag-over {

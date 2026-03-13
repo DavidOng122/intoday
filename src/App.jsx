@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { ChevronLeft, ArrowUp, Maximize2, Minimize2 } from 'lucide-react';
 import { subDays, addDays, format, isSameDay } from 'date-fns';
@@ -104,6 +104,15 @@ const SheetPebbleIcon = () => (
 );
 
 const COMPOSER_MAX_LINES = 5;
+const DAY_SWIPE_CONFIG = {
+  INTENT_THRESHOLD_PX: 12,
+  HORIZONTAL_LOCK_RATIO: 1.2,
+  CHANGE_DAY_THRESHOLD_PX: 60,
+  VELOCITY_THRESHOLD_PX_PER_MS: 0.45,
+  DRAG_RESISTANCE: 0.35,
+  MAX_DRAG_OFFSET_PX: 140,
+  ANIMATION_DURATION_MS: 250,
+};
 
 const detectCardType = (text) => {
   const t = text.toLowerCase();
@@ -712,9 +721,37 @@ function App() {
 
   const [weekOffset, setWeekOffset] = useState(0);
   const [contentKey, setContentKey] = useState(0);
+  const [isCoarsePointer, setIsCoarsePointer] = useState(false);
+  const [daySwipeOffset, setDaySwipeOffset] = useState(0);
+  const [dayTransition, setDayTransition] = useState(null);
   const stripRef = React.useRef(null);
   const dayRefs = React.useRef({});
   const timelineRef = React.useRef(null);
+  const daySwipeStateRef = React.useRef({
+    pointerId: null,
+    startX: 0,
+    startY: 0,
+    lastX: 0,
+    lastY: 0,
+    startTime: 0,
+    lock: null,
+  });
+  const transitionTimeoutRef = React.useRef(null);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return undefined;
+    const mediaQuery = window.matchMedia('(pointer: coarse)');
+    const updatePointerMode = () => setIsCoarsePointer(mediaQuery.matches);
+    updatePointerMode();
+    mediaQuery.addEventListener?.('change', updatePointerMode);
+    return () => mediaQuery.removeEventListener?.('change', updatePointerMode);
+  }, []);
+
+  useEffect(() => () => {
+    if (transitionTimeoutRef.current) {
+      window.clearTimeout(transitionTimeoutRef.current);
+    }
+  }, []);
 
   const scrollToCurrentTime = (behavior = 'smooth') => {
     if (!isSameDay(selectedDate, getLogicalToday())) return;
@@ -742,6 +779,56 @@ function App() {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
+
+  const resetDaySwipeState = useCallback(() => {
+    daySwipeStateRef.current = {
+      pointerId: null,
+      startX: 0,
+      startY: 0,
+      lastX: 0,
+      lastY: 0,
+      startTime: 0,
+      lock: null,
+    };
+  }, []);
+
+  const finishDayTransition = useCallback((nextDate) => {
+    setSelectedDate(nextDate);
+    setDaySwipeOffset(0);
+    setDayTransition(null);
+    transitionTimeoutRef.current = null;
+  }, []);
+
+  const beginDayTransition = useCallback((direction) => {
+    if (transitionTimeoutRef.current) {
+      window.clearTimeout(transitionTimeoutRef.current);
+    }
+
+    const nextDate = direction === 'next' ? addDays(selectedDate, 1) : subDays(selectedDate, 1);
+    const viewportWidth = timelineRef.current?.clientWidth || window.innerWidth || 360;
+    const exitOffset = direction === 'next' ? -viewportWidth : viewportWidth;
+    const enterOffset = direction === 'next' ? viewportWidth : -viewportWidth;
+
+    setDayTransition({
+      direction,
+      nextDate,
+      currentOffset: daySwipeOffset,
+      nextOffset: enterOffset,
+    });
+
+    requestAnimationFrame(() => {
+      setDayTransition({
+        direction,
+        nextDate,
+        currentOffset: exitOffset,
+        nextOffset: 0,
+      });
+    });
+
+    transitionTimeoutRef.current = window.setTimeout(() => {
+      finishDayTransition(nextDate);
+    }, DAY_SWIPE_CONFIG.ANIMATION_DURATION_MS);
+  }, [daySwipeOffset, finishDayTransition, selectedDate]);
 
   // Initial scroll to current time on mount
   useEffect(() => {
@@ -1282,7 +1369,10 @@ function App() {
     };
   });
 
-  const selectedDateTodos = todos.filter(t => t.dateString === format(selectedDate, 'yyyy-MM-dd'));
+  const getDayTodos = useCallback((date) => {
+    const dateString = format(date, 'yyyy-MM-dd');
+    return todos.filter(t => t.dateString === dateString);
+  }, [todos]);
 
   const allChips = [
     { id: 'Now', key: 'now' },
@@ -1315,8 +1405,8 @@ function App() {
   }, [chips, activeChip]);
 
 
-  const getTimeIndicatorStyle = (block) => {
-    if (!isSameDay(selectedDate, getLogicalToday())) return null;
+  const getTimeIndicatorStyle = (block, date = selectedDate) => {
+    if (!isSameDay(date, getLogicalToday())) return null;
 
     // Only show the indicator in the block that matches current time
     const currentBlockId = getCurrentTimeBlock();
@@ -1388,6 +1478,251 @@ function App() {
   };
 
   const getRelativeWeekText = () => <strong>{getRelativeWeekLabel()}</strong>;
+
+  const handleDaySwipePointerDown = useCallback((e) => {
+    if (!isCoarsePointer || anyOverlayOpen || dayTransition || !e.isPrimary || e.pointerType !== 'touch') return;
+    if (e.currentTarget !== e.target) return;
+
+    daySwipeStateRef.current = {
+      pointerId: e.pointerId,
+      startX: e.clientX,
+      startY: e.clientY,
+      lastX: e.clientX,
+      lastY: e.clientY,
+      startTime: performance.now(),
+      lock: null,
+    };
+
+    e.currentTarget.setPointerCapture?.(e.pointerId);
+  }, [anyOverlayOpen, dayTransition, isCoarsePointer]);
+
+  const handleDaySwipePointerMove = useCallback((e) => {
+    const swipe = daySwipeStateRef.current;
+    if (swipe.pointerId !== e.pointerId || anyOverlayOpen || dayTransition) return;
+
+    const dx = e.clientX - swipe.startX;
+    const dy = e.clientY - swipe.startY;
+    swipe.lastX = e.clientX;
+    swipe.lastY = e.clientY;
+
+    if (!swipe.lock) {
+      if (Math.abs(dx) < DAY_SWIPE_CONFIG.INTENT_THRESHOLD_PX && Math.abs(dy) < DAY_SWIPE_CONFIG.INTENT_THRESHOLD_PX) {
+        return;
+      }
+
+      if (Math.abs(dx) > Math.abs(dy) * DAY_SWIPE_CONFIG.HORIZONTAL_LOCK_RATIO && Math.abs(dx) > DAY_SWIPE_CONFIG.INTENT_THRESHOLD_PX) {
+        swipe.lock = 'horizontal';
+      } else {
+        swipe.lock = 'vertical';
+        setDaySwipeOffset(0);
+        return;
+      }
+    }
+
+    if (swipe.lock !== 'horizontal') return;
+
+    if (e.cancelable) {
+      e.preventDefault();
+    }
+
+    const resistedOffset = Math.sign(dx) * Math.min(
+      Math.abs(dx) * DAY_SWIPE_CONFIG.DRAG_RESISTANCE,
+      DAY_SWIPE_CONFIG.MAX_DRAG_OFFSET_PX
+    );
+    setDaySwipeOffset(resistedOffset);
+  }, [anyOverlayOpen, dayTransition]);
+
+  const handleDaySwipePointerEnd = useCallback((e) => {
+    const swipe = daySwipeStateRef.current;
+    if (swipe.pointerId !== e.pointerId) return;
+
+    e.currentTarget.releasePointerCapture?.(e.pointerId);
+
+    const totalDx = e.clientX - swipe.startX;
+    const elapsed = Math.max(performance.now() - swipe.startTime, 1);
+    const velocityX = totalDx / elapsed;
+
+    const shouldChangeDay = swipe.lock === 'horizontal' && (
+      Math.abs(totalDx) >= DAY_SWIPE_CONFIG.CHANGE_DAY_THRESHOLD_PX ||
+      Math.abs(velocityX) >= DAY_SWIPE_CONFIG.VELOCITY_THRESHOLD_PX_PER_MS
+    );
+
+    if (shouldChangeDay && !dayTransition && !anyOverlayOpen) {
+      beginDayTransition(totalDx < 0 ? 'next' : 'previous');
+    } else {
+      setDaySwipeOffset(0);
+    }
+
+    resetDaySwipeState();
+  }, [anyOverlayOpen, beginDayTransition, dayTransition, resetDaySwipeState]);
+
+  const renderTimelineBlocks = useCallback((date, options = {}) => {
+    const dayTodos = getDayTodos(date);
+
+    return timeBlocks.map((block) => {
+      const blockTodos = dayTodos.filter(t => t.timeOfDay === block.id);
+      const indicatorStyle = getTimeIndicatorStyle(block, date);
+      const enableEmptyAreaSwipe = !options.isStatic;
+
+      return (
+        <div className="time-block" key={`${format(date, 'yyyy-MM-dd')}-${block.id}`}>
+          <div className="time-col">
+            <div className="time-pill" data-block-id={block.id} style={{
+              backgroundColor: block.color,
+              color: block.textColor,
+              WebkitTextStroke: `0.3px ${block.strokeColor}`,
+              paintOrder: 'stroke fill'
+            }}>
+              {translations[language][block.key]}
+            </div>
+            <span className="time-text">{block.start}</span>
+            {indicatorStyle && (
+              <img
+                src="/pin.png"
+                alt="now"
+                className="current-time-indicator-wrapper"
+                style={indicatorStyle}
+              />
+            )}
+            <span className="time-text bottom">{block.end}</span>
+          </div>
+          <div
+            className={`tasks-col ${enableEmptyAreaSwipe ? 'tasks-col-swipe-enabled' : ''}`}
+            data-block-id={block.id}
+            onDragOver={options.isStatic ? undefined : handleDragOver}
+            onDrop={options.isStatic ? undefined : (e) => handleDropOnBlock(e, block.id)}
+            onPointerDown={enableEmptyAreaSwipe ? handleDaySwipePointerDown : undefined}
+            onPointerMove={enableEmptyAreaSwipe ? handleDaySwipePointerMove : undefined}
+            onPointerUp={enableEmptyAreaSwipe ? handleDaySwipePointerEnd : undefined}
+            onPointerCancel={enableEmptyAreaSwipe ? handleDaySwipePointerEnd : undefined}
+          >
+            {blockTodos.map(todo => {
+              const cType = todo.cardType || 'plain';
+              const cfg = cardTypeConfig[cType] || cardTypeConfig.plain;
+              const isVideo = cType === 'video';
+              const isMap = cType === 'map';
+              const isMeeting = cType === 'meeting';
+              const isPlain = cType === 'plain';
+
+              let displayTitle = todo.text;
+              let displaySub = translations[language].actionItem;
+              let redirectUrl = null;
+
+              if (isVideo && todo.videoTitle) {
+                displayTitle = todo.videoTitle;
+                displaySub = todo.videoPlatform || 'Saved Video';
+                redirectUrl = todo.videoUrl;
+              } else if (isMap && todo.mapTitle) {
+                displayTitle = todo.mapTitle;
+                displaySub = todo.mapSubtitle || 'Location';
+                redirectUrl = todo.mapUrl;
+              } else if (isMeeting) {
+                const timeMatch = todo.text.match(/\b(\d{1,2}:\d{2}(?:\s*[APap][Mm])?|\d{1,2}\s*[APap][Mm])\b/);
+                displaySub = timeMatch ? timeMatch[1].trim() : 'Video Call';
+                redirectUrl = todo.redirectUrl || null;
+                displayTitle = todo.text
+                  .split(/\n|　/)
+                  .map(l => l.trim())
+                  .filter(l =>
+                    l.length > 0 &&
+                    !/https?:\/\//i.test(l) &&
+                    !/^開催日時|^開催方法|^date:|^time:|^method:/i.test(l)
+                  )
+                  .join(' ')
+                  .replace(/https?:\/\/\S+/gi, '')
+                  .replace(/\d{4}\/\d{2}\/\d{2}\s*\d{1,2}:\d{2}～?/g, '')
+                  .replace(/\s{2,}/g, ' ')
+                  .trim() || todo.text;
+              } else if (isVideo && todo.videoUrl) {
+                redirectUrl = todo.videoUrl;
+              } else if (isMap && todo.mapUrl) {
+                redirectUrl = todo.mapUrl;
+              }
+
+              return (
+                <div key={todo.id} id={`swipe-wrapper-${todo.id}`} className="swipe-wrapper">
+                  <div className="swipe-actions">
+                    <button className="swipe-btn edit" onClick={() => openEdit(todo)}>
+                      <img src="/edit.png" alt="Edit" className="swipe-icon" />
+                    </button>
+                    <button className="swipe-btn delete" onClick={() => deleteTodo(todo.id)}>
+                      <img src="/delete.png" alt="Delete" className="swipe-icon" />
+                    </button>
+                  </div>
+
+                  <div
+                    id={`swipe-card-${todo.id}`}
+                    className={`task-card ${todo.completed ? 'completed' : ''} ${draggedTodoId === todo.id ? 'dragging' : ''}`}
+                    onClick={() => {
+                      if (openSwipeId === todo.id) { closeSwipe(todo.id); return; }
+                      if (isPlain) {
+                        openEdit(todo);
+                        return;
+                      }
+                      if (redirectUrl) {
+                        window.open(redirectUrl, '_blank', 'noopener,noreferrer');
+                      } else {
+                        toggleTodo(todo.id);
+                      }
+                    }}
+                    draggable={!options.isStatic}
+                    onDragStart={options.isStatic ? undefined : (e) => handleDragStart(e, todo.id)}
+                    onDragEnd={options.isStatic ? undefined : handleDragEnd}
+                    onDragOver={options.isStatic ? undefined : handleDragOver}
+                    onDrop={options.isStatic ? undefined : (e) => handleDropOnTodo(e, todo)}
+                    {...(options.isStatic ? {} : getSwipeHandlers(todo.id))}
+                  >
+                    <div
+                      className="task-icon-placeholder"
+                      style={{
+                        backgroundColor: appearance === 'dark' ? cfg.darkBg : cfg.bg,
+                        border: appearance === 'dark' ? `1px solid ${cfg.darkStroke}` : 'none'
+                      }}
+                    >
+                      <img src={cfg.icon} alt={cType} className="task-card-icon" style={{ position: 'relative', zIndex: 10 }} />
+                    </div>
+                    <div className="task-content">
+                      <span className="task-title">{displayTitle}</span>
+                      <span className="task-desc">{displaySub}</span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      );
+    });
+  }, [appearance, deleteTodo, draggedTodoId, getDayTodos, getSwipeHandlers, handleDaySwipePointerDown, handleDaySwipePointerEnd, handleDaySwipePointerMove, handleDragEnd, handleDragOver, handleDropOnBlock, handleDropOnTodo, language, openEdit, openSwipeId, toggleTodo]);
+
+  const timelinePanels = useMemo(() => {
+    if (!dayTransition) {
+      return [{
+        key: format(selectedDate, 'yyyy-MM-dd'),
+        date: selectedDate,
+        className: 'timeline-panel is-active',
+        style: { transform: `translate3d(${daySwipeOffset}px, 0, 0)` },
+        isStatic: false,
+      }];
+    }
+
+    return [
+      {
+        key: `current-${format(selectedDate, 'yyyy-MM-dd')}`,
+        date: selectedDate,
+        className: 'timeline-panel timeline-panel-current',
+        style: { transform: `translate3d(${dayTransition.currentOffset}px, 0, 0)` },
+        isStatic: false,
+      },
+      {
+        key: `next-${format(dayTransition.nextDate, 'yyyy-MM-dd')}`,
+        date: dayTransition.nextDate,
+        className: 'timeline-panel timeline-panel-incoming',
+        style: { transform: `translate3d(${dayTransition.nextOffset}px, 0, 0)` },
+        isStatic: true,
+      }
+    ];
+  }, [daySwipeOffset, dayTransition, selectedDate]);
 
   if (loadingAuth) {
     return (
@@ -1494,141 +1829,23 @@ function App() {
           ))}
         </div>
 
-        {/* Main Timeline — keyed for fade-in on date change */}
-        <main ref={timelineRef} key={contentKey} className="timeline-area timeline-fade">
-
-          {timeBlocks.map((block) => {
-            const blockTodos = selectedDateTodos.filter(t => t.timeOfDay === block.id);
-            const indicatorStyle = getTimeIndicatorStyle(block);
-            return (
-              <div className="time-block" key={block.id}>
-                <div className="time-col">
-                  <div className="time-pill" data-block-id={block.id} style={{
-                    backgroundColor: block.color,
-                    color: block.textColor,
-                    WebkitTextStroke: `0.3px ${block.strokeColor}`,
-                    paintOrder: 'stroke fill'
-                  }}>
-                    {translations[language][block.key]}
-                  </div>
-                  <span className="time-text">{block.start}</span>
-                  {indicatorStyle && (
-                    <img
-                      src="/pin.png"
-                      alt="now"
-                      className="current-time-indicator-wrapper"
-                      style={indicatorStyle}
-                    />
-                  )}
-                  <span className="time-text bottom">{block.end}</span>
-                </div>
-                <div
-                  className="tasks-col"
-                  data-block-id={block.id}
-                  onDragOver={handleDragOver}
-                  onDrop={(e) => handleDropOnBlock(e, block.id)}
-                >
-                  {blockTodos.map(todo => {
-                    const cType = todo.cardType || 'plain';
-                    const cfg = cardTypeConfig[cType] || cardTypeConfig.plain;
-                    const isVideo = cType === 'video';
-                    const isMap = cType === 'map';
-                    const isMeeting = cType === 'meeting';
-                    const isPlain = cType === 'plain';
-
-                    let displayTitle = todo.text;
-                    let displaySub = translations[language].actionItem;
-                    let redirectUrl = null;
-
-                    if (isVideo && todo.videoTitle) {
-                      displayTitle = todo.videoTitle;
-                      displaySub = todo.videoPlatform || 'Saved Video';
-                      redirectUrl = todo.videoUrl;
-                    } else if (isMap && todo.mapTitle) {
-                      displayTitle = todo.mapTitle;
-                      displaySub = todo.mapSubtitle || 'Location';
-                      redirectUrl = todo.mapUrl;
-                    } else if (isMeeting) {
-                      // Extract just the time (e.g. "14:00", "9:00 AM") from the raw text
-                      const timeMatch = todo.text.match(/\b(\d{1,2}:\d{2}(?:\s*[APap][Mm])?|\d{1,2}\s*[APap][Mm])\b/);
-                      displaySub = timeMatch ? timeMatch[1].trim() : 'Video Call';
-                      redirectUrl = todo.redirectUrl || null;
-                      // Clean display title: strip URLs, date lines, metadata labels
-                      displayTitle = todo.text
-                        .split(/\n|　/)  // split on newlines or full-width space
-                        .map(l => l.trim())
-                        .filter(l =>
-                          l.length > 0 &&
-                          !/https?:\/\//i.test(l) &&               // remove URL lines
-                          !/^開催日時|^開催方法|^date:|^time:|^method:/i.test(l) // remove label lines
-                        )
-                        .join(' ')
-                        .replace(/https?:\/\/\S+/gi, '')           // remove any inline URLs
-                        .replace(/\d{4}\/\d{2}\/\d{2}\s*\d{1,2}:\d{2}～?/g, '') // strip full datetime
-                        .replace(/\s{2,}/g, ' ')
-                        .trim() || todo.text;
-                    } else if (isVideo && todo.videoUrl) {
-                      redirectUrl = todo.videoUrl;
-                    } else if (isMap && todo.mapUrl) {
-                      redirectUrl = todo.mapUrl;
-                    }
-
-                    return (
-                      <div key={todo.id} id={`swipe-wrapper-${todo.id}`} className="swipe-wrapper">
-                        {/* Action buttons revealed behind the card */}
-                        <div className="swipe-actions">
-                          <button className="swipe-btn edit" onClick={() => openEdit(todo)}>
-                            <img src="/edit.png" alt="Edit" className="swipe-icon" />
-                          </button>
-                          <button className="swipe-btn delete" onClick={() => deleteTodo(todo.id)}>
-                            <img src="/delete.png" alt="Delete" className="swipe-icon" />
-                          </button>
-                        </div>
-
-                        {/* The card itself */}
-                        <div
-                          id={`swipe-card-${todo.id}`}
-                          className={`task-card ${todo.completed ? 'completed' : ''} ${draggedTodoId === todo.id ? 'dragging' : ''}`}
-                          onClick={() => {
-                            if (openSwipeId === todo.id) { closeSwipe(todo.id); return; }
-                            if (isPlain) {
-                              openEdit(todo);
-                              return;
-                            }
-                            if (redirectUrl) {
-                              window.open(redirectUrl, '_blank', 'noopener,noreferrer');
-                            } else {
-                              toggleTodo(todo.id);
-                            }
-                          }}
-                          draggable
-                          onDragStart={(e) => handleDragStart(e, todo.id)}
-                          onDragEnd={handleDragEnd}
-                          onDragOver={handleDragOver}
-                          onDrop={(e) => handleDropOnTodo(e, todo)}
-                          {...getSwipeHandlers(todo.id)}
-                        >
-                          <div
-                            className="task-icon-placeholder"
-                            style={{
-                              backgroundColor: appearance === 'dark' ? cfg.darkBg : cfg.bg,
-                              border: appearance === 'dark' ? `1px solid ${cfg.darkStroke}` : 'none'
-                            }}
-                          >
-                            <img src={cfg.icon} alt={cType} className="task-card-icon" style={{ position: 'relative', zIndex: 10 }} />
-                          </div>
-                          <div className="task-content">
-                            <span className="task-title">{displayTitle}</span>
-                            <span className="task-desc">{displaySub}</span>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
+        {/* Main Timeline — only the day content track slides during a day swipe */}
+        <main
+          ref={timelineRef}
+          key={contentKey}
+          className={`timeline-area ${dayTransition ? 'timeline-swiping' : 'timeline-fade'}`}
+        >
+          <div className="timeline-stage">
+            {timelinePanels.map((panel) => (
+              <div
+                key={panel.key}
+                className={`${panel.className} ${dayTransition ? 'timeline-panel-animating' : ''}`}
+                style={panel.style}
+              >
+                {renderTimelineBlocks(panel.date, { isStatic: panel.isStatic })}
               </div>
-            );
-          })}
+            ))}
+          </div>
         </main>
 
         <button
