@@ -1,6 +1,6 @@
 :root {
   --primary: #FF3B30; /* iOS red approximate, or a bright red from figma */
-  --bg-color: #F8F9FA;
+  --bg-color: #FEFDFC;
   --text-primary: #111111;
   --text-secondary: #8E8E93;
   --divider: #E5E5EA;
@@ -38,6 +38,11 @@ html, body {
   display: flex;
   flex-direction: column;
   position: relative;
+  /* Honour iOS safe areas so Dynamic Island / notch never covers UI */
+  padding-top: env(safe-area-inset-top);
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+  background-color: var(--bg-color);
 }
 
 /* Base interactive elements reset */
