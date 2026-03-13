@@ -349,7 +349,7 @@
   flex-direction: column;
   align-items: flex-start;
   width: 100%;
-  transition: transform 0.42s cubic-bezier(0.22, 1, 0.36, 1) 0.05s, margin-top 0.42s cubic-bezier(0.22, 1, 0.36, 1);
+  transition: transform 0.56s cubic-bezier(0.22, 1, 0.36, 1) 0.05s, margin-top 0.56s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .sheet-lower-stack.calendar-open {
@@ -360,7 +360,7 @@
   width: 42px;
   height: 38px;
   margin: 148px 0 22px;
-  transition: width 0.42s cubic-bezier(0.22, 1, 0.36, 1), height 0.42s cubic-bezier(0.22, 1, 0.36, 1), margin 0.42s cubic-bezier(0.22, 1, 0.36, 1);
+  transition: width 0.56s cubic-bezier(0.22, 1, 0.36, 1), height 0.56s cubic-bezier(0.22, 1, 0.36, 1), margin 0.56s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .sheet-hero-icon.calendar-open {
@@ -374,7 +374,7 @@
   align-items: center;
   gap: 10px;
   margin-bottom: 14px;
-  transition: transform 0.42s cubic-bezier(0.22, 1, 0.36, 1), margin-bottom 0.42s cubic-bezier(0.22, 1, 0.36, 1);
+  transition: transform 0.56s cubic-bezier(0.22, 1, 0.36, 1), margin-bottom 0.56s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .sheet-title-row.calendar-open {
@@ -421,7 +421,7 @@
   text-transform: uppercase;
   margin-bottom: 12px;
   letter-spacing: 0.02em;
-  transition: margin-top 0.42s cubic-bezier(0.22, 1, 0.36, 1);
+  transition: margin-top 0.56s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .section-label.calendar-open {
@@ -434,7 +434,7 @@
   align-items: flex-start;
   gap: 7px;
   margin-bottom: 28px;
-  transition: transform 0.42s cubic-bezier(0.22, 1, 0.36, 1);
+  transition: transform 0.56s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .chips-container.calendar-open {
@@ -1385,10 +1385,13 @@ body.is-dragging-global .time-block {
    INLINE CALENDAR PICKER (inside bottom sheet)
    ======================================================== */
 .sheet-calendar-picker {
+  width: 100%;
+  align-self: stretch;
+  box-sizing: border-box;
   overflow: hidden;
   max-height: 0;
   opacity: 0;
-  transition: max-height 0.62s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.42s ease, margin-bottom 0.62s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: max-height 0.78s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.52s ease, margin-bottom 0.78s cubic-bezier(0.16, 1, 0.3, 1);
   margin-bottom: 0;
 }
 
@@ -1402,6 +1405,7 @@ body.is-dragging-global .time-block {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  width: 100%;
   margin-bottom: 12px;
 }
 
@@ -1432,7 +1436,8 @@ body.is-dragging-global .time-block {
 
 .cal-picker-grid {
   display: grid;
-  grid-template-columns: repeat(7, 1fr);
+  width: 100%;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
   gap: 13px;
 }
 
