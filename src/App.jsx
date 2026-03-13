@@ -60,11 +60,11 @@ const translations = {
 };
 
 const timeBlocks = [
-  { id: 'Morning', key: 'morning', start: '06:00', end: '12:00', color: '#FFE3B4', textColor: '#000000', strokeColor: '#F59E0B', accentColor: '#ED1F1F', pastBgColor: 'rgba(219, 203, 178, 0.20)' },
-  { id: 'Afternoon', key: 'afternoon', start: '12:00', end: '18:00', color: '#B6DEF3', textColor: '#000000', strokeColor: '#0284C7', accentColor: '#0284C7', pastBgColor: 'rgba(231, 243, 250, 0.43)' },
-  { id: 'Evening', key: 'evening', start: '18:00', end: '22:00', color: '#EDE6FF', textColor: '#000000', strokeColor: '#A855F7', accentColor: '#A855F7', pastBgColor: 'rgba(237, 230, 255, 0.20)' },
-  { id: 'Night', key: 'night', start: '22:00', end: '00:00', color: '#E1E7F2', textColor: '#000000', strokeColor: '#B8C1CC', accentColor: '#B8C1CC', pastBgColor: 'rgba(215, 229, 254, 0.53)' },
-  { id: 'Midnight', key: 'midnight', start: '00:00', end: '06:00', color: '#648BD2', textColor: '#000000', strokeColor: '#BFDCFF', accentColor: '#648BD2', pastBgColor: 'rgba(100, 139, 210, 0.38)' }
+  { id: 'Morning', key: 'morning', start: '06:00', end: '12:00', color: '#FFE3B4', textColor: '#000000', strokeColor: '#F59E0B', accentColor: '#ED1F1F' },
+  { id: 'Afternoon', key: 'afternoon', start: '12:00', end: '18:00', color: '#B6DEF3', textColor: '#000000', strokeColor: '#0284C7', accentColor: '#0284C7' },
+  { id: 'Evening', key: 'evening', start: '18:00', end: '22:00', color: '#EDE6FF', textColor: '#000000', strokeColor: '#A855F7', accentColor: '#A855F7' },
+  { id: 'Night', key: 'night', start: '22:00', end: '00:00', color: '#E1E7F2', textColor: '#000000', strokeColor: '#B8C1CC', accentColor: '#B8C1CC' },
+  { id: 'Midnight', key: 'midnight', start: '00:00', end: '06:00', color: '#648BD2', textColor: '#000000', strokeColor: '#BFDCFF', accentColor: '#648BD2' }
 ];
 
 const cardTypeConfig = {
@@ -244,6 +244,7 @@ function App() {
   const [appearance, setAppearance] = useState('light');
   const [isAppearanceDropdownOpen, setIsAppearanceDropdownOpen] = useState(false);
   const taskInputRef = useRef(null);
+  const expandedPlainInputRef = useRef(null);
   const [isRecording, setIsRecording] = useState(false);
   const recognitionRef = useRef(null);
   const [isTaskInputFocused, setIsTaskInputFocused] = useState(false);
@@ -283,6 +284,25 @@ function App() {
     const nextHeight = textarea.scrollHeight;
     textarea.style.height = `${nextHeight}px`;
   }, [inputText]);
+
+  const [expandedPlainTodoId, setExpandedPlainTodoId] = useState(null);
+  const [expandedPlainText, setExpandedPlainText] = useState('');
+
+  useEffect(() => {
+    const textarea = expandedPlainInputRef.current;
+    if (!textarea) return;
+    textarea.style.height = 'auto';
+    textarea.style.height = `${textarea.scrollHeight}px`;
+  }, [expandedPlainText, expandedPlainTodoId]);
+
+  useEffect(() => {
+    if (expandedPlainTodoId === null) return;
+    const textarea = expandedPlainInputRef.current;
+    if (!textarea) return;
+    textarea.focus();
+    const length = textarea.value.length;
+    textarea.setSelectionRange(length, length);
+  }, [expandedPlainTodoId]);
 
   // Day boundary is 06:00 AM — midnight–05:59 belongs to the previous calendar day.
   const getLogicalToday = () => {
@@ -799,12 +819,36 @@ function App() {
 
   const deleteTodo = (id) => {
     setTodos(prev => prev.filter(t => t.id !== id));
+    if (expandedPlainTodoId === id) {
+      setExpandedPlainTodoId(null);
+      setExpandedPlainText('');
+    }
     setOpenSwipeId(null);
+  };
+
+  const closePlainEditor = () => {
+    setExpandedPlainTodoId(null);
+    setExpandedPlainText('');
+  };
+
+  const openPlainEditor = (todo) => {
+    setExpandedPlainTodoId(todo.id);
+    setExpandedPlainText(todo.text);
+    setOpenSwipeId(null);
+  };
+
+  const savePlainEditor = () => {
+    if (expandedPlainTodoId === null || !expandedPlainText.trim()) return;
+    setTodos(prev => prev.map(t =>
+      t.id === expandedPlainTodoId ? { ...t, text: expandedPlainText.trim() } : t
+    ));
+    closePlainEditor();
   };
 
 
 
   const openEdit = (todo) => {
+    closePlainEditor();
     setEditingTodo(todo);
     setEditText(todo.text);
     setOpenSwipeId(null);
@@ -1114,29 +1158,6 @@ function App() {
     return { top: `calc(70px + (100% - 110px) * ${percentage})` };
   };
 
-  const isTimeBlockPast = (block) => {
-    // If selected date is in the past, all blocks are past.
-    const today = getLogicalToday();
-    const selDateMidnight = new Date(selectedDate);
-    selDateMidnight.setHours(0, 0, 0, 0);
-
-    if (selDateMidnight < today) return true;
-    if (selDateMidnight > today) return false;
-
-    // If it's today, check if the block's absolute end time has passed.
-    const [h, m] = block.end.split(':').map(Number);
-    let endDateTime = new Date(selectedDate);
-    endDateTime.setHours(h, m, 0, 0);
-
-    // Cross-midnight adjustment:
-    // Night (ends at 00:00) and Midnight (ends at 06:00) are technically on the next calendar day.
-    if (block.id === 'Midnight' || (block.id === 'Night' && h === 0)) {
-      endDateTime.setDate(endDateTime.getDate() + 1);
-    }
-
-    return currentTime > endDateTime;
-  };
-
   const getRelativeWeekText = () => {
     const today = getLogicalToday();
     const d1 = new Date(selectedDate); d1.setHours(0, 0, 0, 0);
@@ -1249,13 +1270,9 @@ function App() {
           {timeBlocks.map((block) => {
             const blockTodos = selectedDateTodos.filter(t => t.timeOfDay === block.id);
             const indicatorStyle = getTimeIndicatorStyle(block);
-            const isPast = isTimeBlockPast(block);
             return (
-              <div className={`time-block ${isPast ? 'expired' : ''}`} key={block.id}>
-                <div
-                  className={`time-col ${isPast ? 'past-block' : ''}`}
-                  style={isPast ? { backgroundColor: block.pastBgColor } : {}}
-                >
+              <div className="time-block" key={block.id}>
+                <div className="time-col">
                   <div className="time-pill" data-block-id={block.id} style={{
                     backgroundColor: block.color,
                     color: block.textColor,
@@ -1287,6 +1304,8 @@ function App() {
                     const isVideo = cType === 'video';
                     const isMap = cType === 'map';
                     const isMeeting = cType === 'meeting';
+                    const isPlain = cType === 'plain';
+                    const isPlainExpanded = isPlain && expandedPlainTodoId === todo.id;
 
                     let displayTitle = todo.text;
                     let displaySub = translations[language].actionItem;
@@ -1340,21 +1359,28 @@ function App() {
                         {/* The card itself */}
                         <div
                           id={`swipe-card-${todo.id}`}
-                          className={`task-card ${todo.completed ? 'completed' : ''} ${draggedTodoId === todo.id ? 'dragging' : ''}`}
+                          className={`task-card ${todo.completed ? 'completed' : ''} ${draggedTodoId === todo.id ? 'dragging' : ''} ${isPlainExpanded ? 'plain-expanded' : ''}`}
                           onClick={() => {
                             if (openSwipeId === todo.id) { closeSwipe(todo.id); return; }
+                            if (isPlain) {
+                              if (!isPlainExpanded) openPlainEditor(todo);
+                              return;
+                            }
                             if (redirectUrl) {
                               window.open(redirectUrl, '_blank', 'noopener,noreferrer');
                             } else {
                               toggleTodo(todo.id);
                             }
                           }}
-                          draggable
-                          onDragStart={(e) => handleDragStart(e, todo.id)}
+                          draggable={!isPlainExpanded}
+                          onDragStart={(e) => {
+                            if (isPlainExpanded) return;
+                            handleDragStart(e, todo.id);
+                          }}
                           onDragEnd={handleDragEnd}
                           onDragOver={handleDragOver}
                           onDrop={(e) => handleDropOnTodo(e, todo)}
-                          {...getSwipeHandlers(todo.id)}
+                          {...(isPlainExpanded ? {} : getSwipeHandlers(todo.id))}
                         >
                           <div
                             className="task-icon-placeholder"
@@ -1366,8 +1392,38 @@ function App() {
                             <img src={cfg.icon} alt={cType} className="task-card-icon" style={{ position: 'relative', zIndex: 10 }} />
                           </div>
                           <div className="task-content">
-                            <span className="task-title">{displayTitle}</span>
-                            <span className="task-desc">{displaySub}</span>
+                            {isPlainExpanded ? (
+                              <>
+                                <textarea
+                                  ref={expandedPlainInputRef}
+                                  className="plain-task-editor"
+                                  value={expandedPlainText}
+                                  onChange={(e) => setExpandedPlainText(e.target.value)}
+                                  onClick={(e) => e.stopPropagation()}
+                                  onPointerDown={(e) => e.stopPropagation()}
+                                  onKeyDown={(e) => {
+                                    if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+                                      e.preventDefault();
+                                      savePlainEditor();
+                                    }
+                                  }}
+                                  rows={3}
+                                />
+                                <div className="plain-task-actions" onClick={(e) => e.stopPropagation()}>
+                                  <button className="plain-task-btn secondary" onClick={closePlainEditor}>
+                                    Cancel
+                                  </button>
+                                  <button className="plain-task-btn primary" onClick={savePlainEditor}>
+                                    Save
+                                  </button>
+                                </div>
+                              </>
+                            ) : (
+                              <>
+                                <span className="task-title">{displayTitle}</span>
+                                <span className="task-desc">{displaySub}</span>
+                              </>
+                            )}
                           </div>
                         </div>
                       </div>
