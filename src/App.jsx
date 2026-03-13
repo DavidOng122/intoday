@@ -1753,21 +1753,8 @@ function App() {
               >
                 <div
                   className={`composer-frame ${isComposerExpanded ? 'expanded' : ''}`}
-                  style={composerLift > 0 ? { transform: `translateY(-${composerLift}px)` } : undefined}
+                  style={!isComposerExpanded && composerLift > 0 ? { transform: `translateY(-${composerLift}px)` } : undefined}
                 >
-                  {(canExpandComposer || isComposerExpanded) && (
-                    <button
-                      className={`composer-expand-trigger ${isComposerExpanded ? 'expanded' : ''}`}
-                      onClick={() => setIsComposerExpanded((open) => !open)}
-                      title={isComposerExpanded ? 'Collapse composer' : 'Expand composer'}
-                    >
-                      {isComposerExpanded ? (
-                        <Minimize2 size={13} strokeWidth={1.9} />
-                      ) : (
-                        <Maximize2 size={13} strokeWidth={1.9} />
-                      )}
-                    </button>
-                  )}
                   {!isComposerExpanded ? (
                     <div className="composer-shell">
                       <div className="input-wrapper">
@@ -1783,13 +1770,34 @@ function App() {
                           onChange={handleComposerChange}
                           onKeyDown={handleComposerKeyDown}
                         />
-                        <button className="submit-btn" onClick={handleAddTodo}>
-                          <ArrowUp size={12} strokeWidth={2.5} />
+                        {canExpandComposer && (
+                          <button
+                            className="composer-expand-trigger compact"
+                            onClick={() => setIsComposerExpanded(true)}
+                            title="Expand composer"
+                          >
+                            <Maximize2 size={18} strokeWidth={1.9} />
+                          </button>
+                        )}
+                        <button className="submit-btn compact" onClick={handleAddTodo}>
+                          <ArrowUp size={18} strokeWidth={2.4} />
                         </button>
                       </div>
                     </div>
                   ) : (
-                    <div className="expanded-composer-shell">
+                    <div
+                      className="expanded-composer-shell"
+                      style={composerLift > 0 ? { paddingBottom: `calc(${16 + composerLift}px + env(safe-area-inset-bottom))` } : undefined}
+                    >
+                      <div className="expanded-composer-header">
+                        <button
+                          className="composer-expand-trigger expanded"
+                          onClick={() => setIsComposerExpanded(false)}
+                          title="Collapse composer"
+                        >
+                          <Minimize2 size={18} strokeWidth={1.9} />
+                        </button>
+                      </div>
                       <textarea
                         ref={expandedTaskInputRef}
                         className="expanded-task-input"
@@ -1803,8 +1811,8 @@ function App() {
                         onKeyDown={handleComposerKeyDown}
                       />
                       <div className="expanded-composer-footer">
-                        <button className="submit-btn" onClick={handleAddTodo}>
-                          <ArrowUp size={12} strokeWidth={2.5} />
+                        <button className="submit-btn expanded" onClick={handleAddTodo}>
+                          <ArrowUp size={18} strokeWidth={2.4} />
                         </button>
                       </div>
                     </div>
