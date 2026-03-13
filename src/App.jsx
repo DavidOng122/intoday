@@ -1358,14 +1358,16 @@ function App() {
       <div className={`app-container ${appearance === 'dark' ? 'dark-theme' : ''}`}>
         {/* Top Header */}
         <header className="header">
-          <div className="avatar" onClick={() => {
-            if (session) {
-              openProfilePanel();
-            } else {
-              setIsLoginOpen(true);
-            }
-          }} style={{ cursor: 'pointer' }}>
-            <img src={session?.user?.user_metadata?.avatar_url || 'https://lh3.googleusercontent.com/a/default-user=s64-c'} alt="Profile" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
+          <div className="header-side header-side-left">
+            <div className="avatar" onClick={() => {
+              if (session) {
+                openProfilePanel();
+              } else {
+                setIsLoginOpen(true);
+              }
+            }} style={{ cursor: 'pointer' }}>
+              <img src={session?.user?.user_metadata?.avatar_url || 'https://lh3.googleusercontent.com/a/default-user=s64-c'} alt="Profile" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
+            </div>
           </div>
 
           <div className="header-center" style={{ justifyContent: isSameDay(selectedDate, getLogicalToday()) ? 'flex-start' : 'center' }}>
@@ -1390,14 +1392,20 @@ function App() {
             )}
           </div>
 
-          <button
-            type="button"
-            className="add-btn desktop-add-btn"
-            onClick={openQuickAdd}
-            aria-label={translations[language].addTaskAria}
-          >
-            <span>{translations[language].addTask}</span>
-          </button>
+          <div className="header-side header-side-right">
+            <div className="header-side-spacer" aria-hidden="true" />
+            <button
+              type="button"
+              className="add-btn desktop-add-btn"
+              onClick={openQuickAdd}
+              aria-label={translations[language].addTaskAria}
+            >
+              <svg width="11" height="11" viewBox="0 0 11 11" fill="none" className="add-btn-icon" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                <path d="M5.5 0V11.5M0 5.5H11.5" stroke="currentColor" strokeWidth="1.2" />
+              </svg>
+              <span>{translations[language].add}</span>
+            </button>
+          </div>
         </header>
 
         {/* Calendar Strip — native horizontal scroll with snap */}

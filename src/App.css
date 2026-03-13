@@ -25,6 +25,28 @@
   z-index: 10;
 }
 
+.header-side {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.header-side-left {
+  width: 28px;
+  justify-content: flex-start;
+}
+
+.header-side-right {
+  min-width: 28px;
+  justify-content: flex-end;
+}
+
+.header-side-spacer {
+  display: none;
+  width: 28px;
+  height: 28px;
+}
+
 .avatar {
   width: 28px;
   height: 28px;
@@ -102,32 +124,30 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  min-width: 118px;
-  height: 40px;
-  background: linear-gradient(180deg, #FF4B4B 0%, #ED1F1F 100%);
-  border-radius: 14px;
-  border: none;
+  gap: 6px;
+  width: 60px;
+  height: 26px;
+  background-color: #F6F6F6;
+  border-radius: 10px;
+  border: 1px solid #D4DAE0;
   box-sizing: border-box;
-  color: #FFFFFF;
+  color: black;
   font-family: "SF Pro", -apple-system, sans-serif;
-  font-size: 15px;
-  font-weight: 600;
+  font-size: 14px;
+  font-weight: 510;
   word-wrap: break-word;
-  line-height: 1;
-  padding: 0 16px;
+  padding: 0;
   flex-shrink: 0;
   cursor: pointer;
-  box-shadow: 0 14px 28px rgba(237, 31, 31, 0.28);
-  transition: transform 0.16s ease, box-shadow 0.16s ease, filter 0.16s ease;
+  transition: transform 0.16s ease, filter 0.16s ease, background-color 0.16s ease;
 }
 
 .add-btn:hover {
-  filter: brightness(1.03);
+  background-color: #F0F0F0;
 }
 
 .add-btn:active {
   transform: translateY(1px) scale(0.98);
-  box-shadow: 0 10px 22px rgba(237, 31, 31, 0.22);
 }
 
 .mobile-fab {
@@ -163,10 +183,21 @@
 }
 
 @media (max-width: 767px) {
+  .header {
+    gap: 10px;
+  }
+
+  .header-side-right {
+    width: 28px;
+    min-width: 28px;
+  }
+
+  .header-side-spacer {
+    display: block;
+  }
+
   .desktop-add-btn {
-    visibility: hidden;
-    opacity: 0;
-    pointer-events: none;
+    display: none;
   }
 
   .mobile-fab {
@@ -1850,8 +1881,17 @@ body.is-dragging-global .time-block {
 
 .dark-theme .add-btn,
 .dark-theme .mobile-fab {
-  background: linear-gradient(180deg, #FF5B5B 0%, #ED1F1F 100%) !important;
   color: #FFFFFF !important;
+}
+
+.dark-theme .add-btn {
+  background: var(--surface) !important;
+  border-color: var(--divider) !important;
+  box-shadow: none !important;
+}
+
+.dark-theme .mobile-fab {
+  background: linear-gradient(180deg, #FF5B5B 0%, #ED1F1F 100%) !important;
   border-color: transparent !important;
   box-shadow: 0 18px 36px rgba(237, 31, 31, 0.26);
 }
