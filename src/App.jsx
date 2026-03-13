@@ -1150,10 +1150,14 @@ function App() {
       chip.id === 'Now' || chipOrder.indexOf(chip.id) >= chipOrder.indexOf(getCurrentTimeBlock())
     ))
     : allChips;
-  const chipRows = Array.from(
-    { length: Math.ceil(chips.length / 3) },
-    (_, idx) => chips.slice(idx * 3, idx * 3 + 3)
-  );
+  const chipRows = chips.length === 4
+    ? [chips.slice(0, 2), chips.slice(2, 4)]
+    : chips.length === 5
+      ? [chips.slice(0, 3), chips.slice(3, 5)]
+      : Array.from(
+        { length: Math.ceil(chips.length / 3) },
+        (_, idx) => chips.slice(idx * 3, idx * 3 + 3)
+      );
 
   useEffect(() => {
     if (!chips.some((chip) => chip.id === activeChip)) {
@@ -1208,20 +1212,22 @@ function App() {
     return currentTime > endDateTime;
   };
 
-  const getRelativeWeekText = () => {
+  const getRelativeWeekLabel = () => {
     const today = getLogicalToday();
     const d1 = new Date(selectedDate); d1.setHours(0, 0, 0, 0);
     const d2 = new Date(today); d2.setHours(0, 0, 0, 0);
     const diffDays = Math.round((d1 - d2) / (1000 * 3600 * 24));
     const t = translations[language];
-    if (diffDays === 0) return <strong>{t.today}</strong>;
-    if (diffDays === -1) return <strong>{t.yesterday}</strong>;
-    if (diffDays === 1) return <strong>{t.tmr}</strong>;
+    if (diffDays === 0) return t.today;
+    if (diffDays === -1) return t.yesterday;
+    if (diffDays === 1) return t.tmr;
 
     const dayIndex = selectedDate.getDay();
     const localizedDayName = t.dayNames[dayIndex];
-    return <strong>{localizedDayName}, {format(selectedDate, 'MMM d')}</strong>;
+    return `${localizedDayName}, ${format(selectedDate, 'MMM d')}`;
   };
+
+  const getRelativeWeekText = () => <strong>{getRelativeWeekLabel()}</strong>;
 
   if (loadingAuth) {
     return (
@@ -1484,7 +1490,7 @@ function App() {
                     setCalPickerDate(new Date(selectedDate));
                     setIsCalendarOpen(o => !o);
                   }} style={{ cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
-                    <h1 className="sheet-title" style={{ margin: 0, lineHeight: 1 }}><strong>{getRelativeWeekText()}</strong></h1>
+                    <h1 className="sheet-title" style={{ margin: 0, lineHeight: 1 }}>{getRelativeWeekLabel()}</h1>
                     <svg xmlns="http://www.w3.org/2000/svg" width="10" height="16" viewBox="0 0 9 14" fill="none" className="sheet-title-icon" style={{ transform: isCalendarOpen ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.24s cubic-bezier(0.16, 1, 0.3, 1)' }}>
                       <path fillRule="evenodd" clipRule="evenodd" d="M8.78019 6.54928C8.92094 6.66887 9 6.83098 9 7C9 7.16902 8.92094 7.33113 8.78019 7.45072L1.26401 13.8288C1.12153 13.9415 0.933079 14.0028 0.738359 13.9999C0.543638 13.997 0.357853 13.93 0.220144 13.8132C0.0824342 13.6963 0.00355271 13.5387 0.000117099 13.3734C-0.00331851 13.2082 0.06896 13.0483 0.201726 12.9274L7.18676 7L0.201726 1.07262C0.06896 0.951712 -0.00331851 0.791795 0.000117099 0.626558C0.00355271 0.461322 0.0824342 0.303668 0.220144 0.18681C0.357853 0.0699525 0.543638 0.00301477 0.738359 9.93682e-05C0.933079 -0.00281603 1.12153 0.0585185 1.26401 0.171181L8.78019 6.54928Z" fill="black" />
                     </svg>
@@ -1560,7 +1566,7 @@ function App() {
 
                     <div className={`chips-container ${isCalendarOpen ? 'calendar-open' : ''}`}>
                       {chipRows.map((row, rowIdx) => (
-                        <div key={rowIdx} className="chips-row">
+                        <div key={rowIdx} className={`chips-row chips-row-${row.length}`}>
                           {row.map((chip) => (
                             <button
                               key={chip.id}
