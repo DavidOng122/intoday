@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { ChevronLeft, ArrowUp, Maximize2, Minimize2 } from 'lucide-react';
 import { subDays, addDays, format, isSameDay } from 'date-fns';
@@ -730,6 +730,13 @@ function App() {
   const timelineRef = React.useRef(null);
   const dayScrollPositionsRef = React.useRef({});
   const hasAutoScrolledToTodayRef = React.useRef(false);
+  // Scroll behavior is explicit so initial Today entry, Today-icon taps,
+  // and horizontal day navigation can each do the right thing.
+  const pendingTimelineScrollActionRef = React.useRef({
+    type: 'initial-today',
+    scrollTop: null,
+    behavior: 'auto',
+  });
   const daySwipeStateRef = React.useRef({
     pointerId: null,
     startX: 0,
@@ -756,20 +763,32 @@ function App() {
     }
   }, []);
 
-  const scrollToCurrentTime = (behavior = 'smooth') => {
+  const scrollToCurrentTime = useCallback((behavior = 'smooth') => {
     if (!isSameDay(selectedDate, getLogicalToday())) return;
     const currentBlockId = getCurrentTimeBlock();
     const el = document.querySelector(`[data-block-id="${currentBlockId}"]`);
     if (el && timelineRef.current) {
       el.scrollIntoView({ behavior, block: 'start' });
     }
-  };
+  }, [currentTime, selectedDate]);
 
   const persistCurrentDayScroll = useCallback(() => {
     const timelineEl = timelineRef.current;
     if (!timelineEl) return;
     dayScrollPositionsRef.current[format(selectedDate, 'yyyy-MM-dd')] = timelineEl.scrollTop;
   }, [selectedDate]);
+
+  const scrollTimelineToCurrentTime = useCallback((behavior = 'smooth') => {
+    if (!isSameDay(selectedDate, getLogicalToday())) return;
+
+    scrollToCurrentTime(behavior);
+
+    window.setTimeout(() => {
+      const timelineEl = timelineRef.current;
+      if (!timelineEl) return;
+      dayScrollPositionsRef.current[format(selectedDate, 'yyyy-MM-dd')] = timelineEl.scrollTop;
+    }, behavior === 'auto' ? 0 : 260);
+  }, [scrollToCurrentTime, selectedDate]);
 
   // Auto-scroll the selected day into center of the strip
   useEffect(() => {
@@ -781,29 +800,34 @@ function App() {
     setContentKey(k => k + 1);
   }, [selectedDate]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const timelineEl = timelineRef.current;
-    if (!timelineEl) return undefined;
+    if (!timelineEl) return;
 
     const currentDateKey = format(selectedDate, 'yyyy-MM-dd');
-    const restoreTimer = window.setTimeout(() => {
-      const savedScrollTop = dayScrollPositionsRef.current[currentDateKey];
+    const pendingAction = pendingTimelineScrollActionRef.current;
 
-      if (typeof savedScrollTop === 'number') {
-        timelineEl.scrollTop = savedScrollTop;
-        return;
+    if (pendingAction?.type === 'preserve-offset' && typeof pendingAction.scrollTop === 'number') {
+      timelineEl.scrollTop = pendingAction.scrollTop;
+      dayScrollPositionsRef.current[currentDateKey] = pendingAction.scrollTop;
+    } else if (pendingAction?.type === 'current-time') {
+      if (isSameDay(selectedDate, getLogicalToday())) {
+        scrollTimelineToCurrentTime(pendingAction.behavior ?? 'smooth');
       }
-
+    } else if (pendingAction?.type === 'initial-today') {
       if (isSameDay(selectedDate, getLogicalToday()) && !hasAutoScrolledToTodayRef.current) {
         hasAutoScrolledToTodayRef.current = true;
-        scrollToCurrentTime('auto');
-      } else {
-        timelineEl.scrollTop = 0;
+        scrollTimelineToCurrentTime('auto');
       }
-    }, 0);
+    } else {
+      const savedScrollTop = dayScrollPositionsRef.current[currentDateKey];
+      if (typeof savedScrollTop === 'number') {
+        timelineEl.scrollTop = savedScrollTop;
+      }
+    }
 
-    return () => window.clearTimeout(restoreTimer);
-  }, [selectedDate]);
+    pendingTimelineScrollActionRef.current = null;
+  }, [scrollTimelineToCurrentTime, selectedDate]);
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
@@ -832,7 +856,13 @@ function App() {
   const transitionToDate = useCallback((nextDate, options = {}) => {
     if ((!options.bypassOverlayGuard && anyOverlayOpen) || dayTransition || isSameDay(nextDate, selectedDate)) return;
 
+    const currentScrollTop = timelineRef.current?.scrollTop ?? 0;
     persistCurrentDayScroll();
+    // Horizontal day changes preserve the visible vertical window unless the
+    // caller explicitly requests a jump to the current-time area.
+    pendingTimelineScrollActionRef.current = options.scrollBehavior === 'current-time'
+      ? { type: 'current-time', behavior: options.scrollAnimationBehavior ?? 'smooth' }
+      : { type: 'preserve-offset', scrollTop: currentScrollTop };
 
     const direction = nextDate > selectedDate ? 'next' : 'previous';
     if (transitionTimeoutRef.current) {
@@ -1800,7 +1830,17 @@ function App() {
           </div>
 
           <div className={`header-center ${isAndroid ? 'header-center-android' : 'header-center-ios'}`} style={{ justifyContent: isSameDay(selectedDate, getLogicalToday()) ? 'flex-start' : 'center' }}>
-            <div className="header-title-container" style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: !isSameDay(selectedDate, getLogicalToday()) ? 'pointer' : 'default' }} onClick={() => { if (!isSameDay(selectedDate, getLogicalToday())) { transitionToDate(getLogicalToday(), { durationMs: DAY_SWIPE_CONFIG.TAP_ANIMATION_DURATION_MS }); } }}>
+            <div className="header-title-container" style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }} onClick={() => {
+              if (isSameDay(selectedDate, getLogicalToday())) {
+                scrollTimelineToCurrentTime('smooth');
+                return;
+              }
+              transitionToDate(getLogicalToday(), {
+                durationMs: DAY_SWIPE_CONFIG.TAP_ANIMATION_DURATION_MS,
+                scrollBehavior: 'current-time',
+                scrollAnimationBehavior: 'smooth',
+              });
+            }}>
               {!isSameDay(selectedDate, getLogicalToday()) && (
                 <img src={appearance === 'dark' ? '/whiteuturn.png' : '/uturn.png'} alt="Back to Today" style={{ width: '16px', height: '16px', objectFit: 'contain' }} />
               )}
