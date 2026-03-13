@@ -194,6 +194,133 @@ const fetchMapMeta = async (url) => {
   return { mapTitle: null, mapSubtitle: 'Google Maps', mapUrl: url };
 };
 
+const SWIPE_CLOSE_THRESHOLD = 120;
+const SWIPE_CLOSE_SETTLE_MS = 200;
+const SWIPE_CLOSE_OFFSCREEN_PADDING = 120;
+const SWIPE_CLOSE_TRANSITION = 'transform 0.25s ease-out';
+const SWIPE_RESET_TRANSITION = 'transform 0.25s cubic-bezier(0.22, 1, 0.36, 1)';
+const centeredSwipeTransform = (offsetY = 0) => `translateX(-50%) translateY(${offsetY}px)`;
+
+const resolveSwipeScrollElement = (container, eventTarget, getScrollElement) => {
+  if (!getScrollElement) return null;
+  if (typeof getScrollElement === 'function') {
+    return getScrollElement(container, eventTarget);
+  }
+  if (typeof getScrollElement === 'string') {
+    const origin = eventTarget instanceof Element ? eventTarget.closest(getScrollElement) : null;
+    return origin || container.querySelector(getScrollElement);
+  }
+  return getScrollElement;
+};
+
+function useSwipeDownToClose({
+  enabled = true,
+  onClose,
+  baseTransform = centeredSwipeTransform,
+  getScrollElement,
+  threshold = SWIPE_CLOSE_THRESHOLD,
+}) {
+  const touchStartY = useRef(null);
+  const currentOffsetY = useRef(0);
+  const isSwiping = useRef(false);
+
+  const resetSwipeState = useCallback(() => {
+    touchStartY.current = null;
+    currentOffsetY.current = 0;
+    isSwiping.current = false;
+  }, []);
+
+  const canSwipeFromTarget = useCallback((container, eventTarget) => {
+    const scrollEl = resolveSwipeScrollElement(container, eventTarget, getScrollElement);
+    return !(scrollEl && scrollEl.scrollTop > 0);
+  }, [getScrollElement]);
+
+  const restorePosition = useCallback((container) => {
+    container.style.transition = SWIPE_RESET_TRANSITION;
+    container.style.transform = baseTransform(0);
+  }, [baseTransform]);
+
+  const finishSwipe = useCallback((container) => {
+    if (touchStartY.current === null || !isSwiping.current) return;
+
+    const offsetY = currentOffsetY.current;
+    if (offsetY > threshold) {
+      const offscreenY = Math.max(
+        window.innerHeight,
+        container.getBoundingClientRect().height + SWIPE_CLOSE_OFFSCREEN_PADDING
+      );
+      container.style.transition = SWIPE_CLOSE_TRANSITION;
+      container.style.transform = baseTransform(offscreenY);
+      window.setTimeout(() => {
+        onClose?.(true);
+      }, SWIPE_CLOSE_SETTLE_MS);
+    } else {
+      restorePosition(container);
+    }
+
+    resetSwipeState();
+  }, [baseTransform, onClose, resetSwipeState, restorePosition, threshold]);
+
+  const handleTouchStart = useCallback((e) => {
+    if (!enabled) return;
+
+    const touch = e.touches?.[0];
+    if (!touch) return;
+
+    const container = e.currentTarget;
+    if (!canSwipeFromTarget(container, e.target)) {
+      resetSwipeState();
+      return;
+    }
+
+    touchStartY.current = touch.clientY;
+    currentOffsetY.current = 0;
+    isSwiping.current = true;
+  }, [canSwipeFromTarget, enabled, resetSwipeState]);
+
+  const handleTouchMove = useCallback((e) => {
+    if (!enabled || touchStartY.current === null || !isSwiping.current) return;
+
+    const container = e.currentTarget;
+    if (!canSwipeFromTarget(container, e.target)) {
+      restorePosition(container);
+      resetSwipeState();
+      return;
+    }
+
+    const touch = e.touches?.[0];
+    if (!touch) return;
+
+    const offsetY = touch.clientY - touchStartY.current;
+    if (offsetY <= 0) return;
+
+    currentOffsetY.current = offsetY;
+    container.style.transition = 'none';
+    container.style.transform = baseTransform(offsetY);
+
+    if (e.cancelable) {
+      e.preventDefault();
+    }
+  }, [baseTransform, canSwipeFromTarget, enabled, resetSwipeState, restorePosition]);
+
+  const handleTouchEnd = useCallback((e) => {
+    if (!enabled) return;
+    finishSwipe(e.currentTarget);
+  }, [enabled, finishSwipe]);
+
+  const handleTouchCancel = useCallback((e) => {
+    if (!enabled) return;
+    finishSwipe(e.currentTarget);
+  }, [enabled, finishSwipe]);
+
+  return {
+    onTouchStart: handleTouchStart,
+    onTouchMove: handleTouchMove,
+    onTouchEnd: handleTouchEnd,
+    onTouchCancel: handleTouchCancel,
+  };
+}
+
 function App() {
   const [session, setSession] = useState(null);
   const [loadingAuth, setLoadingAuth] = useState(true);
@@ -364,7 +491,12 @@ function App() {
     ? composerLift - sheetGapCollapse
     : 0;
 
-  const closeProfile = (isSwipe = false) => {
+  const closeSheet = useCallback(() => {
+    setIsCalendarOpen(false);
+    setIsSheetOpen(false);
+  }, []);
+
+  const closeProfile = useCallback((isSwipe = false) => {
     if (isSwipe) {
       setIsProfileOpen(false);
       return;
@@ -374,8 +506,9 @@ function App() {
       setIsProfileOpen(false);
       setIsClosingProfile(false);
     }, 250);
-  };
-  const closeSettings = (isSwipe = false) => {
+  }, []);
+
+  const closeSettings = useCallback((isSwipe = false) => {
     if (isSwipe) {
       setIsSettingsOpen(false);
       return;
@@ -385,85 +518,44 @@ function App() {
       setIsSettingsOpen(false);
       setIsClosingSettings(false);
     }, 250);
-  };
-
-  // --- Profile Swipe-to-Close State ---
-  const profileTouchStartY = React.useRef(null);
-  const profileCurrentY = React.useRef(0);
-
-  const handleProfileTouchStart = (e) => {
-    profileTouchStartY.current = e.touches[0].clientY;
-  };
-  const handleProfileTouchMove = (e) => {
-    if (profileTouchStartY.current === null) return;
-    const dy = e.touches[0].clientY - profileTouchStartY.current;
-    if (dy > 0) {
-      profileCurrentY.current = dy;
-      const el = e.currentTarget;
-      el.style.transform = `translateX(-50%) translateY(${dy}px)`;
-      el.style.transition = 'none';
-    }
-  };
-  const handleProfileTouchEnd = (e) => {
-    if (profileTouchStartY.current === null) return;
-    const dy = profileCurrentY.current;
-    const el = e.currentTarget;
-    if (dy > 120) {
-      el.style.transition = 'transform 0.25s ease-out';
-      el.style.transform = `translateX(-50%) translateY(100vh)`;
-      setTimeout(() => closeProfile(true), 200);
-    } else {
-      el.style.transition = 'transform 0.25s cubic-bezier(0.22, 1, 0.36, 1)';
-      el.style.transform = `translateX(-50%) translateY(0)`;
-    }
-    profileTouchStartY.current = null;
-    profileCurrentY.current = 0;
-  };
-
-  // --- Settings Swipe-to-Close State ---
-  const settingsTouchStartY = React.useRef(null);
-  const settingsCurrentY = React.useRef(0);
-
-  const handleSettingsTouchStart = (e) => {
-    settingsTouchStartY.current = e.touches[0].clientY;
-  };
-  const handleSettingsTouchMove = (e) => {
-    const scrollEl = e.currentTarget.querySelector('.settings-panel');
-    // Only allow swipe down if we are at the top of the scrollable area
-    if (scrollEl && scrollEl.scrollTop > 0) return;
-    
-    if (settingsTouchStartY.current === null) return;
-    const dy = e.touches[0].clientY - settingsTouchStartY.current;
-    if (dy > 0) {
-      settingsCurrentY.current = dy;
-      const el = e.currentTarget;
-      el.style.transform = `translateX(-50%) translateY(${dy}px)`;
-      el.style.transition = 'none';
-      // Prevent scrolling while swiping down
-      if (e.cancelable) e.preventDefault();
-    }
-  };
-  const handleSettingsTouchEnd = (e) => {
-    if (settingsTouchStartY.current === null) return;
-    const dy = settingsCurrentY.current;
-    const el = e.currentTarget;
-    if (dy > 120) {
-      el.style.transition = 'transform 0.25s ease-out';
-      el.style.transform = `translateX(-50%) translateY(100vh)`;
-      setTimeout(() => closeSettings(true), 200);
-    } else {
-      el.style.transition = 'transform 0.25s cubic-bezier(0.22, 1, 0.36, 1)';
-      el.style.transform = `translateX(-50%) translateY(0)`;
-    }
-    settingsTouchStartY.current = null;
-    settingsCurrentY.current = 0;
-  };
+  }, []);
 
   // ── Android Back Button (PWA) ──────────────────────────────────────────────
   // When any overlay is open we push a dummy history entry so the Android
   // hardware back-button fires `popstate` instead of closing the whole app.
   const [editingTodo, setEditingTodo] = useState(null);
   const [editText, setEditText] = useState('');
+  const closeEditModal = useCallback(() => {
+    setEditingTodo(null);
+    setEditText('');
+  }, []);
+  const closeLoginOverlay = useCallback(() => {
+    setIsLoginOpen(false);
+  }, []);
+
+  const sheetSwipeHandlers = useSwipeDownToClose({
+    enabled: isSheetOpen,
+    onClose: closeSheet,
+    getScrollElement: '.sheet-content',
+  });
+  const profileSwipeHandlers = useSwipeDownToClose({
+    enabled: isProfileOpen,
+    onClose: closeProfile,
+  });
+  const settingsSwipeHandlers = useSwipeDownToClose({
+    enabled: isSettingsOpen,
+    onClose: closeSettings,
+    getScrollElement: '.settings-panel',
+  });
+  const editSwipeHandlers = useSwipeDownToClose({
+    enabled: !!editingTodo,
+    onClose: closeEditModal,
+    getScrollElement: '.edit-modal-textarea',
+  });
+  const loginSwipeHandlers = useSwipeDownToClose({
+    enabled: isLoginOpen,
+    onClose: closeLoginOverlay,
+  });
 
   const anyOverlayOpen =
     isSheetOpen || isProfileOpen || isSettingsOpen ||
@@ -479,16 +571,16 @@ function App() {
   useEffect(() => {
     const handlePopState = () => {
       // Close overlays from top (most-modal) to bottom
-      if (editingTodo) { setEditingTodo(null); setEditText(''); return; }
+      if (editingTodo) { closeEditModal(); return; }
       if (isSettingsOpen) { setIsSettingsOpen(false); return; }
       if (isProfileOpen) { setIsProfileOpen(false); return; }
       if (isCalendarOpen) { setIsCalendarOpen(false); return; }
-      if (isSheetOpen) { setIsSheetOpen(false); return; }
-      if (isLoginOpen) { setIsLoginOpen(false); return; }
+      if (isSheetOpen) { closeSheet(); return; }
+      if (isLoginOpen) { closeLoginOverlay(); return; }
     };
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
-  }, [editingTodo, isSettingsOpen, isProfileOpen, isCalendarOpen, isSheetOpen, isLoginOpen]);
+  }, [closeEditModal, closeLoginOverlay, closeSheet, editingTodo, isSettingsOpen, isProfileOpen, isCalendarOpen, isSheetOpen, isLoginOpen]);
   // ─────────────────────────────────────────────────────────────────────────
 
   const [weekOffset, setWeekOffset] = useState(0);
@@ -579,7 +671,7 @@ function App() {
 
     setTodos(prev => [...prev, newTodo]);
     setInputText('');
-    setIsSheetOpen(false);
+    closeSheet();
 
     // Fetch metadata asynchronously without blocking the UI
     if (cardType === 'video' && videoUrl) {
@@ -698,8 +790,7 @@ function App() {
     setTodos(prev => prev.map(t =>
       t.id === editingTodo.id ? { ...t, text: editText.trim() } : t
     ));
-    setEditingTodo(null);
-    setEditText('');
+    closeEditModal();
   };
 
   const getSwipeHandlers = (todoId) => ({
@@ -1106,8 +1197,12 @@ function App() {
     <>
       {/* Login page overlay — only shown when user explicitly clicks avatar */}
       {isLoginOpen && (
-        <div className="app-container" style={{ background: '#FFFFFF', position: 'fixed', top: 0, left: '50%', transform: 'translateX(-50%)', zIndex: 200 }}>
-          <Login onClose={() => setIsLoginOpen(false)} />
+        <div
+          className="app-container"
+          style={{ background: '#FFFFFF', position: 'fixed', top: 0, left: '50%', transform: 'translateX(-50%)', zIndex: 200 }}
+          {...loginSwipeHandlers}
+        >
+          <Login onClose={closeLoginOverlay} />
         </div>
       )}
 
@@ -1316,15 +1411,16 @@ function App() {
         {isSheetOpen && (
           <div
             className="backdrop sheet-backdrop"
-            onClick={() => setIsSheetOpen(false)}
+            onClick={closeSheet}
             style={sheetBaseViewportHeight ? { height: `${sheetBaseViewportHeight}px`, maxHeight: `${sheetBaseViewportHeight}px`, bottom: 'auto' } : undefined}
           >
             <div
               className="bottom-sheet"
               onClick={(e) => e.stopPropagation()}
               style={sheetBaseHeight ? { height: `${sheetBaseHeight}px`, maxHeight: `${sheetBaseHeight}px` } : undefined}
+              {...sheetSwipeHandlers}
             >
-              <button className="sheet-close" onClick={() => setIsSheetOpen(false)}>
+              <button className="sheet-close" onClick={closeSheet}>
                 <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 22 22" fill="none">
                   <path fillRule="evenodd" clipRule="evenodd" d="M5.01417 5.01423C5.14308 4.88548 5.31782 4.81316 5.50001 4.81316C5.68219 4.81316 5.85693 4.88548 5.98584 5.01423L11 10.0284L16.0142 5.01423C16.0771 4.94668 16.153 4.8925 16.2373 4.85493C16.3217 4.81735 16.4127 4.79715 16.505 4.79552C16.5973 4.79389 16.689 4.81087 16.7746 4.84545C16.8602 4.88002 16.938 4.93149 17.0033 4.99677C17.0686 5.06206 17.12 5.13982 17.1546 5.22543C17.1892 5.31103 17.2062 5.40273 17.2045 5.49504C17.2029 5.58735 17.1827 5.67839 17.1451 5.76272C17.1076 5.84705 17.0534 5.92295 16.9858 5.98589L11.9717 11.0001L16.9858 16.0142C17.0534 16.0772 17.1076 16.1531 17.1451 16.2374C17.1827 16.3217 17.2029 16.4128 17.2045 16.5051C17.2062 16.5974 17.1892 16.6891 17.1546 16.7747C17.12 16.8603 17.0686 16.9381 17.0033 17.0033C16.938 17.0686 16.8602 17.1201 16.7746 17.1547C16.689 17.1892 16.5973 17.2062 16.505 17.2046C16.4127 17.203 16.3217 17.1828 16.2373 17.1452C16.153 17.1076 16.0771 17.0534 16.0142 16.9859L11 11.9717L5.98584 16.9859C5.85551 17.1073 5.68314 17.1734 5.50503 17.1703C5.32692 17.1672 5.15698 17.095 5.03102 16.969C4.90506 16.8431 4.8329 16.6731 4.82976 16.495C4.82662 16.3169 4.89273 16.1446 5.01417 16.0142L10.0283 11.0001L5.01417 5.98589C4.88543 5.85699 4.81311 5.68225 4.81311 5.50006C4.81311 5.31787 4.88543 5.14313 5.01417 5.01423Z" fill="black" />
                 </svg>
@@ -1493,9 +1589,7 @@ function App() {
           }}>
             <div 
               className={`profile-modal ${isClosingProfile ? 'panel-exit' : 'panel-enter'}`}
-              onTouchStart={handleProfileTouchStart}
-              onTouchMove={handleProfileTouchMove}
-              onTouchEnd={handleProfileTouchEnd}
+              {...profileSwipeHandlers}
             >
               <button className="profile-close-btn" onClick={closeProfile}>
                 <X size={20} color="#111" />
@@ -1552,9 +1646,7 @@ function App() {
           }}>
             <div 
               className={`settings-modal ${isClosingSettings ? 'panel-exit' : 'panel-enter'}`}
-              onTouchStart={handleSettingsTouchStart}
-              onTouchMove={handleSettingsTouchMove}
-              onTouchEnd={handleSettingsTouchEnd}
+              {...settingsSwipeHandlers}
             >
               <button className="settings-back-btn" onClick={closeSettings}>
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -1620,11 +1712,11 @@ function App() {
         )}
         {/* Edit Todo Modal */}
         {editingTodo && (
-          <div className="backdrop modal-backdrop" onClick={() => { setEditingTodo(null); setEditText(''); }}>
-            <div className="edit-modal" onClick={(e) => e.stopPropagation()}>
+          <div className="backdrop modal-backdrop" onClick={closeEditModal}>
+            <div className="edit-modal" onClick={(e) => e.stopPropagation()} {...editSwipeHandlers}>
               <div className="edit-modal-header">
                 <h2 className="edit-modal-title">Edit</h2>
-                <button className="edit-modal-close" onClick={() => { setEditingTodo(null); setEditText(''); }}>
+                <button className="edit-modal-close" onClick={closeEditModal}>
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="black" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
                 </button>
               </div>
