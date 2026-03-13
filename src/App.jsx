@@ -748,6 +748,9 @@ function App() {
       if (nextScrollTop !== prevScrollTop) {
         timelineEl.scrollTop = nextScrollTop;
         syncDraggedCardPosition(todoId, dragTouchY.current);
+      } else {
+        stopAutoScroll();
+        return;
       }
     }
 
@@ -766,6 +769,7 @@ function App() {
     const rect = timelineEl.getBoundingClientRect();
     const SCROLL_ZONE = 96;
     const MAX_SPEED = 1.35; // px per ms
+    const maxScrollTop = Math.max(0, timelineEl.scrollHeight - timelineEl.clientHeight);
 
     let velocity = 0;
 
@@ -775,6 +779,10 @@ function App() {
     } else if (touchY > rect.bottom - SCROLL_ZONE) {
       const intensity = (touchY - (rect.bottom - SCROLL_ZONE)) / SCROLL_ZONE;
       velocity = MAX_SPEED * Math.min(Math.max(intensity, 0), 1);
+    }
+
+    if ((velocity < 0 && timelineEl.scrollTop <= 0) || (velocity > 0 && timelineEl.scrollTop >= maxScrollTop)) {
+      velocity = 0;
     }
 
     autoScrollVelocity.current = velocity;
