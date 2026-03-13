@@ -562,7 +562,7 @@
 .composer-shell {
   width: min(100%, 382px);
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   gap: 12px;
   padding: 0;
   background: transparent;
@@ -611,14 +611,15 @@
 .input-wrapper {
   flex: 1;
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   background: #FFFFFF;
   border: 1px solid #DDD7CF;
-  border-radius: 999px;
-  padding: 0 7px 0 18px;
+  border-radius: 22px;
+  padding: 8px 7px 8px 16px;
   min-height: 56px;
   height: auto;
   box-shadow: 0 12px 28px rgba(17, 17, 17, 0.06);
+  overflow: hidden;
 }
 
 .task-input {
@@ -630,10 +631,17 @@
   outline: none;
   resize: none;
   line-height: 22px;
-  padding: 16px 0;
-  max-height: none;
-  overflow: hidden;
+  min-height: 42px;
+  max-height: 130px;
+  padding: 10px 0 9px;
+  overflow-y: hidden;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
   font-family: inherit;
+}
+
+.task-input::-webkit-scrollbar {
+  display: none;
 }
 
 .task-input::placeholder {

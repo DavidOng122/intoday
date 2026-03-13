@@ -102,6 +102,8 @@ const SheetPebbleIcon = () => (
   </svg>
 );
 
+const COMPOSER_MAX_LINES = 5;
+
 const detectCardType = (text) => {
   const t = text.toLowerCase();
   // Video call / meeting links — check BEFORE generic video links
@@ -423,9 +425,20 @@ function App() {
   useEffect(() => {
     const textarea = taskInputRef.current;
     if (!textarea) return;
-    textarea.style.height = 'auto';
+    const styles = window.getComputedStyle(textarea);
+    const lineHeight = parseFloat(styles.lineHeight) || 22;
+    const paddingTop = parseFloat(styles.paddingTop) || 0;
+    const paddingBottom = parseFloat(styles.paddingBottom) || 0;
+    const borderTop = parseFloat(styles.borderTopWidth) || 0;
+    const borderBottom = parseFloat(styles.borderBottomWidth) || 0;
+    const maxHeight = Math.round(
+      lineHeight * COMPOSER_MAX_LINES + paddingTop + paddingBottom + borderTop + borderBottom
+    );
+
+    textarea.style.height = '0px';
     const nextHeight = textarea.scrollHeight;
-    textarea.style.height = `${nextHeight}px`;
+    textarea.style.height = `${Math.min(nextHeight, maxHeight)}px`;
+    textarea.style.overflowY = nextHeight > maxHeight ? 'auto' : 'hidden';
   }, [inputText]);
 
   // Day boundary is 06:00 AM — midnight–05:59 belongs to the previous calendar day.
