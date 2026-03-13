@@ -374,20 +374,37 @@ function App() {
   const [isLoginOpen, setIsLoginOpen] = useState(false);
 
   useEffect(() => {
+    // Safety timeout to prevent infinite loading screen
+    const timeout = setTimeout(() => {
+      setLoadingAuth(p => {
+        if (p) console.warn('Auth session fetch timed out');
+        return false;
+      });
+    }, 5000);
+
     if (!isSupabaseConfigured || !supabase) {
       setLoadingAuth(false);
+      clearTimeout(timeout);
       return;
     }
 
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setLoadingAuth(false);
+      clearTimeout(timeout);
+    }).catch(err => {
+      console.error('Error fetching session:', err);
+      setLoadingAuth(false);
+      clearTimeout(timeout);
     });
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
       setLoadingAuth(false);
     });
-    return () => subscription.unsubscribe();
+    return () => {
+      subscription.unsubscribe();
+      clearTimeout(timeout);
+    };
   }, []);
 
   // Handle incoming share intent from other apps (YouTube, Instagram, etc.)

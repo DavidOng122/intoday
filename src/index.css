@@ -50,7 +50,6 @@ html, body {
 html.platform-android {
   --font-sans: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
 }
-
 /* Base interactive elements reset */
 button, input, textarea {
   font-family: inherit;
