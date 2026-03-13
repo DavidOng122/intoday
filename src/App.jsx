@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { Capacitor } from '@capacitor/core';
 import { ChevronLeft, ArrowUp, Maximize2, Minimize2 } from 'lucide-react';
 import { subDays, addDays, format, isSameDay } from 'date-fns';
 import './App.css';
@@ -354,6 +355,10 @@ function useSwipeDownToClose({
 }
 
 function App() {
+  const platform = Capacitor.getPlatform?.() || 'web';
+  const isNativePlatform = Capacitor.isNativePlatform?.() || false;
+  const isIOS = platform === 'ios';
+  const isAndroid = platform === 'android';
   const [session, setSession] = useState(null);
   const [loadingAuth, setLoadingAuth] = useState(true);
   const [isLoginOpen, setIsLoginOpen] = useState(false);
@@ -562,7 +567,7 @@ function App() {
     };
   }, [isSheetOpen, sheetBaseViewportHeight]);
 
-  const keyboardLiftOffset = sheetKeyboardOffset > 120 ? sheetKeyboardOffset : 0;
+  const keyboardLiftOffset = sheetKeyboardOffset > (isAndroid ? 0 : 120) ? sheetKeyboardOffset : 0;
   const sheetGapCollapse = 190;
   const composerLift = keyboardLiftOffset > 0
     ? Math.min(
@@ -665,7 +670,7 @@ function App() {
   }, []);
 
   const sheetSwipeHandlers = useSwipeDownToClose({
-    enabled: isSheetOpen,
+    enabled: isSheetOpen && isIOS,
     onClose: closeSheet,
     getScrollElement: '.sheet-content',
     ignoreSwipeFrom: '.sheet-input-area',
@@ -1395,8 +1400,8 @@ function App() {
 
   if (!session) {
     return (
-      <div className="app-container">
-        <Login />
+      <div className={`app-container platform-${platform} ${isNativePlatform ? 'native-shell' : 'web-shell'}`}>
+        <Login platform={platform} />
       </div>
     );
   }
@@ -1406,15 +1411,15 @@ function App() {
       {/* Login page overlay — only shown when user explicitly clicks avatar */}
       {isLoginOpen && (
         <div
-          className="app-container"
+          className={`app-container platform-${platform} ${isNativePlatform ? 'native-shell' : 'web-shell'}`}
           style={{ background: '#FFFFFF', position: 'fixed', top: 0, left: '50%', transform: 'translateX(-50%)', zIndex: 200 }}
           {...loginSwipeHandlers}
         >
-          <Login onClose={closeLoginOverlay} />
+          <Login onClose={closeLoginOverlay} platform={platform} />
         </div>
       )}
 
-      <div className={`app-container ${appearance === 'dark' ? 'dark-theme' : ''}`}>
+      <div className={`app-container platform-${platform} ${isNativePlatform ? 'native-shell' : 'web-shell'} ${appearance === 'dark' ? 'dark-theme' : ''}`}>
         {/* Top Header */}
         <header className="header">
           <div className="header-side header-side-left">
@@ -1429,7 +1434,7 @@ function App() {
             </div>
           </div>
 
-          <div className="header-center" style={{ justifyContent: isSameDay(selectedDate, getLogicalToday()) ? 'flex-start' : 'center' }}>
+          <div className={`header-center ${isAndroid ? 'header-center-android' : 'header-center-ios'}`} style={{ justifyContent: isSameDay(selectedDate, getLogicalToday()) ? 'flex-start' : 'center' }}>
             <div className="header-title-container" style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: !isSameDay(selectedDate, getLogicalToday()) ? 'pointer' : 'default' }} onClick={() => { if (!isSameDay(selectedDate, getLogicalToday())) { setSelectedDate(getLogicalToday()); setTimeout(() => scrollToCurrentTime(), 300); } }}>
               {!isSameDay(selectedDate, getLogicalToday()) && (
                 <img src={appearance === 'dark' ? '/whiteuturn.png' : '/uturn.png'} alt="Back to Today" style={{ width: '16px', height: '16px', objectFit: 'contain' }} />
@@ -1455,7 +1460,7 @@ function App() {
             <div className="header-side-spacer" aria-hidden="true" />
             <button
               type="button"
-              className="add-btn desktop-add-btn"
+              className={`add-btn header-add-btn ${isAndroid ? 'header-add-btn-android' : 'header-add-btn-ios'}`}
               onClick={openQuickAdd}
               aria-label={translations[language].addTaskAria}
             >
@@ -1628,7 +1633,7 @@ function App() {
 
         <button
           type="button"
-          className="mobile-fab"
+          className={`mobile-fab ${isAndroid ? 'mobile-fab-android' : 'mobile-fab-ios'}`}
           onClick={openQuickAdd}
           aria-label={translations[language].addTaskAria}
         >
@@ -1638,12 +1643,12 @@ function App() {
         {/* Bottom Sheet Modal */}
         {isSheetOpen && (
           <div
-            className="backdrop sheet-backdrop"
+            className={`backdrop sheet-backdrop ${isAndroid ? 'sheet-backdrop-android' : 'sheet-backdrop-ios'}`}
             onClick={closeSheet}
             style={sheetBaseViewportHeight ? { height: `${sheetBaseViewportHeight}px`, maxHeight: `${sheetBaseViewportHeight}px`, bottom: 'auto' } : undefined}
           >
             <div
-              className="bottom-sheet"
+              className={`bottom-sheet ${isAndroid ? 'bottom-sheet-android' : 'bottom-sheet-ios'}`}
               onClick={(e) => e.stopPropagation()}
               style={sheetBaseHeight ? { height: `${sheetBaseHeight}px`, maxHeight: `${sheetBaseHeight}px` } : undefined}
               {...sheetSwipeHandlers}
@@ -1852,11 +1857,11 @@ function App() {
             if (e.target.classList.contains('backdrop')) closeProfile();
           }}>
             <div 
-              className={`profile-modal ${isClosingProfile ? 'panel-exit' : 'panel-enter'}`}
-              onTouchStart={handleAccountTouchStart}
-              onTouchMove={handleAccountTouchMove}
-              onTouchEnd={handleAccountTouchEnd}
-              onTouchCancel={handleAccountTouchEnd}
+              className={`profile-modal ${isAndroid ? 'profile-modal-android' : 'profile-modal-ios'} ${isClosingProfile ? 'panel-exit' : 'panel-enter'}`}
+              onTouchStart={isIOS ? handleAccountTouchStart : undefined}
+              onTouchMove={isIOS ? handleAccountTouchMove : undefined}
+              onTouchEnd={isIOS ? handleAccountTouchEnd : undefined}
+              onTouchCancel={isIOS ? handleAccountTouchEnd : undefined}
             >
               <div className="profile-scroll" ref={profileScrollRef}>
                 <button className="profile-back-btn" onClick={closeProfile}>

@@ -1,7 +1,8 @@
 import React from 'react';
 import { supabase, isSupabaseConfigured, supabaseConfigError } from './supabase';
 
-function Login({ onClose }) {
+function Login({ onClose, platform = 'web' }) {
+    const isAndroid = platform === 'android';
     const handleGoogleLogin = async () => {
         if (!supabase) return;
         await supabase.auth.signInWithOAuth({
@@ -21,14 +22,16 @@ function Login({ onClose }) {
             flexDirection: 'column',
             position: 'relative',
             overflow: 'hidden',
-            fontFamily: '-apple-system, "SF Pro Display", "SF Pro Text", BlinkMacSystemFont, "Segoe UI", sans-serif',
+            fontFamily: isAndroid
+                ? '"Segoe UI", Roboto, Helvetica, Arial, sans-serif'
+                : '-apple-system, "SF Pro Display", "SF Pro Text", BlinkMacSystemFont, "Segoe UI", sans-serif',
         }}>
 
             {/* Top-left Logo */}
             <div style={{
                 position: 'absolute',
-                top: 56,
-                left: 36,
+                top: isAndroid ? 28 : 56,
+                left: isAndroid ? 24 : 36,
                 display: 'flex',
                 alignItems: 'center',
                 gap: 10,
@@ -52,8 +55,8 @@ function Login({ onClose }) {
             <div style={{
                 position: 'absolute',
                 top: '48%', // Slightly adjusted for better centering
-                left: 40,
-                right: 40,
+                left: isAndroid ? 24 : 40,
+                right: isAndroid ? 24 : 40,
                 transform: 'translateY(-50%)',
                 display: 'flex',
                 flexDirection: 'column',
@@ -119,9 +122,9 @@ function Login({ onClose }) {
             {/* Bottom Google Sign-in Button */}
             <div style={{
                 position: 'absolute',
-                bottom: 40,
-                left: 32,
-                right: 32,
+                bottom: isAndroid ? 24 : 40,
+                left: isAndroid ? 24 : 32,
+                right: isAndroid ? 24 : 32,
                 display: 'flex',
                 justifyContent: 'center',
                 flexDirection: 'column',

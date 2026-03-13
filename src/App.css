@@ -13,6 +13,10 @@
   flex-direction: column;
 }
 
+.app-container.platform-android {
+  box-shadow: none;
+}
+
 /* TOP HEADER */
 .header {
   display: flex;
@@ -23,6 +27,15 @@
   padding: 10px 20px;
   background-color: #FFFFFF;
   z-index: 10;
+}
+
+.app-container.platform-ios .header {
+  padding-top: 10px;
+}
+
+.app-container.platform-android .header {
+  padding: 8px 16px 10px;
+  min-height: 56px;
 }
 
 .header-side {
@@ -68,6 +81,14 @@
   margin-top: 0;
   /* Fixed height to prevent layout shift when today-btn shows/hides */
   min-height: 42px;
+}
+
+.header-center-android {
+  align-items: flex-start;
+}
+
+.app-container.platform-android .header-sub-row {
+  justify-content: flex-start;
 }
 
 .header-title {
@@ -196,12 +217,16 @@
     display: block;
   }
 
-  .desktop-add-btn {
+  .app-container.platform-android .header-add-btn {
     display: none;
   }
 
-  .mobile-fab {
+  .app-container.platform-android .mobile-fab {
     display: flex;
+  }
+
+  .app-container:not(.platform-android) .mobile-fab {
+    display: none;
   }
 
   .timeline-area {
@@ -396,6 +421,14 @@
   animation: slideUpCentered 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
+.sheet-backdrop-android .bottom-sheet {
+  left: 0;
+  right: 0;
+  width: 100%;
+  transform: none;
+  animation: slideUp 0.28s cubic-bezier(0.2, 0, 0, 1);
+}
+
 /* BOTTOM SHEET */
 .bottom-sheet {
   width: 100%;
@@ -415,6 +448,16 @@
   touch-action: auto;
 }
 
+.bottom-sheet-android {
+  max-width: 430px;
+  border-radius: 28px 28px 0 0;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.18);
+}
+
+.bottom-sheet-ios {
+  border-radius: 38px 38px 0 0;
+}
+
 .sheet-close {
   position: absolute;
   top: 22px;
@@ -431,6 +474,14 @@
   z-index: 2;
   box-shadow: 0 8px 18px rgba(28, 23, 18, 0.05);
   backdrop-filter: blur(8px);
+}
+
+.app-container.platform-android .sheet-close {
+  top: 16px;
+  right: 16px;
+  background: #f3f4f6;
+  border-color: #e5e7eb;
+  box-shadow: none;
 }
 
 .sheet-content {
@@ -653,6 +704,11 @@
   right: 0;
 }
 
+.app-container.platform-android .sheet-input-area {
+  padding: 12px 16px calc(16px + env(safe-area-inset-bottom));
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0) 0%, rgba(255, 255, 255, 0.96) 22%, #FFFFFF 100%);
+}
+
 .composer-frame {
   width: min(100%, 382px);
   display: block;
@@ -671,6 +727,10 @@
   transform: translateX(-50%);
   z-index: 85;
   pointer-events: auto;
+}
+
+.app-container.platform-android .composer-frame.expanded {
+  top: calc(env(safe-area-inset-top) + 4px);
 }
 
 .composer-expand-trigger {
@@ -1266,6 +1326,14 @@ body.is-dragging-global .time-block {
   will-change: transform;
 }
 
+.profile-modal-android {
+  border-radius: 0;
+}
+
+.profile-modal-ios {
+  border-radius: 0;
+}
+
 .profile-scroll {
   position: relative;
   min-height: 100%;
@@ -1294,6 +1362,12 @@ body.is-dragging-global .time-block {
   color: #111;
   transition: background 0.2s;
   z-index: 20;
+}
+
+.app-container.platform-android .profile-back-btn {
+  top: calc(env(safe-area-inset-top, 0px) + 8px);
+  left: 16px;
+  background: transparent;
 }
 
 .profile-back-btn:active {
@@ -2011,6 +2085,10 @@ body.is-dragging-global .time-block {
 .dark-theme .settings-close-btn {
   background: #595959;
   border: none;
+}
+
+.dark-theme.platform-android .profile-back-btn {
+  background: transparent;
 }
 
 .dark-theme .edit-modal {
