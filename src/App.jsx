@@ -1588,7 +1588,7 @@ function App() {
             if (e.target.classList.contains('backdrop')) closeProfile();
           }}>
             <div 
-              className={`profile-modal ${isClosingProfile ? 'panel-exit' : 'panel-enter'}`}
+              className={`profile-modal ${isClosingProfile ? 'centered-panel-exit' : ''}`}
               {...profileSwipeHandlers}
             >
               <button className="profile-close-btn" onClick={closeProfile}>
@@ -1645,7 +1645,7 @@ function App() {
             if (e.target.classList.contains('backdrop')) closeSettings();
           }}>
             <div 
-              className={`settings-modal ${isClosingSettings ? 'panel-exit' : 'panel-enter'}`}
+              className={`settings-modal ${isClosingSettings ? 'centered-panel-exit' : ''}`}
               {...settingsSwipeHandlers}
             >
               <button className="settings-back-btn" onClick={closeSettings}>
