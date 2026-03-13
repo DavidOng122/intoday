@@ -653,18 +653,52 @@
   right: 0;
 }
 
-.composer-shell {
+.composer-frame {
   width: min(100%, 382px);
-  display: flex;
-  align-items: flex-end;
-  gap: 0;
-  padding: 0;
-  background: transparent;
-  border: none;
-  border-radius: 0;
-  box-shadow: none;
+  display: block;
   margin: 0 auto;
   transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.composer-frame.expanded {
+  position: fixed;
+  top: calc(env(safe-area-inset-top) + 8px);
+  left: 50%;
+  bottom: 0;
+  width: min(100%, 430px);
+  max-width: 430px;
+  margin: 0;
+  transform: translateX(-50%);
+  z-index: 85;
+  pointer-events: auto;
+}
+
+.composer-expand-trigger {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(17, 17, 17, 0.045);
+  color: rgba(17, 17, 17, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2;
+}
+
+.composer-expand-trigger.compact {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+}
+
+.composer-expand-trigger.expanded {
+  background: rgba(17, 17, 17, 0.05);
+}
+
+.composer-shell {
+  width: 100%;
+  display: block;
 }
 
 @keyframes slideUpCentered {
@@ -673,21 +707,22 @@
 }
 
 .input-wrapper {
+  position: relative;
   flex: 1;
-  display: flex;
-  align-items: flex-end;
+  display: block;
   background: #FFFFFF;
   border: 1px solid #DDD7CF;
   border-radius: 22px;
-  padding: 8px 7px 8px 16px;
-  min-height: 56px;
+  min-height: 58px;
   height: auto;
   box-shadow: 0 12px 28px rgba(17, 17, 17, 0.06);
   overflow: hidden;
 }
 
 .task-input {
-  flex: 1;
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
   font-size: 16px;
   color: var(--text-primary);
   background: transparent;
@@ -695,11 +730,13 @@
   outline: none;
   resize: none;
   line-height: 22px;
-  min-height: 42px;
+  min-height: 58px;
   max-height: 130px;
-  padding: 10px 0 9px;
+  padding: 15px 58px 11px 16px;
   overflow-y: hidden;
   overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
   scrollbar-width: none;
   font-family: inherit;
 }
@@ -708,20 +745,79 @@
   display: none;
 }
 
+.expanded-composer-shell {
+  width: 100%;
+  height: 100%;
+  background: #FFFFFF;
+  border-radius: 24px 24px 0 0;
+  box-shadow: 0 18px 48px rgba(17, 17, 17, 0.08);
+  padding: 14px 14px calc(18px + env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow: hidden;
+}
+
+.expanded-composer-header {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.expanded-task-input {
+  flex: 1;
+  width: 100%;
+  min-height: 0;
+  color: var(--text-primary);
+  background: transparent;
+  border: none;
+  outline: none;
+  resize: none;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+  scrollbar-width: none;
+  font-family: inherit;
+  font-size: 17px;
+  line-height: 24px;
+  padding: 6px 6px 0 4px;
+}
+
+.expanded-task-input::-webkit-scrollbar {
+  display: none;
+}
+
+.expanded-task-input::placeholder {
+  color: #B4B1B8;
+}
+
+.expanded-composer-footer {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 8px;
+}
+
 .task-input::placeholder {
   color: #B4B1B8;
 }
 
 .submit-btn {
-  width: 42px;
-  height: 42px;
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
-  background: #000;
+  background: #111111;
   color: white;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  box-shadow: 0 8px 18px rgba(17, 17, 17, 0.18);
+}
+
+.submit-btn.compact {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
 }
 
 @media (max-height: 780px) {
@@ -1714,6 +1810,17 @@ body.is-dragging-global .time-block {
   box-shadow: 0 12px 28px rgba(0, 0, 0, 0.28);
 }
 
+.dark-theme .composer-expand-trigger {
+  background: rgba(255, 255, 255, 0.08) !important;
+  color: rgba(255, 255, 255, 0.72) !important;
+  box-shadow: none;
+}
+
+.dark-theme .expanded-composer-shell {
+  background: #2C2C2C !important;
+  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.32);
+}
+
 .dark-theme .task-card {
   box-shadow: 0 2px 16px rgba(0, 0, 0, 0.4);
 }
@@ -1863,15 +1970,19 @@ body.is-dragging-global .time-block {
 }
 
 .dark-theme .submit-btn {
-  background: white !important;
-  color: black !important;
+  background: #111111 !important;
+  color: #FFFFFF !important;
 }
 
 .dark-theme .submit-btn svg {
-  stroke: black !important;
+  stroke: #FFFFFF !important;
 }
 
 .dark-theme .task-input {
+  color: var(--text-primary) !important;
+}
+
+.dark-theme .expanded-task-input {
   color: var(--text-primary) !important;
 }
 
