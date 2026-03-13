@@ -921,58 +921,6 @@ body.is-dragging-global .time-block {
   will-change: transform;
 }
 
-.task-card.plain-expanded {
-  align-items: flex-start;
-  touch-action: auto;
-}
-
-.plain-task-editor {
-  width: 100%;
-  min-height: 92px;
-  border: 1px solid #E5E7EB;
-  background: #F8F8F8;
-  border-radius: 12px;
-  padding: 12px 14px;
-  font: inherit;
-  font-size: 14px;
-  line-height: 1.5;
-  color: #111;
-  resize: none;
-  outline: none;
-  box-sizing: border-box;
-  touch-action: auto;
-}
-
-.plain-task-editor:focus {
-  background: #F3F4F6;
-  border-color: #D1D5DB;
-}
-
-.plain-task-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-}
-
-.plain-task-btn {
-  border: none;
-  border-radius: 999px;
-  padding: 8px 14px;
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.plain-task-btn.secondary {
-  background: #F3F4F6;
-  color: #374151;
-}
-
-.plain-task-btn.primary {
-  background: #111827;
-  color: #FFF;
-}
-
 .task-title {
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -1002,59 +950,65 @@ body.is-dragging-global .time-block {
 /* ========================================================
    PROFILE MODAL
    ======================================================== */
+.account-backdrop {
+  padding-bottom: 0;
+}
+
 .profile-modal {
   position: absolute;
-  top: 130px;
-  /* aligned to new dump top offset */
-  left: 50%;
-  transform: translateX(-50%);
-  width: 382px;
-  height: 734px;
+  inset: 0;
+  width: 100%;
+  height: 100%;
   background: white;
-  border-radius: 45px;
-  padding: 32px 24px;
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.12);
+  border-radius: 0;
+  padding: 0;
+  box-shadow: none;
   z-index: 50;
   display: flex;
   flex-direction: column;
-  animation: profileSlideUp 0.26s cubic-bezier(0.22, 1, 0.36, 1) forwards;
   overflow: hidden;
 }
 
-@keyframes profileSlideUp {
-  from {
-    opacity: 0;
-    transform: translateX(-50%) translateY(22px) scale(0.98);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(-50%) translateY(0) scale(1);
-  }
+.profile-scroll {
+  position: relative;
+  min-height: 100%;
+  height: 100%;
+  padding: calc(env(safe-area-inset-top, 0px) + 24px) 24px calc(env(safe-area-inset-bottom, 0px) + 24px);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
-.profile-close-btn {
+.profile-back-btn {
   position: absolute;
-  top: 23px;
-  right: 19px;
-  width: 34px;
-  height: 34px;
+  top: 8px;
+  left: 8px;
+  width: 36px;
+  height: 36px;
   border-radius: 50%;
-  background: #F2F1EF;
+  background: #EBEBEB;
   border: none;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   padding: 0;
+  color: #111;
+  transition: background 0.2s;
+  z-index: 20;
+}
+
+.profile-back-btn:active {
+  background: #E4E4E5;
 }
 
 .profile-header {
   display: flex;
   flex-direction: column;
   align-items: center;
-  margin-top: 60px;
-  margin-bottom: 120px;
-  /* Increased from 32px to create the drastic gap seen in the screenshot */
+  margin-top: 56px;
+  margin-bottom: 40px;
 }
 
 .profile-avatar-large {
@@ -1111,7 +1065,7 @@ body.is-dragging-global .time-block {
   display: flex;
   flex-direction: column;
   gap: 14px;
-  margin-bottom: 32px;
+  margin-bottom: 24px;
   padding: 0 14px;
 }
 
@@ -1190,59 +1144,13 @@ body.is-dragging-global .time-block {
   }
 }
 
-/* ========================================================
-   SETTINGS MODAL
-   ======================================================== */
-.settings-modal {
-  position: absolute;
-  top: 100px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 382px;
-  height: 850px;
-  background: white;
-  border-radius: 45px;
-  padding: 32px 24px;
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.12);
-  z-index: 60;
-  display: flex;
-  flex-direction: column;
-  animation: settingSlideUp 0.26s cubic-bezier(0.22, 1, 0.36, 1) forwards;
-  overflow: hidden;
+.profile-settings-section {
+  padding: 0 14px;
+  margin-bottom: 24px;
 }
 
-@keyframes settingSlideUp {
-  from {
-    opacity: 0;
-    transform: translateX(-50%) translateY(22px) scale(0.98);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(-50%) translateY(0) scale(1);
-  }
-}
-
-.settings-back-btn {
-  position: absolute;
-  top: 36px;
-  left: 24px;
-  width: 36px;
-  height: 36px;
-  background: #EBEBEB; /* Slightly darker to ensure it's visible even on white */
-  border-radius: 50%;
-  border: none;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  padding: 0;
-  color: #111;
-  transition: background 0.2s;
-  z-index: 1000;
-}
-
-.settings-back-btn:active {
-  background: #E4E4E5;
+.profile-settings-panel {
+  margin-top: 0;
 }
 
 .settings-panel {
@@ -1534,7 +1442,6 @@ body.is-dragging-global .time-block {
 .dark-theme .timeline-area,
 .dark-theme .bottom-sheet,
 .dark-theme .profile-modal,
-.dark-theme .settings-modal,
 .dark-theme .sheet-input-area,
 .dark-theme .language-dropdown-menu,
 .dark-theme .task-card {
@@ -1550,22 +1457,6 @@ body.is-dragging-global .time-block {
 
 .dark-theme .task-card {
   box-shadow: 0 2px 16px rgba(0, 0, 0, 0.4);
-}
-
-.dark-theme .plain-task-editor {
-  background: #1E1E1E;
-  border-color: #363636;
-  color: #F5F5F5;
-}
-
-.dark-theme .plain-task-editor:focus {
-  background: #242424;
-  border-color: #4B5563;
-}
-
-.dark-theme .plain-task-btn.secondary {
-  background: #2A2A2A;
-  color: #E5E7EB;
 }
 
 .dark-theme .header-title,
@@ -1628,9 +1519,8 @@ body.is-dragging-global .time-block {
 
 .dark-theme .chip,
 .dark-theme .add-circle-btn,
-.dark-theme .profile-close-btn,
+.dark-theme .profile-back-btn,
 .dark-theme .menu-btn,
-.dark-theme .settings-back-btn,
 .dark-theme .add-btn,
 .dark-theme .sheet-close {
   background: var(--surface) !important;
@@ -1728,7 +1618,7 @@ body.is-dragging-global .time-block {
   background: var(--surface) !important;
 }
 
-.dark-theme .profile-close-btn,
+.dark-theme .profile-back-btn,
 .dark-theme .settings-close-btn {
   background: #595959;
   border: none;

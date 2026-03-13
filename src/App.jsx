@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { X, ArrowUp } from 'lucide-react';
+import { ChevronLeft, ArrowUp } from 'lucide-react';
 import { subDays, addDays, format, isSameDay } from 'date-fns';
 import './App.css';
 import Login from './Login';
@@ -244,7 +244,6 @@ function App() {
   const [appearance, setAppearance] = useState('light');
   const [isAppearanceDropdownOpen, setIsAppearanceDropdownOpen] = useState(false);
   const taskInputRef = useRef(null);
-  const expandedPlainInputRef = useRef(null);
   const [isRecording, setIsRecording] = useState(false);
   const recognitionRef = useRef(null);
   const [isTaskInputFocused, setIsTaskInputFocused] = useState(false);
@@ -285,25 +284,6 @@ function App() {
     textarea.style.height = `${nextHeight}px`;
   }, [inputText]);
 
-  const [expandedPlainTodoId, setExpandedPlainTodoId] = useState(null);
-  const [expandedPlainText, setExpandedPlainText] = useState('');
-
-  useEffect(() => {
-    const textarea = expandedPlainInputRef.current;
-    if (!textarea) return;
-    textarea.style.height = 'auto';
-    textarea.style.height = `${textarea.scrollHeight}px`;
-  }, [expandedPlainText, expandedPlainTodoId]);
-
-  useEffect(() => {
-    if (expandedPlainTodoId === null) return;
-    const textarea = expandedPlainInputRef.current;
-    if (!textarea) return;
-    textarea.focus();
-    const length = textarea.value.length;
-    textarea.setSelectionRange(length, length);
-  }, [expandedPlainTodoId]);
-
   // Day boundary is 06:00 AM — midnight–05:59 belongs to the previous calendar day.
   const getLogicalToday = () => {
     const now = new Date();
@@ -318,10 +298,9 @@ function App() {
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isClosingProfile, setIsClosingProfile] = useState(false);
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [isClosingSettings, setIsClosingSettings] = useState(false);
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const [calPickerDate, setCalPickerDate] = useState(() => getLogicalToday());
+  const profileScrollRef = React.useRef(null);
 
   useEffect(() => {
     if (!isSheetOpen) {
@@ -384,99 +363,71 @@ function App() {
     ? composerLift - sheetGapCollapse
     : 0;
 
+  const resetProfilePanel = () => {
+    setIsLanguageDropdownOpen(false);
+    setIsAppearanceDropdownOpen(false);
+    if (profileScrollRef.current) {
+      profileScrollRef.current.scrollTop = 0;
+    }
+  };
+
+  const openProfilePanel = () => {
+    resetProfilePanel();
+    setIsClosingProfile(false);
+    setIsProfileOpen(true);
+  };
+
   const closeProfile = (isSwipe = false) => {
     if (isSwipe) {
       setIsProfileOpen(false);
+      setIsClosingProfile(false);
+      resetProfilePanel();
       return;
     }
     setIsClosingProfile(true);
     setTimeout(() => {
       setIsProfileOpen(false);
       setIsClosingProfile(false);
-    }, 250);
-  };
-  const closeSettings = (isSwipe = false) => {
-    if (isSwipe) {
-      setIsSettingsOpen(false);
-      return;
-    }
-    setIsClosingSettings(true);
-    setTimeout(() => {
-      setIsSettingsOpen(false);
-      setIsClosingSettings(false);
+      resetProfilePanel();
     }, 250);
   };
 
-  // --- Profile Swipe-to-Close State ---
-  const profileTouchStartY = React.useRef(null);
-  const profileCurrentY = React.useRef(0);
+  const accountTouchStartY = React.useRef(null);
+  const accountCurrentY = React.useRef(0);
 
-  const handleProfileTouchStart = (e) => {
-    profileTouchStartY.current = e.touches[0].clientY;
+  const handleAccountTouchStart = (e) => {
+    accountTouchStartY.current = e.touches[0].clientY;
   };
-  const handleProfileTouchMove = (e) => {
-    if (profileTouchStartY.current === null) return;
-    const dy = e.touches[0].clientY - profileTouchStartY.current;
+  const handleAccountTouchMove = (e) => {
+    const canSwipeToClose = !profileScrollRef.current || profileScrollRef.current.scrollTop <= 0;
+
+    if (!canSwipeToClose || accountTouchStartY.current === null) return;
+
+    const dy = e.touches[0].clientY - accountTouchStartY.current;
     if (dy > 0) {
-      profileCurrentY.current = dy;
+      accountCurrentY.current = dy;
       const el = e.currentTarget;
-      el.style.transform = `translateX(-50%) translateY(${dy}px)`;
+      el.style.transform = `translateY(${dy}px)`;
       el.style.transition = 'none';
+      if (e.cancelable) {
+        e.preventDefault();
+      }
     }
   };
-  const handleProfileTouchEnd = (e) => {
-    if (profileTouchStartY.current === null) return;
-    const dy = profileCurrentY.current;
+  const handleAccountTouchEnd = (e) => {
+    if (accountTouchStartY.current === null) return;
+    const dy = accountCurrentY.current;
     const el = e.currentTarget;
     if (dy > 120) {
       el.style.transition = 'transform 0.25s ease-out';
-      el.style.transform = `translateX(-50%) translateY(100vh)`;
+      el.style.transform = 'translateY(100vh)';
       setTimeout(() => closeProfile(true), 200);
     } else {
       el.style.transition = 'transform 0.25s cubic-bezier(0.22, 1, 0.36, 1)';
-      el.style.transform = `translateX(-50%) translateY(0)`;
+      el.style.transform = 'translateY(0)';
     }
-    profileTouchStartY.current = null;
-    profileCurrentY.current = 0;
-  };
-
-  // --- Settings Swipe-to-Close State ---
-  const settingsTouchStartY = React.useRef(null);
-  const settingsCurrentY = React.useRef(0);
-
-  const handleSettingsTouchStart = (e) => {
-    settingsTouchStartY.current = e.touches[0].clientY;
-  };
-  const handleSettingsTouchMove = (e) => {
-    const scrollEl = e.currentTarget.querySelector('.settings-panel');
-    // Only allow swipe down if we are at the top of the scrollable area
-    if (scrollEl && scrollEl.scrollTop > 0) return;
-    
-    if (settingsTouchStartY.current === null) return;
-    const dy = e.touches[0].clientY - settingsTouchStartY.current;
-    if (dy > 0) {
-      settingsCurrentY.current = dy;
-      const el = e.currentTarget;
-      el.style.transform = `translateX(-50%) translateY(${dy}px)`;
-      el.style.transition = 'none';
-      // Prevent scrolling while swiping down
-      if (e.cancelable) e.preventDefault();
-    }
-  };
-  const handleSettingsTouchEnd = (e) => {
-    if (settingsTouchStartY.current === null) return;
-    const dy = settingsCurrentY.current;
-    const el = e.currentTarget;
-    if (dy > 120) {
-      el.style.transition = 'transform 0.25s ease-out';
-      el.style.transform = `translateX(-50%) translateY(100vh)`;
-      setTimeout(() => closeSettings(true), 200);
-    } else {
-      el.style.transition = 'transform 0.25s cubic-bezier(0.22, 1, 0.36, 1)';
-      el.style.transform = `translateX(-50%) translateY(0)`;
-    }
-    settingsTouchStartY.current = null;
-    settingsCurrentY.current = 0;
+    accountTouchStartY.current = null;
+    accountCurrentY.current = 0;
   };
 
   // ── Android Back Button (PWA) ──────────────────────────────────────────────
@@ -486,7 +437,7 @@ function App() {
   const [editText, setEditText] = useState('');
 
   const anyOverlayOpen =
-    isSheetOpen || isProfileOpen || isSettingsOpen ||
+    isSheetOpen || isProfileOpen ||
     isCalendarOpen || !!editingTodo || isLoginOpen;
 
   useEffect(() => {
@@ -500,15 +451,14 @@ function App() {
     const handlePopState = () => {
       // Close overlays from top (most-modal) to bottom
       if (editingTodo) { setEditingTodo(null); setEditText(''); return; }
-      if (isSettingsOpen) { setIsSettingsOpen(false); return; }
-      if (isProfileOpen) { setIsProfileOpen(false); return; }
+      if (isProfileOpen) { closeProfile(true); return; }
       if (isCalendarOpen) { setIsCalendarOpen(false); return; }
       if (isSheetOpen) { setIsSheetOpen(false); return; }
       if (isLoginOpen) { setIsLoginOpen(false); return; }
     };
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
-  }, [editingTodo, isSettingsOpen, isProfileOpen, isCalendarOpen, isSheetOpen, isLoginOpen]);
+  }, [editingTodo, isProfileOpen, isCalendarOpen, isSheetOpen, isLoginOpen]);
   // ─────────────────────────────────────────────────────────────────────────
 
   const [weekOffset, setWeekOffset] = useState(0);
@@ -819,36 +769,12 @@ function App() {
 
   const deleteTodo = (id) => {
     setTodos(prev => prev.filter(t => t.id !== id));
-    if (expandedPlainTodoId === id) {
-      setExpandedPlainTodoId(null);
-      setExpandedPlainText('');
-    }
     setOpenSwipeId(null);
-  };
-
-  const closePlainEditor = () => {
-    setExpandedPlainTodoId(null);
-    setExpandedPlainText('');
-  };
-
-  const openPlainEditor = (todo) => {
-    setExpandedPlainTodoId(todo.id);
-    setExpandedPlainText(todo.text);
-    setOpenSwipeId(null);
-  };
-
-  const savePlainEditor = () => {
-    if (expandedPlainTodoId === null || !expandedPlainText.trim()) return;
-    setTodos(prev => prev.map(t =>
-      t.id === expandedPlainTodoId ? { ...t, text: expandedPlainText.trim() } : t
-    ));
-    closePlainEditor();
   };
 
 
 
   const openEdit = (todo) => {
-    closePlainEditor();
     setEditingTodo(todo);
     setEditText(todo.text);
     setOpenSwipeId(null);
@@ -1204,7 +1130,7 @@ function App() {
         <header className="header">
           <div className="avatar" onClick={() => {
             if (session) {
-              setIsProfileOpen(true);
+              openProfilePanel();
             } else {
               setIsLoginOpen(true);
             }
@@ -1305,7 +1231,6 @@ function App() {
                     const isMap = cType === 'map';
                     const isMeeting = cType === 'meeting';
                     const isPlain = cType === 'plain';
-                    const isPlainExpanded = isPlain && expandedPlainTodoId === todo.id;
 
                     let displayTitle = todo.text;
                     let displaySub = translations[language].actionItem;
@@ -1359,11 +1284,11 @@ function App() {
                         {/* The card itself */}
                         <div
                           id={`swipe-card-${todo.id}`}
-                          className={`task-card ${todo.completed ? 'completed' : ''} ${draggedTodoId === todo.id ? 'dragging' : ''} ${isPlainExpanded ? 'plain-expanded' : ''}`}
+                          className={`task-card ${todo.completed ? 'completed' : ''} ${draggedTodoId === todo.id ? 'dragging' : ''}`}
                           onClick={() => {
                             if (openSwipeId === todo.id) { closeSwipe(todo.id); return; }
                             if (isPlain) {
-                              if (!isPlainExpanded) openPlainEditor(todo);
+                              openEdit(todo);
                               return;
                             }
                             if (redirectUrl) {
@@ -1372,15 +1297,12 @@ function App() {
                               toggleTodo(todo.id);
                             }
                           }}
-                          draggable={!isPlainExpanded}
-                          onDragStart={(e) => {
-                            if (isPlainExpanded) return;
-                            handleDragStart(e, todo.id);
-                          }}
+                          draggable
+                          onDragStart={(e) => handleDragStart(e, todo.id)}
                           onDragEnd={handleDragEnd}
                           onDragOver={handleDragOver}
                           onDrop={(e) => handleDropOnTodo(e, todo)}
-                          {...(isPlainExpanded ? {} : getSwipeHandlers(todo.id))}
+                          {...getSwipeHandlers(todo.id)}
                         >
                           <div
                             className="task-icon-placeholder"
@@ -1392,38 +1314,8 @@ function App() {
                             <img src={cfg.icon} alt={cType} className="task-card-icon" style={{ position: 'relative', zIndex: 10 }} />
                           </div>
                           <div className="task-content">
-                            {isPlainExpanded ? (
-                              <>
-                                <textarea
-                                  ref={expandedPlainInputRef}
-                                  className="plain-task-editor"
-                                  value={expandedPlainText}
-                                  onChange={(e) => setExpandedPlainText(e.target.value)}
-                                  onClick={(e) => e.stopPropagation()}
-                                  onPointerDown={(e) => e.stopPropagation()}
-                                  onKeyDown={(e) => {
-                                    if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
-                                      e.preventDefault();
-                                      savePlainEditor();
-                                    }
-                                  }}
-                                  rows={3}
-                                />
-                                <div className="plain-task-actions" onClick={(e) => e.stopPropagation()}>
-                                  <button className="plain-task-btn secondary" onClick={closePlainEditor}>
-                                    Cancel
-                                  </button>
-                                  <button className="plain-task-btn primary" onClick={savePlainEditor}>
-                                    Save
-                                  </button>
-                                </div>
-                              </>
-                            ) : (
-                              <>
-                                <span className="task-title">{displayTitle}</span>
-                                <span className="task-desc">{displaySub}</span>
-                              </>
-                            )}
+                            <span className="task-title">{displayTitle}</span>
+                            <span className="task-desc">{displaySub}</span>
                           </div>
                         </div>
                       </div>
@@ -1616,131 +1508,109 @@ function App() {
 
         {/* Profile Modal */}
         {isProfileOpen && (
-          <div className={`backdrop modal-backdrop ${isClosingProfile ? 'fade-out' : ''}`} onClick={(e) => {
+          <div className={`backdrop modal-backdrop account-backdrop ${isClosingProfile ? 'fade-out' : ''}`} onClick={(e) => {
             if (e.target.classList.contains('backdrop')) closeProfile();
           }}>
             <div 
               className={`profile-modal ${isClosingProfile ? 'panel-exit' : 'panel-enter'}`}
-              onTouchStart={handleProfileTouchStart}
-              onTouchMove={handleProfileTouchMove}
-              onTouchEnd={handleProfileTouchEnd}
+              onTouchStart={handleAccountTouchStart}
+              onTouchMove={handleAccountTouchMove}
+              onTouchEnd={handleAccountTouchEnd}
             >
-              <button className="profile-close-btn" onClick={closeProfile}>
-                <X size={20} color="#111" />
-              </button>
-              <div className="profile-header">
-                <div className="profile-avatar-large">
-                  <img src={session?.user?.user_metadata?.avatar_url || 'https://lh3.googleusercontent.com/a/default-user=s64-c'} alt="Profile Large" />
-                  <div className="edit-badge">
-                    <svg width="11" height="11" viewBox="0 0 11 11" fill="none" xmlns="http://www.w3.org/2000/svg">
-                      <path d="M10.5974 0.402648C10.3395 0.144835 9.98979 0 9.62516 0C9.26052 0 8.91082 0.144835 8.65296 0.402648L8.04692 1.0087L9.9913 2.95308L10.5974 2.34703C10.8552 2.08918 11 1.73947 11 1.37484C11 1.01021 10.8552 0.660505 10.5974 0.402648ZM9.43554 3.50885L7.49115 1.56446L1.12685 7.92876C0.803581 8.25187 0.565942 8.65046 0.43542 9.08848L0.0163715 10.4949C-0.0038601 10.5628 -0.00536903 10.6349 0.0120044 10.7035C0.0293779 10.7722 0.0649875 10.8349 0.115066 10.8849C0.165143 10.935 0.227827 10.9706 0.296484 10.988C0.365141 11.0054 0.437217 11.0039 0.505087 10.9836L1.91152 10.5646C2.34954 10.4341 2.74813 10.1964 3.07124 9.87315L9.43554 3.50885Z" fill="white" />
-                    </svg>
-                  </div>
-                </div>
-                <h2 className="profile-name">{session?.user?.user_metadata?.full_name?.toUpperCase() || 'USER'}</h2>
-                <p className="profile-email">{session?.user?.email || ''}</p>
-              </div>
-
-              <div className="profile-menu">
-                <button className="menu-btn" onClick={() => setIsSettingsOpen(true)}>
-                  <div className="menu-btn-left">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
-                    <span>{translations[language].setting}</span>
-                  </div>
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+              <div className="profile-scroll" ref={profileScrollRef}>
+                <button className="profile-back-btn" onClick={closeProfile}>
+                  <ChevronLeft size={22} color="#111" />
                 </button>
-                <button className="menu-btn">
-                  <div className="menu-btn-left">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
-                    <span>{translations[language].helpFeedback}</span>
-                  </div>
-                </button>
-              </div>
 
-              <div className="profile-footer">
-                <button className="signout-btn" style={{ cursor: 'pointer', position: 'relative', zIndex: 100 }} onClick={async (e) => {
-                  e.stopPropagation();
-                  closeProfile();
-                  if (supabase) {
-                    await supabase.auth.signOut();
-                  }
-                }}>
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg>
-                  {translations[language].signOut}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Settings Modal */}
-        {isSettingsOpen && (
-          <div className={`backdrop modal-backdrop ${isClosingSettings ? 'fade-out' : ''}`} onClick={(e) => {
-            if (e.target.classList.contains('backdrop')) closeSettings();
-          }}>
-            <div 
-              className={`settings-modal ${isClosingSettings ? 'panel-exit' : 'panel-enter'}`}
-              onTouchStart={handleSettingsTouchStart}
-              onTouchMove={handleSettingsTouchMove}
-              onTouchEnd={handleSettingsTouchEnd}
-            >
-              <button className="settings-back-btn" onClick={closeSettings}>
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M15 18L9 12L15 6" />
-                </svg>
-              </button>
-
-              <div className="settings-panel">
-                <div className="settings-item-row" style={{ borderBottom: '1px solid #F0F0F0' }}>
-                  <div className="settings-item-left">
-                    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-                      <path d="M10 17.5C11.6625 17.4999 13.2779 16.9477 14.5925 15.93C15.9072 14.9124 16.8466 13.4869 17.2633 11.8775M10 17.5C8.33751 17.4999 6.72212 16.9477 5.40748 15.93C4.09284 14.9124 3.1534 13.4869 2.73667 11.8775M10 17.5C12.0708 17.5 13.75 14.1417 13.75 10C13.75 5.85833 12.0708 2.5 10 2.5M10 17.5C7.92917 17.5 6.25 14.1417 6.25 10C6.25 5.85833 7.92917 2.5 10 2.5M17.2633 11.8775C17.4175 11.2775 17.5 10.6483 17.5 10C17.5021 8.71009 17.1699 7.44166 16.5358 6.31833M17.2633 11.8775C15.041 13.1095 12.541 13.754 10 13.75C7.365 13.75 4.88917 13.0708 2.73667 11.8775M2.73667 11.8775C2.57896 11.2641 2.49944 10.6333 2.5 10C2.5 8.6625 2.85 7.40583 3.46417 6.31833M10 2.5C11.3302 2.49945 12.6366 2.8528 13.7852 3.5238C14.9337 4.19481 15.8831 5.15931 16.5358 6.31833M10 2.5C8.6698 2.49945 7.3634 2.8528 6.21484 3.5238C5.06628 4.19481 4.11692 5.15931 3.46417 6.31833M16.5358 6.31833C14.7214 7.88994 12.4004 8.75345 10 8.75C7.50167 8.75 5.21667 7.83333 3.46417 6.31833" stroke="black" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
-                    <span>{translations[language].language}</span>
-                  </div>
-                  <div className="language-dropdown-container">
-                    <div className="settings-item-right settings-item-right-clickable" onClick={() => setIsLanguageDropdownOpen(!isLanguageDropdownOpen)}>
-                      <span>{language === 'EN' ? 'EN' : language === 'ZH' ? '中文' : language === 'MS' ? 'MS' : language === 'JA' ? '日本語' : 'ไทย'}</span>
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#A0A4AB" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ transform: isLanguageDropdownOpen ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}>
-                        <polyline points="6 9 12 15 18 9"></polyline>
+                <div className="profile-header">
+                  <div className="profile-avatar-large">
+                    <img src={session?.user?.user_metadata?.avatar_url || 'https://lh3.googleusercontent.com/a/default-user=s64-c'} alt="Profile Large" />
+                    <div className="edit-badge">
+                      <svg width="11" height="11" viewBox="0 0 11 11" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M10.5974 0.402648C10.3395 0.144835 9.98979 0 9.62516 0C9.26052 0 8.91082 0.144835 8.65296 0.402648L8.04692 1.0087L9.9913 2.95308L10.5974 2.34703C10.8552 2.08918 11 1.73947 11 1.37484C11 1.01021 10.8552 0.660505 10.5974 0.402648ZM9.43554 3.50885L7.49115 1.56446L1.12685 7.92876C0.803581 8.25187 0.565942 8.65046 0.43542 9.08848L0.0163715 10.4949C-0.0038601 10.5628 -0.00536903 10.6349 0.0120044 10.7035C0.0293779 10.7722 0.0649875 10.8349 0.115066 10.8849C0.165143 10.935 0.227827 10.9706 0.296484 10.988C0.365141 11.0054 0.437217 11.0039 0.505087 10.9836L1.91152 10.5646C2.34954 10.4341 2.74813 10.1964 3.07124 9.87315L9.43554 3.50885Z" fill="white" />
                       </svg>
                     </div>
-                    {isLanguageDropdownOpen && (
-                      <div className="language-dropdown-menu">
-                        {['EN', 'ZH', 'MS', 'JA', 'TH'].map(lang => (
-                          <div key={lang} className={`language-option ${language === lang ? 'selected' : ''}`} onClick={() => { setLanguage(lang); setIsLanguageDropdownOpen(false); }}>
-                            <span>{lang === 'EN' ? 'EN' : lang === 'ZH' ? '中文' : lang === 'MS' ? 'MS' : lang === 'JA' ? '日本語' : 'ไทย'}</span>
-                            {language === lang && <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>}
-                          </div>
-                        ))}
+                  </div>
+                  <h2 className="profile-name">{session?.user?.user_metadata?.full_name?.toUpperCase() || 'USER'}</h2>
+                  <p className="profile-email">{session?.user?.email || ''}</p>
+                </div>
+
+                <div className="profile-settings-section">
+                  <div className="settings-panel profile-settings-panel">
+                    <div className="settings-item-row" style={{ borderBottom: '1px solid #F0F0F0' }}>
+                      <div className="settings-item-left">
+                        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                          <path d="M10 17.5C11.6625 17.4999 13.2779 16.9477 14.5925 15.93C15.9072 14.9124 16.8466 13.4869 17.2633 11.8775M10 17.5C8.33751 17.4999 6.72212 16.9477 5.40748 15.93C4.09284 14.9124 3.1534 13.4869 2.73667 11.8775M10 17.5C12.0708 17.5 13.75 14.1417 13.75 10C13.75 5.85833 12.0708 2.5 10 2.5M10 17.5C7.92917 17.5 6.25 14.1417 6.25 10C6.25 5.85833 7.92917 2.5 10 2.5M17.2633 11.8775C17.4175 11.2775 17.5 10.6483 17.5 10C17.5021 8.71009 17.1699 7.44166 16.5358 6.31833M17.2633 11.8775C15.041 13.1095 12.541 13.754 10 13.75C7.365 13.75 4.88917 13.0708 2.73667 11.8775M2.73667 11.8775C2.57896 11.2641 2.49944 10.6333 2.5 10C2.5 8.6625 2.85 7.40583 3.46417 6.31833M10 2.5C11.3302 2.49945 12.6366 2.8528 13.7852 3.5238C14.9337 4.19481 15.8831 5.15931 16.5358 6.31833M10 2.5C8.6698 2.49945 7.3634 2.8528 6.21484 3.5238C5.06628 4.19481 4.11692 5.15931 3.46417 6.31833M16.5358 6.31833C14.7214 7.88994 12.4004 8.75345 10 8.75C7.50167 8.75 5.21667 7.83333 3.46417 6.31833" stroke="black" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                        <span>{translations[language].language}</span>
                       </div>
-                    )}
+                      <div className="language-dropdown-container">
+                        <div className="settings-item-right settings-item-right-clickable" onClick={() => setIsLanguageDropdownOpen(!isLanguageDropdownOpen)}>
+                          <span>{language === 'EN' ? 'EN' : language === 'ZH' ? '中文' : language === 'MS' ? 'MS' : language === 'JA' ? '日本語' : 'ไทย'}</span>
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#A0A4AB" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ transform: isLanguageDropdownOpen ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}>
+                            <polyline points="6 9 12 15 18 9"></polyline>
+                          </svg>
+                        </div>
+                        {isLanguageDropdownOpen && (
+                          <div className="language-dropdown-menu">
+                            {['EN', 'ZH', 'MS', 'JA', 'TH'].map(lang => (
+                              <div key={lang} className={`language-option ${language === lang ? 'selected' : ''}`} onClick={() => { setLanguage(lang); setIsLanguageDropdownOpen(false); }}>
+                                <span>{lang === 'EN' ? 'EN' : lang === 'ZH' ? '中文' : lang === 'MS' ? 'MS' : lang === 'JA' ? '日本語' : 'ไทย'}</span>
+                                {language === lang && <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="settings-item-row">
+                      <div className="settings-item-left">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2"></path><path d="M12 20v2"></path><path d="M4.93 4.93l1.41 1.41"></path><path d="M17.66 17.66l1.41 1.41"></path><path d="M2 12h2"></path><path d="M20 12h2"></path><path d="M6.34 17.66l-1.41 1.41"></path><path d="M19.07 4.93l-1.41 1.41"></path></svg>
+                        <span>{translations[language].appearance}</span>
+                      </div>
+                      <div className="language-dropdown-container">
+                        <div className="settings-item-right settings-item-right-clickable" onClick={() => setIsAppearanceDropdownOpen(!isAppearanceDropdownOpen)}>
+                          <span>{appearance === 'light' ? translations[language].light : translations[language].dark}</span>
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#A0A4AB" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ transform: isAppearanceDropdownOpen ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}>
+                            <polyline points="6 9 12 15 18 9"></polyline>
+                          </svg>
+                        </div>
+                        {isAppearanceDropdownOpen && (
+                          <div className="language-dropdown-menu">
+                            {['light', 'dark'].map(mode => (
+                              <div key={mode} className={`language-option ${appearance === mode ? 'selected' : ''}`} onClick={() => { setAppearance(mode); setIsAppearanceDropdownOpen(false); }}>
+                                <span>{mode === 'light' ? translations[language].light : translations[language].dark}</span>
+                                {appearance === mode && <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
                   </div>
                 </div>
 
-                <div className="settings-item-row">
-                  <div className="settings-item-left">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2"></path><path d="M12 20v2"></path><path d="M4.93 4.93l1.41 1.41"></path><path d="M17.66 17.66l1.41 1.41"></path><path d="M2 12h2"></path><path d="M20 12h2"></path><path d="M6.34 17.66l-1.41 1.41"></path><path d="M19.07 4.93l-1.41 1.41"></path></svg>
-                    <span>{translations[language].appearance}</span>
-                  </div>
-                  <div className="language-dropdown-container">
-                    <div className="settings-item-right settings-item-right-clickable" onClick={() => setIsAppearanceDropdownOpen(!isAppearanceDropdownOpen)}>
-                      <span>{appearance === 'light' ? translations[language].light : translations[language].dark}</span>
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#A0A4AB" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ transform: isAppearanceDropdownOpen ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}>
-                        <polyline points="6 9 12 15 18 9"></polyline>
-                      </svg>
+                <div className="profile-menu">
+                  <button className="menu-btn">
+                    <div className="menu-btn-left">
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+                      <span>{translations[language].helpFeedback}</span>
                     </div>
-                    {isAppearanceDropdownOpen && (
-                      <div className="language-dropdown-menu">
-                        {['light', 'dark'].map(mode => (
-                          <div key={mode} className={`language-option ${appearance === mode ? 'selected' : ''}`} onClick={() => { setAppearance(mode); setIsAppearanceDropdownOpen(false); }}>
-                            <span>{mode === 'light' ? translations[language].light : translations[language].dark}</span>
-                            {appearance === mode && <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
+                  </button>
+                </div>
+
+                <div className="profile-footer">
+                  <button className="signout-btn" style={{ cursor: 'pointer', position: 'relative', zIndex: 100 }} onClick={async (e) => {
+                    e.stopPropagation();
+                    closeProfile();
+                    if (supabase) {
+                      await supabase.auth.signOut();
+                    }
+                  }}>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg>
+                    {translations[language].signOut}
+                  </button>
                 </div>
               </div>
             </div>
