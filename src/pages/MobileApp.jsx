@@ -4,7 +4,8 @@ import { subDays, addDays, format, isSameDay } from 'date-fns';
 import { SendIntent } from 'send-intent';
 import useKeyboardOffset from '../hooks/useKeyboardOffset';
 import useSwipeDownToClose from '../hooks/useSwipeDownToClose';
-import { supabase } from '../lib/supabase';
+import { useSyncedTodos } from '../todoSync';
+import { supabase } from '../supabase';
 import { cardTypeConfig } from '../lib/cardTypeConfig';
 import { getCurrentTimeBlock, getLogicalToday } from '../lib/dateHelpers';
 import { detectCardType, extractMapUrl, extractVideoUrl, fetchMapMeta, fetchVideoMeta } from '../lib/taskParsers';
@@ -33,6 +34,13 @@ const SheetPebbleIcon = () => (
 );
 
 const COMPOSER_MAX_LINES = 5;
+const SHARED_SELECTED_DATE_KEY = 'shared_selected_date';
+const DESKTOP_SECTION_TO_MOBILE_BLOCK = {
+  morning: 'Morning',
+  afternoon: 'Afternoon',
+  evening: 'Evening',
+  night: 'Night',
+};
 const DAY_SWIPE_CONFIG = {
   INTENT_THRESHOLD_PX: 12,
   HORIZONTAL_LOCK_RATIO: 1.2,
@@ -46,6 +54,7 @@ const DAY_SWIPE_CONFIG = {
 const DELETE_UNDO_DURATION_MS = 4500;
 const SWIPE_DELETE_MAX = 132;
 const SWIPE_DELETE_THRESHOLD = 92;
+const PENDING_DELETE_STORAGE_KEY = 'mobile_pending_deletes';
 const INITIAL_EDIT_MODAL_VIEWPORT = {
   baseHeight: 0,
   visibleHeight: 0,
@@ -53,6 +62,22 @@ const INITIAL_EDIT_MODAL_VIEWPORT = {
   keyboardInset: 0,
 };
 const modalSwipeTransform = (offsetY = 0) => `translateY(${offsetY}px)`;
+const parseSharedSelectedDate = (value) => {
+  if (!value) return null;
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) return null;
+  const [, year, month, day] = match;
+  const parsed = new Date(Number(year), Number(month) - 1, Number(day));
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+};
+const normalizeTodoRecord = (todo) => ({
+  ...todo,
+  text: todo.text || '',
+  completed: todo.completed ?? false,
+  dateString: todo.dateString || format(new Date(), 'yyyy-MM-dd'),
+  timeOfDay: todo.timeOfDay || DESKTOP_SECTION_TO_MOBILE_BLOCK[todo.section] || 'Morning',
+  cardType: todo.cardType || 'plain',
+});
 
 function MobileApp({ session, platformInfo }) {
   const { platform, isNativePlatform, isIOS, isAndroid } = platformInfo;
@@ -112,15 +137,10 @@ function MobileApp({ session, platformInfo }) {
     setCanExpandComposer(nextHeight > maxHeight + 1);
   }, [inputText, isComposerExpanded]);
 
-  // Day boundary is 06:00 AM — midnight–05:59 belongs to the previous calendar day.
-  const getLogicalToday = () => {
-    const now = new Date();
-    now.setHours(now.getHours() - 6);
-    now.setHours(0, 0, 0, 0);
-    return now;
-  };
-
-  const [selectedDate, setSelectedDate] = useState(() => getLogicalToday());
+  const [selectedDate, setSelectedDate] = useState(() => {
+    const savedDate = parseSharedSelectedDate(localStorage.getItem(SHARED_SELECTED_DATE_KEY));
+    return savedDate || getLogicalToday();
+  });
   const [currentTime, setCurrentTime] = useState(new Date());
 
   const [isSheetOpen, setIsSheetOpen] = useState(false);
@@ -206,6 +226,10 @@ function MobileApp({ session, platformInfo }) {
       window.cancelAnimationFrame(frame);
     };
   }, [isComposerExpanded]);
+
+  useEffect(() => {
+    localStorage.setItem(SHARED_SELECTED_DATE_KEY, format(selectedDate, 'yyyy-MM-dd'));
+  }, [selectedDate]);
 
   const { composerLift, sheetContentLift } = useKeyboardOffset({
     enabled: isSheetOpen,
@@ -816,17 +840,12 @@ function MobileApp({ session, platformInfo }) {
     }, durationMs);
   }, [anyOverlayOpen, daySwipeOffset, dayTransition, finishDayTransition, persistCurrentDayScroll, selectedDate]);
 
-  const [todos, setTodos] = useState(() => {
-    const saved = localStorage.getItem('todos');
-    if (saved) {
-      const parsed = JSON.parse(saved);
-      return parsed.map(t => ({ ...t, dateString: t.dateString || format(new Date(), 'yyyy-MM-dd') }));
-    } else {
-      return [];
-    }
+  const [todos, setTodos] = useSyncedTodos({
+    userId: session?.user?.id || null,
+    normalizeTodo: normalizeTodoRecord,
   });
   const [pendingDeletes, setPendingDeletes] = useState(() => {
-    const saved = localStorage.getItem('pendingDeletes');
+    const saved = localStorage.getItem(PENDING_DELETE_STORAGE_KEY);
     if (!saved) return [];
 
     try {
@@ -839,37 +858,24 @@ function MobileApp({ session, platformInfo }) {
       return [];
     }
   });
-  const todosRef = useRef(todos);
-  const pendingDeletesRef = useRef(pendingDeletes);
   const pendingDeleteTimersRef = useRef(new Map());
   const suppressCardClickRef = useRef(null);
   const suppressClickTimeoutRef = useRef(null);
 
   useEffect(() => {
-    todosRef.current = todos;
-  }, [todos]);
-
-  useEffect(() => {
-    pendingDeletesRef.current = pendingDeletes;
+    if (pendingDeletes.length > 0) {
+      localStorage.setItem(PENDING_DELETE_STORAGE_KEY, JSON.stringify(pendingDeletes));
+    } else {
+      localStorage.removeItem(PENDING_DELETE_STORAGE_KEY);
+    }
   }, [pendingDeletes]);
 
   useEffect(() => {
-    localStorage.setItem('todos', JSON.stringify(todos));
-    if (pendingDeletes.length > 0) {
-      localStorage.setItem('pendingDeletes', JSON.stringify(pendingDeletes));
-    } else {
-      localStorage.removeItem('pendingDeletes');
-    }
-  }, [pendingDeletes, todos]);
-
-  const getCurrentTimeBlock = () => {
-    const hour = currentTime.getHours();
-    if (hour >= 0 && hour < 6) return 'Midnight';
-    if (hour >= 6 && hour < 12) return 'Morning';
-    if (hour >= 12 && hour < 18) return 'Afternoon';
-    if (hour >= 18 && hour < 22) return 'Evening';
-    return 'Night';
-  };
+    setPendingDeletes((prev) => {
+      const next = prev.filter((item) => todos.some((todo) => todo.id === item.id));
+      return next.length === prev.length ? prev : next;
+    });
+  }, [todos]);
 
   const handleAddTodo = () => {
     if (!inputText.trim()) return;
@@ -940,39 +946,11 @@ function MobileApp({ session, platformInfo }) {
     }
   }, []);
 
-  const restoreDeletedTodo = useCallback((currentTodos, pendingDelete) => {
-    if (currentTodos.some((todo) => todo.id === pendingDelete.todo.id)) {
-      return currentTodos;
-    }
-
-    if (pendingDelete.nextId !== null) {
-      const nextIndex = currentTodos.findIndex((todo) => todo.id === pendingDelete.nextId);
-      if (nextIndex !== -1) {
-        const nextTodos = [...currentTodos];
-        nextTodos.splice(nextIndex, 0, pendingDelete.todo);
-        return nextTodos;
-      }
-    }
-
-    if (pendingDelete.previousId !== null) {
-      const previousIndex = currentTodos.findIndex((todo) => todo.id === pendingDelete.previousId);
-      if (previousIndex !== -1) {
-        const nextTodos = [...currentTodos];
-        nextTodos.splice(previousIndex + 1, 0, pendingDelete.todo);
-        return nextTodos;
-      }
-    }
-
-    const fallbackIndex = Math.max(0, Math.min(pendingDelete.fallbackIndex ?? currentTodos.length, currentTodos.length));
-    const nextTodos = [...currentTodos];
-    nextTodos.splice(fallbackIndex, 0, pendingDelete.todo);
-    return nextTodos;
-  }, []);
-
   const finalizePendingDelete = useCallback((id) => {
     clearPendingDeleteTimer(id);
     setPendingDeletes((prev) => prev.filter((item) => item.id !== id));
-  }, [clearPendingDeleteTimer]);
+    setTodos((prev) => prev.filter((todo) => todo.id !== id));
+  }, [clearPendingDeleteTimer, setTodos]);
 
   useEffect(() => {
     const now = Date.now();
@@ -1023,12 +1001,8 @@ function MobileApp({ session, platformInfo }) {
 
   const undoDeleteTodo = useCallback((id) => {
     clearPendingDeleteTimer(id);
-    const pendingDelete = pendingDeletesRef.current.find((item) => item.id === id);
-    if (!pendingDelete) return;
-
     setPendingDeletes((prev) => prev.filter((item) => item.id !== id));
-    setTodos((prev) => restoreDeletedTodo(prev, pendingDelete));
-  }, [clearPendingDeleteTimer, restoreDeletedTodo]);
+  }, [clearPendingDeleteTimer]);
 
   const lockTimelineScroll = useCallback(() => {
     const timelineEl = timelineRef.current;
@@ -1161,24 +1135,15 @@ function MobileApp({ session, platformInfo }) {
   }, [runAutoScroll, stopAutoScroll]);
 
   const deleteTodo = useCallback((id) => {
-    const currentTodos = todosRef.current;
-    const deleteIndex = currentTodos.findIndex((todo) => todo.id === id);
-    if (deleteIndex === -1) return;
-
-    const todoToDelete = currentTodos[deleteIndex];
-    const pendingDelete = {
+    const todoToDelete = todos.find((todo) => todo.id === id);
+    if (!todoToDelete) return;
+    clearPendingDeleteTimer(id);
+    setPendingDeletes((prev) => [...prev.filter((item) => item.id !== id), {
       id,
       todo: todoToDelete,
-      previousId: currentTodos[deleteIndex - 1]?.id ?? null,
-      nextId: currentTodos[deleteIndex + 1]?.id ?? null,
-      fallbackIndex: deleteIndex,
       expiresAt: Date.now() + DELETE_UNDO_DURATION_MS,
-    };
-
-    clearPendingDeleteTimer(id);
-    setTodos((prev) => prev.filter((todo) => todo.id !== id));
-    setPendingDeletes((prev) => [...prev.filter((item) => item.id !== id), pendingDelete]);
-  }, [clearPendingDeleteTimer]);
+    }]);
+  }, [clearPendingDeleteTimer, todos]);
 
 
 
@@ -1424,11 +1389,15 @@ function MobileApp({ session, platformInfo }) {
   const activePendingDelete = pendingDeletes.length > 0
     ? pendingDeletes[pendingDeletes.length - 1]
     : null;
+  const pendingDeleteIds = useMemo(
+    () => new Set(pendingDeletes.map((item) => item.id)),
+    [pendingDeletes],
+  );
 
   const getDayTodos = useCallback((date) => {
     const dateString = format(date, 'yyyy-MM-dd');
-    return todos.filter(t => t.dateString === dateString);
-  }, [todos]);
+    return todos.filter((t) => t.dateString === dateString && !pendingDeleteIds.has(t.id));
+  }, [pendingDeleteIds, todos]);
 
   const allChips = [
     { id: 'Now', key: 'now' },
@@ -1796,7 +1765,7 @@ function MobileApp({ session, platformInfo }) {
 
   useLayoutEffect(() => {
     scheduleOverlayRefresh();
-  }, [scheduleOverlayRefresh, selectedDate, dayTransition, secondaryOverlayBlockIds, todos]);
+  }, [scheduleOverlayRefresh, selectedDate, dayTransition, secondaryOverlayBlockIds, pendingDeleteIds, todos]);
 
   useEffect(() => {
     const handleViewportChange = () => scheduleOverlayRefresh();
