@@ -1,0 +1,182 @@
+.desktop-login {
+  min-height: 100vh;
+  background: #f8f7f5;
+  color: #171717;
+  display: flex;
+  flex-direction: column;
+}
+
+.desktop-login__header {
+  display: flex;
+  align-items: center;
+  padding: 18px 24px;
+}
+
+.desktop-login__brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.desktop-login__brand-icon {
+  width: 24px;
+  height: 21px;
+  flex-shrink: 0;
+}
+
+.desktop-login__brand-label {
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  color: #171717;
+}
+
+.desktop-login__main {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.desktop-login__panel {
+  width: 100%;
+  max-width: 700px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  transform: translateY(-28px);
+}
+
+.desktop-login__hero-mark {
+  margin-bottom: 10px;
+}
+
+.desktop-login__hero-image {
+  display: block;
+  width: 78px;
+  height: auto;
+  object-fit: contain;
+}
+
+.desktop-login__title {
+  margin: 0;
+  font-family: "LTC Bodoni 175", serif;
+  font-style: italic;
+  font-weight: 550;
+  font-size: 44px;
+  line-height: 53px;
+ 
+  color: #000000;
+}
+
+.desktop-login__description {
+  /* --- 保留原本的边距，避免和上面的标题贴得太近 --- */
+  margin: 0 0 0; 
+  
+  /* --- 以下是你提供的新字体样式 --- */
+  font-family: 'SF Pro', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-style: italic;
+  font-weight: 400;
+  font-size: 28px;
+  line-height: 33px;
+  color: #6F6F6F;
+}
+
+.desktop-login__actions {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-top: 38px;
+}
+
+.desktop-login__google-button {
+  min-width: 215px;
+  min-height: 46px;
+  padding: 0 22px;
+  border: 1px solid #ddd6ce;
+  border-radius: 14px;
+  background: #fbfaf8;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1;
+  color: #2a2a2a;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.7) inset;
+  transition: background-color 0.18s ease, border-color 0.18s ease, transform 0.18s ease;
+}
+
+.desktop-login__google-button:hover:not(:disabled) {
+  background: #ffffff;
+  border-color: #cfc6bd;
+}
+
+.desktop-login__google-button:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.desktop-login__google-button:disabled {
+  opacity: 0.72;
+  cursor: not-allowed;
+}
+
+.desktop-login__google-icon {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+}
+
+.desktop-login__spinner {
+  width: 20px;
+  height: 20px;
+  border: 2px solid rgba(23, 23, 23, 0.2);
+  border-top-color: #171717;
+  border-radius: 50%;
+  animation: desktop-login-spin 0.8s linear infinite;
+}
+
+.desktop-login__status {
+  width: 100%;
+  max-width: 320px;
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.desktop-login__status--error {
+  background: rgba(178, 34, 34, 0.08);
+  color: #8c1f1f;
+}
+
+.desktop-login__status--warning {
+  background: rgba(122, 90, 28, 0.1);
+  color: #6f5723;
+}
+
+@keyframes desktop-login-spin {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (max-width: 640px) {
+  .desktop-login__main {
+    padding: 20px;
+  }
+
+  .desktop-login__panel {
+    transform: translateY(-12px);
+  }
+}

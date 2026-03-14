@@ -156,7 +156,7 @@
   bottom: calc(env(safe-area-inset-bottom, 0px) + 20px);
   width: 56px;
   height: 56px;
-  display: none;
+  display: flex;
   align-items: center;
   justify-content: center;
   border: none;
@@ -438,6 +438,8 @@
   flex: 1;
   overflow-x: hidden;
   overflow-y: auto;
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
   display: flex;
   flex-direction: column;
@@ -840,7 +842,7 @@
 .timeline-area {
   flex: 1;
   overflow-y: auto;
-  padding-bottom: 0;
+  padding-bottom: calc(104px + env(safe-area-inset-bottom, 0px));
   background: white;
   overscroll-behavior-y: none;
   -ms-overflow-style: none;
@@ -859,6 +861,7 @@
   min-height: 240px;
   border-bottom: 1px solid #F0F0F0;
   position: relative;
+  align-items: stretch;
   z-index: 1; /* Base index */
 }
 
@@ -927,7 +930,7 @@
   flex-direction: column;
   gap: 12px;
   border-top: 1px solid #CBD5E1;
-  overflow-y: auto;
+  overflow: visible;
   -ms-overflow-style: none;
   /* IE and Edge */
   scrollbar-width: none;
