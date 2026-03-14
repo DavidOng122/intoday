@@ -1,6 +1,4 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { supabase, isSupabaseConfigured } from './supabase';
-import DesktopLogin from './DesktopLogin';
 
 // Inject Google Fonts and custom styles
 const GlobalStyles = () => {
@@ -670,7 +668,7 @@ const ProfileMenu = ({ isOpen, onClose }) => {
   );
 };
 
-const MainHeader = ({ onAddClick, profileOpen, onToggleProfile }) => (
+const MainHeader = ({ onAddClick, profileOpen, onToggleProfile, onCloseProfile }) => (
   <header style={{
     height: '96px', padding: '0 48px', borderBottom: '1px solid #f1f5f9',
     display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0
@@ -736,14 +734,12 @@ const MainHeader = ({ onAddClick, profileOpen, onToggleProfile }) => (
         q
       </div>
 
-      <ProfileMenu isOpen={profileOpen} onClose={() => setProfileOpen(false)} />
+      <ProfileMenu isOpen={profileOpen} onClose={onCloseProfile} />
     </div>
   </header>
 );
 
-const App = () => {
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
+const DesktopApp = () => {
   const [activeView, setActiveView] = useState('day');
   const [selectedWeekDay, setSelectedWeekDay] = useState(13);
   const [miniCalMonth, setMiniCalMonth] = useState(8); // September (0-indexed)
@@ -751,80 +747,6 @@ const App = () => {
   const [selectedMiniDay, setSelectedMiniDay] = useState(13);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
-
-  useEffect(() => {
-    // Safety timeout to prevent infinite loading screen
-    const timeout = setTimeout(() => {
-      setLoading(p => {
-        if (p) console.warn('Desktop Auth session fetch timed out');
-        return false;
-      });
-    }, 5000);
-
-    if (!supabase) {
-      setLoading(false);
-      clearTimeout(timeout);
-      return;
-    }
-
-    // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null);
-      setLoading(false);
-      clearTimeout(timeout);
-    }).catch(err => {
-      console.error('Error fetching desktop session:', err);
-      setLoading(false);
-      clearTimeout(timeout);
-    });
-
-    // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        setUser(session?.user ?? null);
-        setLoading(false);
-      }
-    );
-
-    return () => {
-      subscription.unsubscribe();
-      clearTimeout(timeout);
-    };
-  }, []);
-
-  if (loading) {
-    return (
-      <div style={{
-        width: '100vw',
-        height: '100vh',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        backgroundColor: '#FDFDFD',
-        fontFamily: "'Inter', sans-serif"
-      }}>
-        <div style={{
-          width: '40px',
-          height: '40px',
-          border: '4px solid #e2e8f0',
-          borderTop: '4px solid #e53e3e',
-          borderRadius: '50%',
-          animation: 'spin 1s linear infinite'
-        }}></div>
-        <style>{`
-          @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-          }
-        `}</style>
-      </div>
-    );
-  }
-
-  if (!user) {
-    return <DesktopLogin />;
-  }
-
   const handleMiniPrev = () => {
     if (miniCalMonth === 0) {
       setMiniCalMonth(11);
@@ -866,6 +788,7 @@ const App = () => {
             onAddClick={() => setIsModalOpen(true)}
             profileOpen={profileOpen}
             onToggleProfile={() => setProfileOpen((p) => !p)}
+            onCloseProfile={() => setProfileOpen(false)}
           />
 
           <WeekDayStrip selectedDay={selectedWeekDay} onDaySelect={setSelectedWeekDay} />
@@ -915,4 +838,4 @@ const App = () => {
   );
 };
 
-export default App;
+export default DesktopApp;

@@ -1,0 +1,293 @@
+.dark-theme .back-to-today-btn {
+  background: #FFFFFF;
+  color: #111111;
+}
+/* dark theme overrides for calendar picker */
+.dark-theme .sheet-calendar-picker .cal-picker-month-label,
+.dark-theme .sheet-calendar-picker .cal-picker-day {
+  color: var(--text-primary) !important;
+}
+
+.dark-theme .sheet-calendar-picker .cal-picker-day.selected {
+  background: #ED1F1F !important;
+  color: #FFFFFF !important;
+}
+
+.dark-theme .sheet-calendar-picker .cal-picker-day.today {
+  color: #ED1F1F !important;
+}
+
+.dark-theme .sheet-calendar-picker .cal-nav-btn {
+  background: var(--surface) !important;
+}
+
+
+
+/* ========================================================
+   DARK THEME OVERRIDES
+   ======================================================== */
+
+.dark-theme {
+  --bg-color: #121212;
+  --text-primary: #FFFFFF;
+  --text-secondary: #A0A0A0;
+  --card-bg: #1E1E1E;
+  --surface: #2C2C2C;
+  --divider: #333333;
+  --stroke: #FFFFFF;
+}
+
+.dark-theme.app-container {
+  background-color: var(--bg-color);
+}
+
+.dark-theme .header,
+.dark-theme .timeline-area,
+.dark-theme .bottom-sheet,
+.dark-theme .profile-modal,
+.dark-theme .sheet-input-area,
+.dark-theme .language-dropdown-menu,
+.dark-theme .task-card {
+  background: var(--card-bg) !important;
+  background-color: var(--card-bg) !important;
+  border-color: var(--divider) !important;
+}
+
+.dark-theme .input-wrapper {
+  background: #383838 !important;
+  border-color: #505050 !important;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.28);
+}
+
+.dark-theme .composer-expand-trigger {
+  background: rgba(255, 255, 255, 0.08) !important;
+  color: rgba(255, 255, 255, 0.72) !important;
+  box-shadow: none;
+}
+
+.dark-theme .expanded-composer-shell {
+  background: #2C2C2C !important;
+  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.32);
+}
+
+.dark-theme .task-card {
+  box-shadow: 0 2px 16px rgba(0, 0, 0, 0.4);
+}
+
+.dark-theme .header-title,
+.dark-theme .sheet-title,
+.dark-theme .task-title,
+.dark-theme .time-text,
+.dark-theme .profile-name,
+.dark-theme .settings-item-left,
+.dark-theme .language-option,
+.dark-theme .stat-pill,
+.dark-theme .stat-colon {
+  color: var(--text-primary) !important;
+  -webkit-text-stroke-color: var(--text-primary);
+}
+
+.dark-theme .stat-pill {
+  background-color: var(--surface);
+  border-color: var(--divider);
+}
+
+.dark-theme .task-desc,
+.dark-theme .day-name,
+.dark-theme .section-label,
+.dark-theme .sheet-time-summary,
+.dark-theme .profile-email,
+.dark-theme .settings-item-right span {
+  color: var(--text-secondary) !important;
+}
+
+.dark-theme .day-date {
+  color: var(--text-primary) !important;
+}
+
+.dark-theme .day-date.active {
+  color: #FFF !important;
+}
+
+.dark-theme .calendar-strip {
+  background-color: #131313;
+  border-top: 1px solid #222222;
+}
+
+.dark-theme .day-col .day-name,
+.dark-theme .day-col .day-date {
+  color: #FFFFFF !important;
+}
+
+.dark-theme .day-col .day-name.past,
+.dark-theme .day-col .day-date.past {
+  color: #4B4B53 !important;
+}
+
+.dark-theme .day-col .day-name.active {
+  color: #FFFFFF !important;
+}
+
+.dark-theme .day-col .day-date.active {
+  color: #FFFFFF !important;
+  background: #E84D3D;
+}
+
+.dark-theme .chip,
+.dark-theme .add-circle-btn,
+.dark-theme .profile-back-btn,
+.dark-theme .menu-btn,
+.dark-theme .add-btn,
+.dark-theme .sheet-close {
+  background: var(--surface) !important;
+  color: var(--text-primary) !important;
+  border-color: var(--divider) !important;
+}
+
+.dark-theme .chip.active {
+  background: #ED1F1F !important;
+  color: #FFFFFF !important;
+}
+
+.dark-theme .sheet-time-summary-pill {
+  background: #333333 !important;
+  border-color: #454545 !important;
+  color: var(--text-primary) !important;
+}
+
+.dark-theme .composer-shell {
+  background: transparent !important;
+  border-color: transparent !important;
+  box-shadow: none;
+}
+
+.dark-theme .sheet-input-area {
+  background: linear-gradient(180deg, rgba(30, 30, 30, 0) 0%, var(--card-bg) 22%, var(--card-bg) 100%);
+}
+
+.dark-theme .language-dropdown-menu {
+  background: #444444 !important;
+  border-color: #555555 !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+.dark-theme .language-option {
+  color: var(--text-primary) !important;
+}
+
+.dark-theme .language-option:hover {
+  background: var(--surface) !important;
+}
+
+.dark-theme .language-option.selected {
+  background: var(--surface) !important;
+}
+
+.dark-theme .settings-panel {
+  background: #444444 !important;
+}
+
+.dark-theme .settings-item-row {
+  border-color: var(--divider) !important;
+}
+
+.dark-theme .tasks-col {
+  border-color: var(--divider) !important;
+}
+
+.dark-theme .time-col {
+  border-color: var(--divider) !important;
+}
+
+.dark-theme .calendar-strip {
+  border-color: var(--divider) !important;
+}
+
+.dark-theme .sheet-title-icon path[fill="black"],
+.dark-theme svg[stroke="black"],
+.dark-theme svg path[stroke="black"],
+.dark-theme svg[fill="black"],
+.dark-theme svg path[fill="black"] {
+  stroke: var(--stroke);
+  fill: var(--stroke);
+}
+
+/* exception to fill=black override where we want stroke instead */
+.dark-theme svg path[fill="black"][stroke="none"] {
+  fill: var(--stroke);
+  stroke: none;
+}
+
+.dark-theme .submit-btn {
+  background: #111111 !important;
+  color: #FFFFFF !important;
+}
+
+.dark-theme .submit-btn svg {
+  stroke: #FFFFFF !important;
+}
+
+.dark-theme .task-input {
+  color: var(--text-primary) !important;
+}
+
+.dark-theme .expanded-task-input {
+  color: var(--text-primary) !important;
+}
+
+.dark-theme .signout-btn {
+  background: var(--surface) !important;
+}
+
+.dark-theme .add-btn {
+  background: var(--surface) !important;
+  border-color: var(--divider) !important;
+  box-shadow: none !important;
+}
+
+.dark-theme .mobile-fab {
+  background: #FFFFFF !important;
+  color: #111111 !important;
+  border-color: #D9D9D9 !important;
+  box-shadow: 0 14px 28px rgba(0, 0, 0, 0.18);
+}
+
+.dark-theme .profile-back-btn,
+.dark-theme .settings-close-btn {
+  background: #595959;
+  border: none;
+}
+
+.dark-theme.platform-android .profile-back-btn {
+  background: transparent;
+}
+.dark-theme .edit-modal {
+  background: #2C2C2E !important;
+}
+
+.dark-theme .edit-modal-title {
+  color: var(--text-primary) !important;
+}
+
+.dark-theme .edit-modal-close {
+  background: #444444 !important;
+}
+
+.dark-theme .edit-modal-close svg {
+  stroke: var(--text-primary) !important;
+}
+
+.dark-theme .edit-modal-textarea {
+  background: #000000 !important;
+  color: var(--text-primary) !important;
+}
+
+.dark-theme .edit-modal-textarea:focus {
+  background: #111111 !important;
+}
+
+.dark-theme .edit-modal-save-btn {
+  background: white !important;
+  color: black !important;
+}
+

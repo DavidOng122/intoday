@@ -13,9 +13,6 @@
   flex-direction: column;
 }
 
-.app-container.platform-android {
-  box-shadow: none;
-}
 /* TOP HEADER */
 .header {
   display: flex;
@@ -28,14 +25,6 @@
   z-index: 10;
 }
 
-.app-container.platform-ios .header {
-  padding-top: 10px;
-}
-
-.app-container.platform-android .header {
-  padding: 8px 16px 10px;
-  min-height: 56px;
-}
 .header-side {
   display: flex;
   align-items: center;
@@ -81,13 +70,6 @@
   min-height: 42px;
 }
 
-.header-center-android {
-  align-items: flex-start;
-}
-
-.app-container.platform-android .header-sub-row {
-  justify-content: flex-start;
-}
 .header-title {
   font-family: inherit;
   display: flex;
@@ -177,11 +159,11 @@
   display: none;
   align-items: center;
   justify-content: center;
-  border: 1px solid #D9D9D9;
+  border: none;
   border-radius: 50%;
-  background: #FFFFFF;
-  color: #111111;
-  box-shadow: 0 14px 28px rgba(0, 0, 0, 0.14);
+  background: linear-gradient(180deg, #FF4B4B 0%, #ED1F1F 100%);
+  color: #FFFFFF;
+  box-shadow: 0 18px 36px rgba(237, 31, 31, 0.3);
   z-index: 30;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
@@ -197,7 +179,7 @@
 
 .mobile-fab:active {
   transform: translateY(1px) scale(0.97);
-  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.12);
+  box-shadow: 0 12px 24px rgba(237, 31, 31, 0.24);
 }
 
 @media (max-width: 767px) {
@@ -214,7 +196,7 @@
     display: block;
   }
 
-  .header-add-btn {
+  .desktop-add-btn {
     display: none;
   }
 
@@ -222,9 +204,6 @@
     display: flex;
   }
 
-  .app-container:not(.platform-android) .mobile-fab {
-    display: none;
-  }
   .timeline-area {
     padding-bottom: calc(104px + env(safe-area-inset-bottom, 0px));
   }
@@ -301,7 +280,15 @@
   background-color: #ED1F1F;
 }
 
-/* Day switching should feel like a pure horizontal replacement with no fade. */
+/* Timeline fade-in on day switch */
+.timeline-fade {
+  animation: fadeContent 0.22s ease;
+}
+
+@keyframes fadeContent {
+  from { opacity: 0; transform: translateY(5px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
 
 /* Modal backdrop — light dim */
 .modal-backdrop {
@@ -409,13 +396,6 @@
   animation: slideUpCentered 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.sheet-backdrop-android .bottom-sheet {
-  left: 0;
-  right: 0;
-  width: 100%;
-  transform: none;
-  animation: slideUp 0.28s cubic-bezier(0.2, 0, 0, 1);
-}
 /* BOTTOM SHEET */
 .bottom-sheet {
   width: 100%;
@@ -435,15 +415,6 @@
   touch-action: auto;
 }
 
-.bottom-sheet-android {
-  max-width: 430px;
-  border-radius: 28px 28px 0 0;
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.18);
-}
-
-.bottom-sheet-ios {
-  border-radius: 38px 38px 0 0;
-}
 .sheet-close {
   position: absolute;
   top: 22px;
@@ -462,13 +433,6 @@
   backdrop-filter: blur(8px);
 }
 
-.app-container.platform-android .sheet-close {
-  top: 16px;
-  right: 16px;
-  background: #f3f4f6;
-  border-color: #e5e7eb;
-  box-shadow: none;
-}
 .sheet-content {
   padding: 36px 32px 182px;
   flex: 1;
@@ -689,10 +653,6 @@
   right: 0;
 }
 
-.app-container.platform-android .sheet-input-area {
-  padding: 12px 16px calc(16px + env(safe-area-inset-bottom));
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0) 0%, rgba(255, 255, 255, 0.96) 22%, #FFFFFF 100%);
-}
 .composer-frame {
   width: min(100%, 382px);
   display: block;
@@ -713,9 +673,6 @@
   pointer-events: auto;
 }
 
-.app-container.platform-android .composer-frame.expanded {
-  top: calc(env(safe-area-inset-top) + 4px);
-}
 .composer-expand-trigger {
   width: 32px;
   height: 32px;
@@ -890,42 +847,11 @@
   /* IE and Edge */
   scrollbar-width: none;
   /* Firefox */
-  position: relative;
-  overflow-x: hidden;
 }
 
 .timeline-area::-webkit-scrollbar {
   display: none;
   /* Chrome, Safari and Opera */
-}
-
-.timeline-stage {
-  position: relative;
-  min-height: 100%;
-  overflow: hidden;
-  width: 100%;
-}
-
-.timeline-panel {
-  width: 100%;
-  min-height: 100%;
-  background: inherit;
-  backface-visibility: hidden;
-  transform: translateZ(0);
-}
-
-.timeline-panel-current,
-.timeline-panel-incoming {
-  position: absolute;
-  inset: 0;
-}
-
-.timeline-panel-animating {
-  transition: transform 250ms cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-.timeline-swiping .timeline-panel {
-  will-change: transform;
 }
 
 .time-block {
@@ -1007,11 +933,6 @@
   scrollbar-width: none;
   /* Firefox */
   transition: background 0.2s;
-}
-
-.tasks-col-swipe-enabled {
-  touch-action: pan-y;
-  user-select: none;
 }
 
 .tasks-col.drag-over {
@@ -1345,13 +1266,6 @@ body.is-dragging-global .time-block {
   will-change: transform;
 }
 
-.profile-modal-android {
-  border-radius: 0;
-}
-
-.profile-modal-ios {
-  border-radius: 0;
-}
 .profile-scroll {
   position: relative;
   min-height: 100%;
@@ -1382,11 +1296,6 @@ body.is-dragging-global .time-block {
   z-index: 20;
 }
 
-.app-container.platform-android .profile-back-btn {
-  top: calc(env(safe-area-inset-top, 0px) + 8px);
-  left: 16px;
-  background: transparent;
-}
 .profile-back-btn:active {
   background: #E4E4E5;
 }
@@ -2081,6 +1990,11 @@ body.is-dragging-global .time-block {
   background: var(--surface) !important;
 }
 
+.dark-theme .add-btn,
+.dark-theme .mobile-fab {
+  color: #FFFFFF !important;
+}
+
 .dark-theme .add-btn {
   background: var(--surface) !important;
   border-color: var(--divider) !important;
@@ -2088,10 +2002,9 @@ body.is-dragging-global .time-block {
 }
 
 .dark-theme .mobile-fab {
-  background: #FFFFFF !important;
-  color: #111111 !important;
-  border-color: #D9D9D9 !important;
-  box-shadow: 0 14px 28px rgba(0, 0, 0, 0.18);
+  background: linear-gradient(180deg, #FF5B5B 0%, #ED1F1F 100%) !important;
+  border-color: transparent !important;
+  box-shadow: 0 18px 36px rgba(237, 31, 31, 0.26);
 }
 
 .dark-theme .profile-back-btn,
@@ -2100,9 +2013,6 @@ body.is-dragging-global .time-block {
   border: none;
 }
 
-.dark-theme.platform-android .profile-back-btn {
-  background: transparent;
-}
 .dark-theme .edit-modal {
   background: #2C2C2E !important;
 }

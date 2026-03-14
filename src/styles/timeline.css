@@ -1,0 +1,444 @@
+/* ========================================================
+   TIMELINE LIST AREA 
+   ======================================================== */
+.timeline-area {
+  flex: 1;
+  overflow-y: auto;
+  padding-bottom: 0;
+  background: white;
+  overscroll-behavior-y: none;
+  -ms-overflow-style: none;
+  /* IE and Edge */
+  scrollbar-width: none;
+  /* Firefox */
+  position: relative;
+  overflow-x: hidden;
+}
+
+.timeline-area::-webkit-scrollbar {
+  display: none;
+  /* Chrome, Safari and Opera */
+}
+
+.timeline-stage {
+  position: relative;
+  min-height: 100%;
+  overflow: hidden;
+  width: 100%;
+}
+
+.timeline-panel {
+  width: 100%;
+  min-height: 100%;
+  background: inherit;
+  backface-visibility: hidden;
+  transform: translateZ(0);
+}
+
+.timeline-panel-current,
+.timeline-panel-incoming {
+  position: absolute;
+  inset: 0;
+}
+
+.timeline-panel-animating {
+  transition: transform 250ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.timeline-swiping .timeline-panel {
+  will-change: transform;
+}
+
+.time-block {
+  display: flex;
+  min-height: 240px;
+  border-bottom: 1px solid #F0F0F0;
+  position: relative;
+  z-index: 1; /* Base index */
+}
+
+/* Must elevate the z-index of the block containing the dragging card 
+   so it renders ON TOP of sibling blocks that come after it (e.g. Morning over Night) */
+.time-block.is-dragging-parent {
+  z-index: 999;
+}
+
+.time-col {
+  width: 72px;
+  border-right: 1px solid #F0F0F0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 24px 0;
+  position: relative;
+  flex-shrink: 0;
+}
+
+.time-pill {
+  width: 54px;
+  height: 16px;
+  font-size: 7.5px;
+  letter-spacing: -0.3px;
+  font-family: "LTC Bodoni 175", serif;
+  font-style: italic;
+  font-weight: 700;
+  line-height: 16px;
+  white-space: nowrap;
+  overflow: hidden;
+  border-radius: 8px;
+  margin-bottom: 8px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.time-text {
+  font-family: "SF Pro", -apple-system, sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  color: #333;
+}
+
+.time-text.bottom {
+  margin-top: auto;
+}
+
+/* Pin Image Time Indicator */
+.current-time-indicator-wrapper {
+  position: absolute;
+  right: 0px;
+  width: auto;
+  height: 8px;
+  object-fit: contain;
+  z-index: 2;
+  transition: top 1000ms linear;
+  pointer-events: none;
+}
+
+.tasks-col {
+  flex: 1;
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  border-top: 1px solid #CBD5E1;
+  overflow-y: auto;
+  -ms-overflow-style: none;
+  /* IE and Edge */
+  scrollbar-width: none;
+  /* Firefox */
+  transition: background 0.2s;
+}
+
+.tasks-col-swipe-enabled {
+  touch-action: pan-y;
+  user-select: none;
+}
+
+.tasks-col.drag-over {
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.03);
+}
+
+.tasks-col::-webkit-scrollbar {
+  display: none;
+  /* Chrome, Safari and Opera */
+}
+
+/* Allow cards to float freely over sibling task containers while keeping the
+   drag gesture under app control. */
+body.is-dragging-global .timeline-area.drag-scroll-locked {
+  overflow-y: auto !important;
+  overscroll-behavior: none;
+  touch-action: none;
+}
+
+body.is-dragging-global .tasks-col,
+body.is-dragging-global .time-col,
+body.is-dragging-global .time-block {
+  overflow: visible !important;
+}
+
+/* Hide bottom border for the last tasks col to avoid double borders, handled by flex layout visually but just in case */
+
+/* ========================================================
+   SWIPE ACTIONS
+   ======================================================== */
+.swipe-wrapper {
+  position: relative;
+  overflow: hidden;
+  border-radius: 11px;
+}
+
+/* Card must fill full width so it covers the action buttons behind it */
+.swipe-wrapper .task-card {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.swipe-actions {
+  position: absolute;
+  top: 0;
+  right: 0;
+  height: 100%;
+  width: 136px;
+  display: flex;
+  align-items: stretch;
+  border-radius: 0 11px 11px 0;
+  overflow: hidden;
+  /* Buttons sit behind the card. JS will inject inline opacity and transform for the reveal. */
+  opacity: 0;
+  transform: translateX(20px);
+  transition: opacity 0.18s ease, transform 0.18s ease;
+  pointer-events: none;
+}
+
+/* Buttons become tappable once card is fully swiped open */
+.swipe-wrapper.swipe-open .swipe-actions {
+  opacity: 1;
+  transform: translateX(0);
+  pointer-events: auto;
+}
+
+.swipe-btn {
+  flex: 1;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: opacity 0.15s;
+}
+
+.swipe-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px; /* Adds space inside the circle for the image */
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
+.swipe-btn:active { opacity: 0.75; }
+
+.swipe-btn.edit .swipe-icon {
+  background: #F0F0F3;
+}
+
+.swipe-btn.delete .swipe-icon {
+  background: #FFD9D9;
+}
+
+/* Drag placeholder — shown at the original position during drag */
+.swipe-wrapper.is-dragging {
+  min-height: 60px;
+  border-radius: 11px;
+  background: transparent;
+  /* Crucial: allow the card to be seen when dragged outside the wrapper bounds */
+  overflow: visible;
+}
+.swipe-wrapper.is-dragging .swipe-actions,
+.swipe-wrapper:has(.dragging) .swipe-actions {
+  pointer-events: none;
+  opacity: 0;
+  display: none !important;
+}
+
+/* Edit Modal (Bottom Aligned) */
+.edit-modal {
+  position: absolute;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: calc(100% - 48px);
+  max-width: 382px;
+  background: white;
+  border-radius: 32px;
+  padding: 24px 24px;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.12);
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  animation: editModalSlideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes editModalSlideUp {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(40px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0) scale(1);
+  }
+}
+
+.edit-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
+
+.edit-modal-title {
+  font-family: "LTC Bodoni 175", serif;
+  font-style: italic;
+  font-weight: 700;
+  font-size: 28px;
+  color: black;
+  margin: 0;
+  line-height: 1;
+}
+
+.edit-modal-close {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: #F4F4F4;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  transition: background 0.2s;
+}
+
+.edit-modal-close:active {
+  background: #EBEBEB;
+}
+
+.edit-modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.edit-modal-textarea {
+  width: 100%;
+  min-height: 130px;
+  border: none;
+  background: #F4F4F4;
+  border-radius: 16px;
+  padding: 16px;
+  font-size: 16px;
+  line-height: 1.5;
+  color: #111;
+  resize: none;
+  outline: none;
+  font-family: inherit;
+}
+
+.edit-modal-textarea:focus {
+  background: #EBEBEB;
+}
+
+.edit-modal-save-btn {
+  width: 100%;
+  padding: 16px;
+  background: #111;
+  color: white;
+  border: none;
+  border-radius: 16px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.edit-modal-save-btn:active {
+  opacity: 0.8;
+}
+
+
+.task-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  background: #FFFFFF;
+  border-radius: 11px;
+  box-shadow: 0 2px 16px rgba(0, 0, 0, 0.03);
+  border: 2px solid #F2F2F2;
+  transition: transform 0.2s, background-color 0.2s;
+  cursor: pointer;
+  position: relative;
+  z-index: 2;
+  touch-action: none;
+}
+
+.task-card:active {
+  transform: scale(0.98);
+}
+
+.task-card.completed {
+  opacity: 0.5;
+}
+
+.task-card.completed .task-title {
+  text-decoration: line-through;
+  color: var(--text-secondary);
+}
+
+.task-icon-placeholder {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.task-card-icon {
+  width: 18px;
+  height: 18px;
+  object-fit: contain;
+}
+
+.task-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.task-card.dragging {
+  transition: none !important;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.12);
+  border-color: #E2E2E2;
+  opacity: 0.95;
+  transform: scale(1.04);
+  will-change: transform;
+}
+
+.task-title {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  word-break: break-word;
+  color: #181818;
+  font-family: "SF Pro", -apple-system, sans-serif;
+  font-size: 13px;
+  font-style: normal;
+  font-weight: 590;
+  line-height: 20px;
+}
+
+.task-desc {
+  color: #8E8E93;
+  font-family: "SF Pro", -apple-system, sans-serif;
+  font-size: 11px;
+  font-weight: 400;
+  line-height: normal;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+

@@ -1,0 +1,29 @@
+:root {
+  --primary: #FF3B30;
+  --bg-color: #FEFDFC;
+  --text-primary: #111111;
+  --text-secondary: #8E8E93;
+  --divider: #E5E5EA;
+  --sheet-bg: #FFFFFF;
+  --card-bg: #FFFFFF;
+  --surface: #F7F7F7;
+  --stroke: #111111;
+  --font-sans: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --font-serif: 'Playfair Display', 'Georgia', serif;
+  --radius-sm: 12px;
+  --radius-md: 16px;
+  --radius-lg: 24px;
+  --radius-xl: 38px;
+  --shadow-sm: 0 1px 4px rgba(0, 0, 0, 0.08);
+  --shadow-md: 0 12px 28px rgba(17, 17, 17, 0.06);
+  --shadow-lg: 0 18px 56px rgba(22, 18, 13, 0.12);
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --app-safe-top: env(safe-area-inset-top, 0px);
+  --app-safe-left: env(safe-area-inset-left, 0px);
+  --app-safe-right: env(safe-area-inset-right, 0px);
+}
