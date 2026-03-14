@@ -476,7 +476,9 @@ function MobileApp({ session, platformInfo }) {
   const dayRefs = React.useRef({});
   const timelineRef = React.useRef(null);
   const overlayLabelRefs = React.useRef({});
+  const overlayLabelStateRef = React.useRef({});
   const overlayUpdateFrameRef = React.useRef(null);
+  const overlayAnimationFrameRef = React.useRef(null);
   const timelineLabelsVisibleRef = React.useRef(false);
   const timelineLabelsHideTimeoutRef = React.useRef(null);
   const dayScrollPositionsRef = React.useRef({});
@@ -515,15 +517,63 @@ function MobileApp({ session, platformInfo }) {
     if (overlayUpdateFrameRef.current) {
       window.cancelAnimationFrame(overlayUpdateFrameRef.current);
     }
+    if (overlayAnimationFrameRef.current) {
+      window.cancelAnimationFrame(overlayAnimationFrameRef.current);
+    }
     if (timelineLabelsHideTimeoutRef.current) {
       window.clearTimeout(timelineLabelsHideTimeoutRef.current);
     }
   }, []);
 
+  const animateOverlayLabels = useCallback(() => {
+    let shouldContinue = false;
+
+    timeBlocks.forEach((block) => {
+      const labelEl = overlayLabelRefs.current[block.id];
+      const state = overlayLabelStateRef.current[block.id];
+      if (!labelEl || !state) return;
+
+      if (state.targetVisible) {
+        if (!Number.isFinite(state.currentY)) {
+          state.currentY = state.targetY;
+        } else {
+          state.currentY += (state.targetY - state.currentY) * 0.24;
+          if (Math.abs(state.targetY - state.currentY) < 0.25) {
+            state.currentY = state.targetY;
+          } else {
+            shouldContinue = true;
+          }
+        }
+
+        labelEl.style.transform = `translate3d(-50%, ${state.currentY}px, 0)`;
+      }
+
+      labelEl.style.opacity = state.targetVisible ? '0.96' : '0';
+    });
+
+    if (shouldContinue) {
+      overlayAnimationFrameRef.current = window.requestAnimationFrame(animateOverlayLabels);
+    } else {
+      overlayAnimationFrameRef.current = null;
+    }
+  }, []);
+
+  const ensureOverlayAnimation = useCallback(() => {
+    if (overlayAnimationFrameRef.current) return;
+    overlayAnimationFrameRef.current = window.requestAnimationFrame(animateOverlayLabels);
+  }, [animateOverlayLabels]);
+
   const hideTimelineLabels = useCallback(() => {
     timelineLabelsVisibleRef.current = false;
-    Object.values(overlayLabelRefs.current).forEach((labelEl) => {
-      labelEl.style.opacity = '0';
+    timeBlocks.forEach((block) => {
+      const state = overlayLabelStateRef.current[block.id] || {};
+      state.targetVisible = false;
+      state.wasVisible = false;
+      overlayLabelStateRef.current[block.id] = state;
+      const labelEl = overlayLabelRefs.current[block.id];
+      if (labelEl) {
+        labelEl.style.opacity = '0';
+      }
     });
   }, []);
 
@@ -541,7 +591,8 @@ function MobileApp({ session, platformInfo }) {
 
     const shellRect = timelineShellEl.getBoundingClientRect();
     const overlayOffset = 12;
-    const visibilityInset = 6;
+    const enterInset = 8;
+    const exitBuffer = 24;
     const activeBlocks = new Map();
 
     timelineEl.querySelectorAll('.time-block[data-overlay-source="true"]').forEach((blockEl) => {
@@ -553,30 +604,42 @@ function MobileApp({ session, platformInfo }) {
     timeBlocks.forEach((block) => {
       const labelEl = overlayLabelRefs.current[block.id];
       const blockEl = activeBlocks.get(block.id);
+      const state = overlayLabelStateRef.current[block.id] || {
+        currentY: Number.NaN,
+        targetY: 0,
+        targetVisible: false,
+        wasVisible: false,
+      };
+      overlayLabelStateRef.current[block.id] = state;
 
       if (!labelEl || !blockEl) {
-        if (labelEl) {
-          labelEl.style.opacity = '0';
-          labelEl.style.transform = 'translate3d(-50%, -9999px, 0)';
-        }
+        state.targetVisible = false;
+        state.wasVisible = false;
         return;
       }
 
       const rect = blockEl.getBoundingClientRect();
-      const visible = rect.bottom > shellRect.top + visibilityInset
-        && rect.top < shellRect.bottom - visibilityInset;
+      const visible = state.wasVisible
+        ? rect.bottom > shellRect.top - exitBuffer && rect.top < shellRect.bottom + exitBuffer
+        : rect.bottom > shellRect.top + enterInset && rect.top < shellRect.bottom - enterInset;
 
       if (!visible) {
-        labelEl.style.opacity = '0';
-        labelEl.style.transform = 'translate3d(-50%, -9999px, 0)';
+        state.targetVisible = false;
+        state.wasVisible = false;
         return;
       }
 
       const y = Math.max(overlayOffset, rect.top - shellRect.top + overlayOffset);
-      labelEl.style.opacity = '0.96';
-      labelEl.style.transform = `translate3d(-50%, ${y}px, 0)`;
+      state.targetY = y;
+      state.targetVisible = true;
+      state.wasVisible = true;
+      if (!Number.isFinite(state.currentY)) {
+        state.currentY = y;
+      }
     });
-  }, [hideTimelineLabels]);
+
+    ensureOverlayAnimation();
+  }, [ensureOverlayAnimation, hideTimelineLabels]);
 
   const scheduleOverlayRefresh = useCallback(() => {
     if (overlayUpdateFrameRef.current) {
@@ -589,7 +652,7 @@ function MobileApp({ session, platformInfo }) {
     });
   }, [refreshVisibleTimeBlockLabels]);
 
-  const scheduleHideTimelineLabels = useCallback((delay = 240) => {
+  const scheduleHideTimelineLabels = useCallback((delay = 900) => {
     if (timelineLabelsHideTimeoutRef.current) {
       window.clearTimeout(timelineLabelsHideTimeoutRef.current);
     }
@@ -599,7 +662,7 @@ function MobileApp({ session, platformInfo }) {
     }, delay);
   }, [hideTimelineLabels]);
 
-  const activateTimelineLabels = useCallback((delay = 240) => {
+  const activateTimelineLabels = useCallback((delay = 900) => {
     timelineLabelsVisibleRef.current = true;
     scheduleOverlayRefresh();
     scheduleHideTimelineLabels(delay);
@@ -620,7 +683,7 @@ function MobileApp({ session, platformInfo }) {
     dayScrollPositionsRef.current[format(selectedDate, 'yyyy-MM-dd')] = timelineEl.scrollTop;
     if (timelineLabelsVisibleRef.current) {
       scheduleOverlayRefresh();
-      scheduleHideTimelineLabels(220);
+      scheduleHideTimelineLabels(1100);
     }
   }, [scheduleHideTimelineLabels, scheduleOverlayRefresh, selectedDate]);
 
@@ -1397,7 +1460,7 @@ function MobileApp({ session, platformInfo }) {
   const handleDaySwipePointerDown = useCallback((e) => {
     if (!isCoarsePointer || anyOverlayOpen || dayTransition || !e.isPrimary || e.pointerType !== 'touch') return;
     if (e.currentTarget !== e.target) return;
-    activateTimelineLabels(260);
+    activateTimelineLabels(1200);
 
     daySwipeStateRef.current = {
       pointerId: e.pointerId,
@@ -1415,7 +1478,7 @@ function MobileApp({ session, platformInfo }) {
   const handleDaySwipePointerMove = useCallback((e) => {
     const swipe = daySwipeStateRef.current;
     if (swipe.pointerId !== e.pointerId || anyOverlayOpen || dayTransition) return;
-    activateTimelineLabels(220);
+    activateTimelineLabels(1100);
 
     const dx = e.clientX - swipe.startX;
     const dy = e.clientY - swipe.startY;
@@ -1474,7 +1537,7 @@ function MobileApp({ session, platformInfo }) {
     }
 
     resetDaySwipeState();
-    scheduleHideTimelineLabels(180);
+    scheduleHideTimelineLabels(1200);
   }, [anyOverlayOpen, dayTransition, resetDaySwipeState, scheduleHideTimelineLabels, selectedDate, transitionToDate]);
 
   const renderTimelineBlocks = useCallback((date, options = {}) => {
@@ -1662,15 +1725,15 @@ function MobileApp({ session, platformInfo }) {
   }, [scheduleOverlayRefresh]);
 
   const handleTimelineTouchStart = useCallback(() => {
-    activateTimelineLabels(260);
+    activateTimelineLabels(1200);
   }, [activateTimelineLabels]);
 
   const handleTimelineTouchMove = useCallback(() => {
-    activateTimelineLabels(220);
+    activateTimelineLabels(1100);
   }, [activateTimelineLabels]);
 
   const handleTimelineTouchEnd = useCallback(() => {
-    scheduleHideTimelineLabels(180);
+    scheduleHideTimelineLabels(1200);
   }, [scheduleHideTimelineLabels]);
 
   const isEditModalMobileLayout = isCoarsePointer;
