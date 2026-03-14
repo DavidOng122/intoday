@@ -968,71 +968,61 @@ body.is-dragging-global .time-block {
    SWIPE ACTIONS
    ======================================================== */
 .swipe-wrapper {
+  --swipe-delete-progress: 0;
   position: relative;
   overflow: hidden;
   border-radius: 11px;
+  background: linear-gradient(90deg, #fff3f1 0%, #ff8a7c 100%);
 }
 
-/* Card must fill full width so it covers the action buttons behind it */
 .swipe-wrapper .task-card {
+  position: relative;
+  z-index: 1;
   width: 100%;
   box-sizing: border-box;
+  touch-action: pan-y;
 }
 
-.swipe-actions {
+.swipe-delete-background {
   position: absolute;
-  top: 0;
-  right: 0;
-  height: 100%;
-  width: 136px;
+  inset: 0;
   display: flex;
-  align-items: stretch;
-  border-radius: 0 11px 11px 0;
-  overflow: hidden;
-  /* Buttons sit behind the card. JS will inject inline opacity and transform for the reveal. */
-  opacity: 0;
-  transform: translateX(20px);
-  transition: opacity 0.18s ease, transform 0.18s ease;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 0 18px;
+  color: #7E1D18;
+  opacity: calc(0.18 + var(--swipe-delete-progress) * 0.82);
+  transform: translateX(calc(18px * (1 - var(--swipe-delete-progress))));
+  transition: opacity 0.18s ease, transform 0.18s ease, color 0.18s ease, background 0.18s ease;
   pointer-events: none;
 }
 
-/* Buttons become tappable once card is fully swiped open */
-.swipe-wrapper.swipe-open .swipe-actions {
-  opacity: 1;
-  transform: translateX(0);
-  pointer-events: auto;
+.swipe-wrapper.delete-ready .swipe-delete-background {
+  color: #FFFFFF;
+  background: linear-gradient(90deg, #ff786c 0%, #de3e33 100%);
 }
 
-.swipe-btn {
-  flex: 1;
-  border: none;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: opacity 0.15s;
-}
-
-.swipe-icon {
-  width: 36px;
-  height: 36px;
+.swipe-delete-icon {
+  width: 34px;
+  height: 34px;
   border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 8px; /* Adds space inside the circle for the image */
+  padding: 7px;
   object-fit: contain;
-  flex-shrink: 0;
+  background: rgba(255, 255, 255, 0.72);
+  box-shadow: 0 5px 16px rgba(124, 26, 19, 0.12);
 }
 
-.swipe-btn:active { opacity: 0.75; }
-
-.swipe-btn.edit .swipe-icon {
-  background: #F0F0F3;
+.swipe-wrapper.delete-ready .swipe-delete-icon {
+  background: rgba(255, 255, 255, 0.18);
 }
 
-.swipe-btn.delete .swipe-icon {
-  background: #FFD9D9;
+.swipe-delete-label {
+  font-family: "SF Pro", -apple-system, sans-serif;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 
 /* Drag placeholder — shown at the original position during drag */
@@ -1043,11 +1033,86 @@ body.is-dragging-global .time-block {
   /* Crucial: allow the card to be seen when dragged outside the wrapper bounds */
   overflow: visible;
 }
-.swipe-wrapper.is-dragging .swipe-actions,
-.swipe-wrapper:has(.dragging) .swipe-actions {
+.swipe-wrapper.is-dragging .swipe-delete-background,
+.swipe-wrapper:has(.dragging) .swipe-delete-background {
   pointer-events: none;
   opacity: 0;
   display: none !important;
+}
+
+.undo-snackbar {
+  position: fixed;
+  left: 50%;
+  bottom: calc(18px + env(safe-area-inset-bottom, 0px));
+  z-index: 80;
+  width: min(calc(100vw - 24px), 520px);
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 14px;
+  border-radius: 20px;
+  background: rgba(17, 17, 17, 0.96);
+  color: #FFFFFF;
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.24);
+  animation: undoSnackbarEnter 0.18s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.undo-snackbar-copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.undo-snackbar-title {
+  font-family: "SF Pro", -apple-system, sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.undo-snackbar-text {
+  font-family: "SF Pro", -apple-system, sans-serif;
+  font-size: 13px;
+  line-height: 1.2;
+  color: rgba(255, 255, 255, 0.78);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.undo-snackbar-action {
+  flex-shrink: 0;
+  min-width: 88px;
+  min-height: 46px;
+  padding: 0 18px;
+  border: none;
+  border-radius: 14px;
+  background: #FFD75C;
+  color: #111111;
+  font-family: "SF Pro", -apple-system, sans-serif;
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.08);
+}
+
+.undo-snackbar-action:active {
+  transform: scale(0.98);
+}
+
+@keyframes undoSnackbarEnter {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 12px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
 }
 
 /* Edit Modal (Bottom Aligned) */

@@ -22,6 +22,7 @@ const translations = {
     timeLabel: 'Time', notSelected: 'Not selected',
     placeholder: 'e.g Buy groceries at 9pm...', setting: 'Setting', helpFeedback: 'Help & Feedback',
     signOut: 'Sign out', language: 'Language', appearance: 'Appearance', light: 'Light', dark: 'Dark',
+    delete: 'Delete', undo: 'Undo', taskDeleted: 'Task deleted',
     backToToday: 'Back to Today',
     dayNames: ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT']
   },
@@ -33,6 +34,7 @@ const translations = {
     timeLabel: '时间', notSelected: '未选择',
     placeholder: '例如：晚上9点买杂货...', setting: '设置', helpFeedback: '帮助与反馈',
     signOut: '退出登录', language: '语言', appearance: '外观', light: '浅色', dark: '深色',
+    delete: '删除', undo: '撤销', taskDeleted: '任务已删除',
     backToToday: '返回今天',
     dayNames: ['日', '一', '二', '三', '四', '五', '六']
   },
@@ -44,6 +46,7 @@ const translations = {
     timeLabel: 'Masa', notSelected: 'Belum dipilih',
     placeholder: 'cth. Beli barang dapur pada 9pm...', setting: 'Tetapan', helpFeedback: 'Bantuan & Maklum Balas',
     signOut: 'Log Keluar', language: 'Bahasa', appearance: 'Penampilan', light: 'Terang', dark: 'Gelap',
+    delete: 'Padam', undo: 'Buat asal', taskDeleted: 'Tugasan dipadam',
     backToToday: 'Kembali ke Hari Ini',
     dayNames: ['AHD', 'ISN', 'SEL', 'RAB', 'KHA', 'JUM', 'SAB']
   },
@@ -55,6 +58,7 @@ const translations = {
     timeLabel: '時間', notSelected: '未選択',
     placeholder: '例：21時に食料品を買う...', setting: '設定', helpFeedback: 'ヘルプとフィードバック',
     signOut: 'サインアウト', language: '言語', appearance: '外観', light: 'ライト', dark: 'ダーク',
+    delete: '削除', undo: '元に戻す', taskDeleted: 'タスクを削除しました',
     backToToday: '今日に戻る',
     dayNames: ['日', '月', '火', '水', '木', '金', '土']
   },
@@ -66,6 +70,7 @@ const translations = {
     timeLabel: 'เวลา', notSelected: 'ยังไม่ได้เลือก',
     placeholder: 'เช่น ซื้อของเวลา 21:00...', setting: 'การตั้งค่า', helpFeedback: 'ความช่วยเหลือและคำแนะนำ',
     signOut: 'ออกจากระบบ', language: 'ภาษา', appearance: 'รูปแบบ', light: 'สว่าง', dark: 'มืด',
+    delete: 'ลบ', undo: 'เลิกทำ', taskDeleted: 'ลบงานแล้ว',
     backToToday: 'กลับไปวันนี้',
     dayNames: ['อา.', 'จ.', 'อ.', 'พ.', 'พฤ.', 'ศ.', 'ส.']
   }
@@ -118,6 +123,10 @@ const SheetPebbleIcon = () => (
 );
 
 const COMPOSER_MAX_LINES = 5;
+const DELETE_UNDO_DURATION_MS = 4500;
+const SWIPE_DELETE_MAX = 132;
+const SWIPE_DELETE_THRESHOLD = 92;
+const PENDING_DELETE_STORAGE_KEY = 'mobile_pending_deletes';
 
 const parseSharedSelectedDate = (value) => {
   if (!value) return null;
@@ -981,7 +990,23 @@ function App() {
     userId: session?.user?.id || null,
     normalizeTodo: normalizeTodoRecord,
   });
+  const [pendingDeletes, setPendingDeletes] = useState(() => {
+    try {
+      const saved = localStorage.getItem(PENDING_DELETE_STORAGE_KEY);
+      if (!saved) return [];
+      const now = Date.now();
+      const parsed = JSON.parse(saved);
+      return Array.isArray(parsed)
+        ? parsed.filter((item) => item?.id !== undefined && item?.expiresAt > now)
+        : [];
+    } catch {
+      return [];
+    }
+  });
   const userProfile = getUserProfile(session?.user);
+  const pendingDeleteTimersRef = useRef(new Map());
+  const suppressCardClickRef = useRef(null);
+  const suppressClickTimeoutRef = useRef(null);
 
   const getCurrentTimeBlock = () => {
     const hour = currentTime.getHours();
@@ -1036,54 +1061,7 @@ function App() {
   };
 
   const [draggedTodoId, setDraggedTodoId] = useState(null);
-  const [openSwipeId, setOpenSwipeId] = useState(null);
   const [dragOverBlock, setDragOverBlock] = useState(null);
-
-  // Sync swipe-open CSS class with openSwipeId state
-  const prevOpenSwipeId = React.useRef(null);
-  useEffect(() => {
-    // Remove class from previously open wrapper
-    if (prevOpenSwipeId.current !== null) {
-      const prev = document.getElementById(`swipe-wrapper-${prevOpenSwipeId.current}`);
-      if (prev) prev.classList.remove('swipe-open');
-    }
-    // Add class to newly open wrapper
-    if (openSwipeId !== null) {
-      const next = document.getElementById(`swipe-wrapper-${openSwipeId}`);
-      if (next) next.classList.add('swipe-open');
-    }
-    prevOpenSwipeId.current = openSwipeId;
-  }, [openSwipeId]);
-
-  // Close any open swipe when tapping outside the swiped card
-  useEffect(() => {
-    if (openSwipeId === null) return;
-    const handleOutsideTap = (e) => {
-      const wrapper = document.getElementById(`swipe-wrapper-${openSwipeId}`);
-      if (wrapper && !wrapper.contains(e.target)) {
-        const el = document.getElementById(`swipe-card-${openSwipeId}`);
-        const actionsEl = document.querySelector(`#swipe-wrapper-${openSwipeId} .swipe-actions`);
-        if (el) {
-          el.style.transition = 'transform 0.22s cubic-bezier(0.34, 1.56, 0.64, 1)';
-          el.style.transform = 'translateX(0)';
-          setTimeout(() => { if (el) el.style.transition = ''; }, 280);
-        }
-        if (actionsEl) {
-          actionsEl.style.transition = 'opacity 0.18s ease, transform 0.18s ease';
-          actionsEl.style.opacity = '0';
-          actionsEl.style.transform = 'translateX(20px)';
-          setTimeout(() => { if (actionsEl) actionsEl.style.transition = ''; }, 220);
-        }
-        setOpenSwipeId(null);
-      }
-    };
-    document.addEventListener('touchstart', handleOutsideTap, { passive: true });
-    document.addEventListener('mousedown', handleOutsideTap);
-    return () => {
-      document.removeEventListener('touchstart', handleOutsideTap);
-      document.removeEventListener('mousedown', handleOutsideTap);
-    };
-  }, [openSwipeId]);
 
   const dragOverBlockRef = React.useRef(null); // readable in onTouchEnd closure
   const scrollBlocker = React.useRef(null);     // non-passive touchmove blocker
@@ -1099,6 +1077,87 @@ function App() {
   const autoScrollVelocity = React.useRef(0);
   const autoScrollFrameRef = React.useRef(null);
   const autoScrollLastTsRef = React.useRef(null);
+
+  useEffect(() => {
+    if (pendingDeletes.length > 0) {
+      localStorage.setItem(PENDING_DELETE_STORAGE_KEY, JSON.stringify(pendingDeletes));
+    } else {
+      localStorage.removeItem(PENDING_DELETE_STORAGE_KEY);
+    }
+  }, [pendingDeletes]);
+
+  useEffect(() => {
+    setPendingDeletes((prev) => {
+      const next = prev.filter((item) => todos.some((todo) => todo.id === item.id));
+      return next.length === prev.length ? prev : next;
+    });
+  }, [todos]);
+
+  const clearPendingDeleteTimer = useCallback((id) => {
+    const timerId = pendingDeleteTimersRef.current.get(id);
+    if (timerId !== undefined) {
+      window.clearTimeout(timerId);
+      pendingDeleteTimersRef.current.delete(id);
+    }
+  }, []);
+
+  const finalizeDeleteTodo = useCallback((id) => {
+    clearPendingDeleteTimer(id);
+    setPendingDeletes((prev) => prev.filter((item) => item.id !== id));
+    setTodos((prev) => prev.filter((todo) => todo.id !== id));
+  }, [clearPendingDeleteTimer, setTodos]);
+
+  useEffect(() => {
+    const now = Date.now();
+    const activeIds = new Set();
+
+    pendingDeletes.forEach((item) => {
+      activeIds.add(item.id);
+      if (pendingDeleteTimersRef.current.has(item.id)) return;
+
+      const remainingMs = Math.max(item.expiresAt - now, 0);
+      const timerId = window.setTimeout(() => {
+        finalizeDeleteTodo(item.id);
+      }, remainingMs);
+
+      pendingDeleteTimersRef.current.set(item.id, timerId);
+    });
+
+    pendingDeleteTimersRef.current.forEach((timerId, id) => {
+      if (!activeIds.has(id)) {
+        window.clearTimeout(timerId);
+        pendingDeleteTimersRef.current.delete(id);
+      }
+    });
+  }, [finalizeDeleteTodo, pendingDeletes]);
+
+  useEffect(() => () => {
+    pendingDeleteTimersRef.current.forEach((timerId) => window.clearTimeout(timerId));
+    pendingDeleteTimersRef.current.clear();
+
+    if (suppressClickTimeoutRef.current !== null) {
+      window.clearTimeout(suppressClickTimeoutRef.current);
+    }
+  }, []);
+
+  const suppressNextCardClick = useCallback((todoId) => {
+    if (suppressClickTimeoutRef.current !== null) {
+      window.clearTimeout(suppressClickTimeoutRef.current);
+    }
+
+    suppressCardClickRef.current = todoId;
+    suppressClickTimeoutRef.current = window.setTimeout(() => {
+      if (suppressCardClickRef.current === todoId) {
+        suppressCardClickRef.current = null;
+      }
+      suppressClickTimeoutRef.current = null;
+    }, 250);
+  }, []);
+
+  const undoDeleteTodo = useCallback((id) => {
+    clearPendingDeleteTimer(id);
+    setPendingDeletes((prev) => prev.filter((item) => item.id !== id));
+  }, [clearPendingDeleteTimer]);
 
   const lockTimelineScroll = useCallback(() => {
     const timelineEl = timelineRef.current;
@@ -1239,20 +1298,28 @@ function App() {
     }
   }, [runAutoScroll, stopAutoScroll]);
 
-  const SWIPE_MAX = 136; // px — width of both action buttons
-  const SNAP_THRESHOLD = 50;
+  const deleteTodo = useCallback((id) => {
+    const alreadyPending = pendingDeletes.some((item) => item.id === id);
+    if (alreadyPending) return;
 
-  const deleteTodo = (id) => {
-    setTodos(prev => prev.filter(t => t.id !== id));
-    setOpenSwipeId(null);
-  };
+    const todoToDelete = todos.find((todo) => todo.id === id);
+    if (!todoToDelete) return;
+
+    setPendingDeletes((prev) => [
+      ...prev,
+      {
+        id,
+        text: todoToDelete.text,
+        expiresAt: Date.now() + DELETE_UNDO_DURATION_MS,
+      },
+    ]);
+  }, [pendingDeletes, todos]);
 
 
 
   const openEdit = (todo) => {
     setEditingTodo(todo);
     setEditText(todo.text);
-    setOpenSwipeId(null);
   };
 
   const handleEditSave = () => {
@@ -1270,8 +1337,11 @@ function App() {
       swipeTouchStartY.current = touch.clientY;
       isDragMode.current = false; // wait for direction detection in onTouchMove
       swipeCurrentOffset.current = 0;
-
-      if (openSwipeId !== null && openSwipeId !== todoId) setOpenSwipeId(null);
+      const wrapper = document.getElementById(`swipe-wrapper-${todoId}`);
+      if (wrapper) {
+        wrapper.style.setProperty('--swipe-delete-progress', '0');
+        wrapper.classList.remove('delete-ready');
+      }
     },
     onTouchMove: (e) => {
       const touch = e.touches[0];
@@ -1330,31 +1400,33 @@ function App() {
         syncDraggedCardPosition(todoId, touch.clientY);
         updateAutoScroll(touch.clientY);
       } else {
-        // Horizontal movement → swipe to reveal actions with fade (left only)
+        // Horizontal movement → swipe left to delete
         if (deltaX > 0) return;
+        if (e.cancelable) {
+          e.preventDefault();
+        }
         const rawOffset = Math.abs(deltaX);
         let offset;
-        if (rawOffset <= SWIPE_MAX) {
+        if (rawOffset <= SWIPE_DELETE_MAX) {
           offset = rawOffset;
         } else {
-          const overflow = rawOffset - SWIPE_MAX;
-          offset = SWIPE_MAX + overflow * 0.15;
+          const overflow = rawOffset - SWIPE_DELETE_MAX;
+          offset = SWIPE_DELETE_MAX + overflow * 0.18;
         }
         swipeCurrentOffset.current = offset;
         const el = document.getElementById(`swipe-card-${todoId}`);
-        const actionsEl = document.querySelector(`#swipe-wrapper-${todoId} .swipe-actions`);
+        const wrapper = document.getElementById(`swipe-wrapper-${todoId}`);
         if (el) el.style.transform = `translateX(-${offset}px)`;
-        if (actionsEl) {
-          const progress = Math.min(offset / SWIPE_MAX, 1);
-          actionsEl.style.opacity = progress;
-          // Slide in from 20px to 0px as you swipe, sitting perfectly behind the card
-          const slideX = 20 * (1 - progress);
-          actionsEl.style.transform = `translateX(${slideX}px)`;
+        if (wrapper) {
+          const progress = Math.min(offset / SWIPE_DELETE_THRESHOLD, 1);
+          wrapper.style.setProperty('--swipe-delete-progress', progress.toString());
+          wrapper.classList.toggle('delete-ready', offset >= SWIPE_DELETE_THRESHOLD);
         }
       }
     },
     onTouchEnd: (e) => {
       if (isDragMode.current) {
+        suppressNextCardClick(todoId);
         isDragMode.current = false;
         stopAutoScroll();
         const el = document.getElementById(`swipe-card-${todoId}`);
@@ -1396,54 +1468,29 @@ function App() {
         return;
       }
 
-      // Regular swipe snap
+      // Direct swipe-to-delete
       const offset = swipeCurrentOffset.current;
       const el = document.getElementById(`swipe-card-${todoId}`);
-      const actionsEl = document.querySelector(`#swipe-wrapper-${todoId} .swipe-actions`);
-      if (offset >= SNAP_THRESHOLD) {
-        if (el) {
-          el.style.transition = 'transform 0.28s cubic-bezier(0.34, 1.56, 0.64, 1)';
-          el.style.transform = `translateX(-${SWIPE_MAX}px)`;
-          setTimeout(() => { if (el) el.style.transition = ''; }, 320);
-        }
-        if (actionsEl) {
-          actionsEl.style.transition = 'opacity 0.25s ease, transform 0.25s cubic-bezier(0.34,1.56,0.64,1)';
-          actionsEl.style.opacity = '1';
-          actionsEl.style.transform = 'translateX(0)';
-          actionsEl.style.pointerEvents = 'auto'; // enable clicks immediately
-          setTimeout(() => { if (actionsEl) { actionsEl.style.transition = ''; } }, 300);
-        }
-        setOpenSwipeId(todoId);
+      const wrapper = document.getElementById(`swipe-wrapper-${todoId}`);
+      if (offset >= SWIPE_DELETE_THRESHOLD) {
+        suppressNextCardClick(todoId);
+        deleteTodo(todoId);
       } else {
         if (el) {
           el.style.transition = 'transform 0.22s cubic-bezier(0.34, 1.56, 0.64, 1)';
           el.style.transform = 'translateX(0)';
           setTimeout(() => { if (el) el.style.transition = ''; }, 280);
         }
-        if (actionsEl) {
-          actionsEl.style.transition = 'opacity 0.18s ease, transform 0.18s ease';
-          actionsEl.style.opacity = '0';
-          actionsEl.style.transform = 'translateX(20px)';
-          actionsEl.style.pointerEvents = 'none';
-          setTimeout(() => { if (actionsEl) { actionsEl.style.transition = ''; } }, 220);
+        if (wrapper) {
+          wrapper.style.setProperty('--swipe-delete-progress', '0');
+          wrapper.classList.remove('delete-ready');
         }
-        setOpenSwipeId(null);
       }
       swipeTouchStartX.current = null;
       swipeTouchStartY.current = null;
       swipeCurrentOffset.current = 0;
     },
   });
-
-  const closeSwipe = (todoId) => {
-    const el = document.getElementById(`swipe-card-${todoId}`);
-    if (el) {
-      el.style.transition = 'transform 0.22s cubic-bezier(0.34, 1.56, 0.64, 1)';
-      el.style.transform = 'translateX(0)';
-      setTimeout(() => { if (el) el.style.transition = ''; }, 280);
-    }
-    setOpenSwipeId(null);
-  };
 
   const handleDragStart = (e, id) => {
     e.stopPropagation();
@@ -1506,7 +1553,10 @@ function App() {
     };
   });
 
-  const selectedDateTodos = todos.filter(t => t.dateString === format(selectedDate, 'yyyy-MM-dd'));
+  const pendingDeleteIds = new Set(pendingDeletes.map((item) => item.id));
+  const visibleTodos = todos.filter((todo) => !pendingDeleteIds.has(todo.id));
+  const selectedDateTodos = visibleTodos.filter(t => t.dateString === format(selectedDate, 'yyyy-MM-dd'));
+  const activePendingDelete = pendingDeletes.length > 0 ? pendingDeletes[pendingDeletes.length - 1] : null;
 
   const allChips = [
     { id: 'Now', key: 'now' },
@@ -1803,14 +1853,9 @@ function App() {
                         id={`swipe-wrapper-${todo.id}`}
                         className="swipe-wrapper"
                       >
-                        {/* Action buttons revealed behind the card */}
-                        <div className="swipe-actions">
-                          <button className="swipe-btn edit" onClick={() => openEdit(todo)}>
-                            <img src="/edit.png" alt="Edit" className="swipe-icon" />
-                          </button>
-                          <button className="swipe-btn delete" onClick={() => deleteTodo(todo.id)}>
-                            <img src="/delete.png" alt="Delete" className="swipe-icon" />
-                          </button>
+                        <div className="swipe-delete-background" aria-hidden="true">
+                          <img src="/delete.png" alt="" className="swipe-delete-icon" />
+                          <span className="swipe-delete-label">{translations[language].delete}</span>
                         </div>
 
                         {/* The card itself */}
@@ -1818,7 +1863,10 @@ function App() {
                           id={`swipe-card-${todo.id}`}
                           className={`task-card ${todo.completed ? 'completed' : ''} ${draggedTodoId === todo.id ? 'dragging' : ''}`}
                           onClick={() => {
-                            if (openSwipeId === todo.id) { closeSwipe(todo.id); return; }
+                            if (suppressCardClickRef.current === todo.id) {
+                              suppressCardClickRef.current = null;
+                              return;
+                            }
                             if (isPlain) {
                               openEdit(todo);
                               return;
@@ -1867,6 +1915,22 @@ function App() {
         >
           <span aria-hidden="true">+</span>
         </button>
+
+        {activePendingDelete && (
+          <div className="undo-snackbar" role="status" aria-live="polite">
+            <div className="undo-snackbar-copy">
+              <span className="undo-snackbar-title">{translations[language].taskDeleted}</span>
+              <span className="undo-snackbar-text">{activePendingDelete.text}</span>
+            </div>
+            <button
+              type="button"
+              className="undo-snackbar-action"
+              onClick={() => undoDeleteTodo(activePendingDelete.id)}
+            >
+              {translations[language].undo}
+            </button>
+          </div>
+        )}
 
         {/* Bottom Sheet Modal */}
         {isSheetOpen && (

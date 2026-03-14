@@ -12,9 +12,10 @@ const LANGUAGE_OPTIONS = [
 
 const APPEARANCE_OPTIONS = ['light', 'dark'];
 
-const BackIcon = () => (
+const CloseIcon = () => (
   <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-    <path d="M15 5L8 12L15 19" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M6 6L18 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M18 6L6 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
   </svg>
 );
 
@@ -131,8 +132,8 @@ function DesktopProfilePage({
       <div className="desktop-profile-page-orb desktop-profile-page-orb-left" aria-hidden="true" />
       <div className="desktop-profile-page-orb desktop-profile-page-orb-right" aria-hidden="true" />
 
-      <button type="button" className="desktop-profile-page-back" onClick={handleClose} aria-label="Back">
-        <BackIcon />
+      <button type="button" className="desktop-profile-page-close" onClick={handleClose} aria-label="Close">
+        <CloseIcon />
       </button>
 
       <div className="desktop-profile-stage">

@@ -132,6 +132,13 @@ const Clock = () => {
   );
 };
 
+const ReturnTodayIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="none" style={{ width: 14, height: 14 }}>
+    <path d="M6.25 6.25H2.5V2.5" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M2.917 6.25C3.921 3.785 6.341 2.083 9.167 2.083C12.892 2.083 15.917 5.108 15.917 8.833C15.917 12.559 12.892 15.583 9.167 15.583C6.422 15.583 4.06 13.944 3.011 11.592" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+
 const WeekStrip = ({ selectedDate, logicalToday, onSelect }) => {
   const logicalMidnight = new Date(logicalToday);
   logicalMidnight.setHours(0, 0, 0, 0);
@@ -512,8 +519,38 @@ function App() {
       <div style={{ width: '100vw', height: '100vh', overflow: 'hidden', background: '#fffdfb', color: '#111', fontFamily: 'Inter, sans-serif' }}>
         <header style={{ height: 74, padding: '0 38px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#fbf9f6' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 18 }}>
-            <h1 style={{ margin: 0, fontFamily: 'DM Serif Display, serif', fontSize: 28, fontStyle: 'italic', lineHeight: 1 }}>Today</h1>
-            <Clock />
+            <h1 style={{ margin: 0, fontFamily: 'DM Serif Display, serif', fontSize: 28, fontStyle: 'italic', lineHeight: 1 }}>{panelLabel(selectedDate)}</h1>
+            {!todaySelected ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedDate(logicalToday);
+                  setProfileOpen(false);
+                }}
+                aria-label="Back to Today"
+                style={{
+                  height: 34,
+                  padding: '0 14px',
+                  borderRadius: 999,
+                  border: '1px solid #ddd6cf',
+                  background: '#f4f1ed',
+                  color: '#a63024',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  cursor: 'pointer',
+                  fontFamily: 'DM Serif Display, serif',
+                  fontSize: 16,
+                  fontStyle: 'italic',
+                  lineHeight: 1,
+                  boxShadow: '0 6px 16px rgba(28, 17, 8, 0.05)',
+                }}
+              >
+                <ReturnTodayIcon />
+                <span>Today</span>
+              </button>
+            ) : null}
+            {todaySelected ? <Clock /> : null}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, position: 'relative' }}>
             <button type="button" className="desktop-profile-trigger" onClick={() => setProfileOpen(true)} style={{ width: 34, height: 34, borderRadius: '50%', border: '1px solid #ddd6cf', background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: 0, overflow: 'hidden' }}>
