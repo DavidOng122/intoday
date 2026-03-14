@@ -537,8 +537,8 @@ function MobileApp({ session, platformInfo }) {
         if (!Number.isFinite(state.currentY)) {
           state.currentY = state.targetY;
         } else {
-          state.currentY += (state.targetY - state.currentY) * 0.24;
-          if (Math.abs(state.targetY - state.currentY) < 0.25) {
+          state.currentY += (state.targetY - state.currentY) * 0.18;
+          if (Math.abs(state.targetY - state.currentY) < 0.18) {
             state.currentY = state.targetY;
           } else {
             shouldContinue = true;
@@ -579,8 +579,7 @@ function MobileApp({ session, platformInfo }) {
 
   const refreshVisibleTimeBlockLabels = useCallback(() => {
     const timelineEl = timelineRef.current;
-    const timelineShellEl = timelineShellRef.current;
-    if (!timelineEl || !timelineShellEl) {
+    if (!timelineEl) {
       return;
     }
 
@@ -589,11 +588,14 @@ function MobileApp({ session, platformInfo }) {
       return;
     }
 
-    const shellRect = timelineShellEl.getBoundingClientRect();
+    const scrollTop = timelineEl.scrollTop;
+    const viewportHeight = timelineEl.clientHeight;
     const overlayOffset = 12;
     const enterInset = 8;
-    const exitBuffer = 24;
+    const exitBuffer = 34;
+    const labelSpacing = 24;
     const activeBlocks = new Map();
+    const visibleDescriptors = [];
 
     timelineEl.querySelectorAll('.time-block[data-overlay-source="true"]').forEach((blockEl) => {
       const blockId = blockEl.dataset.timeBlockId;
@@ -618,25 +620,41 @@ function MobileApp({ session, platformInfo }) {
         return;
       }
 
-      const rect = blockEl.getBoundingClientRect();
+      const blockTop = blockEl.offsetTop;
+      const blockBottom = blockTop + blockEl.offsetHeight;
       const visible = state.wasVisible
-        ? rect.bottom > shellRect.top - exitBuffer && rect.top < shellRect.bottom + exitBuffer
-        : rect.bottom > shellRect.top + enterInset && rect.top < shellRect.bottom - enterInset;
+        ? blockBottom > scrollTop - exitBuffer && blockTop < scrollTop + viewportHeight + exitBuffer
+        : blockBottom > scrollTop + enterInset && blockTop < scrollTop + viewportHeight - enterInset;
 
-      if (!visible) {
+      if (visible) {
+        visibleDescriptors.push({
+          id: block.id,
+          naturalY: blockTop - scrollTop + overlayOffset,
+          state,
+        });
+      } else {
         state.targetVisible = false;
         state.wasVisible = false;
-        return;
-      }
-
-      const y = Math.max(overlayOffset, rect.top - shellRect.top + overlayOffset);
-      state.targetY = y;
-      state.targetVisible = true;
-      state.wasVisible = true;
-      if (!Number.isFinite(state.currentY)) {
-        state.currentY = y;
       }
     });
+
+    visibleDescriptors.sort((a, b) => a.naturalY - b.naturalY);
+
+    for (let i = visibleDescriptors.length - 1; i >= 0; i -= 1) {
+      const descriptor = visibleDescriptors[i];
+      let finalY = Math.max(overlayOffset, descriptor.naturalY);
+
+      if (i < visibleDescriptors.length - 1) {
+        finalY = Math.min(finalY, visibleDescriptors[i + 1].state.targetY - labelSpacing);
+      }
+
+      descriptor.state.targetY = finalY;
+      descriptor.state.targetVisible = true;
+      descriptor.state.wasVisible = true;
+      if (!Number.isFinite(descriptor.state.currentY)) {
+        descriptor.state.currentY = finalY;
+      }
+    }
 
     ensureOverlayAnimation();
   }, [ensureOverlayAnimation, hideTimelineLabels]);
@@ -652,7 +670,7 @@ function MobileApp({ session, platformInfo }) {
     });
   }, [refreshVisibleTimeBlockLabels]);
 
-  const scheduleHideTimelineLabels = useCallback((delay = 900) => {
+  const scheduleHideTimelineLabels = useCallback((delay = 1450) => {
     if (timelineLabelsHideTimeoutRef.current) {
       window.clearTimeout(timelineLabelsHideTimeoutRef.current);
     }
@@ -662,7 +680,7 @@ function MobileApp({ session, platformInfo }) {
     }, delay);
   }, [hideTimelineLabels]);
 
-  const activateTimelineLabels = useCallback((delay = 900) => {
+  const activateTimelineLabels = useCallback((delay = 1450) => {
     timelineLabelsVisibleRef.current = true;
     scheduleOverlayRefresh();
     scheduleHideTimelineLabels(delay);
@@ -683,7 +701,7 @@ function MobileApp({ session, platformInfo }) {
     dayScrollPositionsRef.current[format(selectedDate, 'yyyy-MM-dd')] = timelineEl.scrollTop;
     if (timelineLabelsVisibleRef.current) {
       scheduleOverlayRefresh();
-      scheduleHideTimelineLabels(1100);
+      scheduleHideTimelineLabels(1500);
     }
   }, [scheduleHideTimelineLabels, scheduleOverlayRefresh, selectedDate]);
 
@@ -1460,7 +1478,7 @@ function MobileApp({ session, platformInfo }) {
   const handleDaySwipePointerDown = useCallback((e) => {
     if (!isCoarsePointer || anyOverlayOpen || dayTransition || !e.isPrimary || e.pointerType !== 'touch') return;
     if (e.currentTarget !== e.target) return;
-    activateTimelineLabels(1200);
+    activateTimelineLabels(1550);
 
     daySwipeStateRef.current = {
       pointerId: e.pointerId,
@@ -1478,7 +1496,7 @@ function MobileApp({ session, platformInfo }) {
   const handleDaySwipePointerMove = useCallback((e) => {
     const swipe = daySwipeStateRef.current;
     if (swipe.pointerId !== e.pointerId || anyOverlayOpen || dayTransition) return;
-    activateTimelineLabels(1100);
+    activateTimelineLabels(1500);
 
     const dx = e.clientX - swipe.startX;
     const dy = e.clientY - swipe.startY;
@@ -1537,7 +1555,7 @@ function MobileApp({ session, platformInfo }) {
     }
 
     resetDaySwipeState();
-    scheduleHideTimelineLabels(1200);
+    scheduleHideTimelineLabels(1550);
   }, [anyOverlayOpen, dayTransition, resetDaySwipeState, scheduleHideTimelineLabels, selectedDate, transitionToDate]);
 
   const renderTimelineBlocks = useCallback((date, options = {}) => {
@@ -1725,15 +1743,15 @@ function MobileApp({ session, platformInfo }) {
   }, [scheduleOverlayRefresh]);
 
   const handleTimelineTouchStart = useCallback(() => {
-    activateTimelineLabels(1200);
+    activateTimelineLabels(1550);
   }, [activateTimelineLabels]);
 
   const handleTimelineTouchMove = useCallback(() => {
-    activateTimelineLabels(1100);
+    activateTimelineLabels(1500);
   }, [activateTimelineLabels]);
 
   const handleTimelineTouchEnd = useCallback(() => {
-    scheduleHideTimelineLabels(1200);
+    scheduleHideTimelineLabels(1550);
   }, [scheduleHideTimelineLabels]);
 
   const isEditModalMobileLayout = isCoarsePointer;
