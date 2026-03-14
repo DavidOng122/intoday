@@ -476,11 +476,13 @@ function MobileApp({ session, platformInfo }) {
   const dayRefs = React.useRef({});
   const timelineRef = React.useRef(null);
   const overlayLabelRef = React.useRef(null);
+  const secondaryOverlayLabelRefs = React.useRef({});
   const overlayUpdateFrameRef = React.useRef(null);
   const timelineLabelsVisibleRef = React.useRef(false);
   const timelineLabelsHideTimeoutRef = React.useRef(null);
   const currentOverlayBlockIdRef = React.useRef(null);
   const [overlayBlockId, setOverlayBlockId] = useState(null);
+  const [secondaryOverlayBlockIds, setSecondaryOverlayBlockIds] = useState([]);
   const dayScrollPositionsRef = React.useRef({});
   const hasAutoScrolledToTodayRef = React.useRef(false);
   // Scroll behavior is explicit so initial Today entry, Today-icon taps,
@@ -525,10 +527,15 @@ function MobileApp({ session, platformInfo }) {
   const hideTimelineLabels = useCallback(() => {
     timelineLabelsVisibleRef.current = false;
     currentOverlayBlockIdRef.current = null;
+    setSecondaryOverlayBlockIds([]);
     if (overlayLabelRef.current) {
       overlayLabelRef.current.style.opacity = '0';
       overlayLabelRef.current.style.transform = 'translate3d(-50%, -9999px, 0)';
     }
+    Object.values(secondaryOverlayLabelRefs.current).forEach((labelEl) => {
+      labelEl.style.opacity = '0';
+      labelEl.style.transform = 'translate3d(-50%, -9999px, 0)';
+    });
   }, []);
 
   const refreshVisibleTimeBlockLabels = useCallback(() => {
@@ -574,10 +581,25 @@ function MobileApp({ session, platformInfo }) {
       }
     }
 
+    const nextSecondaryOverlayBlockIds = blockDescriptors
+      .filter((descriptor) => descriptor.id !== nextOverlayBlockId)
+      .map((descriptor) => descriptor.id);
+
     if (currentOverlayBlockIdRef.current !== nextOverlayBlockId) {
       currentOverlayBlockIdRef.current = nextOverlayBlockId;
       setOverlayBlockId(nextOverlayBlockId);
     }
+
+    setSecondaryOverlayBlockIds((current) => {
+      if (
+        current.length === nextSecondaryOverlayBlockIds.length
+        && current.every((id, index) => id === nextSecondaryOverlayBlockIds[index])
+      ) {
+        return current;
+      }
+
+      return nextSecondaryOverlayBlockIds;
+    });
 
     if (overlayLabelRef.current) {
       overlayLabelRef.current.style.opacity = nextOverlayBlockId ? '0.96' : '0';
@@ -585,6 +607,24 @@ function MobileApp({ session, platformInfo }) {
         ? `translate3d(-50%, ${overlayOffset}px, 0)`
         : 'translate3d(-50%, -9999px, 0)';
     }
+
+    blockDescriptors.forEach((descriptor) => {
+      if (descriptor.id === nextOverlayBlockId) return;
+
+      const labelEl = secondaryOverlayLabelRefs.current[descriptor.id];
+      if (!labelEl) return;
+
+      const y = Math.max(overlayOffset + 28, descriptor.top - scrollTop + overlayOffset);
+      labelEl.style.opacity = '0.9';
+      labelEl.style.transform = `translate3d(-50%, ${y}px, 0)`;
+    });
+
+    Object.entries(secondaryOverlayLabelRefs.current).forEach(([blockId, labelEl]) => {
+      if (blockId === nextOverlayBlockId || !nextSecondaryOverlayBlockIds.includes(blockId)) {
+        labelEl.style.opacity = '0';
+        labelEl.style.transform = 'translate3d(-50%, -9999px, 0)';
+      }
+    });
   }, [hideTimelineLabels]);
 
   const scheduleOverlayRefresh = useCallback(() => {
@@ -1656,6 +1696,9 @@ function MobileApp({ session, platformInfo }) {
   const overlayBlockMeta = overlayBlockId
     ? timeBlocks.find((block) => block.id === overlayBlockId) || null
     : null;
+  const secondaryOverlayBlockMetas = secondaryOverlayBlockIds
+    .map((blockId) => timeBlocks.find((block) => block.id === blockId) || null)
+    .filter(Boolean);
 
   useLayoutEffect(() => {
     scheduleOverlayRefresh();
@@ -1840,6 +1883,27 @@ function MobileApp({ session, platformInfo }) {
                 {translations[language][overlayBlockMeta.key]}
               </div>
             )}
+            {secondaryOverlayBlockMetas.map((block) => (
+              <div
+                key={block.id}
+                ref={(node) => {
+                  if (node) {
+                    secondaryOverlayLabelRefs.current[block.id] = node;
+                  } else {
+                    delete secondaryOverlayLabelRefs.current[block.id];
+                  }
+                }}
+                className="timeline-overlay-label timeline-overlay-label-secondary"
+                style={{
+                  backgroundColor: block.color,
+                  color: block.textColor,
+                  WebkitTextStroke: `0.2px ${block.strokeColor}`,
+                  paintOrder: 'stroke fill',
+                }}
+              >
+                {translations[language][block.key]}
+              </div>
+            ))}
           </div>
         </div>
 
