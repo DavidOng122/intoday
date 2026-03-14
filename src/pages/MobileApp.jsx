@@ -476,10 +476,7 @@ function MobileApp({ session, platformInfo }) {
   const timelineRef = React.useRef(null);
   const dayScrollPositionsRef = React.useRef({});
   const hasAutoScrolledToTodayRef = React.useRef(false);
-  const [transientTimeBlockId, setTransientTimeBlockId] = useState(null);
-  const [isTransientTimeBlockVisible, setIsTransientTimeBlockVisible] = useState(false);
-  const [transientTimeBlockTop, setTransientTimeBlockTop] = useState(4);
-  const timeBlockHintHideTimeoutRef = useRef(null);
+  const [visibleTimeBlockLabels, setVisibleTimeBlockLabels] = useState([]);
   // Scroll behavior is explicit so initial Today entry, Today-icon taps,
   // and horizontal day navigation can each do the right thing.
   const pendingTimelineScrollActionRef = React.useRef({
@@ -511,64 +508,43 @@ function MobileApp({ session, platformInfo }) {
     if (transitionTimeoutRef.current) {
       window.clearTimeout(transitionTimeoutRef.current);
     }
-    if (timeBlockHintHideTimeoutRef.current) {
-      window.clearTimeout(timeBlockHintHideTimeoutRef.current);
-    }
   }, []);
 
-  const syncTransientTimeBlockTop = useCallback(() => {
+  const refreshVisibleTimeBlockLabels = useCallback(() => {
     const timelineEl = timelineRef.current;
-    setTransientTimeBlockTop((timelineEl?.scrollTop ?? 0) + 4);
-  }, []);
-
-  const scheduleHideTransientTimeBlock = useCallback((delay = 650) => {
-    if (timeBlockHintHideTimeoutRef.current) {
-      window.clearTimeout(timeBlockHintHideTimeoutRef.current);
+    if (!timelineEl) {
+      setVisibleTimeBlockLabels([]);
+      return;
     }
-
-    timeBlockHintHideTimeoutRef.current = window.setTimeout(() => {
-      setIsTransientTimeBlockVisible(false);
-    }, delay);
-  }, []);
-
-  const showTransientTimeBlock = useCallback((blockId, delay = 650) => {
-    if (!blockId) return;
-    syncTransientTimeBlockTop();
-    setTransientTimeBlockId(blockId);
-    setIsTransientTimeBlockVisible(true);
-    scheduleHideTransientTimeBlock(delay);
-  }, [scheduleHideTransientTimeBlock, syncTransientTimeBlockTop]);
-
-  const getTopVisibleTimeBlockId = useCallback(() => {
-    const timelineEl = timelineRef.current;
-    if (!timelineEl) return null;
-
-    const dateKey = format(selectedDate, 'yyyy-MM-dd');
-    const blocks = Array.from(
-      timelineEl.querySelectorAll(`.time-block[data-date-key="${dateKey}"]`)
-    );
-
-    if (!blocks.length) return null;
 
     const timelineRect = timelineEl.getBoundingClientRect();
-    const anchorY = timelineRect.top + 12;
-    let currentBlockId = blocks[0].dataset.timeBlockId || null;
+    const overlayOffset = 12;
+    const nextLabels = Array.from(
+      timelineEl.querySelectorAll('.time-block[data-overlay-source="true"]')
+    ).map((blockEl) => {
+      const blockId = blockEl.dataset.timeBlockId;
+      const blockMeta = timeBlocks.find((block) => block.id === blockId);
 
-    for (const blockEl of blocks) {
+      if (!blockId || !blockMeta) {
+        return null;
+      }
+
       const rect = blockEl.getBoundingClientRect();
-      const blockId = blockEl.dataset.timeBlockId || null;
+      const visible = rect.bottom > timelineRect.top && rect.top < timelineRect.bottom;
 
-      if (rect.top <= anchorY) {
-        currentBlockId = blockId;
-      }
+      return {
+        id: blockId,
+        key: blockMeta.key,
+        color: blockMeta.color,
+        textColor: blockMeta.textColor,
+        strokeColor: blockMeta.strokeColor,
+        visible,
+        top: Math.max(overlayOffset, Math.round(rect.top - timelineRect.top + overlayOffset)),
+      };
+    }).filter(Boolean);
 
-      if (rect.bottom >= anchorY) {
-        break;
-      }
-    }
-
-    return currentBlockId;
-  }, [selectedDate]);
+    setVisibleTimeBlockLabels(nextLabels);
+  }, []);
 
   const scrollToCurrentTime = useCallback((behavior = 'smooth') => {
     if (!isSameDay(selectedDate, getLogicalToday())) return;
@@ -583,12 +559,8 @@ function MobileApp({ session, platformInfo }) {
     const timelineEl = timelineRef.current;
     if (!timelineEl) return;
     dayScrollPositionsRef.current[format(selectedDate, 'yyyy-MM-dd')] = timelineEl.scrollTop;
-    syncTransientTimeBlockTop();
-    const activeBlockId = getTopVisibleTimeBlockId();
-    if (activeBlockId) {
-      showTransientTimeBlock(activeBlockId, 520);
-    }
-  }, [getTopVisibleTimeBlockId, selectedDate, showTransientTimeBlock, syncTransientTimeBlockTop]);
+    refreshVisibleTimeBlockLabels();
+  }, [refreshVisibleTimeBlockLabels, selectedDate]);
 
   const scrollTimelineToCurrentTime = useCallback((behavior = 'smooth') => {
     if (!isSameDay(selectedDate, getLogicalToday())) return;
@@ -894,9 +866,6 @@ function MobileApp({ session, platformInfo }) {
       dragOverBlockRef.current = nearest;
       setDragOverBlock(nearest);
     }
-    if (nearest) {
-      showTransientTimeBlock(nearest, 700);
-    }
   };
 
   const stopAutoScroll = useCallback(() => {
@@ -1008,14 +977,13 @@ function MobileApp({ session, platformInfo }) {
     closeEditModal();
   };
 
-  const getSwipeHandlers = (todoId, initialBlockId) => ({
+  const getSwipeHandlers = (todoId) => ({
     onTouchStart: (e) => {
       const touch = e.touches[0];
       swipeTouchStartX.current = touch.clientX;
       swipeTouchStartY.current = touch.clientY;
       isDragMode.current = false; // wait for direction detection in onTouchMove
       swipeCurrentOffset.current = 0;
-      showTransientTimeBlock(initialBlockId, 750);
 
       if (openSwipeId !== null && openSwipeId !== todoId) setOpenSwipeId(null);
     },
@@ -1034,8 +1002,6 @@ function MobileApp({ session, platformInfo }) {
         syncDraggedCardPosition(todoId, touch.clientY);
         return;
       }
-
-      showTransientTimeBlock(initialBlockId, 750);
 
       // Direction detection threshold
       const DIRECTION_THRESHOLD = 8;
@@ -1099,7 +1065,6 @@ function MobileApp({ session, platformInfo }) {
       }
     },
     onTouchEnd: (e) => {
-      showTransientTimeBlock(dragOverBlockRef.current || initialBlockId, 320);
       if (isDragMode.current) {
         isDragMode.current = false;
         stopAutoScroll();
@@ -1447,21 +1412,6 @@ function MobileApp({ session, platformInfo }) {
     resetDaySwipeState();
   }, [anyOverlayOpen, dayTransition, resetDaySwipeState, selectedDate, transitionToDate]);
 
-  const handleBlockPointerDown = useCallback((e, blockId) => {
-    showTransientTimeBlock(blockId, 700);
-    handleDaySwipePointerDown(e);
-  }, [handleDaySwipePointerDown, showTransientTimeBlock]);
-
-  const handleBlockPointerMove = useCallback((e, blockId) => {
-    showTransientTimeBlock(blockId, 700);
-    handleDaySwipePointerMove(e);
-  }, [handleDaySwipePointerMove, showTransientTimeBlock]);
-
-  const handleBlockPointerEnd = useCallback((e, blockId) => {
-    showTransientTimeBlock(blockId, 320);
-    handleDaySwipePointerEnd(e);
-  }, [handleDaySwipePointerEnd, showTransientTimeBlock]);
-
   const renderTimelineBlocks = useCallback((date, options = {}) => {
     const dayTodos = getDayTodos(date);
     const dateKey = format(date, 'yyyy-MM-dd');
@@ -1477,6 +1427,7 @@ function MobileApp({ session, platformInfo }) {
           key={`${dateKey}-${block.id}`}
           data-time-block-id={block.id}
           data-date-key={dateKey}
+          data-overlay-source={!options.isStatic ? 'true' : 'false'}
         >
           <div className="time-col">
             <span className="time-text">{block.start}</span>
@@ -1495,10 +1446,10 @@ function MobileApp({ session, platformInfo }) {
             data-block-id={block.id}
             onDragOver={options.isStatic ? undefined : handleDragOver}
             onDrop={options.isStatic ? undefined : (e) => handleDropOnBlock(e, block.id)}
-            onPointerDown={enableEmptyAreaSwipe ? (e) => handleBlockPointerDown(e, block.id) : undefined}
-            onPointerMove={enableEmptyAreaSwipe ? (e) => handleBlockPointerMove(e, block.id) : undefined}
-            onPointerUp={enableEmptyAreaSwipe ? (e) => handleBlockPointerEnd(e, block.id) : undefined}
-            onPointerCancel={enableEmptyAreaSwipe ? (e) => handleBlockPointerEnd(e, block.id) : undefined}
+            onPointerDown={enableEmptyAreaSwipe ? handleDaySwipePointerDown : undefined}
+            onPointerMove={enableEmptyAreaSwipe ? handleDaySwipePointerMove : undefined}
+            onPointerUp={enableEmptyAreaSwipe ? handleDaySwipePointerEnd : undefined}
+            onPointerCancel={enableEmptyAreaSwipe ? handleDaySwipePointerEnd : undefined}
           >
             {blockTodos.map(todo => {
               const cType = todo.cardType || 'plain';
@@ -1574,7 +1525,7 @@ function MobileApp({ session, platformInfo }) {
                     onDragEnd={options.isStatic ? undefined : handleDragEnd}
                     onDragOver={options.isStatic ? undefined : handleDragOver}
                     onDrop={options.isStatic ? undefined : (e) => handleDropOnTodo(e, todo)}
-                    {...(options.isStatic ? {} : getSwipeHandlers(todo.id, todo.timeOfDay))}
+                    {...(options.isStatic ? {} : getSwipeHandlers(todo.id))}
                   >
                     <div
                       className="task-icon-placeholder"
@@ -1597,7 +1548,7 @@ function MobileApp({ session, platformInfo }) {
         </div>
       );
     });
-  }, [appearance, deleteTodo, draggedTodoId, getDayTodos, getSwipeHandlers, handleBlockPointerDown, handleBlockPointerEnd, handleBlockPointerMove, handleDragEnd, handleDragOver, handleDropOnBlock, handleDropOnTodo, language, openEdit, openSwipeId, toggleTodo]);
+  }, [appearance, deleteTodo, draggedTodoId, getDayTodos, getSwipeHandlers, handleDaySwipePointerDown, handleDaySwipePointerEnd, handleDaySwipePointerMove, handleDragEnd, handleDragOver, handleDropOnBlock, handleDropOnTodo, language, openEdit, openSwipeId, toggleTodo]);
 
   const timelinePanels = useMemo(() => {
     if (!dayTransition) {
@@ -1628,9 +1579,22 @@ function MobileApp({ session, platformInfo }) {
     ];
   }, [daySwipeOffset, dayTransition, selectedDate]);
 
-  const transientTimeBlock = transientTimeBlockId
-    ? timeBlocks.find((block) => block.id === transientTimeBlockId) || null
-    : null;
+  useLayoutEffect(() => {
+    refreshVisibleTimeBlockLabels();
+  }, [refreshVisibleTimeBlockLabels, selectedDate, dayTransition]);
+
+  useEffect(() => {
+    const handleViewportChange = () => refreshVisibleTimeBlockLabels();
+    window.addEventListener('resize', handleViewportChange);
+    window.addEventListener('orientationchange', handleViewportChange);
+    window.visualViewport?.addEventListener('resize', handleViewportChange);
+
+    return () => {
+      window.removeEventListener('resize', handleViewportChange);
+      window.removeEventListener('orientationchange', handleViewportChange);
+      window.visualViewport?.removeEventListener('resize', handleViewportChange);
+    };
+  }, [refreshVisibleTimeBlockLabels]);
 
   const isEditModalMobileLayout = isCoarsePointer;
   const fallbackEditViewportHeight = editModalViewport.baseHeight
@@ -1743,43 +1707,48 @@ function MobileApp({ session, platformInfo }) {
         </div>
 
         {/* Main Timeline — only the day content track slides during a day swipe */}
-        <main
-          ref={timelineRef}
-          className={`timeline-area ${dayTransition ? 'timeline-swiping' : ''}`}
-          onScroll={persistCurrentDayScroll}
-        >
-          {transientTimeBlock && (
-            <div
-              className={`timeline-block-overlay ${isTransientTimeBlockVisible ? 'visible' : ''}`}
-              style={{
-                top: `${transientTimeBlockTop}px`,
-                backgroundColor: transientTimeBlock.color,
-                color: transientTimeBlock.textColor,
-                WebkitTextStroke: `0.2px ${transientTimeBlock.strokeColor}`,
-                paintOrder: 'stroke fill',
-              }}
-            >
-              {translations[language][transientTimeBlock.key]}
-            </div>
-          )}
-          <div
-            className="timeline-stage"
-            style={dayTransition?.stageHeight ? { height: `${dayTransition.stageHeight}px` } : undefined}
+        <div className="timeline-shell">
+          <main
+            ref={timelineRef}
+            className={`timeline-area ${dayTransition ? 'timeline-swiping' : ''}`}
+            onScroll={persistCurrentDayScroll}
           >
-            {timelinePanels.map((panel) => (
+            <div
+              className="timeline-stage"
+              style={dayTransition?.stageHeight ? { height: `${dayTransition.stageHeight}px` } : undefined}
+            >
+              {timelinePanels.map((panel) => (
+                <div
+                  key={panel.key}
+                  className={`${panel.className} ${dayTransition ? 'timeline-panel-animating' : ''}`}
+                  style={{
+                    ...panel.style,
+                    transitionDuration: dayTransition ? `${dayTransition.durationMs}ms` : undefined,
+                  }}
+                >
+                  {renderTimelineBlocks(panel.date, { isStatic: panel.isStatic })}
+                </div>
+              ))}
+            </div>
+          </main>
+          <div className="timeline-overlay-layer" aria-hidden="true">
+            {visibleTimeBlockLabels.map((label) => (
               <div
-                key={panel.key}
-                className={`${panel.className} ${dayTransition ? 'timeline-panel-animating' : ''}`}
+                key={label.id}
+                className={`timeline-overlay-label ${label.visible ? 'visible' : ''}`}
                 style={{
-                  ...panel.style,
-                  transitionDuration: dayTransition ? `${dayTransition.durationMs}ms` : undefined,
+                  top: `${label.top}px`,
+                  backgroundColor: label.color,
+                  color: label.textColor,
+                  WebkitTextStroke: `0.2px ${label.strokeColor}`,
+                  paintOrder: 'stroke fill',
                 }}
               >
-                {renderTimelineBlocks(panel.date, { isStatic: panel.isStatic })}
+                {translations[language][label.key]}
               </div>
             ))}
           </div>
-        </main>
+        </div>
 
         <button
           type="button"

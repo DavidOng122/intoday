@@ -1,6 +1,15 @@
 /* ========================================================
    TIMELINE LIST AREA 
    ======================================================== */
+.timeline-shell {
+  position: relative;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: #FFFFFF;
+}
+
 .timeline-area {
   flex: 1;
   overflow-y: auto;
@@ -118,33 +127,39 @@
   background: #FFFFFF;
 }
 
-.timeline-block-overlay {
+.timeline-overlay-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 16;
+}
+
+.timeline-overlay-label {
   position: absolute;
   left: calc(var(--timeline-axis-width) + ((100% - var(--timeline-axis-width)) / 2));
-  min-width: 44px;
-  height: 13px;
-  padding: 0 8px;
-  border-radius: 7px;
+  min-width: 53px;
+  height: 16px;
+  padding: 0 10px;
+  border-radius: 8px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   font-family: "LTC Bodoni 175", serif;
-  font-size: 8px;
+  font-size: 9.6px;
   font-style: italic;
   font-weight: 700;
-  line-height: 13px;
+  line-height: 16px;
   white-space: nowrap;
   pointer-events: none;
-  z-index: 14;
+  z-index: 1;
   opacity: 0;
-  transform: translateX(-50%) translateY(-2px);
-  transition: opacity 0.18s ease, transform 0.18s ease;
+  transform: translateX(-50%);
+  transition: opacity 0.12s linear;
   box-shadow: 0 1px 2px rgba(17, 24, 39, 0.04);
 }
 
-.timeline-block-overlay.visible {
+.timeline-overlay-label.visible {
   opacity: 0.96;
-  transform: translateX(-50%) translateY(0);
 }
 
 .tasks-col-swipe-enabled {
