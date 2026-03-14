@@ -1765,17 +1765,6 @@ function App() {
 
           <div className="header-side header-side-right">
             <div className="header-side-spacer" aria-hidden="true" />
-            <button
-              type="button"
-              className={`add-btn header-add-btn ${isAndroid ? 'header-add-btn-android' : 'header-add-btn-ios'}`}
-              onClick={openQuickAdd}
-              aria-label={translations[language].addTaskAria}
-            >
-              <svg width="11" height="11" viewBox="0 0 11 11" fill="none" className="add-btn-icon" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-                <path d="M5.5 0V11.5M0 5.5H11.5" stroke="currentColor" strokeWidth="1.2" />
-              </svg>
-              <span>{translations[language].add}</span>
-            </button>
           </div>
         </header>
 

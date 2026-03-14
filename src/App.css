@@ -174,7 +174,7 @@
   bottom: calc(env(safe-area-inset-bottom, 0px) + 20px);
   width: 56px;
   height: 56px;
-  display: none;
+  display: flex;
   align-items: center;
   justify-content: center;
   border: none;
@@ -212,21 +212,6 @@
 
   .header-side-spacer {
     display: block;
-  }
-
-  .app-container.platform-android .header-add-btn {
-    display: none;
-  }
-
-  .app-container.platform-android .mobile-fab {
-    display: flex;
-  }
-
-  .app-container:not(.platform-android) .mobile-fab {
-    display: none;
-  }
-  .timeline-area {
-    padding-bottom: calc(104px + env(safe-area-inset-bottom, 0px));
   }
 }
 
@@ -893,7 +878,7 @@
 .timeline-area {
   flex: 1;
   overflow-y: auto;
-  padding-bottom: 0;
+  padding-bottom: calc(104px + env(safe-area-inset-bottom, 0px));
   background: white;
   overscroll-behavior-y: none;
   -ms-overflow-style: none;
