@@ -472,11 +472,13 @@ function MobileApp({ session, platformInfo }) {
   const [daySwipeOffset, setDaySwipeOffset] = useState(0);
   const [dayTransition, setDayTransition] = useState(null);
   const stripRef = React.useRef(null);
+  const timelineShellRef = React.useRef(null);
   const dayRefs = React.useRef({});
   const timelineRef = React.useRef(null);
+  const overlayLabelRefs = React.useRef({});
+  const overlayUpdateFrameRef = React.useRef(null);
   const dayScrollPositionsRef = React.useRef({});
   const hasAutoScrolledToTodayRef = React.useRef(false);
-  const [visibleTimeBlockLabels, setVisibleTimeBlockLabels] = useState([]);
   // Scroll behavior is explicit so initial Today entry, Today-icon taps,
   // and horizontal day navigation can each do the right thing.
   const pendingTimelineScrollActionRef = React.useRef({
@@ -508,43 +510,67 @@ function MobileApp({ session, platformInfo }) {
     if (transitionTimeoutRef.current) {
       window.clearTimeout(transitionTimeoutRef.current);
     }
+    if (overlayUpdateFrameRef.current) {
+      window.cancelAnimationFrame(overlayUpdateFrameRef.current);
+    }
   }, []);
 
   const refreshVisibleTimeBlockLabels = useCallback(() => {
     const timelineEl = timelineRef.current;
     if (!timelineEl) {
-      setVisibleTimeBlockLabels([]);
       return;
     }
 
-    const timelineRect = timelineEl.getBoundingClientRect();
+    const scrollTop = timelineEl.scrollTop;
+    const viewportHeight = timelineEl.clientHeight;
     const overlayOffset = 12;
-    const nextLabels = Array.from(
-      timelineEl.querySelectorAll('.time-block[data-overlay-source="true"]')
-    ).map((blockEl) => {
-      const blockId = blockEl.dataset.timeBlockId;
-      const blockMeta = timeBlocks.find((block) => block.id === blockId);
+    const activeBlocks = new Map();
 
-      if (!blockId || !blockMeta) {
-        return null;
+    timelineEl.querySelectorAll('.time-block[data-overlay-source="true"]').forEach((blockEl) => {
+      const blockId = blockEl.dataset.timeBlockId;
+      if (!blockId) return;
+      activeBlocks.set(blockId, blockEl);
+    });
+
+    timeBlocks.forEach((block) => {
+      const labelEl = overlayLabelRefs.current[block.id];
+      const blockEl = activeBlocks.get(block.id);
+
+      if (!labelEl || !blockEl) {
+        if (labelEl) {
+          labelEl.style.opacity = '0';
+          labelEl.style.transform = 'translate3d(-50%, -9999px, 0)';
+        }
+        return;
       }
 
-      const rect = blockEl.getBoundingClientRect();
-      const visible = rect.bottom > timelineRect.top && rect.top < timelineRect.bottom;
+      const blockTop = blockEl.offsetTop;
+      const blockHeight = blockEl.offsetHeight;
+      const blockBottom = blockTop + blockHeight;
+      const visible = blockBottom > scrollTop && blockTop < scrollTop + viewportHeight;
 
-      return {
-        id: blockId,
-        key: blockMeta.key,
-        color: blockMeta.color,
-        textColor: blockMeta.textColor,
-        strokeColor: blockMeta.strokeColor,
-        visible,
-        top: Math.max(overlayOffset, Math.round(rect.top - timelineRect.top + overlayOffset)),
-      };
-    }).filter(Boolean);
+      if (!visible) {
+        labelEl.style.opacity = '0';
+        labelEl.style.transform = 'translate3d(-50%, -9999px, 0)';
+        return;
+      }
 
-    setVisibleTimeBlockLabels(nextLabels);
+      const y = Math.max(overlayOffset, blockTop - scrollTop + overlayOffset);
+      labelEl.style.opacity = '0.96';
+      labelEl.style.transform = `translate3d(-50%, ${y}px, 0)`;
+    });
   }, []);
+
+  const scheduleOverlayRefresh = useCallback(() => {
+    if (overlayUpdateFrameRef.current) {
+      window.cancelAnimationFrame(overlayUpdateFrameRef.current);
+    }
+
+    overlayUpdateFrameRef.current = window.requestAnimationFrame(() => {
+      overlayUpdateFrameRef.current = null;
+      refreshVisibleTimeBlockLabels();
+    });
+  }, [refreshVisibleTimeBlockLabels]);
 
   const scrollToCurrentTime = useCallback((behavior = 'smooth') => {
     if (!isSameDay(selectedDate, getLogicalToday())) return;
@@ -559,8 +585,8 @@ function MobileApp({ session, platformInfo }) {
     const timelineEl = timelineRef.current;
     if (!timelineEl) return;
     dayScrollPositionsRef.current[format(selectedDate, 'yyyy-MM-dd')] = timelineEl.scrollTop;
-    refreshVisibleTimeBlockLabels();
-  }, [refreshVisibleTimeBlockLabels, selectedDate]);
+    scheduleOverlayRefresh();
+  }, [scheduleOverlayRefresh, selectedDate]);
 
   const scrollTimelineToCurrentTime = useCallback((behavior = 'smooth') => {
     if (!isSameDay(selectedDate, getLogicalToday())) return;
@@ -1580,11 +1606,11 @@ function MobileApp({ session, platformInfo }) {
   }, [daySwipeOffset, dayTransition, selectedDate]);
 
   useLayoutEffect(() => {
-    refreshVisibleTimeBlockLabels();
-  }, [refreshVisibleTimeBlockLabels, selectedDate, dayTransition]);
+    scheduleOverlayRefresh();
+  }, [scheduleOverlayRefresh, selectedDate, dayTransition, todos]);
 
   useEffect(() => {
-    const handleViewportChange = () => refreshVisibleTimeBlockLabels();
+    const handleViewportChange = () => scheduleOverlayRefresh();
     window.addEventListener('resize', handleViewportChange);
     window.addEventListener('orientationchange', handleViewportChange);
     window.visualViewport?.addEventListener('resize', handleViewportChange);
@@ -1594,7 +1620,7 @@ function MobileApp({ session, platformInfo }) {
       window.removeEventListener('orientationchange', handleViewportChange);
       window.visualViewport?.removeEventListener('resize', handleViewportChange);
     };
-  }, [refreshVisibleTimeBlockLabels]);
+  }, [scheduleOverlayRefresh]);
 
   const isEditModalMobileLayout = isCoarsePointer;
   const fallbackEditViewportHeight = editModalViewport.baseHeight
@@ -1707,7 +1733,7 @@ function MobileApp({ session, platformInfo }) {
         </div>
 
         {/* Main Timeline — only the day content track slides during a day swipe */}
-        <div className="timeline-shell">
+        <div className="timeline-shell" ref={timelineShellRef}>
           <main
             ref={timelineRef}
             className={`timeline-area ${dayTransition ? 'timeline-swiping' : ''}`}
@@ -1732,19 +1758,25 @@ function MobileApp({ session, platformInfo }) {
             </div>
           </main>
           <div className="timeline-overlay-layer" aria-hidden="true">
-            {visibleTimeBlockLabels.map((label) => (
+            {timeBlocks.map((block) => (
               <div
-                key={label.id}
-                className={`timeline-overlay-label ${label.visible ? 'visible' : ''}`}
+                key={block.id}
+                ref={(node) => {
+                  if (node) {
+                    overlayLabelRefs.current[block.id] = node;
+                  } else {
+                    delete overlayLabelRefs.current[block.id];
+                  }
+                }}
+                className="timeline-overlay-label"
                 style={{
-                  top: `${label.top}px`,
-                  backgroundColor: label.color,
-                  color: label.textColor,
-                  WebkitTextStroke: `0.2px ${label.strokeColor}`,
+                  backgroundColor: block.color,
+                  color: block.textColor,
+                  WebkitTextStroke: `0.2px ${block.strokeColor}`,
                   paintOrder: 'stroke fill',
                 }}
               >
-                {translations[language][label.key]}
+                {translations[language][block.key]}
               </div>
             ))}
           </div>
