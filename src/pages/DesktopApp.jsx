@@ -1,8 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { supabase } from './supabase';
-import DesktopLogin from './DesktopLogin';
-import { useSyncedTodos } from './todoSync';
-import { getUserProfile } from './userProfile';
+import { supabase } from '../supabase';
+import DesktopLogin from '../DesktopLogin';
+import { useSyncedTodos } from '../todoSync';
+import { getUserProfile } from '../userProfile';
+import DesktopProfilePage from '../components/DesktopProfilePage';
 import {
   detectCardType,
   extractMapUrl,
@@ -10,9 +11,11 @@ import {
   fetchMapMeta,
   fetchVideoMeta,
   getTaskCardPresentation,
-} from './taskCardUtils';
+} from '../taskCardUtils';
 
 const SHARED_SELECTED_DATE_KEY = 'shared_selected_date';
+const DESKTOP_LANGUAGE_KEY = 'desktop_profile_language';
+const DESKTOP_APPEARANCE_KEY = 'desktop_profile_appearance';
 const sections = [
   { id: 'morning', mobileId: 'Morning', label: 'Morning', start: '06:00', end: '12:00', pillBg: '#f7d8a5', pillColor: '#6b3f06', accent: '#2990d7', iconBg: '#e8f2fb' },
   { id: 'afternoon', mobileId: 'Afternoon', label: 'Afternoon', start: '12:00', end: '18:00', pillBg: '#bfe3fb', pillColor: '#0d4c82', accent: '#41a2e5', iconBg: '#eaf6ff' },
@@ -163,39 +166,6 @@ const WeekStrip = ({ selectedDate, logicalToday, onSelect }) => {
   );
 };
 
-const ProfileMenu = ({ open, onClose, user }) => {
-  useEffect(() => {
-    if (!open) return undefined;
-    const onMouseDown = (event) => {
-      if (!event.target.closest('.desktop-profile-menu') && !event.target.closest('.desktop-profile-trigger')) onClose();
-    };
-    document.addEventListener('mousedown', onMouseDown);
-    return () => document.removeEventListener('mousedown', onMouseDown);
-  }, [open, onClose]);
-  if (!open) return null;
-  const profile = getUserProfile(user);
-  return (
-    <div className="desktop-profile-menu" style={{ position: 'absolute', top: 58, right: 0, width: 240, borderRadius: 24, border: '1px solid #ece4da', background: '#fff', boxShadow: '0 20px 60px rgba(20,12,8,0.08)', overflow: 'hidden', zIndex: 30 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: 20 }}>
-        <div style={{ width: 44, height: 44, borderRadius: '50%', overflow: 'hidden', border: '1px solid #ece4da', background: '#f5f1ec', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-          {profile.avatarUrl ? (
-            <img src={profile.avatarUrl} alt={profile.fullName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-          ) : (
-            <span style={{ color: '#111', fontFamily: 'DM Serif Display, serif', fontSize: 20 }}>{profile.initial}</span>
-          )}
-        </div>
-        <div style={{ minWidth: 0 }}>
-          <div style={{ fontWeight: 700, color: '#1f2937' }}>{profile.fullName || 'Your account'}</div>
-          <div style={{ marginTop: 2, fontSize: 12, color: '#7d7b77', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{profile.email || 'Signed in'}</div>
-        </div>
-      </div>
-      <div style={{ padding: '0 12px 12px' }}>
-        <button type="button" onClick={async () => { try { await supabase?.auth?.signOut(); } finally { onClose(); } }} style={{ width: '100%', border: 'none', borderRadius: 18, background: 'transparent', padding: '12px 14px', textAlign: 'left', cursor: 'pointer', color: '#dc2626', fontSize: 14, fontWeight: 600 }}>Sign out</button>
-      </div>
-    </div>
-  );
-};
-
 const TaskCard = ({ task, onClick }) => {
   const { cfg, displayTitle, displaySub } = getTaskCardPresentation(task);
 
@@ -255,18 +225,16 @@ const ScheduleSection = ({ section, tasks, showMarker, onTaskClick }) => (
 );
 
 const AddPanel = ({ open, selectedDate, chipsToShow, activeChip, setActiveChip, inputText, setInputText, onClose, onSubmit, onSelectDate }) => {
-  if (!open) return null;
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
-  const [calendarMonth, setCalendarMonth] = useState(() => new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1));
+  const [calendarOffset, setCalendarOffset] = useState(0);
 
-  useEffect(() => {
-    setCalendarMonth(new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1));
-  }, [selectedDate]);
+  if (!open) return null;
 
   const rows = chipsToShow.length <= 3 ? [chipsToShow] : [chipsToShow.slice(0, 3), chipsToShow.slice(3)];
   const logicalToday = getLogicalToday();
   const maxDate = new Date(logicalToday);
   maxDate.setDate(maxDate.getDate() + 30);
+  const calendarMonth = new Date(selectedDate.getFullYear(), selectedDate.getMonth() + calendarOffset, 1);
   const monthStart = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth(), 1);
   const monthLabel = monthStart.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
   const startOffset = monthStart.getDay();
@@ -292,18 +260,21 @@ const AddPanel = ({ open, selectedDate, chipsToShow, activeChip, setActiveChip, 
             </defs>
           </svg>
         </div>
-        <button type="button" onClick={() => setIsCalendarOpen((prev) => !prev)} style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: isCalendarOpen ? 18 : 30, padding: 0, border: 'none', background: 'transparent', cursor: 'pointer', color: '#111' }}>
+        <button type="button" onClick={() => {
+          if (!isCalendarOpen) setCalendarOffset(0);
+          setIsCalendarOpen((prev) => !prev);
+        }} style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: isCalendarOpen ? 18 : 30, padding: 0, border: 'none', background: 'transparent', cursor: 'pointer', color: '#111' }}>
           <h2 style={{ margin: 0, fontFamily: 'DM Serif Display, serif', fontSize: 38, fontStyle: 'italic', lineHeight: 1 }}>{panelLabel(selectedDate)}</h2>
           <svg xmlns="http://www.w3.org/2000/svg" width="8" height="13" viewBox="0 0 9 14" fill="none" style={{ transform: isCalendarOpen ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.24s cubic-bezier(0.16, 1, 0.3, 1)' }}><path fillRule="evenodd" clipRule="evenodd" d="M8.78019 6.54928C8.92094 6.66887 9 6.83098 9 7C9 7.16902 8.92094 7.33113 8.78019 7.45072L1.26401 13.8288C1.12153 13.9415 0.933079 14.0028 0.738359 13.9999C0.543638 13.997 0.357853 13.93 0.220144 13.8132C0.0824342 13.6963 0.00355271 13.5387 0.000117099 13.3734C-0.00331851 13.2082 0.06896 13.0483 0.201726 12.9274L7.18676 7L0.201726 1.07262C0.06896 0.951712 -0.00331851 0.791795 0.000117099 0.626558C0.00355271 0.461322 0.0824342 0.303668 0.220144 0.18681C0.357853 0.0699525 0.543638 0.00301477 0.738359 9.93682e-05C0.933079 -0.00281603 1.12153 0.0585185 1.26401 0.171181L8.78019 6.54928Z" fill="black" /></svg>
         </button>
         {isCalendarOpen ? (
           <div style={{ marginBottom: 20, padding: '14px 14px 16px', borderRadius: 20, background: '#faf7f2', border: '1px solid #efe8de' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-              <button type="button" disabled={isAtMinMonth} onClick={() => setCalendarMonth((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1))} style={{ width: 30, height: 30, borderRadius: '50%', border: 'none', background: '#f0ece6', color: isAtMinMonth ? '#c9c3bb' : '#111', cursor: isAtMinMonth ? 'default' : 'pointer' }}>
+              <button type="button" disabled={isAtMinMonth} onClick={() => setCalendarOffset((prev) => prev - 1)} style={{ width: 30, height: 30, borderRadius: '50%', border: 'none', background: '#f0ece6', color: isAtMinMonth ? '#c9c3bb' : '#111', cursor: isAtMinMonth ? 'default' : 'pointer' }}>
                 {'<'}
               </button>
               <span style={{ fontFamily: 'DM Serif Display, serif', fontSize: 20, fontStyle: 'italic' }}>{monthLabel}</span>
-              <button type="button" disabled={isAtMaxMonth} onClick={() => setCalendarMonth((prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1))} style={{ width: 30, height: 30, borderRadius: '50%', border: 'none', background: '#f0ece6', color: isAtMaxMonth ? '#c9c3bb' : '#111', cursor: isAtMaxMonth ? 'default' : 'pointer' }}>
+              <button type="button" disabled={isAtMaxMonth} onClick={() => setCalendarOffset((prev) => prev + 1)} style={{ width: 30, height: 30, borderRadius: '50%', border: 'none', background: '#f0ece6', color: isAtMaxMonth ? '#c9c3bb' : '#111', cursor: isAtMaxMonth ? 'default' : 'pointer' }}>
                 {'>'}
               </button>
             </div>
@@ -373,6 +344,8 @@ function App() {
     const savedDate = parseSharedSelectedDate(localStorage.getItem(SHARED_SELECTED_DATE_KEY));
     return savedDate || getLogicalToday();
   });
+  const [language, setLanguage] = useState(() => localStorage.getItem(DESKTOP_LANGUAGE_KEY) || 'EN');
+  const [appearance, setAppearance] = useState(() => localStorage.getItem(DESKTOP_APPEARANCE_KEY) || 'light');
   const [currentTime, setCurrentTime] = useState(new Date());
   const [profileOpen, setProfileOpen] = useState(false);
   const [panelOpen, setPanelOpen] = useState(false);
@@ -392,6 +365,12 @@ function App() {
   useEffect(() => {
     localStorage.setItem(SHARED_SELECTED_DATE_KEY, dateKey(selectedDate));
   }, [selectedDate]);
+  useEffect(() => {
+    localStorage.setItem(DESKTOP_LANGUAGE_KEY, language);
+  }, [language]);
+  useEffect(() => {
+    localStorage.setItem(DESKTOP_APPEARANCE_KEY, appearance);
+  }, [appearance]);
   useEffect(() => {
     const timeout = setTimeout(() => setLoading(false), 5000);
     if (!supabase) {
@@ -519,6 +498,13 @@ function App() {
     }
     toggleTask(task.id);
   };
+  const handleSignOut = async () => {
+    try {
+      await supabase?.auth?.signOut();
+    } finally {
+      setProfileOpen(false);
+    }
+  };
 
   return (
     <>
@@ -530,14 +516,13 @@ function App() {
             <Clock />
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, position: 'relative' }}>
-            <button type="button" className="desktop-profile-trigger" onClick={() => setProfileOpen((prev) => !prev)} style={{ width: 34, height: 34, borderRadius: '50%', border: '1px solid #ddd6cf', background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: 0, overflow: 'hidden' }}>
+            <button type="button" className="desktop-profile-trigger" onClick={() => setProfileOpen(true)} style={{ width: 34, height: 34, borderRadius: '50%', border: '1px solid #ddd6cf', background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: 0, overflow: 'hidden' }}>
               {userProfile.avatarUrl ? (
                 <img src={userProfile.avatarUrl} alt={userProfile.fullName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
               ) : (
                 <span style={{ fontFamily: 'DM Serif Display, serif', fontSize: 18, color: '#111' }}>{userProfile.initial}</span>
               )}
             </button>
-            <ProfileMenu open={profileOpen} onClose={() => setProfileOpen(false)} user={user} />
           </div>
         </header>
 
@@ -552,6 +537,17 @@ function App() {
         </div>
 
         {!panelOpen ? <button type="button" onClick={() => { setProfileOpen(false); setEditingTaskId(null); setActiveChip(visibleChips[0]?.id || 'now'); setInputText(''); setPanelOpen(true); }} aria-label="Add task" style={{ position: 'fixed', right: 42, bottom: 30, width: 50, height: 50, borderRadius: '50%', border: '1px solid #d9d1c8', background: '#fffefc', color: '#111', boxShadow: '0 14px 30px rgba(28,17,8,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', zIndex: 20 }}><PlusIcon /></button> : null}
+
+        <DesktopProfilePage
+          open={profileOpen}
+          onClose={() => setProfileOpen(false)}
+          user={user}
+          language={language}
+          setLanguage={setLanguage}
+          appearance={appearance}
+          setAppearance={setAppearance}
+          onSignOut={handleSignOut}
+        />
       </div>
     </>
   );

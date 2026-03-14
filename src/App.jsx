@@ -8,6 +8,10 @@ import { supabase, isSupabaseConfigured } from './supabase';
 import { SendIntent } from 'send-intent';
 import { useSyncedTodos } from './todoSync';
 import { getUserProfile } from './userProfile';
+import usePlatform from './hooks/usePlatform';
+import DesktopApp from './pages/DesktopApp';
+import DesktopLoginPage from './pages/DesktopLoginPage';
+import MobileLoginPage from './pages/MobileLoginPage';
 
 const translations = {
   EN: {
@@ -495,13 +499,6 @@ function useSwipeDownToClose({
     onTouchCancel: handleTouchCancel,
   };
 }
-import { useEffect, useState } from 'react';
-import usePlatform from './hooks/usePlatform';
-import { isSupabaseConfigured, supabase } from './lib/supabase';
-import DesktopApp from './pages/DesktopApp';
-import DesktopLoginPage from './pages/DesktopLoginPage';
-import MobileApp from './pages/MobileApp';
-import MobileLoginPage from './pages/MobileLoginPage';
 
 const MobileAuthLoading = () => (
   <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#F2F2F0' }}>
@@ -519,7 +516,7 @@ const DesktopAuthLoading = () => (
 
 function App() {
   const platformInfo = usePlatform();
-  const { isDesktop, platform, isNativePlatform } = platformInfo;
+  const { isDesktop, platform, isNativePlatform, isAndroid, isIOS } = platformInfo;
   const [session, setSession] = useState(null);
   const [loadingAuth, setLoadingAuth] = useState(true);
 
@@ -666,6 +663,7 @@ function App() {
   });
   const [currentTime, setCurrentTime] = useState(new Date());
 
+  const [isLoginOpen, setIsLoginOpen] = useState(false);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isClosingProfile, setIsClosingProfile] = useState(false);
@@ -1622,6 +1620,7 @@ function App() {
         <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
       </div>
     );
+  }
   if (loadingAuth) {
     return isDesktop ? <DesktopAuthLoading /> : <MobileAuthLoading />;
   }
@@ -2223,7 +2222,6 @@ function App() {
       </div>
     </>
   );
-  return <MobileApp session={session} platformInfo={platformInfo} />;
 }
 
 export default App;
