@@ -314,6 +314,7 @@ function MobileApp({ session, platformInfo }) {
     enabled: !!editingTodo,
     onClose: closeEditModal,
     baseTransform: modalSwipeTransform,
+    ignoreSwipeFrom: '.edit-modal-textarea',
     getScrollElement: (container, eventTarget) => {
       if (!(eventTarget instanceof Element)) {
         return container.querySelector('.edit-modal-body');
