@@ -480,6 +480,7 @@ function MobileApp({ session, platformInfo }) {
   const overlayUpdateFrameRef = React.useRef(null);
   const timelineLabelsVisibleRef = React.useRef(false);
   const timelineLabelsHideTimeoutRef = React.useRef(null);
+  const timelineTouchActiveRef = React.useRef(false);
   const currentOverlayBlockIdRef = React.useRef(null);
   const [overlayBlockId, setOverlayBlockId] = useState(null);
   const [secondaryOverlayBlockIds, setSecondaryOverlayBlockIds] = useState([]);
@@ -649,15 +650,19 @@ function MobileApp({ session, platformInfo }) {
     }
 
     timelineLabelsHideTimeoutRef.current = window.setTimeout(() => {
+      if (timelineTouchActiveRef.current) return;
       hideTimelineLabels();
     }, delay);
   }, [hideTimelineLabels]);
 
-  const activateTimelineLabels = useCallback((delay = 900) => {
+  const activateTimelineLabels = useCallback(() => {
     timelineLabelsVisibleRef.current = true;
+    if (timelineLabelsHideTimeoutRef.current) {
+      window.clearTimeout(timelineLabelsHideTimeoutRef.current);
+      timelineLabelsHideTimeoutRef.current = null;
+    }
     scheduleOverlayRefresh();
-    scheduleHideTimelineLabels(delay);
-  }, [scheduleHideTimelineLabels, scheduleOverlayRefresh]);
+  }, [scheduleOverlayRefresh]);
 
   const scrollToCurrentTime = useCallback((behavior = 'smooth') => {
     if (!isSameDay(selectedDate, getLogicalToday())) return;
@@ -1451,7 +1456,8 @@ function MobileApp({ session, platformInfo }) {
   const handleDaySwipePointerDown = useCallback((e) => {
     if (!isCoarsePointer || anyOverlayOpen || dayTransition || !e.isPrimary || e.pointerType !== 'touch') return;
     if (e.currentTarget !== e.target) return;
-    activateTimelineLabels(900);
+    timelineTouchActiveRef.current = true;
+    activateTimelineLabels();
 
     daySwipeStateRef.current = {
       pointerId: e.pointerId,
@@ -1469,7 +1475,8 @@ function MobileApp({ session, platformInfo }) {
   const handleDaySwipePointerMove = useCallback((e) => {
     const swipe = daySwipeStateRef.current;
     if (swipe.pointerId !== e.pointerId || anyOverlayOpen || dayTransition) return;
-    activateTimelineLabels(900);
+    timelineTouchActiveRef.current = true;
+    activateTimelineLabels();
 
     const dx = e.clientX - swipe.startX;
     const dy = e.clientY - swipe.startY;
@@ -1506,6 +1513,7 @@ function MobileApp({ session, platformInfo }) {
   const handleDaySwipePointerEnd = useCallback((e) => {
     const swipe = daySwipeStateRef.current;
     if (swipe.pointerId !== e.pointerId) return;
+    timelineTouchActiveRef.current = false;
 
     e.currentTarget.releasePointerCapture?.(e.pointerId);
 
@@ -1723,14 +1731,17 @@ function MobileApp({ session, platformInfo }) {
   }, [scheduleOverlayRefresh]);
 
   const handleTimelineTouchStart = useCallback(() => {
-    activateTimelineLabels(900);
+    timelineTouchActiveRef.current = true;
+    activateTimelineLabels();
   }, [activateTimelineLabels]);
 
   const handleTimelineTouchMove = useCallback(() => {
-    activateTimelineLabels(900);
+    timelineTouchActiveRef.current = true;
+    activateTimelineLabels();
   }, [activateTimelineLabels]);
 
   const handleTimelineTouchEnd = useCallback(() => {
+    timelineTouchActiveRef.current = false;
     scheduleHideTimelineLabels(900);
   }, [scheduleHideTimelineLabels]);
 
