@@ -247,40 +247,79 @@ body.is-dragging-global .time-block {
   display: none !important;
 }
 
-/* Edit Modal (Bottom Aligned) */
-.edit-modal {
-  position: absolute;
-  bottom: 24px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: calc(100% - 48px);
-  max-width: 382px;
-  background: white;
-  border-radius: 32px;
-  padding: 24px 24px;
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.12);
-  z-index: 60;
-  display: flex;
-  flex-direction: column;
-  animation: editModalSlideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+/* Edit Modal */
+.edit-modal-backdrop {
+  justify-content: center;
+  padding: 24px;
+  overflow: hidden;
+  overscroll-behavior: none;
 }
 
-@keyframes editModalSlideUp {
+.edit-modal-backdrop-desktop {
+  position: absolute;
+  inset: 0;
+}
+
+.edit-modal {
+  --edit-modal-surface: #FFFFFF;
+  --edit-modal-divider: rgba(17, 17, 17, 0.08);
+  position: relative;
+  width: min(100%, 382px);
+  max-width: 382px;
+  max-height: min(560px, calc(var(--edit-modal-visible-height, 100dvh) - 48px));
+  background: var(--edit-modal-surface);
+  border-radius: 32px;
+  padding: 24px;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.12);
+  z-index: 60;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: 16px;
+  overflow: hidden;
+  touch-action: pan-y;
+  animation: editModalEnter 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes editModalEnter {
   from {
     opacity: 0;
-    transform: translateX(-50%) translateY(40px) scale(0.98);
+    transform: translateY(28px) scale(0.98);
   }
   to {
     opacity: 1;
-    transform: translateX(-50%) translateY(0) scale(1);
+    transform: translateY(0) scale(1);
   }
+}
+
+.edit-modal-backdrop-mobile {
+  position: fixed;
+  left: 0;
+  right: 0;
+  justify-content: flex-end;
+  padding:
+    calc(var(--app-safe-top) + 12px)
+    12px
+    max(12px, env(safe-area-inset-bottom, 0px));
+}
+
+.edit-modal-mobile {
+  width: min(100%, 430px);
+  max-width: 430px;
+  max-height: calc(
+    var(--edit-modal-visible-height, 100dvh)
+    - var(--app-safe-top)
+    - env(safe-area-inset-bottom, 0px)
+    - 24px
+  );
+  border-radius: 28px;
+  animation-duration: 0.28s;
 }
 
 .edit-modal-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 20px;
+  gap: 16px;
 }
 
 .edit-modal-title {
@@ -312,14 +351,19 @@ body.is-dragging-global .time-block {
 }
 
 .edit-modal-body {
+  min-height: 0;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  padding-right: 2px;
 }
 
 .edit-modal-textarea {
   width: 100%;
-  min-height: 130px;
+  min-height: 180px;
+  flex: 1 1 auto;
   border: none;
   background: #F4F4F4;
   border-radius: 16px;
@@ -330,10 +374,20 @@ body.is-dragging-global .time-block {
   resize: none;
   outline: none;
   font-family: inherit;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  scroll-margin-block: 16px;
 }
 
 .edit-modal-textarea:focus {
   background: #EBEBEB;
+}
+
+.edit-modal-actions {
+  display: flex;
+  background: var(--edit-modal-surface);
+  box-shadow: inset 0 1px 0 var(--edit-modal-divider);
+  padding-top: 12px;
 }
 
 .edit-modal-save-btn {
@@ -351,6 +405,12 @@ body.is-dragging-global .time-block {
 
 .edit-modal-save-btn:active {
   opacity: 0.8;
+}
+
+@media (pointer: coarse) {
+  .edit-modal-textarea {
+    min-height: clamp(140px, 28vh, 220px);
+  }
 }
 
 
@@ -441,4 +501,3 @@ body.is-dragging-global .time-block {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-

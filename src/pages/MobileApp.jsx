@@ -43,6 +43,13 @@ const DAY_SWIPE_CONFIG = {
   SWIPE_ANIMATION_DURATION_MS: 250,
   TAP_ANIMATION_DURATION_MS: 220,
 };
+const INITIAL_EDIT_MODAL_VIEWPORT = {
+  baseHeight: 0,
+  visibleHeight: 0,
+  offsetTop: 0,
+  keyboardInset: 0,
+};
+const modalSwipeTransform = (offsetY = 0) => `translateY(${offsetY}px)`;
 
 function MobileApp({ session, platformInfo }) {
   const { platform, isNativePlatform, isIOS, isAndroid } = platformInfo;
@@ -285,9 +292,15 @@ function MobileApp({ session, platformInfo }) {
   // hardware back-button fires `popstate` instead of closing the whole app.
   const [editingTodo, setEditingTodo] = useState(null);
   const [editText, setEditText] = useState('');
+  const editModalBodyRef = useRef(null);
+  const editTextareaRef = useRef(null);
+  const editViewportBaseHeightRef = useRef(0);
+  const [editModalViewport, setEditModalViewport] = useState(INITIAL_EDIT_MODAL_VIEWPORT);
+  const [isEditTextareaFocused, setIsEditTextareaFocused] = useState(false);
   const closeEditModal = useCallback(() => {
     setEditingTodo(null);
     setEditText('');
+    setIsEditTextareaFocused(false);
   }, []);
 
 
@@ -300,7 +313,16 @@ function MobileApp({ session, platformInfo }) {
   const editSwipeHandlers = useSwipeDownToClose({
     enabled: !!editingTodo,
     onClose: closeEditModal,
-    getScrollElement: '.edit-modal-textarea',
+    baseTransform: modalSwipeTransform,
+    getScrollElement: (container, eventTarget) => {
+      if (!(eventTarget instanceof Element)) {
+        return container.querySelector('.edit-modal-body');
+      }
+
+      return eventTarget.closest('.edit-modal-textarea')
+        || eventTarget.closest('.edit-modal-body')
+        || container.querySelector('.edit-modal-body');
+    },
   });
 
 
@@ -328,8 +350,124 @@ function MobileApp({ session, platformInfo }) {
   }, [closeEditModal, closeProfile, closeSheet, editingTodo, isProfileOpen, isCalendarOpen, isSheetOpen]);
   // ─────────────────────────────────────────────────────────────────────────
 
+  useLayoutEffect(() => {
+    if (!editingTodo) {
+      editViewportBaseHeightRef.current = 0;
+      setEditModalViewport(INITIAL_EDIT_MODAL_VIEWPORT);
+      return undefined;
+    }
+
+    const viewport = window.visualViewport;
+    const virtualKeyboard = navigator.virtualKeyboard;
+    const initialViewportHeight = Math.max(
+      window.innerHeight,
+      viewport ? Math.round(viewport.height + viewport.offsetTop) : 0,
+    );
+
+    editViewportBaseHeightRef.current = initialViewportHeight;
+
+    const updateEditViewport = () => {
+      const nextViewport = window.visualViewport;
+      const offsetTop = nextViewport ? Math.round(nextViewport.offsetTop) : 0;
+      const visibleHeight = nextViewport ? Math.round(nextViewport.height) : window.innerHeight;
+      const virtualKeyboardInset = virtualKeyboard?.boundingRect?.height
+        ? Math.round(virtualKeyboard.boundingRect.height)
+        : 0;
+
+      if (!virtualKeyboardInset && visibleHeight + offsetTop > editViewportBaseHeightRef.current) {
+        editViewportBaseHeightRef.current = visibleHeight + offsetTop;
+      }
+
+      const baseHeight = editViewportBaseHeightRef.current || (visibleHeight + offsetTop);
+      const visualViewportInset = nextViewport
+        ? Math.max(0, Math.round(baseHeight - visibleHeight - offsetTop))
+        : 0;
+      const keyboardInset = Math.max(visualViewportInset, virtualKeyboardInset);
+
+      setEditModalViewport((current) => {
+        if (
+          current.baseHeight === baseHeight
+          && current.visibleHeight === visibleHeight
+          && current.offsetTop === offsetTop
+          && current.keyboardInset === keyboardInset
+        ) {
+          return current;
+        }
+
+        return {
+          baseHeight,
+          visibleHeight,
+          offsetTop,
+          keyboardInset,
+        };
+      });
+    };
+
+    updateEditViewport();
+    if (virtualKeyboard) {
+      virtualKeyboard.overlaysContent = true;
+    }
+
+    viewport?.addEventListener('resize', updateEditViewport);
+    viewport?.addEventListener('scroll', updateEditViewport);
+    virtualKeyboard?.addEventListener('geometrychange', updateEditViewport);
+    window.addEventListener('orientationchange', updateEditViewport);
+
+    return () => {
+      viewport?.removeEventListener('resize', updateEditViewport);
+      viewport?.removeEventListener('scroll', updateEditViewport);
+      virtualKeyboard?.removeEventListener('geometrychange', updateEditViewport);
+      window.removeEventListener('orientationchange', updateEditViewport);
+    };
+  }, [editingTodo]);
+
+  const scrollEditTextareaIntoView = useCallback((behavior = 'smooth') => {
+    const textarea = editTextareaRef.current;
+    const scrollContainer = editModalBodyRef.current;
+    if (!textarea || !scrollContainer) return;
+
+    textarea.scrollIntoView({
+      behavior,
+      block: 'nearest',
+      inline: 'nearest',
+    });
+
+    const textareaRect = textarea.getBoundingClientRect();
+    const containerRect = scrollContainer.getBoundingClientRect();
+    const upperPadding = 12;
+    const lowerPadding = 18;
+
+    if (textareaRect.top < containerRect.top + upperPadding) {
+      scrollContainer.scrollTop += textareaRect.top - containerRect.top - upperPadding;
+    } else if (textareaRect.bottom > containerRect.bottom - lowerPadding) {
+      scrollContainer.scrollTop += textareaRect.bottom - containerRect.bottom + lowerPadding;
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!editingTodo || !isEditTextareaFocused) return undefined;
+
+    const frame = window.requestAnimationFrame(() => {
+      scrollEditTextareaIntoView(editModalViewport.keyboardInset > 0 ? 'auto' : 'smooth');
+    });
+
+    return () => {
+      window.cancelAnimationFrame(frame);
+    };
+  }, [
+    editModalViewport.keyboardInset,
+    editModalViewport.offsetTop,
+    editModalViewport.visibleHeight,
+    editingTodo,
+    isEditTextareaFocused,
+    scrollEditTextareaIntoView,
+  ]);
+
   const [weekOffset, setWeekOffset] = useState(0);
-  const [isCoarsePointer, setIsCoarsePointer] = useState(false);
+  const [isCoarsePointer, setIsCoarsePointer] = useState(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return false;
+    return window.matchMedia('(pointer: coarse)').matches;
+  });
   const [daySwipeOffset, setDaySwipeOffset] = useState(0);
   const [dayTransition, setDayTransition] = useState(null);
   const stripRef = React.useRef(null);
@@ -1403,6 +1541,35 @@ function MobileApp({ session, platformInfo }) {
     ];
   }, [daySwipeOffset, dayTransition, selectedDate]);
 
+  const isEditModalMobileLayout = isCoarsePointer;
+  const fallbackEditViewportHeight = editModalViewport.baseHeight
+    ? Math.max(0, editModalViewport.baseHeight - editModalViewport.keyboardInset - editModalViewport.offsetTop)
+    : 0;
+  const editVisibleViewportHeight = editModalViewport.visibleHeight && fallbackEditViewportHeight
+    ? Math.min(editModalViewport.visibleHeight, fallbackEditViewportHeight)
+    : editModalViewport.visibleHeight || fallbackEditViewportHeight;
+  const editModalViewportStyle = editVisibleViewportHeight
+    ? {
+        '--edit-modal-visible-height': `${editVisibleViewportHeight}px`,
+        '--edit-modal-offset-top': `${editModalViewport.offsetTop}px`,
+      }
+    : undefined;
+  const editModalBackdropStyle = isEditModalMobileLayout && editVisibleViewportHeight
+    ? {
+        ...editModalViewportStyle,
+        top: `${editModalViewport.offsetTop}px`,
+        height: `${editVisibleViewportHeight}px`,
+        maxHeight: `${editVisibleViewportHeight}px`,
+        bottom: 'auto',
+      }
+    : editModalViewportStyle;
+  const handleEditTextareaFocus = () => {
+    setIsEditTextareaFocused(true);
+    window.requestAnimationFrame(() => {
+      scrollEditTextareaIntoView('smooth');
+    });
+  };
+
   return (
     <>
       <div className={`app-container platform-${platform} ${isNativePlatform ? 'native-shell' : 'web-shell'} ${appearance === 'dark' ? 'dark-theme' : ''}`}>
@@ -1849,28 +2016,46 @@ function MobileApp({ session, platformInfo }) {
         )}
         {/* Edit Todo Modal */}
         {editingTodo && (
-          <div className="backdrop modal-backdrop" onClick={closeEditModal}>
-            <div className="edit-modal" onClick={(e) => e.stopPropagation()} {...editSwipeHandlers}>
+          <div
+            className={`backdrop modal-backdrop edit-modal-backdrop ${isEditModalMobileLayout ? 'edit-modal-backdrop-mobile' : 'edit-modal-backdrop-desktop'}`}
+            onClick={closeEditModal}
+            style={editModalBackdropStyle}
+          >
+            <div
+              className={`edit-modal ${isEditModalMobileLayout ? 'edit-modal-mobile' : 'edit-modal-desktop'}`}
+              onClick={(e) => e.stopPropagation()}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="edit-modal-title"
+              style={editModalViewportStyle}
+              {...editSwipeHandlers}
+            >
               <div className="edit-modal-header">
-                <h2 className="edit-modal-title">Edit</h2>
-                <button className="edit-modal-close" onClick={closeEditModal}>
+                <h2 className="edit-modal-title" id="edit-modal-title">Edit</h2>
+                <button type="button" className="edit-modal-close" onClick={closeEditModal} aria-label="Close edit modal">
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="black" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
                 </button>
               </div>
-              <div className="edit-modal-body">
+              <div className="edit-modal-body" ref={editModalBodyRef}>
                 <textarea
+                  ref={editTextareaRef}
                   className="edit-modal-textarea"
                   value={editText}
                   onChange={(e) => setEditText(e.target.value)}
+                  onFocus={handleEditTextareaFocus}
+                  onBlur={() => setIsEditTextareaFocused(false)}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
                       handleEditSave();
                     }
                   }}
                   autoFocus
+                  rows={6}
                   placeholder="Edit task..."
                 />
-                <button className="edit-modal-save-btn" onClick={handleEditSave}>
+              </div>
+              <div className="edit-modal-actions">
+                <button type="button" className="edit-modal-save-btn" onClick={handleEditSave}>
                   Save Changes
                 </button>
               </div>

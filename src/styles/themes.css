@@ -262,7 +262,9 @@
   background: transparent;
 }
 .dark-theme .edit-modal {
-  background: #2C2C2E !important;
+  --edit-modal-surface: #2C2C2E;
+  --edit-modal-divider: rgba(255, 255, 255, 0.08);
+  background: var(--edit-modal-surface) !important;
 }
 
 .dark-theme .edit-modal-title {
@@ -290,4 +292,3 @@
   background: white !important;
   color: black !important;
 }
-
