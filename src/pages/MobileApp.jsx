@@ -531,6 +531,7 @@ function MobileApp({ session, platformInfo }) {
     if (overlayLabelRef.current) {
       overlayLabelRef.current.style.opacity = '0';
       overlayLabelRef.current.style.transform = 'translate3d(-50%, -9999px, 0)';
+      overlayLabelRef.current.style.zIndex = '30';
     }
     Object.values(secondaryOverlayLabelRefs.current).forEach((labelEl) => {
       labelEl.style.opacity = '0';
@@ -606,17 +607,21 @@ function MobileApp({ session, platformInfo }) {
       overlayLabelRef.current.style.transform = nextOverlayBlockId
         ? `translate3d(-50%, ${overlayOffset}px, 0)`
         : 'translate3d(-50%, -9999px, 0)';
+      overlayLabelRef.current.style.zIndex = '30';
     }
 
-    blockDescriptors.forEach((descriptor) => {
+    const secondaryDescriptors = blockDescriptors.filter((descriptor) => descriptor.id !== nextOverlayBlockId);
+
+    secondaryDescriptors.forEach((descriptor, index) => {
       if (descriptor.id === nextOverlayBlockId) return;
 
       const labelEl = secondaryOverlayLabelRefs.current[descriptor.id];
       if (!labelEl) return;
 
-      const y = Math.max(overlayOffset + 28, descriptor.top - scrollTop + overlayOffset);
+      const y = descriptor.top - scrollTop + overlayOffset;
       labelEl.style.opacity = '0.9';
       labelEl.style.transform = `translate3d(-50%, ${y}px, 0)`;
+      labelEl.style.zIndex = `${20 - index}`;
     });
 
     Object.entries(secondaryOverlayLabelRefs.current).forEach(([blockId, labelEl]) => {
@@ -1702,7 +1707,7 @@ function MobileApp({ session, platformInfo }) {
 
   useLayoutEffect(() => {
     scheduleOverlayRefresh();
-  }, [scheduleOverlayRefresh, selectedDate, dayTransition, todos]);
+  }, [scheduleOverlayRefresh, selectedDate, dayTransition, secondaryOverlayBlockIds, todos]);
 
   useEffect(() => {
     const handleViewportChange = () => scheduleOverlayRefresh();
