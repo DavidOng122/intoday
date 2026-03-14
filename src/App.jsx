@@ -202,19 +202,23 @@ const fetchMapMeta = async (url) => {
   return { mapTitle: null, mapSubtitle: 'Google Maps', mapUrl: url };
 };
 
-const SWIPE_CLOSE_THRESHOLD = 120;
-const SWIPE_CLOSE_SETTLE_MS = 200;
+const SWIPE_CLOSE_THRESHOLD = 124;
+const SWIPE_CLOSE_VELOCITY = 0.6;
+const SWIPE_CLOSE_SAMPLE_WINDOW_MS = 120;
+const SWIPE_CLOSE_SETTLE_MS = 220;
 const SWIPE_CLOSE_OFFSCREEN_PADDING = 120;
-const SWIPE_CLOSE_TRANSITION = 'transform 0.25s ease-out';
-const SWIPE_RESET_TRANSITION = 'transform 0.25s cubic-bezier(0.22, 1, 0.36, 1)';
+const SWIPE_CLOSE_TRANSITION = 'transform 0.24s cubic-bezier(0.22, 1, 0.36, 1)';
+const SWIPE_RESET_TRANSITION = 'transform 0.32s cubic-bezier(0.22, 1, 0.36, 1)';
+const SWIPE_DIRECTION_LOCK_DISTANCE = 12;
 const SWIPE_FREE_DRAG_DISTANCE = 18;
-const SWIPE_DRAG_RESISTANCE = 0.92;
+const SWIPE_DRAG_DAMPING = 160;
 const centeredSwipeTransform = (offsetY = 0) => `translateX(-50%) translateY(${offsetY}px)`;
 
 const getSwipeVisualOffset = (offsetY) => {
   if (offsetY <= 0) return 0;
   if (offsetY <= SWIPE_FREE_DRAG_DISTANCE) return offsetY;
-  return SWIPE_FREE_DRAG_DISTANCE + ((offsetY - SWIPE_FREE_DRAG_DISTANCE) * SWIPE_DRAG_RESISTANCE);
+  const overflow = offsetY - SWIPE_FREE_DRAG_DISTANCE;
+  return SWIPE_FREE_DRAG_DISTANCE + (SWIPE_DRAG_DAMPING * Math.log1p(overflow / SWIPE_DRAG_DAMPING));
 };
 
 const resolveSwipeScrollElement = (container, eventTarget, getScrollElement) => {
@@ -235,16 +239,57 @@ function useSwipeDownToClose({
   baseTransform = centeredSwipeTransform,
   getScrollElement,
   ignoreSwipeFrom,
+  prioritizeSwipeFrom,
+  prioritizeWithinTop = null,
   threshold = SWIPE_CLOSE_THRESHOLD,
+  velocityThreshold = SWIPE_CLOSE_VELOCITY,
 }) {
+  const touchStartX = useRef(null);
   const touchStartY = useRef(null);
   const currentOffsetY = useRef(0);
+  const isTracking = useRef(false);
   const isSwiping = useRef(false);
+  const swipeScrollElement = useRef(null);
+  const prioritySwipeTarget = useRef(false);
+  const swipeSamples = useRef([]);
 
   const resetSwipeState = useCallback(() => {
+    touchStartX.current = null;
     touchStartY.current = null;
     currentOffsetY.current = 0;
+    isTracking.current = false;
     isSwiping.current = false;
+    swipeScrollElement.current = null;
+    prioritySwipeTarget.current = false;
+    swipeSamples.current = [];
+  }, []);
+
+  const recordSwipeSample = useCallback((clientY) => {
+    const now = performance.now();
+    swipeSamples.current = swipeSamples.current
+      .filter((sample) => (now - sample.time) <= SWIPE_CLOSE_SAMPLE_WINDOW_MS)
+      .concat({ time: now, y: clientY })
+      .slice(-6);
+  }, []);
+
+  const getSwipeVelocity = useCallback(() => {
+    const samples = swipeSamples.current;
+    if (samples.length < 2) return 0;
+
+    const latestSample = samples[samples.length - 1];
+    let earliestSample = samples[0];
+
+    for (let i = samples.length - 2; i >= 0; i -= 1) {
+      earliestSample = samples[i];
+      if ((latestSample.time - earliestSample.time) > SWIPE_CLOSE_SAMPLE_WINDOW_MS) {
+        earliestSample = samples[i + 1] || latestSample;
+        break;
+      }
+    }
+
+    const elapsed = latestSample.time - earliestSample.time;
+    if (elapsed <= 0) return 0;
+    return (latestSample.y - earliestSample.y) / elapsed;
   }, []);
 
   const shouldIgnoreSwipeTarget = useCallback((eventTarget) => {
@@ -258,28 +303,58 @@ function useSwipeDownToClose({
     return false;
   }, [ignoreSwipeFrom]);
 
-  const canSwipeFromTarget = useCallback((container, eventTarget) => {
-    if (shouldIgnoreSwipeTarget(eventTarget)) return false;
-    const scrollEl = resolveSwipeScrollElement(container, eventTarget, getScrollElement);
-    return !(scrollEl && scrollEl.scrollTop > 0);
-  }, [getScrollElement, shouldIgnoreSwipeTarget]);
+  const shouldPrioritizeSwipeTarget = useCallback((container, eventTarget, clientY) => {
+    if (
+      typeof prioritizeWithinTop === 'number' &&
+      Number.isFinite(prioritizeWithinTop) &&
+      typeof clientY === 'number'
+    ) {
+      const { top } = container.getBoundingClientRect();
+      if ((clientY - top) <= prioritizeWithinTop) {
+        return true;
+      }
+    }
+
+    if (!prioritizeSwipeFrom || !(eventTarget instanceof Element)) return false;
+    if (typeof prioritizeSwipeFrom === 'function') {
+      return !!prioritizeSwipeFrom(eventTarget);
+    }
+    if (typeof prioritizeSwipeFrom === 'string') {
+      return !!eventTarget.closest(prioritizeSwipeFrom);
+    }
+    return false;
+  }, [prioritizeSwipeFrom, prioritizeWithinTop]);
 
   const restorePosition = useCallback((container) => {
     container.style.transition = SWIPE_RESET_TRANSITION;
     container.style.transform = baseTransform(0);
+    container.style.willChange = '';
   }, [baseTransform]);
 
-  const finishSwipe = useCallback((container) => {
-    if (touchStartY.current === null || !isSwiping.current) return;
+  const finishSwipe = useCallback((container, finalClientY = null) => {
+    if (touchStartY.current === null || !isTracking.current) return;
+
+    if (typeof finalClientY === 'number' && isSwiping.current) {
+      currentOffsetY.current = Math.max(0, finalClientY - touchStartY.current);
+      recordSwipeSample(finalClientY);
+    }
+
+    if (!isSwiping.current) {
+      container.style.willChange = '';
+      resetSwipeState();
+      return;
+    }
 
     const offsetY = currentOffsetY.current;
-    if (offsetY > threshold) {
+    const velocityY = getSwipeVelocity();
+    if (offsetY > threshold || velocityY > velocityThreshold) {
       const offscreenY = Math.max(
         window.innerHeight,
         container.getBoundingClientRect().height + SWIPE_CLOSE_OFFSCREEN_PADDING
       );
       container.style.transition = SWIPE_CLOSE_TRANSITION;
       container.style.transform = baseTransform(offscreenY);
+      container.style.willChange = '';
       window.setTimeout(() => {
         onClose?.(true);
       }, SWIPE_CLOSE_SETTLE_MS);
@@ -288,7 +363,7 @@ function useSwipeDownToClose({
     }
 
     resetSwipeState();
-  }, [baseTransform, onClose, resetSwipeState, restorePosition, threshold]);
+  }, [baseTransform, getSwipeVelocity, onClose, recordSwipeSample, resetSwipeState, restorePosition, threshold, velocityThreshold]);
 
   const handleTouchStart = useCallback((e) => {
     if (!enabled) return;
@@ -297,25 +372,38 @@ function useSwipeDownToClose({
     if (!touch) return;
 
     const container = e.currentTarget;
-    if (!canSwipeFromTarget(container, e.target)) {
+    if (shouldIgnoreSwipeTarget(e.target)) {
       resetSwipeState();
       return;
     }
 
-    // Cancel any entrance animation so drag uses the live transform immediately.
-    container.style.animation = 'none';
-    container.style.willChange = 'transform';
-    container.style.transform = baseTransform(0);
+    const scrollEl = resolveSwipeScrollElement(container, e.target, getScrollElement);
+    const isPriorityTarget = shouldPrioritizeSwipeTarget(container, e.target, touch.clientY);
+
+    if (!isPriorityTarget && scrollEl && scrollEl.scrollTop > 0) {
+      resetSwipeState();
+      return;
+    }
+
+    touchStartX.current = touch.clientX;
     touchStartY.current = touch.clientY;
     currentOffsetY.current = 0;
-    isSwiping.current = true;
-  }, [canSwipeFromTarget, enabled, resetSwipeState]);
+    isTracking.current = true;
+    isSwiping.current = false;
+    swipeScrollElement.current = scrollEl;
+    prioritySwipeTarget.current = isPriorityTarget;
+    swipeSamples.current = [];
+  }, [enabled, getScrollElement, resetSwipeState, shouldIgnoreSwipeTarget, shouldPrioritizeSwipeTarget]);
 
   const handleTouchMove = useCallback((e) => {
-    if (!enabled || touchStartY.current === null || !isSwiping.current) return;
+    if (!enabled || touchStartY.current === null || !isTracking.current) return;
 
     const container = e.currentTarget;
-    if (!canSwipeFromTarget(container, e.target)) {
+    if (
+      !prioritySwipeTarget.current &&
+      swipeScrollElement.current &&
+      swipeScrollElement.current.scrollTop > 0
+    ) {
       restorePosition(container);
       resetSwipeState();
       return;
@@ -325,25 +413,51 @@ function useSwipeDownToClose({
     if (!touch) return;
 
     const offsetY = touch.clientY - touchStartY.current;
-    if (offsetY <= 0) return;
+    const offsetX = touchStartX.current === null ? 0 : touch.clientX - touchStartX.current;
 
-    currentOffsetY.current = offsetY;
+    if (!isSwiping.current) {
+      if (offsetY <= 0) {
+        if (Math.abs(offsetY) > SWIPE_DIRECTION_LOCK_DISTANCE && Math.abs(offsetY) > Math.abs(offsetX)) {
+          resetSwipeState();
+        }
+        return;
+      }
+
+      if (Math.abs(offsetY) < SWIPE_DIRECTION_LOCK_DISTANCE) return;
+      if (Math.abs(offsetY) <= Math.abs(offsetX)) {
+        resetSwipeState();
+        return;
+      }
+
+      // Cancel the sheet entrance animation only after we know the user
+      // is intentionally dragging downward.
+      container.style.animation = 'none';
+      container.style.willChange = 'transform';
+      container.style.transform = baseTransform(0);
+      isSwiping.current = true;
+      recordSwipeSample(touchStartY.current);
+    }
+
+    currentOffsetY.current = Math.max(0, offsetY);
+    recordSwipeSample(touch.clientY);
     container.style.transition = 'none';
-    container.style.transform = baseTransform(getSwipeVisualOffset(offsetY));
+    container.style.transform = baseTransform(getSwipeVisualOffset(currentOffsetY.current));
 
     if (e.cancelable) {
       e.preventDefault();
     }
-  }, [baseTransform, canSwipeFromTarget, enabled, resetSwipeState, restorePosition]);
+  }, [baseTransform, enabled, recordSwipeSample, resetSwipeState, restorePosition]);
 
   const handleTouchEnd = useCallback((e) => {
     if (!enabled) return;
-    finishSwipe(e.currentTarget);
+    const touch = e.changedTouches?.[0];
+    finishSwipe(e.currentTarget, touch?.clientY ?? null);
   }, [enabled, finishSwipe]);
 
   const handleTouchCancel = useCallback((e) => {
     if (!enabled) return;
-    finishSwipe(e.currentTarget);
+    const touch = e.changedTouches?.[0];
+    finishSwipe(e.currentTarget, touch?.clientY ?? null);
   }, [enabled, finishSwipe]);
 
   return {
@@ -426,12 +540,42 @@ function App() {
   const [isAppearanceDropdownOpen, setIsAppearanceDropdownOpen] = useState(false);
   const taskInputRef = useRef(null);
   const expandedTaskInputRef = useRef(null);
+  const [isTouchScreen, setIsTouchScreen] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    const coarsePointer = window.matchMedia ? window.matchMedia('(pointer: coarse)').matches : false;
+    return navigator.maxTouchPoints > 0 || coarsePointer;
+  });
   const [isTaskInputFocused, setIsTaskInputFocused] = useState(false);
   const [canExpandComposer, setCanExpandComposer] = useState(false);
   const [isComposerExpanded, setIsComposerExpanded] = useState(false);
   const [sheetBaseHeight, setSheetBaseHeight] = useState(null);
   const [sheetKeyboardOffset, setSheetKeyboardOffset] = useState(0);
   const [sheetBaseViewportHeight, setSheetBaseViewportHeight] = useState(0);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.matchMedia) return undefined;
+
+    const media = window.matchMedia('(pointer: coarse)');
+    const updateTouchScreenState = () => {
+      setIsTouchScreen(media.matches || navigator.maxTouchPoints > 0);
+    };
+
+    updateTouchScreenState();
+
+    if (media.addEventListener) {
+      media.addEventListener('change', updateTouchScreenState);
+    } else {
+      media.addListener(updateTouchScreenState);
+    }
+
+    return () => {
+      if (media.removeEventListener) {
+        media.removeEventListener('change', updateTouchScreenState);
+      } else {
+        media.removeListener(updateTouchScreenState);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     const textarea = taskInputRef.current;
@@ -687,10 +831,14 @@ function App() {
   }, []);
 
   const sheetSwipeHandlers = useSwipeDownToClose({
-    enabled: isSheetOpen && isIOS,
+    enabled: isSheetOpen && isTouchScreen,
     onClose: closeSheet,
     getScrollElement: '.sheet-content',
-    ignoreSwipeFrom: '.sheet-input-area',
+    ignoreSwipeFrom: (target) => (
+      !!target.closest('.sheet-input-area, textarea, input, select, button, a, [contenteditable="true"]')
+    ),
+    prioritizeSwipeFrom: '.sheet-title-row, .sheet-hero-icon',
+    prioritizeWithinTop: 240,
   });
   const editSwipeHandlers = useSwipeDownToClose({
     enabled: !!editingTodo,
