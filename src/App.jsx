@@ -6,6 +6,8 @@ import './App.css';
 import Login from './Login';
 import { supabase, isSupabaseConfigured } from './supabase';
 import { SendIntent } from 'send-intent';
+import { useSyncedTodos } from './todoSync';
+import { getUserProfile } from './userProfile';
 
 const translations = {
   EN: {
@@ -81,6 +83,14 @@ const cardTypeConfig = {
   plain: { icon: '/text.png', bg: '#FFE5B9', darkBg: '#8B622AB3', darkStroke: '#BF8A30' },
 };
 
+const SHARED_SELECTED_DATE_KEY = 'shared_selected_date';
+const DESKTOP_SECTION_TO_MOBILE_BLOCK = {
+  morning: 'Morning',
+  afternoon: 'Afternoon',
+  evening: 'Evening',
+  night: 'Night',
+};
+
 const SheetPebbleIcon = () => (
   <svg width="42" height="38" viewBox="0 0 42 38" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
     <ellipse cx="21" cy="27.125" rx="21" ry="10.5" fill="url(#sheet_pebble_0)" />
@@ -104,6 +114,24 @@ const SheetPebbleIcon = () => (
 );
 
 const COMPOSER_MAX_LINES = 5;
+
+const parseSharedSelectedDate = (value) => {
+  if (!value) return null;
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) return null;
+  const [, year, month, day] = match;
+  const parsed = new Date(Number(year), Number(month) - 1, Number(day));
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+};
+
+const normalizeTodoRecord = (todo) => ({
+  ...todo,
+  text: todo.text || '',
+  completed: todo.completed ?? false,
+  dateString: todo.dateString || format(new Date(), 'yyyy-MM-dd'),
+  timeOfDay: todo.timeOfDay || DESKTOP_SECTION_TO_MOBILE_BLOCK[todo.section] || 'Morning',
+  cardType: todo.cardType || 'plain',
+});
 
 const detectCardType = (text) => {
   const t = text.toLowerCase();
@@ -605,7 +633,10 @@ function App() {
     return now;
   };
 
-  const [selectedDate, setSelectedDate] = useState(() => getLogicalToday());
+  const [selectedDate, setSelectedDate] = useState(() => {
+    const savedDate = parseSharedSelectedDate(localStorage.getItem(SHARED_SELECTED_DATE_KEY));
+    return savedDate || getLogicalToday();
+  });
   const [currentTime, setCurrentTime] = useState(new Date());
 
   const [isSheetOpen, setIsSheetOpen] = useState(false);
@@ -614,6 +645,10 @@ function App() {
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const [calPickerDate, setCalPickerDate] = useState(() => getLogicalToday());
   const profileScrollRef = React.useRef(null);
+
+  useEffect(() => {
+    localStorage.setItem(SHARED_SELECTED_DATE_KEY, format(selectedDate, 'yyyy-MM-dd'));
+  }, [selectedDate]);
 
   useEffect(() => {
     if (!isSheetOpen) {
@@ -917,19 +952,11 @@ function App() {
     return () => clearTimeout(timer);
   }, []);
 
-  const [todos, setTodos] = useState(() => {
-    const saved = localStorage.getItem('todos');
-    if (saved) {
-      const parsed = JSON.parse(saved);
-      return parsed.map(t => ({ ...t, dateString: t.dateString || format(new Date(), 'yyyy-MM-dd') }));
-    } else {
-      return [];
-    }
+  const [todos, setTodos] = useSyncedTodos({
+    userId: session?.user?.id || null,
+    normalizeTodo: normalizeTodoRecord,
   });
-
-  useEffect(() => {
-    localStorage.setItem('todos', JSON.stringify(todos));
-  }, [todos]);
+  const userProfile = getUserProfile(session?.user);
 
   const getCurrentTimeBlock = () => {
     const hour = currentTime.getHours();
@@ -1602,7 +1629,7 @@ function App() {
                 setIsLoginOpen(true);
               }
             }} style={{ cursor: 'pointer' }}>
-              <img src={session?.user?.user_metadata?.avatar_url || 'https://lh3.googleusercontent.com/a/default-user=s64-c'} alt="Profile" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
+              <img src={userProfile.avatarUrl} alt={userProfile.fullName} style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
             </div>
           </div>
 
@@ -2038,15 +2065,15 @@ function App() {
                 </button>
                 <div className="profile-header">
                   <div className="profile-avatar-large">
-                    <img src={session?.user?.user_metadata?.avatar_url || 'https://lh3.googleusercontent.com/a/default-user=s64-c'} alt="Profile Large" />
+                    <img src={userProfile.avatarUrl} alt={userProfile.fullName} />
                     <div className="edit-badge">
                       <svg width="11" height="11" viewBox="0 0 11 11" fill="none" xmlns="http://www.w3.org/2000/svg">
                         <path d="M10.5974 0.402648C10.3395 0.144835 9.98979 0 9.62516 0C9.26052 0 8.91082 0.144835 8.65296 0.402648L8.04692 1.0087L9.9913 2.95308L10.5974 2.34703C10.8552 2.08918 11 1.73947 11 1.37484C11 1.01021 10.8552 0.660505 10.5974 0.402648ZM9.43554 3.50885L7.49115 1.56446L1.12685 7.92876C0.803581 8.25187 0.565942 8.65046 0.43542 9.08848L0.0163715 10.4949C-0.0038601 10.5628 -0.00536903 10.6349 0.0120044 10.7035C0.0293779 10.7722 0.0649875 10.8349 0.115066 10.8849C0.165143 10.935 0.227827 10.9706 0.296484 10.988C0.365141 11.0054 0.437217 11.0039 0.505087 10.9836L1.91152 10.5646C2.34954 10.4341 2.74813 10.1964 3.07124 9.87315L9.43554 3.50885Z" fill="white" />
                       </svg>
                     </div>
                   </div>
-                  <h2 className="profile-name">{session?.user?.user_metadata?.full_name?.toUpperCase() || 'USER'}</h2>
-                  <p className="profile-email">{session?.user?.email || ''}</p>
+                  <h2 className="profile-name">{userProfile.fullName || 'USER'}</h2>
+                  <p className="profile-email">{userProfile.email || ''}</p>
                 </div>
 
                 <div className="profile-settings-section">
