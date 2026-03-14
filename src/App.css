@@ -912,6 +912,7 @@
   min-height: 240px;
   border-bottom: 1px solid #F0F0F0;
   position: relative;
+  align-items: stretch;
   z-index: 1; /* Base index */
 }
 
@@ -975,12 +976,9 @@
 
 .tasks-col {
   flex: 1;
-  padding: 16px 20px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
+  position: relative;
   border-top: 1px solid #CBD5E1;
-  overflow-y: auto;
+  overflow: visible;
   -ms-overflow-style: none;
   /* IE and Edge */
   scrollbar-width: none;
@@ -1018,7 +1016,7 @@ body.is-dragging-global .time-block {
    SWIPE ACTIONS
    ======================================================== */
 .swipe-wrapper {
-  position: relative;
+  position: absolute;
   overflow: hidden;
   border-radius: 11px;
 }
@@ -1087,11 +1085,11 @@ body.is-dragging-global .time-block {
 
 /* Drag placeholder — shown at the original position during drag */
 .swipe-wrapper.is-dragging {
-  min-height: 60px;
   border-radius: 11px;
   background: transparent;
   /* Crucial: allow the card to be seen when dragged outside the wrapper bounds */
   overflow: visible;
+  z-index: 1000;
 }
 .swipe-wrapper.is-dragging .swipe-actions,
 .swipe-wrapper:has(.dragging) .swipe-actions {

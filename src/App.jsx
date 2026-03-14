@@ -73,6 +73,12 @@ const timeBlocks = [
   { id: 'Midnight', key: 'midnight', start: '00:00', end: '06:00', color: '#648BD2', textColor: '#000000', strokeColor: '#BFDCFF', accentColor: '#648BD2' }
 ];
 
+const TIME_BLOCK_MIN_HEIGHT = 240;
+const TASK_SURFACE_PADDING_Y = 16;
+const TASK_SURFACE_PADDING_X = 20;
+const TASK_STACK_GAP = 12;
+const DEFAULT_TASK_CARD_HEIGHT = 76;
+
 const cardTypeConfig = {
   meeting: { icon: '/video.png', bg: '#DCEAFB', darkBg: '#276F94B3', darkStroke: '#7698C2' },
   map: { icon: '/map.png', bg: '#A9F1A2', darkBg: '#437A3FB3', darkStroke: '#64C15E' },
@@ -884,7 +890,7 @@ function App() {
   const scrollToCurrentTime = (behavior = 'smooth') => {
     if (!isSameDay(selectedDate, getLogicalToday())) return;
     const currentBlockId = getCurrentTimeBlock();
-    const el = document.querySelector(`[data-block-id="${currentBlockId}"]`);
+    const el = document.querySelector(`[data-time-block-id="${currentBlockId}"]`);
     if (el && timelineRef.current) {
       el.scrollIntoView({ behavior, block: 'start' });
     }
@@ -986,6 +992,7 @@ function App() {
   const [draggedTodoId, setDraggedTodoId] = useState(null);
   const [openSwipeId, setOpenSwipeId] = useState(null);
   const [dragOverBlock, setDragOverBlock] = useState(null);
+  const [taskCardHeights, setTaskCardHeights] = useState({});
 
   // Sync swipe-open CSS class with openSwipeId state
   const prevOpenSwipeId = React.useRef(null);
@@ -1035,15 +1042,20 @@ function App() {
 
   const dragOverBlockRef = React.useRef(null); // readable in onTouchEnd closure
   const scrollBlocker = React.useRef(null);     // non-passive touchmove blocker
+  const dragSessionRef = React.useRef({
+    todoId: null,
+    sourceBlockId: null,
+    pointerOffsetY: 0,
+    currentBlockId: null,
+    currentOffsetY: 0,
+  });
 
   const swipeTouchStartX = React.useRef(null);
   const swipeTouchStartY = React.useRef(null);
   const swipeCurrentOffset = React.useRef(0);
   const isDragMode = React.useRef(false);
-  const dragOriginY = React.useRef(0);
   const dragTouchY = React.useRef(0);
   const activeDragTodoIdRef = React.useRef(null);
-  const lockedTimelineScrollTop = React.useRef(0);
   const autoScrollVelocity = React.useRef(0);
   const autoScrollFrameRef = React.useRef(null);
   const autoScrollLastTsRef = React.useRef(null);
@@ -1051,7 +1063,6 @@ function App() {
   const lockTimelineScroll = useCallback(() => {
     const timelineEl = timelineRef.current;
     if (!timelineEl) return;
-    lockedTimelineScrollTop.current = timelineEl.scrollTop;
     timelineEl.classList.add('drag-scroll-locked');
   }, []);
 
@@ -1061,35 +1072,61 @@ function App() {
     timelineEl.classList.remove('drag-scroll-locked');
   }, []);
 
-  // Helper: find nearest time block by vertical center proximity
+  const getDragSurfaceBlocks = () => Array.from(document.querySelectorAll('[data-tasks-surface-block]'));
+
   const getNearestBlock = (touchY) => {
-    const blocks = document.querySelectorAll('[data-block-id]');
+    const blocks = getDragSurfaceBlocks();
+    if (blocks.length === 0) return null;
+
+    const containingBlock = blocks.find((block) => {
+      const rect = block.getBoundingClientRect();
+      return touchY >= rect.top && touchY <= rect.bottom;
+    });
+    if (containingBlock) return containingBlock.dataset.tasksSurfaceBlock;
+
     let nearestId = null;
     let nearestDist = Infinity;
-    blocks.forEach(block => {
+    blocks.forEach((block) => {
       const rect = block.getBoundingClientRect();
       const centerY = rect.top + rect.height / 2;
       const dist = Math.abs(touchY - centerY);
       if (dist < nearestDist) {
         nearestDist = dist;
-        nearestId = block.dataset.blockId;
+        nearestId = block.dataset.tasksSurfaceBlock;
       }
     });
     return nearestId;
   };
 
   const syncDraggedCardPosition = (todoId, touchY) => {
-    const timelineEl = timelineRef.current;
-    const scrollDelta = timelineEl ? timelineEl.scrollTop - lockedTimelineScrollTop.current : 0;
-    const rawDy = touchY - dragOriginY.current + scrollDelta;
-    const dy = Math.max(-2000, Math.min(2000, rawDy));
     const el = document.getElementById(`swipe-card-${todoId}`);
-    if (el) el.style.transform = `translate3d(0, ${dy}px, 0) scale(1.04)`;
+    const wrapper = document.getElementById(`swipe-wrapper-${todoId}`);
+    if (!el || !wrapper) return;
 
-    const nearest = getNearestBlock(touchY);
-    if (nearest !== dragOverBlockRef.current) {
-      dragOverBlockRef.current = nearest;
-      setDragOverBlock(nearest);
+    const targetBlockId = getNearestBlock(touchY) || dragSessionRef.current.sourceBlockId;
+    const targetSurface = targetBlockId
+      ? document.querySelector(`[data-tasks-surface-block="${targetBlockId}"]`)
+      : null;
+
+    if (!targetSurface) return;
+
+    const targetRect = targetSurface.getBoundingClientRect();
+    const rawOffsetY = touchY - targetRect.top - TASK_SURFACE_PADDING_Y - dragSessionRef.current.pointerOffsetY;
+    const previewTodos = getBlockTodosForLayout(targetBlockId, { todoId, blockId: targetBlockId });
+    const previewLayout = getBlockLayout(previewTodos, { [todoId]: rawOffsetY });
+    const resolvedOffsetY = previewLayout.positions[todoId] ?? 0;
+    const targetCardTop = targetRect.top + TASK_SURFACE_PADDING_Y + resolvedOffsetY;
+    const wrapperRect = wrapper.getBoundingClientRect();
+    const dy = targetCardTop - wrapperRect.top;
+
+    el.style.transform = `translate3d(0, ${dy}px, 0) scale(1.04)`;
+
+    dragSessionRef.current.currentBlockId = targetBlockId;
+    dragSessionRef.current.currentOffsetY = resolvedOffsetY;
+
+    if (targetBlockId !== dragOverBlockRef.current) {
+      dragOverBlockRef.current = targetBlockId;
+      setDragOverBlock(targetBlockId);
     }
   };
 
@@ -1236,7 +1273,6 @@ function App() {
         // Vertical movement → activate drag immediately (no long press)
         e.preventDefault();
         isDragMode.current = true;
-        dragOriginY.current = swipeTouchStartY.current;
         dragTouchY.current = touch.clientY;
         activeDragTodoIdRef.current = todoId;
         setDraggedTodoId(todoId);
@@ -1244,12 +1280,22 @@ function App() {
 
         const el = document.getElementById(`swipe-card-${todoId}`);
         const wrapper = document.getElementById(`swipe-wrapper-${todoId}`);
+        const activeTodo = selectedDateTodos.find((todo) => todo.id === todoId);
         if (el) {
           el.style.transition = 'box-shadow 0.12s ease, opacity 0.12s ease';
           el.style.boxShadow = '0 12px 30px rgba(0, 0, 0, 0.12)';
           el.style.opacity = '0.95';
           el.style.zIndex = '100';
           el.style.willChange = 'transform';
+
+          const cardRect = el.getBoundingClientRect();
+          dragSessionRef.current = {
+            todoId,
+            sourceBlockId: activeTodo?.timeOfDay || null,
+            pointerOffsetY: touch.clientY - cardRect.top,
+            currentBlockId: activeTodo?.timeOfDay || null,
+            currentOffsetY: Number.isFinite(activeTodo?.positionY) ? activeTodo.positionY : 0,
+          };
         }
         // Lock page scroll
         const blocker = (ev) => ev.preventDefault();
@@ -1296,10 +1342,14 @@ function App() {
         const el = document.getElementById(`swipe-card-${todoId}`);
         const wrapper = document.getElementById(`swipe-wrapper-${todoId}`);
 
-        // Use ref for stale-closure-safe latest nearest block
-        const targetBlock = dragOverBlockRef.current;
+        const targetBlock = dragSessionRef.current.currentBlockId || dragOverBlockRef.current;
+        const targetOffsetY = dragSessionRef.current.currentOffsetY;
         if (targetBlock) {
-          setTodos(prev => prev.map(t => t.id === todoId ? { ...t, timeOfDay: targetBlock } : t));
+          setTodos(prev => prev.map(t => (
+            t.id === todoId
+              ? { ...t, timeOfDay: targetBlock, positionY: targetOffsetY }
+              : t
+          )));
         }
 
         if (el) {
@@ -1327,6 +1377,13 @@ function App() {
           scrollBlocker.current = null;
         }
         dragOverBlockRef.current = null;
+        dragSessionRef.current = {
+          todoId: null,
+          sourceBlockId: null,
+          pointerOffsetY: 0,
+          currentBlockId: null,
+          currentOffsetY: 0,
+        };
         swipeTouchStartX.current = null;
         swipeTouchStartY.current = null;
         swipeCurrentOffset.current = 0;
@@ -1448,6 +1505,91 @@ function App() {
   });
 
   const selectedDateTodos = todos.filter(t => t.dateString === format(selectedDate, 'yyyy-MM-dd'));
+
+  useEffect(() => {
+    const measureTaskCards = () => {
+      const measuredHeights = {};
+      document.querySelectorAll('[data-task-card-id]').forEach((node) => {
+        const todoId = node.getAttribute('data-task-card-id');
+        if (!todoId) return;
+        measuredHeights[todoId] = Math.ceil(node.getBoundingClientRect().height);
+      });
+
+      setTaskCardHeights((prev) => {
+        let changed = false;
+        const next = { ...prev };
+
+        Object.entries(measuredHeights).forEach(([todoId, height]) => {
+          if (next[todoId] !== height) {
+            next[todoId] = height;
+            changed = true;
+          }
+        });
+
+        return changed ? next : prev;
+      });
+    };
+
+    const frameId = window.requestAnimationFrame(measureTaskCards);
+    window.addEventListener('resize', measureTaskCards);
+    return () => {
+      window.cancelAnimationFrame(frameId);
+      window.removeEventListener('resize', measureTaskCards);
+    };
+  }, [todos, selectedDate, appearance, language, contentKey]);
+
+  const getTaskCardHeight = useCallback((todoId) => {
+    return taskCardHeights[String(todoId)] || DEFAULT_TASK_CARD_HEIGHT;
+  }, [taskCardHeights]);
+
+  const getBlockTodosForLayout = useCallback((blockId, dragPreview = null) => {
+    return selectedDateTodos
+      .map((todo) => (
+        dragPreview && todo.id === dragPreview.todoId
+          ? { ...todo, timeOfDay: dragPreview.blockId }
+          : todo
+      ))
+      .filter((todo) => todo.timeOfDay === blockId);
+  }, [selectedDateTodos]);
+
+  const getBlockLayout = useCallback((blockTodos, offsetOverrides = {}) => {
+    const heights = blockTodos.map((todo) => getTaskCardHeight(todo.id));
+    const stackedContentHeight = heights.reduce((sum, height, index) => (
+      sum + height + (index > 0 ? TASK_STACK_GAP : 0)
+    ), 0);
+    const contentHeight = Math.max(
+      TIME_BLOCK_MIN_HEIGHT - TASK_SURFACE_PADDING_Y * 2,
+      stackedContentHeight
+    );
+
+    const tailSpace = new Array(blockTodos.length).fill(0);
+    let trailingHeight = 0;
+    for (let index = blockTodos.length - 1; index >= 0; index -= 1) {
+      trailingHeight += heights[index];
+      if (index < blockTodos.length - 1) trailingHeight += TASK_STACK_GAP;
+      tailSpace[index] = trailingHeight;
+    }
+
+    const positions = {};
+    let cursor = 0;
+
+    blockTodos.forEach((todo, index) => {
+      const storedOffset = Number.isFinite(todo.positionY) ? todo.positionY : null;
+      const desiredTop = Object.prototype.hasOwnProperty.call(offsetOverrides, todo.id)
+        ? offsetOverrides[todo.id]
+        : (storedOffset ?? cursor);
+      const maxTop = Math.max(cursor, contentHeight - tailSpace[index]);
+      const clampedTop = Math.min(Math.max(desiredTop, cursor), maxTop);
+
+      positions[todo.id] = clampedTop;
+      cursor = clampedTop + heights[index] + TASK_STACK_GAP;
+    });
+
+    return {
+      blockMinHeight: contentHeight + TASK_SURFACE_PADDING_Y * 2,
+      positions,
+    };
+  }, [getTaskCardHeight]);
 
   const allChips = [
     { id: 'Now', key: 'now' },
@@ -1664,11 +1806,17 @@ function App() {
 
           {timeBlocks.map((block) => {
             const blockTodos = selectedDateTodos.filter(t => t.timeOfDay === block.id);
+            const blockLayout = getBlockLayout(blockTodos);
             const indicatorStyle = getTimeIndicatorStyle(block);
             return (
-              <div className="time-block" key={block.id}>
+              <div
+                className="time-block"
+                key={block.id}
+                data-time-block-id={block.id}
+                style={{ minHeight: `${blockLayout.blockMinHeight}px` }}
+              >
                 <div className="time-col">
-                  <div className="time-pill" data-block-id={block.id} style={{
+                  <div className="time-pill" style={{
                     backgroundColor: block.color,
                     color: block.textColor,
                     WebkitTextStroke: `0.3px ${block.strokeColor}`,
@@ -1688,8 +1836,8 @@ function App() {
                   <span className="time-text bottom">{block.end}</span>
                 </div>
                 <div
-                  className="tasks-col"
-                  data-block-id={block.id}
+                  className={`tasks-col ${dragOverBlock === block.id ? 'drag-over' : ''}`}
+                  data-tasks-surface-block={block.id}
                   onDragOver={handleDragOver}
                   onDrop={(e) => handleDropOnBlock(e, block.id)}
                 >
@@ -1739,7 +1887,16 @@ function App() {
                     }
 
                     return (
-                      <div key={todo.id} id={`swipe-wrapper-${todo.id}`} className="swipe-wrapper">
+                      <div
+                        key={todo.id}
+                        id={`swipe-wrapper-${todo.id}`}
+                        className="swipe-wrapper"
+                        style={{
+                          top: `${TASK_SURFACE_PADDING_Y + (blockLayout.positions[todo.id] || 0)}px`,
+                          left: `${TASK_SURFACE_PADDING_X}px`,
+                          right: `${TASK_SURFACE_PADDING_X}px`,
+                        }}
+                      >
                         {/* Action buttons revealed behind the card */}
                         <div className="swipe-actions">
                           <button className="swipe-btn edit" onClick={() => openEdit(todo)}>
@@ -1753,6 +1910,7 @@ function App() {
                         {/* The card itself */}
                         <div
                           id={`swipe-card-${todo.id}`}
+                          data-task-card-id={todo.id}
                           className={`task-card ${todo.completed ? 'completed' : ''} ${draggedTodoId === todo.id ? 'dragging' : ''}`}
                           onClick={() => {
                             if (openSwipeId === todo.id) { closeSwipe(todo.id); return; }
