@@ -221,10 +221,6 @@
   .mobile-fab {
     display: flex;
   }
-
-  .app-container:not(.platform-android) .mobile-fab {
-    display: none;
-  }
   .timeline-area {
     padding-bottom: calc(104px + env(safe-area-inset-bottom, 0px));
   }
@@ -324,4 +320,3 @@
 .back-to-today-btn:active {
   opacity: 0.7;
 }
-
