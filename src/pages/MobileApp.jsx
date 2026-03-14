@@ -1385,14 +1385,6 @@ function MobileApp({ session, platformInfo }) {
       return (
         <div className="time-block" key={`${format(date, 'yyyy-MM-dd')}-${block.id}`}>
           <div className="time-col">
-            <div className="time-pill" data-block-id={block.id} style={{
-              backgroundColor: block.color,
-              color: block.textColor,
-              WebkitTextStroke: `0.3px ${block.strokeColor}`,
-              paintOrder: 'stroke fill'
-            }}>
-              {translations[language][block.key]}
-            </div>
             <span className="time-text">{block.start}</span>
             {indicatorStyle && (
               <img
@@ -1414,6 +1406,20 @@ function MobileApp({ session, platformInfo }) {
             onPointerUp={enableEmptyAreaSwipe ? handleDaySwipePointerEnd : undefined}
             onPointerCancel={enableEmptyAreaSwipe ? handleDaySwipePointerEnd : undefined}
           >
+            <div className="time-block-header">
+              <div
+                className="time-pill"
+                data-block-id={block.id}
+                style={{
+                  backgroundColor: block.color,
+                  color: block.textColor,
+                  WebkitTextStroke: `0.3px ${block.strokeColor}`,
+                  paintOrder: 'stroke fill',
+                }}
+              >
+                {translations[language][block.key]}
+              </div>
+            </div>
             {blockTodos.map(todo => {
               const cType = todo.cardType || 'plain';
               const cfg = cardTypeConfig[cType] || cardTypeConfig.plain;

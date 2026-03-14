@@ -192,10 +192,16 @@
 }
 
 .dark-theme .tasks-col {
+  background: var(--card-bg) !important;
   border-color: var(--divider) !important;
 }
 
+.dark-theme .time-block {
+  background: var(--card-bg) !important;
+}
+
 .dark-theme .time-col {
+  background: #181614 !important;
   border-color: var(--divider) !important;
 }
 
