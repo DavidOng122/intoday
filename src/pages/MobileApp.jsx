@@ -6,7 +6,7 @@ import useKeyboardOffset from '../hooks/useKeyboardOffset';
 import useSwipeDownToClose from '../hooks/useSwipeDownToClose';
 import { useSyncedTodos } from '../todoSync';
 import { supabase } from '../supabase';
-import { getCurrentTimeBlock, getLogicalToday } from '../lib/dateHelpers';
+import { DAY_BOUNDARY_HOUR, getCurrentTimeBlock, getLogicalToday } from '../lib/dateHelpers';
 import { detectCardType, extractMapUrl, extractVideoUrl, fetchMapMeta, fetchVideoMeta } from '../lib/taskParsers';
 import { getTaskCardPresentation } from '../taskCardUtils';
 import { timeBlocks } from '../lib/timeBlocks';
@@ -96,6 +96,28 @@ const normalizeTodoRecord = (todo) => ({
 
 function MobileApp({ session, platformInfo }) {
   const { platform, isNativePlatform, isIOS, isAndroid } = platformInfo;
+
+  const getLogicalBlockBounds = useCallback((block, logicalDate) => {
+    const baseDate = new Date(logicalDate);
+    baseDate.setHours(0, 0, 0, 0);
+
+    const [startHour, startMinute] = block.start.split(':').map(Number);
+    const [endHour, endMinute] = block.end.split(':').map(Number);
+
+    const blockStart = new Date(baseDate);
+    blockStart.setHours(startHour, startMinute, 0, 0);
+    if (startHour < DAY_BOUNDARY_HOUR) {
+      blockStart.setDate(blockStart.getDate() + 1);
+    }
+
+    const blockEnd = new Date(baseDate);
+    blockEnd.setHours(endHour, endMinute, 0, 0);
+    if (blockEnd <= blockStart) {
+      blockEnd.setDate(blockEnd.getDate() + 1);
+    }
+
+    return { blockStart, blockEnd };
+  }, []);
 
   // Handle incoming share intent from other apps (YouTube, Instagram, etc.)
   useEffect(() => {
@@ -1581,7 +1603,7 @@ function MobileApp({ session, platformInfo }) {
     setTodos(todosCopy);
   };
 
-  const logicalToday = getLogicalToday();
+  const logicalToday = getLogicalToday(currentTime);
   const chipOrder = ['Morning', 'Afternoon', 'Evening', 'Night', 'Midnight'];
   const calendarDays = Array.from({ length: 7 }).map((_, i) => {
     const date = addDays(subDays(selectedDate, 3), i);
@@ -1642,7 +1664,7 @@ function MobileApp({ session, platformInfo }) {
     const selectedDay = new Date(date);
     selectedDay.setHours(0, 0, 0, 0);
 
-    const today = getLogicalToday();
+    const today = getLogicalToday(currentTime);
     const todayTime = today.getTime();
     const selectedTime = selectedDay.getTime();
 
@@ -1666,17 +1688,7 @@ function MobileApp({ session, platformInfo }) {
       };
     }
 
-    const [startHour, startMinute] = block.start.split(':').map(Number);
-    const [endHour, endMinute] = block.end.split(':').map(Number);
-
-    const blockStart = new Date(selectedDay);
-    blockStart.setHours(startHour, startMinute, 0, 0);
-
-    const blockEnd = new Date(selectedDay);
-    blockEnd.setHours(endHour, endMinute, 0, 0);
-    if (blockEnd <= blockStart) {
-      blockEnd.setDate(blockEnd.getDate() + 1);
-    }
+    const { blockStart, blockEnd } = getLogicalBlockBounds(block, selectedDay);
 
     if (currentTime <= blockStart) {
       return {
@@ -1718,23 +1730,14 @@ function MobileApp({ session, platformInfo }) {
 
   const isTimeBlockPast = (block) => {
     // If selected date is in the past, all blocks are past.
-    const today = getLogicalToday();
+    const today = getLogicalToday(currentTime);
     const selDateMidnight = new Date(selectedDate);
     selDateMidnight.setHours(0, 0, 0, 0);
 
     if (selDateMidnight < today) return true;
     if (selDateMidnight > today) return false;
 
-    // If it's today, check if the block's absolute end time has passed.
-    const [h, m] = block.end.split(':').map(Number);
-    let endDateTime = new Date(selectedDate);
-    endDateTime.setHours(h, m, 0, 0);
-
-    // Cross-midnight adjustment:
-    // Night (ends at 00:00) and Midnight (ends at 06:00) are technically on the next calendar day.
-    if (block.id === 'Midnight' || (block.id === 'Night' && h === 0)) {
-      endDateTime.setDate(endDateTime.getDate() + 1);
-    }
+    const { blockEnd: endDateTime } = getLogicalBlockBounds(block, selectedDate);
 
     return currentTime > endDateTime;
   };
