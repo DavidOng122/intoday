@@ -21,6 +21,7 @@ const URL_EXTRACT_REGEX =
   /(?:https?:\/\/|[a-z][a-z\d+.-]*:\/\/|mailto:|tel:|sms:|geo:|maps:|spotify:|www\.)[^\s<>"']+/gi;
 
 const TRAILING_PUNCTUATION_REGEX = /[),.;!?]+$/;
+const TRAILING_BRACKETS_QUOTES_REGEX = /[\]\}"'”’）】]+$/;
 
 const DOCUMENT_EXTENSIONS = ['pdf', 'doc', 'docx', 'ppt', 'pptx', 'xls', 'xlsx', 'csv', 'txt', 'md', 'rtf', 'pages', 'key', 'numbers'];
 const VIDEO_EXTENSIONS = ['mp4', 'mov', 'avi', 'mkv', 'webm', 'm4v'];
@@ -36,28 +37,78 @@ const URL_RULES = [
   {
     type: CARD_TYPES.MEETING,
     protocols: ['zoommtg'],
-    hosts: ['meet.google.com', 'zoom.us', 'teams.microsoft.com', 'teams.live.com', 'whereby.com', 'webex.com', 'gotomeeting.com', 'meet.jit.si'],
+    hosts: [
+      'meet.google.com',
+      'zoom.us',
+      'teams.microsoft.com',
+      'teams.live.com',
+      'whereby.com',
+      'webex.com',
+      'gotomeeting.com',
+      'meet.jit.si',
+      'calendar.google.com',
+      'calendly.com',
+    ],
     pathPatterns: [/^\/(?:j|join|wc|meeting)\b/],
+    hostPathPatterns: [
+      { host: 'zoom.us', pattern: /^\/(?:j|w|wc|my)\// },
+      { host: 'calendar.google.com', pattern: /^\/calendar\/u\/\d+\/r\/eventedit/ },
+      { host: 'calendly.com', pattern: /^\/[a-z0-9-]+(?:\/[a-z0-9-]+)?$/i },
+    ],
   },
   {
     type: CARD_TYPES.PLACE,
     protocols: ['geo', 'maps'],
-    hosts: ['maps.google.com', 'maps.app.goo.gl', 'maps.apple.com', 'openstreetmap.org', 'bing.com'],
+    hosts: [
+      'maps.google.com',
+      'maps.app.goo.gl',
+      'maps.apple.com',
+      'openstreetmap.org',
+      'waze.com',
+    ],
     hostPathPatterns: [
       { host: 'google.com', pattern: /^\/maps(?:\/|$)/ },
+      { host: 'google.com', pattern: /^\/travel\// },
+      { host: 'bing.com', pattern: /^\/maps(?:\/|$)/ },
+      { host: 'apple.com', pattern: /^\/maps/ },
+      { host: 'waze.com', pattern: /^\/ul/ },
     ],
   },
   {
     type: CARD_TYPES.DOCUMENT,
-    hosts: ['docs.google.com', 'drive.google.com', 'notion.so', 'dropbox.com', 'paper.dropbox.com'],
+    hosts: [
+      'docs.google.com',
+      'drive.google.com',
+      'notion.so',
+      'notion.site',
+      'dropbox.com',
+      'paper.dropbox.com',
+      'figma.com',
+      'canva.com',
+      'miro.com',
+      'airtable.com',
+    ],
     hostPathPatterns: [
       { host: 'docs.google.com', pattern: /^\/(?:document|spreadsheets|presentation|forms|drawings)\// },
       { host: 'drive.google.com', pattern: /^\/file\// },
+      { host: 'drive.google.com', pattern: /^\/drive\/folders\// },
+      { host: 'figma.com', pattern: /^\/(?:file|proto|board|design)\// },
+      { host: 'canva.com', pattern: /^\/design\// },
+      { host: 'miro.com', pattern: /^\/app\/board\// },
+      { host: 'airtable.com', pattern: /^\/(?:app|tbl|shr)/ },
     ],
   },
   {
     type: CARD_TYPES.PODCAST,
-    hosts: ['podcasts.apple.com', 'pca.st', 'pocketcasts.com', 'overcast.fm', 'castbox.fm'],
+    hosts: [
+      'podcasts.apple.com',
+      'pca.st',
+      'pocketcasts.com',
+      'overcast.fm',
+      'castbox.fm',
+      'podbean.com',
+      'anchor.fm',
+    ],
     hostPathPatterns: [
       { host: 'spotify.com', pattern: /^\/(?:show|episode)\// },
     ],
@@ -65,7 +116,14 @@ const URL_RULES = [
   },
   {
     type: CARD_TYPES.MUSIC,
-    hosts: ['music.apple.com', 'music.youtube.com', 'soundcloud.com', 'bandcamp.com'],
+    hosts: [
+      'music.apple.com',
+      'music.youtube.com',
+      'soundcloud.com',
+      'bandcamp.com',
+      'deezer.com',
+      'tidal.com',
+    ],
     hostPathPatterns: [
       { host: 'spotify.com', pattern: /^\/(?:track|album|artist|playlist)\// },
     ],
@@ -73,29 +131,231 @@ const URL_RULES = [
   },
   {
     type: CARD_TYPES.VIDEO,
-    hosts: ['youtube.com', 'youtu.be', 'vimeo.com', 'dailymotion.com', 'bilibili.com', 'loom.com', 'tiktok.com', 'twitch.tv'],
+    hosts: [
+      'youtube.com',
+      'youtu.be',
+      'vimeo.com',
+      'dailymotion.com',
+      'bilibili.com',
+      'loom.com',
+      'tiktok.com',
+      'twitch.tv',
+      'vidyard.com',
+      'wistia.com',
+    ],
     hostPathPatterns: [
       { host: 'instagram.com', pattern: /^\/(?:reel|reels|tv)\// },
       { host: 'facebook.com', pattern: /^\/watch/ },
-      { host: 'youtube.com', pattern: /^\/(?:watch|shorts|live)\b/ },
+      { host: 'youtube.com', pattern: /^\/(?:watch|shorts|live|embed)\b/ },
       { host: 'twitch.tv', pattern: /^\/(?:videos|[^/]+\/clip)\b/ },
+      { host: 'loom.com', pattern: /^\/share\// },
     ],
   },
   {
     type: CARD_TYPES.SOCIAL,
-    hosts: ['instagram.com', 'x.com', 'twitter.com', 'facebook.com', 'linkedin.com', 'threads.net', 'reddit.com', 'xiaohongshu.com', 'weibo.com'],
+    hosts: [
+      'instagram.com',
+      'x.com',
+      'twitter.com',
+      'facebook.com',
+      'linkedin.com',
+      'threads.net',
+      'reddit.com',
+      'xiaohongshu.com',
+      'weibo.com',
+      'discord.com',
+      'discord.gg',
+      'telegram.me',
+      't.me',
+    ],
   },
   {
     type: CARD_TYPES.SHOPPING,
-    hosts: ['amazon.com', 'amzn.to', 'ebay.com', 'walmart.com', 'etsy.com', 'aliexpress.com', 'taobao.com', 'tmall.com', 'jd.com', 'shop.app', 'temu.com'],
+    hosts: [
+      'amazon.com',
+      'amzn.to',
+      'ebay.com',
+      'walmart.com',
+      'etsy.com',
+      'aliexpress.com',
+      'taobao.com',
+      'tmall.com',
+      'jd.com',
+      'shop.app',
+      'temu.com',
+      'shopee.com',
+      'lazada.com',
+    ],
   },
   {
     type: CARD_TYPES.FINANCIAL,
-    hosts: ['paypal.com', 'paypal.me', 'wise.com', 'stripe.com', 'venmo.com', 'cash.app', 'robinhood.com', 'coinbase.com', 'binance.com', 'tradingview.com'],
+    hosts: [
+      'paypal.com',
+      'paypal.me',
+      'wise.com',
+      'stripe.com',
+      'venmo.com',
+      'cash.app',
+      'robinhood.com',
+      'coinbase.com',
+      'binance.com',
+      'tradingview.com',
+      'kraken.com',
+    ],
   },
 ];
 
-const stripTrailingPunctuation = (value = '') => value.replace(TRAILING_PUNCTUATION_REGEX, '');
+const TYPE_PRIORITY = [
+  CARD_TYPES.MEETING,
+  CARD_TYPES.PLACE,
+  CARD_TYPES.DOCUMENT,
+  CARD_TYPES.VIDEO,
+  CARD_TYPES.PODCAST,
+  CARD_TYPES.MUSIC,
+  CARD_TYPES.SHOPPING,
+  CARD_TYPES.FINANCIAL,
+  CARD_TYPES.SOCIAL,
+  CARD_TYPES.LINK,
+  CARD_TYPES.TEXT,
+];
+
+const KEYWORD_RULES = [
+  {
+    type: CARD_TYPES.MEETING,
+    patterns: [
+      /\bzoom\b/i,
+      /\bgoogle meet\b/i,
+      /\bmeet(?:ing)?\b/i,
+      /\bteams\b/i,
+      /\bcall\b/i,
+      /\binterview\b/i,
+      /\bsync\b/i,
+      /\bstandup\b/i,
+      /\b1:1\b/i,
+    ],
+  },
+  {
+    type: CARD_TYPES.DOCUMENT,
+    patterns: [
+      /\bpdf\b/i,
+      /\bdoc\b/i,
+      /\bdocs\b/i,
+      /\bdocument\b/i,
+      /\bslides\b/i,
+      /\bpresentation\b/i,
+      /\breport\b/i,
+      /\bproposal\b/i,
+      /\bdeck\b/i,
+      /\bspreadsheet\b/i,
+      /\bexcel\b/i,
+      /\bnotion\b/i,
+      /\bfigma\b/i,
+      /\bmiro\b/i,
+      /\bcanva\b/i,
+      /\bsubmit\b/i,
+      /\bdraft\b/i,
+      /\breview\b/i,
+    ],
+  },
+  {
+    type: CARD_TYPES.PLACE,
+    patterns: [
+      /\baddress\b/i,
+      /\blocation\b/i,
+      /\bmap\b/i,
+      /\bmaps\b/i,
+      /\bcafe\b/i,
+      /\brestaurant\b/i,
+      /\bstation\b/i,
+      /\broad\b/i,
+      /\bstreet\b/i,
+      /\bavenue\b/i,
+      /\bmall\b/i,
+      /\bhotel\b/i,
+      /\bairport\b/i,
+    ],
+  },
+  {
+    type: CARD_TYPES.VIDEO,
+    patterns: [
+      /\byoutube\b/i,
+      /\bvideo\b/i,
+      /\breel\b/i,
+      /\bwatch\b/i,
+      /\bstream\b/i,
+      /\bshorts\b/i,
+      /\bloom\b/i,
+      /\btiktok\b/i,
+    ],
+  },
+  {
+    type: CARD_TYPES.PODCAST,
+    patterns: [
+      /\bpodcast\b/i,
+      /\bepisode\b/i,
+      /\bshow\b/i,
+    ],
+  },
+  {
+    type: CARD_TYPES.MUSIC,
+    patterns: [
+      /\bmusic\b/i,
+      /\bsong\b/i,
+      /\balbum\b/i,
+      /\bplaylist\b/i,
+      /\bspotify\b/i,
+      /\bsoundcloud\b/i,
+    ],
+  },
+  {
+    type: CARD_TYPES.SHOPPING,
+    patterns: [
+      /\bbuy\b/i,
+      /\border\b/i,
+      /\bshop\b/i,
+      /\bshopping\b/i,
+      /\bprice\b/i,
+      /\bcheckout\b/i,
+      /\bcart\b/i,
+      /\bamazon\b/i,
+      /\btaobao\b/i,
+      /\bshopee\b/i,
+    ],
+  },
+  {
+    type: CARD_TYPES.FINANCIAL,
+    patterns: [
+      /\bpayment\b/i,
+      /\bpay\b/i,
+      /\binvoice\b/i,
+      /\bbank\b/i,
+      /\btransfer\b/i,
+      /\bfinance\b/i,
+      /\bstock\b/i,
+      /\bcrypto\b/i,
+      /\btrading\b/i,
+    ],
+  },
+  {
+    type: CARD_TYPES.SOCIAL,
+    patterns: [
+      /\binstagram\b/i,
+      /\bx\.com\b/i,
+      /\btwitter\b/i,
+      /\bfacebook\b/i,
+      /\blinkedin\b/i,
+      /\breddit\b/i,
+      /\bthreads\b/i,
+      /\bdiscord\b/i,
+      /\btelegram\b/i,
+    ],
+  },
+];
+
+const stripTrailingPunctuation = (value = '') =>
+  value
+    .replace(TRAILING_PUNCTUATION_REGEX, '')
+    .replace(TRAILING_BRACKETS_QUOTES_REGEX, '');
 
 const normalizeUrlForParsing = (rawUrl = '') => {
   if (/^www\./i.test(rawUrl)) {
@@ -116,6 +376,8 @@ const parseUrlCandidate = (rawUrl = '') => {
       protocol: parsed.protocol.replace(/:$/, '').toLowerCase(),
       hostname: parsed.hostname.toLowerCase(),
       pathname: parsed.pathname.toLowerCase(),
+      search: parsed.search.toLowerCase(),
+      href: parsed.href,
     };
   } catch {
     return {
@@ -124,6 +386,8 @@ const parseUrlCandidate = (rawUrl = '') => {
       protocol: '',
       hostname: '',
       pathname: '',
+      search: '',
+      href: cleanedUrl,
     };
   }
 };
@@ -173,6 +437,20 @@ const matchesUrlRule = (candidate, rule) => {
   return false;
 };
 
+const rankTypes = (types = []) =>
+  TYPE_PRIORITY.find((type) => types.includes(type)) || CARD_TYPES.TEXT;
+
+const detectKeywordType = (text = '') => {
+  const normalizedText = String(text || '').trim();
+  if (!normalizedText) return CARD_TYPES.TEXT;
+
+  const matchedTypes = KEYWORD_RULES
+    .filter((rule) => rule.patterns.some((pattern) => pattern.test(normalizedText)))
+    .map((rule) => rule.type);
+
+  return rankTypes(matchedTypes);
+};
+
 export const normalizeCardType = (cardType) => {
   const lowered = String(cardType || '').trim().toLowerCase();
   return LEGACY_CARD_TYPE_ALIASES[lowered] || lowered || CARD_TYPES.TEXT;
@@ -199,44 +477,69 @@ export const detectUrlType = (rawUrl = '') => {
   return matchedRule ? matchedRule.type : CARD_TYPES.LINK;
 };
 
+export const detectCardTypeFromUrls = (urls = []) => {
+  if (!urls.length) return CARD_TYPES.TEXT;
+
+  const detectedTypes = urls.map(detectUrlType);
+  return rankTypes(detectedTypes);
+};
+
 export const detectCardType = (text = '') => {
-  const primaryUrl = extractPrimaryUrl(text);
-  if (!primaryUrl) {
-    return CARD_TYPES.TEXT;
+  const urls = extractUrls(text);
+
+  if (urls.length > 0) {
+    const urlDrivenType = detectCardTypeFromUrls(urls);
+    if (urlDrivenType !== CARD_TYPES.TEXT) {
+      return urlDrivenType;
+    }
   }
 
-  return detectUrlType(primaryUrl);
+  const keywordType = detectKeywordType(text);
+  return keywordType || CARD_TYPES.TEXT;
 };
 
 export const extractUrlForType = (text = '', cardType) => {
-  const primaryUrl = extractPrimaryUrl(text);
-  if (!primaryUrl) return null;
-
   const normalizedType = normalizeCardType(cardType);
-  if (normalizedType === CARD_TYPES.LINK) {
-    return primaryUrl;
-  }
+  const urls = extractUrls(text);
 
-  return detectUrlType(primaryUrl) === normalizedType ? primaryUrl : null;
+  if (!urls.length) return null;
+  if (normalizedType === CARD_TYPES.LINK) return urls[0];
+
+  return urls.find((url) => detectUrlType(url) === normalizedType) || null;
 };
 
 export const extractMeetingUrl = (text = '') => extractUrlForType(text, CARD_TYPES.MEETING);
 export const extractVideoUrl = (text = '') => extractUrlForType(text, CARD_TYPES.VIDEO);
 export const extractMapUrl = (text = '') => extractUrlForType(text, CARD_TYPES.PLACE);
+export const extractDocumentUrl = (text = '') => extractUrlForType(text, CARD_TYPES.DOCUMENT);
+export const extractMusicUrl = (text = '') => extractUrlForType(text, CARD_TYPES.MUSIC);
+export const extractPodcastUrl = (text = '') => extractUrlForType(text, CARD_TYPES.PODCAST);
+export const extractSocialUrl = (text = '') => extractUrlForType(text, CARD_TYPES.SOCIAL);
+export const extractShoppingUrl = (text = '') => extractUrlForType(text, CARD_TYPES.SHOPPING);
+export const extractFinancialUrl = (text = '') => extractUrlForType(text, CARD_TYPES.FINANCIAL);
 
 export const getDerivedTaskFields = (text = '') => {
   const cardType = detectCardType(text);
-  const primaryUrl = extractPrimaryUrl(text);
+  const urls = extractUrls(text);
+  const primaryUrl = urls[0] || null;
 
   return {
     cardType,
-    videoUrl: cardType === CARD_TYPES.VIDEO ? primaryUrl : null,
-    mapUrl: cardType === CARD_TYPES.PLACE ? primaryUrl : null,
+    primaryUrl,
+    videoUrl: extractVideoUrl(text),
+    mapUrl: extractMapUrl(text),
+    meetingUrl: extractMeetingUrl(text),
+    documentUrl: extractDocumentUrl(text),
+    musicUrl: extractMusicUrl(text),
+    podcastUrl: extractPodcastUrl(text),
+    socialUrl: extractSocialUrl(text),
+    shoppingUrl: extractShoppingUrl(text),
+    financialUrl: extractFinancialUrl(text),
     videoTitle: null,
     videoPlatform: null,
     mapTitle: null,
     mapSubtitle: null,
-    redirectUrl: null,
+    redirectUrl: primaryUrl,
   };
 };
 

@@ -46,6 +46,12 @@
   transform: translateZ(0);
 }
 
+.timeline-panel-retained-drag-source {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+}
+
 .timeline-panel-current,
 .timeline-panel-incoming {
   position: absolute;

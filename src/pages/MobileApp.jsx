@@ -1205,6 +1205,7 @@ function MobileApp({ session, platformInfo }) {
   const [dragOverlayRect, setDragOverlayRect] = useState(null);
   const [dragOverlayTodo, setDragOverlayTodo] = useState(null);
   const [dragOverlayMounted, setDragOverlayMounted] = useState(false);
+  const [dragSourceDate, setDragSourceDate] = useState(null);
 
   const dragOverBlockRef = React.useRef(null); // readable in onTouchEnd closure
   const dragOverTodoIdRef = React.useRef(null);
@@ -1545,23 +1546,6 @@ function MobileApp({ session, platformInfo }) {
       scrollTop: preservedScrollTop,
     };
 
-    setTodos((prev) => {
-      const draggedTodo = prev.find((todo) => todo.id === todoId);
-      if (!draggedTodo || draggedTodo.dateString === nextDateKey) return prev;
-
-      const sourceDateKey = draggedTodo.dateString;
-      const sourceBlock = draggedTodo.timeOfDay;
-      let nextTodos = prev.map((todo) => (
-        todo.id === todoId
-          ? normalizeTodoRecord({ ...todo, dateString: nextDateKey })
-          : todo
-      ));
-
-      nextTodos = reflowDesktopSlotsForBlock(nextTodos, sourceDateKey, sourceBlock);
-      nextTodos = reflowDesktopSlotsForBlock(nextTodos, nextDateKey, sourceBlock);
-      return nextTodos;
-    });
-
     dragOverBlockRef.current = preservedBlock;
     dragOverTodoIdRef.current = null;
     dragInsertAfterRef.current = false;
@@ -1576,7 +1560,7 @@ function MobileApp({ session, platformInfo }) {
     triggerDirectDayFlipFeedback(nextDate > currentDate ? 'next' : 'previous');
     selectedDateRef.current = nextDate;
     setSelectedDate(nextDate);
-  }, [setTodos, syncDragPreview, todos, triggerDirectDayFlipFeedback]);
+  }, [syncDragPreview, todos, triggerDirectDayFlipFeedback]);
 
   const updateDragDayAutoFlip = useCallback((touchX, todoId) => {
     const shellEl = timelineShellRef.current || timelineRef.current;
@@ -1823,8 +1807,9 @@ function MobileApp({ session, platformInfo }) {
         if (!draggedTodo) return prev;
 
         const sourceBlock = draggedTodo.timeOfDay;
-        const dateString = draggedTodo.dateString;
-        const targetOrder = getBlockTodosInDisplayOrder(prev, dateString, targetBlock)
+        const sourceDateKey = draggedTodo.dateString;
+        const targetDateKey = format(selectedDateRef.current, 'yyyy-MM-dd');
+        const targetOrder = getBlockTodosInDisplayOrder(prev, targetDateKey, targetBlock)
           .filter((todo) => todo.id !== todoId)
           .map((todo) => todo.id);
         const targetIndex = targetTodoId ? targetOrder.findIndex((id) => id === targetTodoId) : -1;
@@ -1834,12 +1819,14 @@ function MobileApp({ session, platformInfo }) {
         targetOrder.splice(insertIndex, 0, todoId);
 
         let nextTodos = prev.map((todo) => (
-          todo.id === todoId ? normalizeTodoRecord({ ...todo, timeOfDay: targetBlock }) : todo
+          todo.id === todoId
+            ? normalizeTodoRecord({ ...todo, dateString: targetDateKey, timeOfDay: targetBlock })
+            : todo
         ));
-        if (sourceBlock !== targetBlock) {
-          nextTodos = reflowDesktopSlotsForBlock(nextTodos, dateString, sourceBlock);
+        if (sourceDateKey !== targetDateKey || sourceBlock !== targetBlock) {
+          nextTodos = reflowDesktopSlotsForBlock(nextTodos, sourceDateKey, sourceBlock);
         }
-        nextTodos = reflowDesktopSlotsForBlock(nextTodos, dateString, targetBlock, targetOrder);
+        nextTodos = reflowDesktopSlotsForBlock(nextTodos, targetDateKey, targetBlock, targetOrder);
         return nextTodos;
       });
     }
@@ -1866,6 +1853,7 @@ function MobileApp({ session, platformInfo }) {
     setDragOverlayRect(null);
     setDragOverlayTodo(null);
     setDragOverlayMounted(false);
+    setDragSourceDate(null);
     setDragOverBlock(null);
     dragOverBlockRef.current = null;
     dragOverTodoIdRef.current = null;
@@ -1933,6 +1921,7 @@ function MobileApp({ session, platformInfo }) {
 
     const draggedTodo = todos.find((todo) => todo.id === todoId) || null;
     setDragOverlayTodo(draggedTodo);
+    setDragSourceDate(parseSharedSelectedDate(draggedTodo?.dateString) || selectedDateRef.current);
 
     const el = document.getElementById(`swipe-card-${todoId}`);
     const wrapper = document.getElementById(`swipe-wrapper-${todoId}`);
@@ -2469,7 +2458,7 @@ function MobileApp({ session, platformInfo }) {
     return timeBlocks.map((block) => {
       const blockTodos = getBlockTodosInDisplayOrder(dayTodos, dateKey, block.id);
       const renderedItems = blockTodos.map((todo) => ({ type: 'todo', todo }));
-      if (draggedTodoId && dragPreview?.blockId === block.id) {
+      if (options.showDragPreview !== false && draggedTodoId && dragPreview?.blockId === block.id) {
         const targetIndex = dragPreview.targetTodoId
           ? blockTodos.findIndex((todo) => todo.id === dragPreview.targetTodoId)
           : -1;
@@ -2593,13 +2582,30 @@ function MobileApp({ session, platformInfo }) {
 
   const timelinePanels = useMemo(() => {
     if (!dayTransition) {
-      return [{
+      const activePanel = {
         key: format(selectedDate, 'yyyy-MM-dd'),
         date: selectedDate,
         className: `timeline-panel is-active ${directDayFlipDirection ? `timeline-panel-direct-flip timeline-panel-direct-flip-${directDayFlipDirection}` : ''}`,
         style: { transform: `translate3d(${daySwipeOffset}px, 0, 0)` },
         isStatic: false,
-      }];
+        showDragPreview: true,
+      };
+
+      if (dragSourceDate && !isSameDay(dragSourceDate, selectedDate)) {
+        return [
+          {
+            key: `drag-retained-${format(dragSourceDate, 'yyyy-MM-dd')}`,
+            date: dragSourceDate,
+            className: 'timeline-panel timeline-panel-retained-drag-source',
+            style: { transform: 'translate3d(0, 0, 0)' },
+            isStatic: true,
+            showDragPreview: false,
+          },
+          activePanel,
+        ];
+      }
+
+      return [activePanel];
     }
 
     return [
@@ -2618,7 +2624,7 @@ function MobileApp({ session, platformInfo }) {
         isStatic: true,
       }
     ];
-  }, [daySwipeOffset, dayTransition, directDayFlipDirection, selectedDate]);
+  }, [daySwipeOffset, dayTransition, directDayFlipDirection, dragSourceDate, selectedDate]);
 
   const dayFeedbackDirection = dayTransition?.direction || directDayFlipDirection;
 
@@ -2795,7 +2801,10 @@ function MobileApp({ session, platformInfo }) {
                     transitionDuration: dayTransition ? `${dayTransition.durationMs}ms` : undefined,
                   }}
                 >
-                  {renderTimelineBlocks(panel.date, { isStatic: panel.isStatic })}
+                  {renderTimelineBlocks(panel.date, {
+                    isStatic: panel.isStatic,
+                    showDragPreview: panel.showDragPreview,
+                  })}
                 </div>
               ))}
             </div>
