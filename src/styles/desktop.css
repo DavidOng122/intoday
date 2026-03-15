@@ -700,6 +700,13 @@
   justify-content: center;
 }
 
+.desktop-profile-content {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
 .desktop-profile-header-block {
   display: flex;
   flex-direction: column;
@@ -708,8 +715,8 @@
 }
 
 .desktop-profile-avatar-frame {
-  width: 94px;
-  height: 94px;
+  width: 80px;
+  height: 80px;
   border-radius: 999px;
   padding: 0;
   border: 1px solid var(--desktop-profile-border);
@@ -729,7 +736,7 @@
 
 .desktop-profile-avatar-fallback {
   font-family: 'Cormorant Garamond', Georgia, serif;
-  font-size: 2.4rem;
+  font-size: 2rem;
   font-weight: 700;
   color: var(--desktop-profile-ink);
 }

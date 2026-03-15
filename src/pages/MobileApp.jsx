@@ -53,6 +53,8 @@ const DAY_SWIPE_CONFIG = {
 };
 const TOUCH_DRAG_LONG_PRESS_MS = 260;
 const TOUCH_DRAG_CANCEL_DISTANCE = 10;
+const TOUCH_DRAG_DAY_EDGE_HOLD_MS = 260;
+const TOUCH_DRAG_DAY_FLIP_COOLDOWN_MS = 420;
 const SWIPE_ACTION_MAX = 132;
 const SWIPE_ACTION_OPEN = 108;
 const SWIPE_ACTION_THRESHOLD = 44;
@@ -244,6 +246,7 @@ function MobileApp({ session, platformInfo }) {
     return savedDate || getLogicalToday();
   });
   const [currentTime, setCurrentTime] = useState(new Date());
+  const selectedDateRef = useRef(selectedDate);
 
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
@@ -251,6 +254,10 @@ function MobileApp({ session, platformInfo }) {
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const [calPickerDate, setCalPickerDate] = useState(() => getLogicalToday());
   const profileScrollRef = React.useRef(null);
+
+  useEffect(() => {
+    selectedDateRef.current = selectedDate;
+  }, [selectedDate]);
 
   useEffect(() => {
     if (!isSheetOpen) {
@@ -1194,6 +1201,7 @@ function MobileApp({ session, platformInfo }) {
   const touchDragPressTimerRef = React.useRef(null);
   const touchDragReadyRef = React.useRef(false);
   const dragOriginY = React.useRef(0);
+  const dragTouchX = React.useRef(0);
   const dragTouchY = React.useRef(0);
   const activeTouchIdentifierRef = React.useRef(null);
   const activeDragTodoIdRef = React.useRef(null);
@@ -1204,6 +1212,17 @@ function MobileApp({ session, platformInfo }) {
   const autoScrollRemainderRef = React.useRef(0);
   const dragTouchMoveHandlerRef = React.useRef(null);
   const dragTouchEndHandlerRef = React.useRef(null);
+  const dragDayFlipTimerRef = React.useRef(null);
+  const dragDayFlipDirectionRef = React.useRef(0);
+  const dragDayFlipCooldownUntilRef = React.useRef(0);
+
+  const clearDragDayFlipTimer = useCallback(() => {
+    if (dragDayFlipTimerRef.current !== null) {
+      window.clearTimeout(dragDayFlipTimerRef.current);
+      dragDayFlipTimerRef.current = null;
+    }
+    dragDayFlipDirectionRef.current = 0;
+  }, []);
 
   useEffect(() => () => {
     if (touchDragPressTimerRef.current !== null) {
@@ -1221,6 +1240,10 @@ function MobileApp({ session, platformInfo }) {
       window.removeEventListener('touchend', dragTouchEndHandlerRef.current);
       window.removeEventListener('touchcancel', dragTouchEndHandlerRef.current);
       dragTouchEndHandlerRef.current = null;
+    }
+    if (dragDayFlipTimerRef.current !== null) {
+      window.clearTimeout(dragDayFlipTimerRef.current);
+      dragDayFlipTimerRef.current = null;
     }
   }, []);
 
@@ -1300,7 +1323,7 @@ function MobileApp({ session, platformInfo }) {
     return { blockId, targetTodoId: nearestTodoId, insertAfter };
   }, []);
 
-  const syncDraggedCardPosition = (todoId, touchY) => {
+  const syncDraggedCardPosition = useCallback((todoId, touchY) => {
     const timelineEl = timelineRef.current;
     const scrollDelta = timelineEl ? timelineEl.scrollTop - lockedTimelineScrollTop.current : 0;
     const rawDy = touchY - dragOriginY.current + scrollDelta;
@@ -1315,7 +1338,91 @@ function MobileApp({ session, platformInfo }) {
     }
     dragOverTodoIdRef.current = dragTarget.targetTodoId;
     dragInsertAfterRef.current = dragTarget.insertAfter;
-  };
+  }, [getTouchDragTarget]);
+
+  const moveDraggedTodoToDate = useCallback((todoId, nextDate) => {
+    if (!todoId || !nextDate) return;
+
+    const currentDate = selectedDateRef.current;
+    if (isSameDay(currentDate, nextDate)) return;
+
+    const currentDateKey = format(currentDate, 'yyyy-MM-dd');
+    const nextDateKey = format(nextDate, 'yyyy-MM-dd');
+    const preservedScrollTop = timelineRef.current?.scrollTop ?? 0;
+
+    dayScrollPositionsRef.current[currentDateKey] = preservedScrollTop;
+    pendingTimelineScrollActionRef.current = {
+      type: 'preserve-offset',
+      scrollTop: preservedScrollTop,
+    };
+
+    setTodos((prev) => {
+      const draggedTodo = prev.find((todo) => todo.id === todoId);
+      if (!draggedTodo || draggedTodo.dateString === nextDateKey) return prev;
+
+      const sourceDateKey = draggedTodo.dateString;
+      const sourceBlock = draggedTodo.timeOfDay;
+      let nextTodos = prev.map((todo) => (
+        todo.id === todoId
+          ? normalizeTodoRecord({ ...todo, dateString: nextDateKey })
+          : todo
+      ));
+
+      nextTodos = reflowDesktopSlotsForBlock(nextTodos, sourceDateKey, sourceBlock);
+      nextTodos = reflowDesktopSlotsForBlock(nextTodos, nextDateKey, sourceBlock);
+      return nextTodos;
+    });
+
+    dragOverBlockRef.current = null;
+    dragOverTodoIdRef.current = null;
+    dragInsertAfterRef.current = false;
+    setDragOverBlock(null);
+    selectedDateRef.current = nextDate;
+    setSelectedDate(nextDate);
+  }, [setTodos]);
+
+  const updateDragDayAutoFlip = useCallback((touchX, todoId) => {
+    const shellEl = timelineShellRef.current || timelineRef.current;
+    if (!shellEl || !todoId) return;
+
+    const rect = shellEl.getBoundingClientRect();
+    const edgeZone = Math.min(72, Math.max(44, rect.width * 0.16));
+    let direction = 0;
+
+    if (touchX <= rect.left + edgeZone) {
+      direction = -1;
+    } else if (touchX >= rect.right - edgeZone) {
+      direction = 1;
+    }
+
+    if (direction === 0) {
+      clearDragDayFlipTimer();
+      return;
+    }
+
+    if (Date.now() < dragDayFlipCooldownUntilRef.current) {
+      return;
+    }
+
+    if (dragDayFlipDirectionRef.current === direction && dragDayFlipTimerRef.current !== null) {
+      return;
+    }
+
+    clearDragDayFlipTimer();
+    dragDayFlipDirectionRef.current = direction;
+    dragDayFlipTimerRef.current = window.setTimeout(() => {
+      dragDayFlipTimerRef.current = null;
+      dragDayFlipDirectionRef.current = 0;
+
+      if (!isDragMode.current || activeDragTodoIdRef.current !== todoId) return;
+
+      const baseDate = selectedDateRef.current;
+      const nextDate = direction > 0 ? addDays(baseDate, 1) : subDays(baseDate, 1);
+
+      dragDayFlipCooldownUntilRef.current = Date.now() + TOUCH_DRAG_DAY_FLIP_COOLDOWN_MS;
+      moveDraggedTodoToDate(todoId, nextDate);
+    }, TOUCH_DRAG_DAY_EDGE_HOLD_MS);
+  }, [clearDragDayFlipTimer, moveDraggedTodoToDate]);
 
   const stopAutoScroll = useCallback(() => {
     autoScrollVelocity.current = 0;
@@ -1343,7 +1450,7 @@ function MobileApp({ session, platformInfo }) {
     timelineEl.scrollTop = nextScrollTop;
     syncDraggedCardPosition(todoId, dragTouchY.current);
     return true;
-  }, []);
+  }, [syncDraggedCardPosition]);
 
   const runAutoScroll = useCallback((timestamp) => {
     if (!isDragMode.current) {
@@ -1497,6 +1604,8 @@ function MobileApp({ session, platformInfo }) {
     suppressNextCardClick(todoId);
     isDragMode.current = false;
     touchDragReadyRef.current = false;
+    clearDragDayFlipTimer();
+    dragDayFlipCooldownUntilRef.current = 0;
     stopAutoScroll();
     detachTouchDragListeners();
 
@@ -1562,7 +1671,8 @@ function MobileApp({ session, platformInfo }) {
     swipeTouchStartY.current = null;
     swipeStartOffset.current = 0;
     swipeCurrentOffset.current = 0;
-  }, [detachTouchDragListeners, stopAutoScroll, suppressNextCardClick, unlockTimelineScroll]);
+    dragTouchX.current = 0;
+  }, [clearDragDayFlipTimer, detachTouchDragListeners, stopAutoScroll, suppressNextCardClick, unlockTimelineScroll]);
 
   const startTouchDrag = useCallback((todoId) => {
     closeSwipeActions(todoId);
@@ -1604,10 +1714,12 @@ function MobileApp({ session, platformInfo }) {
 
       if (!touch) return;
 
+      dragTouchX.current = touch.clientX;
       dragTouchY.current = touch.clientY;
       if (event.cancelable) {
         event.preventDefault();
       }
+      updateDragDayAutoFlip(touch.clientX, todoId);
       updateAutoScroll(touch.clientY);
       syncDraggedCardPosition(todoId, touch.clientY);
     };
@@ -1633,7 +1745,21 @@ function MobileApp({ session, platformInfo }) {
     window.addEventListener('touchmove', handleWindowTouchMove, { passive: false });
     window.addEventListener('touchend', handleWindowTouchEnd, { passive: false });
     window.addEventListener('touchcancel', handleWindowTouchEnd, { passive: false });
-  }, [closeSwipeActions, detachTouchDragListeners, finalizeTouchDrag, lockTimelineScroll, updateAutoScroll]);
+  }, [closeSwipeActions, detachTouchDragListeners, finalizeTouchDrag, lockTimelineScroll, syncDraggedCardPosition, updateAutoScroll, updateDragDayAutoFlip]);
+
+  useLayoutEffect(() => {
+    if (!isDragMode.current || !activeDragTodoIdRef.current) return undefined;
+
+    const todoId = activeDragTodoIdRef.current;
+    const frame = window.requestAnimationFrame(() => {
+      if (!isDragMode.current || activeDragTodoIdRef.current !== todoId) return;
+      syncDraggedCardPosition(todoId, dragTouchY.current);
+    });
+
+    return () => {
+      window.cancelAnimationFrame(frame);
+    };
+  }, [selectedDate, syncDraggedCardPosition]);
 
   const deleteTodo = useCallback((id) => {
     if (openSwipeTodoIdRef.current === id) {
@@ -1679,6 +1805,7 @@ function MobileApp({ session, platformInfo }) {
       activeTouchIdentifierRef.current = touch.identifier;
       swipeTouchStartX.current = touch.clientX;
       swipeTouchStartY.current = touch.clientY;
+      dragTouchX.current = touch.clientX;
       dragTouchY.current = touch.clientY;
       swipeStartOffset.current = openSwipeTodoIdRef.current === todoId ? SWIPE_ACTION_OPEN : 0;
       touchDragReadyRef.current = false;
@@ -1697,6 +1824,7 @@ function MobileApp({ session, platformInfo }) {
 
       const deltaX = touch.clientX - swipeTouchStartX.current;
       const deltaY = touch.clientY - swipeTouchStartY.current;
+      dragTouchX.current = touch.clientX;
       dragTouchY.current = touch.clientY;
 
       // If already in drag mode, handle vertical dragging

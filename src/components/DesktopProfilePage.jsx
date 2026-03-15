@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { translations } from '../lib/translations';
 import { getUserProfile } from '../userProfile';
 
@@ -101,12 +101,40 @@ function DesktopProfilePage({
   onSignOut,
 }) {
   const [expandedSection, setExpandedSection] = useState(null);
+  const contentRef = useRef(null);
   const profile = useMemo(() => getUserProfile(user), [user]);
   const t = translations[language] || translations.EN;
   const handleClose = useCallback(() => {
     setExpandedSection(null);
     onClose();
   }, [onClose]);
+  const handlePageClick = useCallback((event) => {
+    if (!(event.target instanceof Element)) {
+      return;
+    }
+
+    if (event.target.closest('.desktop-profile-content, .desktop-profile-page-close')) {
+      return;
+    }
+
+    const contentRect = contentRef.current?.getBoundingClientRect();
+    if (!contentRect) {
+      return;
+    }
+
+    const offsetX = contentRect.width * 0.5;
+    const offsetY = contentRect.height * 0.3;
+    const isBeyondContentBuffer = (
+      event.clientX < contentRect.left - offsetX
+      || event.clientX > contentRect.right + offsetX
+      || event.clientY < contentRect.top - offsetY
+      || event.clientY > contentRect.bottom + offsetY
+    );
+
+    if (isBeyondContentBuffer) {
+      handleClose();
+    }
+  }, [handleClose]);
 
   useEffect(() => {
     if (!open) {
@@ -128,7 +156,7 @@ function DesktopProfilePage({
   }
 
   return (
-    <div className={`desktop-profile-page desktop-profile-page-${appearance}`} role="dialog" aria-modal="true" aria-labelledby="desktop-profile-title">
+    <div className={`desktop-profile-page desktop-profile-page-${appearance}`} role="dialog" aria-modal="true" aria-labelledby="desktop-profile-title" onClick={handlePageClick}>
       <div className="desktop-profile-page-orb desktop-profile-page-orb-left" aria-hidden="true" />
       <div className="desktop-profile-page-orb desktop-profile-page-orb-right" aria-hidden="true" />
 
@@ -137,88 +165,90 @@ function DesktopProfilePage({
       </button>
 
       <div className="desktop-profile-stage">
-        <div className="desktop-profile-header-block">
-          <div className="desktop-profile-avatar-frame">
-            {profile.avatarUrl ? (
-              <img src={profile.avatarUrl} alt={profile.fullName} className="desktop-profile-avatar-image" />
-            ) : (
-              <span className="desktop-profile-avatar-fallback">{profile.initial}</span>
-            )}
+        <div className="desktop-profile-content" ref={contentRef}>
+          <div className="desktop-profile-header-block">
+            <div className="desktop-profile-avatar-frame">
+              {profile.avatarUrl ? (
+                <img src={profile.avatarUrl} alt={profile.fullName} className="desktop-profile-avatar-image" />
+              ) : (
+                <span className="desktop-profile-avatar-fallback">{profile.initial}</span>
+              )}
+            </div>
+            <h2 className="desktop-profile-title" id="desktop-profile-title">
+              {(profile.fullName || 'USER').toUpperCase()}
+            </h2>
+            <p className="desktop-profile-subtitle">{profile.email || ''}</p>
           </div>
-          <h2 className="desktop-profile-title" id="desktop-profile-title">
-            {(profile.fullName || 'USER').toUpperCase()}
-          </h2>
-          <p className="desktop-profile-subtitle">{profile.email || ''}</p>
-        </div>
 
-        <div className="desktop-profile-card">
-          <SettingsRow
-            icon={<GlobeIcon />}
-            label={t.language}
-            value={formatLanguageLabel(language)}
-            expanded={expandedSection === 'language'}
-            onClick={() => setExpandedSection((current) => (current === 'language' ? null : 'language'))}
-          >
-            <div className="desktop-profile-choice-grid">
-              {LANGUAGE_OPTIONS.map((option) => (
-                <button
-                  key={option.value}
-                  type="button"
-                  className={`desktop-profile-choice ${language === option.value ? 'is-active' : ''}`}
-                  onClick={() => {
-                    setLanguage(option.value);
-                    setExpandedSection(null);
-                  }}
-                >
-                  {option.label}
-                </button>
-              ))}
-            </div>
-          </SettingsRow>
+          <div className="desktop-profile-card">
+            <SettingsRow
+              icon={<GlobeIcon />}
+              label={t.language}
+              value={formatLanguageLabel(language)}
+              expanded={expandedSection === 'language'}
+              onClick={() => setExpandedSection((current) => (current === 'language' ? null : 'language'))}
+            >
+              <div className="desktop-profile-choice-grid">
+                {LANGUAGE_OPTIONS.map((option) => (
+                  <button
+                    key={option.value}
+                    type="button"
+                    className={`desktop-profile-choice ${language === option.value ? 'is-active' : ''}`}
+                    onClick={() => {
+                      setLanguage(option.value);
+                      setExpandedSection(null);
+                    }}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            </SettingsRow>
 
-          <SettingsRow
-            icon={<SunIcon />}
-            label={t.appearance}
-            value={appearance === 'dark' ? t.dark : t.light}
-            expanded={expandedSection === 'appearance'}
-            onClick={() => setExpandedSection((current) => (current === 'appearance' ? null : 'appearance'))}
-          >
-            <div className="desktop-profile-choice-grid desktop-profile-choice-grid-compact">
-              {APPEARANCE_OPTIONS.map((option) => (
-                <button
-                  key={option}
-                  type="button"
-                  className={`desktop-profile-choice ${appearance === option ? 'is-active' : ''}`}
-                  onClick={() => {
-                    setAppearance(option);
-                    setExpandedSection(null);
-                  }}
-                >
-                  {option === 'dark' ? t.dark : t.light}
-                </button>
-              ))}
-            </div>
-          </SettingsRow>
-        </div>
+            <SettingsRow
+              icon={<SunIcon />}
+              label={t.appearance}
+              value={appearance === 'dark' ? t.dark : t.light}
+              expanded={expandedSection === 'appearance'}
+              onClick={() => setExpandedSection((current) => (current === 'appearance' ? null : 'appearance'))}
+            >
+              <div className="desktop-profile-choice-grid desktop-profile-choice-grid-compact">
+                {APPEARANCE_OPTIONS.map((option) => (
+                  <button
+                    key={option}
+                    type="button"
+                    className={`desktop-profile-choice ${appearance === option ? 'is-active' : ''}`}
+                    onClick={() => {
+                      setAppearance(option);
+                      setExpandedSection(null);
+                    }}
+                  >
+                    {option === 'dark' ? t.dark : t.light}
+                  </button>
+                ))}
+              </div>
+            </SettingsRow>
+          </div>
 
-        <div className="desktop-profile-card desktop-profile-card-single">
-          <div className="desktop-profile-static-row">
-            <span className="desktop-profile-setting-main">
-              <span className="desktop-profile-setting-icon">
-                <HelpIcon />
+          <div className="desktop-profile-card desktop-profile-card-single">
+            <div className="desktop-profile-static-row">
+              <span className="desktop-profile-setting-main">
+                <span className="desktop-profile-setting-icon">
+                  <HelpIcon />
+                </span>
+                <span className="desktop-profile-setting-label">{t.helpFeedback}</span>
               </span>
-              <span className="desktop-profile-setting-label">{t.helpFeedback}</span>
-            </span>
+            </div>
           </div>
-        </div>
 
-        <button type="button" className="desktop-profile-signout" onClick={() => {
-          setExpandedSection(null);
-          onSignOut();
-        }}>
-          <SignOutIcon />
-          <span>{t.signOut}</span>
-        </button>
+          <button type="button" className="desktop-profile-signout" onClick={() => {
+            setExpandedSection(null);
+            onSignOut();
+          }}>
+            <SignOutIcon />
+            <span>{t.signOut}</span>
+          </button>
+        </div>
       </div>
     </div>
   );
