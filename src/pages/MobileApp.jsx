@@ -1202,6 +1202,7 @@ function MobileApp({ session, platformInfo }) {
   const [draggedTodoId, setDraggedTodoId] = useState(null);
   const [dragOverBlock, setDragOverBlock] = useState(null);
   const [dragPreview, setDragPreview] = useState(null);
+  const [dragOverlayRect, setDragOverlayRect] = useState(null);
 
   const dragOverBlockRef = React.useRef(null); // readable in onTouchEnd closure
   const dragOverTodoIdRef = React.useRef(null);
@@ -1820,6 +1821,7 @@ function MobileApp({ session, platformInfo }) {
     activeDragTodoIdRef.current = null;
     setDraggedTodoId(null);
     setDragPreview(null);
+    setDragOverlayRect(null);
     setDragOverBlock(null);
     dragOverBlockRef.current = null;
     dragOverTodoIdRef.current = null;
@@ -1857,6 +1859,12 @@ function MobileApp({ session, platformInfo }) {
         width: rect.width,
         height: rect.height,
       };
+      setDragOverlayRect({
+        left: rect.left,
+        top: rect.top,
+        width: rect.width,
+        height: rect.height,
+      });
       dragFloatingAnchorRef.current = {
         x: rect.width / 2,
         y: rect.height / 2,
@@ -3151,15 +3159,15 @@ function MobileApp({ session, platformInfo }) {
           </div>
         )}
       </div>
-      {draggedOverlayTodo && dragFloatingRectRef.current && (
+      {draggedOverlayTodo && dragOverlayRect && (
         <div
           ref={dragOverlayRef}
           className="task-card task-drag-overlay-card"
           style={{
-            width: `${dragFloatingRectRef.current.width}px`,
-            height: `${dragFloatingRectRef.current.height}px`,
-            left: `${dragFloatingRectRef.current.left}px`,
-            top: `${dragFloatingRectRef.current.top}px`,
+            width: `${dragOverlayRect.width}px`,
+            height: `${dragOverlayRect.height}px`,
+            left: `${dragOverlayRect.left}px`,
+            top: `${dragOverlayRect.top}px`,
           }}
           aria-hidden="true"
         >
