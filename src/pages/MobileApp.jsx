@@ -6,9 +6,9 @@ import useKeyboardOffset from '../hooks/useKeyboardOffset';
 import useSwipeDownToClose from '../hooks/useSwipeDownToClose';
 import { useSyncedTodos } from '../todoSync';
 import { supabase } from '../supabase';
-import { cardTypeConfig } from '../lib/cardTypeConfig';
 import { getCurrentTimeBlock, getLogicalToday } from '../lib/dateHelpers';
 import { detectCardType, extractMapUrl, extractVideoUrl, fetchMapMeta, fetchVideoMeta } from '../lib/taskParsers';
+import { getTaskCardPresentation } from '../taskCardUtils';
 import { timeBlocks } from '../lib/timeBlocks';
 import { translations } from '../lib/translations';
 const SheetPebbleIcon = () => (
@@ -57,7 +57,7 @@ const SWIPE_ACTION_MAX = 132;
 const SWIPE_ACTION_OPEN = 108;
 const SWIPE_ACTION_THRESHOLD = 44;
 const SHEET_KEYBOARD_DISMISS_SWIPE_THRESHOLD = 72;
-const SHEET_KEYBOARD_CLOSE_SWIPE_THRESHOLD = 180;
+const SHEET_KEYBOARD_CLOSE_SWIPE_THRESHOLD = 240;
 const INITIAL_EDIT_MODAL_VIEWPORT = {
   baseHeight: 0,
   visibleHeight: 0,
@@ -135,6 +135,7 @@ function MobileApp({ session, platformInfo }) {
   const [sheetBaseHeight, setSheetBaseHeight] = useState(null);
   const [sheetBaseViewportHeight, setSheetBaseViewportHeight] = useState(0);
   const [sheetContentLiftStartOffset, setSheetContentLiftStartOffset] = useState(190);
+  const sheetContentLiftBaselineLockedRef = useRef(false);
 
   useEffect(() => {
     const textarea = taskInputRef.current;
@@ -176,6 +177,8 @@ function MobileApp({ session, platformInfo }) {
       setIsComposerExpanded(false);
       setSheetBaseHeight(null);
       setSheetBaseViewportHeight(0);
+      setSheetContentLiftStartOffset(190);
+      sheetContentLiftBaselineLockedRef.current = false;
       return;
     }
 
@@ -183,6 +186,11 @@ function MobileApp({ session, platformInfo }) {
     setSheetBaseViewportHeight(baseViewportHeight);
     setSheetBaseHeight(Math.min(760, Math.max(0, baseViewportHeight - 24)));
   }, [isSheetOpen]);
+
+  useEffect(() => {
+    if (!isSheetOpen) return;
+    sheetContentLiftBaselineLockedRef.current = false;
+  }, [isSheetOpen, isCalendarOpen, isComposerExpanded]);
 
   useEffect(() => {
     if (!isSheetOpen) return undefined;
@@ -270,13 +278,21 @@ function MobileApp({ session, platformInfo }) {
     const anchorRect = anchorElement.getBoundingClientRect();
     const nextOffset = Math.max(0, Math.round(composerRect.top - anchorRect.bottom));
 
+    sheetContentLiftBaselineLockedRef.current = true;
     setSheetContentLiftStartOffset((current) => (
       Math.abs(current - nextOffset) > 1 ? nextOffset : current
     ));
   }, [isCalendarOpen]);
 
   useLayoutEffect(() => {
-    if (!isSheetOpen || isComposerExpanded || sheetKeyboardOffset > 0) return undefined;
+    if (
+      !isSheetOpen
+      || isComposerExpanded
+      || sheetKeyboardOffset > 0
+      || sheetContentLiftBaselineLockedRef.current
+    ) {
+      return undefined;
+    }
 
     let frame = window.requestAnimationFrame(measureSheetContentLiftStartOffset);
 
@@ -910,6 +926,20 @@ function MobileApp({ session, platformInfo }) {
   const suppressCardClickRef = useRef(null);
   const suppressClickTimeoutRef = useRef(null);
   const openSwipeTodoIdRef = useRef(null);
+  const openTaskRedirect = useCallback((url) => {
+    if (!url) return;
+
+    if (isNativePlatform) {
+      try {
+        window.location.assign(url);
+        return;
+      } catch (_) {
+        // Fall back to a regular browser open when native handoff is unavailable.
+      }
+    }
+
+    window.open(url, '_blank', 'noopener,noreferrer');
+  }, [isNativePlatform]);
 
   const handleAddTodo = () => {
     if (!inputText.trim()) return;
@@ -1692,47 +1722,14 @@ function MobileApp({ session, platformInfo }) {
             onDrop={options.isStatic ? undefined : (e) => handleDropOnBlock(e, block.id)}
           >
             {blockTodos.map(todo => {
-              const cType = todo.cardType || 'plain';
-              const cfg = cardTypeConfig[cType] || cardTypeConfig.plain;
-              const isVideo = cType === 'video';
-              const isMap = cType === 'map';
-              const isMeeting = cType === 'meeting';
-              const isPlain = cType === 'plain';
-
-              let displayTitle = todo.text;
-              let displaySub = translations[language].actionItem;
-              let redirectUrl = null;
-
-              if (isVideo && todo.videoTitle) {
-                displayTitle = todo.videoTitle;
-                displaySub = todo.videoPlatform || 'Saved Video';
-                redirectUrl = todo.videoUrl;
-              } else if (isMap && todo.mapTitle) {
-                displayTitle = todo.mapTitle;
-                displaySub = todo.mapSubtitle || 'Location';
-                redirectUrl = todo.mapUrl;
-              } else if (isMeeting) {
-                const timeMatch = todo.text.match(/\b(\d{1,2}:\d{2}(?:\s*[APap][Mm])?|\d{1,2}\s*[APap][Mm])\b/);
-                displaySub = timeMatch ? timeMatch[1].trim() : 'Video Call';
-                redirectUrl = todo.redirectUrl || null;
-                displayTitle = todo.text
-                  .split(/\n|　/)
-                  .map(l => l.trim())
-                  .filter(l =>
-                    l.length > 0 &&
-                    !/https?:\/\//i.test(l) &&
-                    !/^開催日時|^開催方法|^date:|^time:|^method:/i.test(l)
-                  )
-                  .join(' ')
-                  .replace(/https?:\/\/\S+/gi, '')
-                  .replace(/\d{4}\/\d{2}\/\d{2}\s*\d{1,2}:\d{2}～?/g, '')
-                  .replace(/\s{2,}/g, ' ')
-                  .trim() || todo.text;
-              } else if (isVideo && todo.videoUrl) {
-                redirectUrl = todo.videoUrl;
-              } else if (isMap && todo.mapUrl) {
-                redirectUrl = todo.mapUrl;
-              }
+              const {
+                cType,
+                cfg,
+                displayTitle,
+                displaySub,
+                redirectUrl,
+                isPlain,
+              } = getTaskCardPresentation(todo, translations[language].actionItem);
 
               const canUseDesktopDrag = !options.isStatic && !isCoarsePointer;
 
@@ -1782,7 +1779,7 @@ function MobileApp({ session, platformInfo }) {
                         return;
                       }
                       if (redirectUrl) {
-                        window.open(redirectUrl, '_blank', 'noopener,noreferrer');
+                        openTaskRedirect(redirectUrl);
                       } else {
                         toggleTodo(todo.id);
                       }
@@ -1815,7 +1812,7 @@ function MobileApp({ session, platformInfo }) {
         </div>
       );
     });
-  }, [appearance, closeSwipeActions, deleteTodo, draggedTodoId, getDayTodos, getSwipeHandlers, handleDragEnd, handleDragOver, handleDropOnBlock, handleDropOnTodo, isCoarsePointer, language, openEdit, toggleTodo]);
+  }, [appearance, closeSwipeActions, deleteTodo, draggedTodoId, getDayTodos, getSwipeHandlers, handleDragEnd, handleDragOver, handleDropOnBlock, handleDropOnTodo, isCoarsePointer, language, openEdit, openTaskRedirect, toggleTodo]);
 
   const timelinePanels = useMemo(() => {
     if (!dayTransition) {
