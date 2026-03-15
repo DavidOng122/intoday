@@ -16,6 +16,22 @@
 .app-container.platform-android {
   box-shadow: none;
 }
+
+.app-container.sheet-open > :not(.sheet-backdrop) {
+  pointer-events: none;
+}
+
+.app-container.sheet-open .timeline-shell,
+.app-container.sheet-open .timeline-area,
+.app-container.sheet-open .header,
+.app-container.sheet-open .mobile-fab {
+  touch-action: none !important;
+  overscroll-behavior: none !important;
+}
+
+.app-container.sheet-open .timeline-area {
+  overflow: hidden !important;
+}
 /* TOP HEADER */
 .header {
   display: flex;

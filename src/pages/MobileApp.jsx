@@ -564,10 +564,12 @@ function MobileApp({ session, platformInfo }) {
 
     document.addEventListener('touchstart', handleTouchStart, { passive: true, capture: true });
     document.addEventListener('touchmove', handleTouchMove, { passive: false, capture: true });
+    window.addEventListener('touchmove', handleTouchMove, { passive: false, capture: true });
 
     return () => {
       document.removeEventListener('touchstart', handleTouchStart, { capture: true });
       document.removeEventListener('touchmove', handleTouchMove, { capture: true });
+      window.removeEventListener('touchmove', handleTouchMove, { capture: true });
       htmlElement.style.overscrollBehavior = previousHtmlOverscrollBehavior;
       htmlElement.style.overflow = previousHtmlOverflow;
       bodyElement.style.overscrollBehavior = previousBodyOverscrollBehavior;
@@ -2107,7 +2109,7 @@ function MobileApp({ session, platformInfo }) {
 
   return (
     <>
-      <div className={`app-container platform-${platform} ${isNativePlatform ? 'native-shell' : 'web-shell'} ${appearance === 'dark' ? 'dark-theme' : ''}`}>
+      <div className={`app-container platform-${platform} ${isNativePlatform ? 'native-shell' : 'web-shell'} ${appearance === 'dark' ? 'dark-theme' : ''} ${isSheetOpen ? 'sheet-open' : ''}`}>
         {/* Top Header */}
         <header className="header">
           <div className="header-side header-side-left">
