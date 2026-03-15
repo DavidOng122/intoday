@@ -133,6 +133,11 @@
   will-change: transform;
 }
 
+.task-card.drag-source-hidden {
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
 .time-block {
   --timeline-overlay-offset: 12px;
   --timeline-overlay-label-height: 16px;

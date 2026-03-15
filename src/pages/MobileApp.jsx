@@ -1203,6 +1203,7 @@ function MobileApp({ session, platformInfo }) {
   const [dragOverBlock, setDragOverBlock] = useState(null);
   const [dragPreview, setDragPreview] = useState(null);
   const [dragOverlayRect, setDragOverlayRect] = useState(null);
+  const [dragOverlayTodo, setDragOverlayTodo] = useState(null);
 
   const dragOverBlockRef = React.useRef(null); // readable in onTouchEnd closure
   const dragOverTodoIdRef = React.useRef(null);
@@ -1273,16 +1274,15 @@ function MobileApp({ session, platformInfo }) {
   const applyDragSourceCardState = useCallback((todoId) => {
     const sourceEl = document.getElementById(`swipe-card-${todoId}`);
     const wrapper = document.getElementById(`swipe-wrapper-${todoId}`);
-    const dragRect = dragFloatingRectRef.current;
-    if (!sourceEl || !wrapper || !dragRect) return;
+    if (!sourceEl || !wrapper || !dragOverlayTodo) return;
 
     wrapper.classList.add('is-dragging');
-    wrapper.style.height = `${dragRect.height}px`;
+    wrapper.style.height = '0px';
 
     sourceEl.style.transition = 'none';
     sourceEl.style.opacity = '0';
     sourceEl.style.pointerEvents = 'none';
-  }, []);
+  }, [dragOverlayTodo]);
 
   const syncDragOverlayPosition = useCallback((touchX = dragTouchX.current, touchY = dragTouchY.current) => {
     const overlayEl = dragOverlayRef.current;
@@ -1351,9 +1351,9 @@ function MobileApp({ session, platformInfo }) {
     wrappers.forEach((wrapper) => {
       const id = wrapper.getAttribute('data-swipe-wrapper-id');
       if (id && draggedTodoId !== null && Number(id) === draggedTodoId) {
-        wrapper.style.transition = 'none';
-        wrapper.style.transform = 'translate3d(0, 0, 0)';
-        return;
+      wrapper.style.transition = 'none';
+      wrapper.style.transform = 'translate3d(0, 0, 0)';
+      return;
       }
 
       const prevRect = prevRects.get(id);
@@ -1372,6 +1372,11 @@ function MobileApp({ session, platformInfo }) {
 
     swipeWrapperRectsRef.current = nextRects;
   }, [dragPreview, draggedTodoId, selectedDate, todos]);
+
+  useLayoutEffect(() => {
+    if (!dragOverlayTodo || !draggedTodoId) return;
+    applyDragSourceCardState(draggedTodoId);
+  }, [applyDragSourceCardState, dragOverlayTodo, draggedTodoId]);
 
   const suppressNextCardClick = useCallback((todoId) => {
     if (suppressClickTimeoutRef.current !== null) {
@@ -1822,6 +1827,7 @@ function MobileApp({ session, platformInfo }) {
     setDraggedTodoId(null);
     setDragPreview(null);
     setDragOverlayRect(null);
+    setDragOverlayTodo(null);
     setDragOverBlock(null);
     dragOverBlockRef.current = null;
     dragOverTodoIdRef.current = null;
@@ -1849,6 +1855,9 @@ function MobileApp({ session, platformInfo }) {
     setDraggedTodoId(todoId);
     lockTimelineScroll();
 
+    const draggedTodo = todos.find((todo) => todo.id === todoId) || null;
+    setDragOverlayTodo(draggedTodo);
+
     const el = document.getElementById(`swipe-card-${todoId}`);
     const wrapper = document.getElementById(`swipe-wrapper-${todoId}`);
     if (el) {
@@ -1870,7 +1879,6 @@ function MobileApp({ session, platformInfo }) {
         y: rect.height / 2,
       };
       dragPlaceholderHeightRef.current = Math.max(72, Math.round(rect.height));
-      applyDragSourceCardState(todoId);
       window.requestAnimationFrame(() => {
         syncDragOverlayPosition(dragTouchX.current, dragTouchY.current);
       });
@@ -1886,7 +1894,6 @@ function MobileApp({ session, platformInfo }) {
     }
     document.body.classList.add('is-dragging-global');
 
-    const draggedTodo = todos.find((todo) => todo.id === todoId);
     if (draggedTodo) {
       const blockTodos = getBlockTodosInDisplayOrder(todos, draggedTodo.dateString, draggedTodo.timeOfDay);
       const sourceIndex = blockTodos.findIndex((todo) => todo.id === todoId);
@@ -1959,13 +1966,8 @@ function MobileApp({ session, platformInfo }) {
     };
   }, [selectedDate, syncDraggedCardPosition]);
 
-  const draggedOverlayTodo = useMemo(
-    () => (draggedTodoId ? todos.find((todo) => todo.id === draggedTodoId) || null : null),
-    [draggedTodoId, todos],
-  );
-
   useLayoutEffect(() => {
-    if (!draggedOverlayTodo) return undefined;
+    if (!dragOverlayTodo) return undefined;
 
     const frame = window.requestAnimationFrame(() => {
       syncDragOverlayPosition(dragTouchX.current, dragTouchY.current);
@@ -1974,7 +1976,7 @@ function MobileApp({ session, platformInfo }) {
     return () => {
       window.cancelAnimationFrame(frame);
     };
-  }, [draggedOverlayTodo, syncDragOverlayPosition]);
+  }, [dragOverlayTodo, syncDragOverlayPosition]);
 
   const deleteTodo = useCallback((id) => {
     if (openSwipeTodoIdRef.current === id) {
@@ -2398,13 +2400,10 @@ function MobileApp({ session, platformInfo }) {
 
     return timeBlocks.map((block) => {
       const blockTodos = getBlockTodosInDisplayOrder(dayTodos, dateKey, block.id);
-      const visibleBlockTodos = draggedTodoId
-        ? blockTodos.filter((todo) => todo.id !== draggedTodoId)
-        : blockTodos;
-      const renderedItems = visibleBlockTodos.map((todo) => ({ type: 'todo', todo }));
+      const renderedItems = blockTodos.map((todo) => ({ type: 'todo', todo }));
       if (draggedTodoId && dragPreview?.blockId === block.id) {
         const targetIndex = dragPreview.targetTodoId
-          ? visibleBlockTodos.findIndex((todo) => todo.id === dragPreview.targetTodoId)
+          ? blockTodos.findIndex((todo) => todo.id === dragPreview.targetTodoId)
           : -1;
         const insertIndex = targetIndex === -1
           ? renderedItems.length
@@ -2489,7 +2488,7 @@ function MobileApp({ session, platformInfo }) {
                   <div
                     id={`swipe-card-${todo.id}`}
                     data-todo-id={todo.id}
-                    className={`task-card ${draggedTodoId === todo.id ? 'dragging' : ''}`}
+                    className={`task-card ${draggedTodoId === todo.id ? 'dragging drag-source-hidden' : ''}`}
                     onClick={() => {
                       if (Date.now() < suppressAllCardClicksUntilRef.current) {
                         return;
@@ -3159,7 +3158,7 @@ function MobileApp({ session, platformInfo }) {
           </div>
         )}
       </div>
-      {draggedOverlayTodo && dragOverlayRect && (
+      {dragOverlayTodo && dragOverlayRect && (
         <div
           ref={dragOverlayRef}
           className="task-card task-drag-overlay-card"
@@ -3171,7 +3170,7 @@ function MobileApp({ session, platformInfo }) {
           }}
           aria-hidden="true"
         >
-          {renderTaskCardInner(draggedOverlayTodo)}
+          {renderTaskCardInner(dragOverlayTodo)}
         </div>
       )}
     </>
