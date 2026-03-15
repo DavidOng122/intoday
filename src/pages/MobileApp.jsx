@@ -484,6 +484,38 @@ function MobileApp({ session, platformInfo }) {
 
     const sheetElement = sheetPanelRef.current;
     if (!sheetElement) return undefined;
+    const htmlElement = document.documentElement;
+    const bodyElement = document.body;
+    const rootElement = document.getElementById('root');
+    const scrollY = window.scrollY;
+    const previousHtmlOverscrollBehavior = htmlElement.style.overscrollBehavior;
+    const previousHtmlOverflow = htmlElement.style.overflow;
+    const previousBodyOverscrollBehavior = bodyElement.style.overscrollBehavior;
+    const previousBodyOverflow = bodyElement.style.overflow;
+    const previousBodyPosition = bodyElement.style.position;
+    const previousBodyTop = bodyElement.style.top;
+    const previousBodyLeft = bodyElement.style.left;
+    const previousBodyRight = bodyElement.style.right;
+    const previousBodyWidth = bodyElement.style.width;
+    const previousBodyTouchAction = bodyElement.style.touchAction;
+    const previousRootOverflow = rootElement?.style.overflow ?? '';
+    const previousRootTouchAction = rootElement?.style.touchAction ?? '';
+
+    htmlElement.style.overscrollBehavior = 'none';
+    htmlElement.style.overflow = 'hidden';
+    bodyElement.style.overscrollBehavior = 'none';
+    bodyElement.style.overflow = 'hidden';
+    bodyElement.style.position = 'fixed';
+    bodyElement.style.top = `-${scrollY}px`;
+    bodyElement.style.left = '0';
+    bodyElement.style.right = '0';
+    bodyElement.style.width = '100%';
+    bodyElement.style.touchAction = 'none';
+
+    if (rootElement) {
+      rootElement.style.overflow = 'hidden';
+      rootElement.style.touchAction = 'none';
+    }
 
     let touchStartY = 0;
 
@@ -500,6 +532,11 @@ function MobileApp({ session, platformInfo }) {
     const handleTouchMove = (event) => {
       const touch = event.touches?.[0];
       if (!touch) return;
+
+      if (!(event.target instanceof Node) || !sheetElement.contains(event.target)) {
+        event.preventDefault();
+        return;
+      }
 
       const scrollableElement = resolveScrollableElement(event.target);
       if (!scrollableElement) {
@@ -525,12 +562,27 @@ function MobileApp({ session, platformInfo }) {
       }
     };
 
-    sheetElement.addEventListener('touchstart', handleTouchStart, { passive: true });
-    sheetElement.addEventListener('touchmove', handleTouchMove, { passive: false });
+    document.addEventListener('touchstart', handleTouchStart, { passive: true, capture: true });
+    document.addEventListener('touchmove', handleTouchMove, { passive: false, capture: true });
 
     return () => {
-      sheetElement.removeEventListener('touchstart', handleTouchStart);
-      sheetElement.removeEventListener('touchmove', handleTouchMove);
+      document.removeEventListener('touchstart', handleTouchStart, { capture: true });
+      document.removeEventListener('touchmove', handleTouchMove, { capture: true });
+      htmlElement.style.overscrollBehavior = previousHtmlOverscrollBehavior;
+      htmlElement.style.overflow = previousHtmlOverflow;
+      bodyElement.style.overscrollBehavior = previousBodyOverscrollBehavior;
+      bodyElement.style.overflow = previousBodyOverflow;
+      bodyElement.style.position = previousBodyPosition;
+      bodyElement.style.top = previousBodyTop;
+      bodyElement.style.left = previousBodyLeft;
+      bodyElement.style.right = previousBodyRight;
+      bodyElement.style.width = previousBodyWidth;
+      bodyElement.style.touchAction = previousBodyTouchAction;
+      if (rootElement) {
+        rootElement.style.overflow = previousRootOverflow;
+        rootElement.style.touchAction = previousRootTouchAction;
+      }
+      window.scrollTo(0, scrollY);
     };
   }, [isIOS, isSheetOpen]);
   const profileSwipeHandlers = useSwipeDownToClose({
