@@ -1727,7 +1727,10 @@ function MobileApp({ session, platformInfo }) {
           data-date-key={dateKey}
           data-overlay-source={!options.isStatic ? 'true' : 'false'}
         >
-          <div className="time-col">
+          <div
+            className="time-col"
+            style={{ backgroundColor: block.axisColor || '#F7F1EA' }}
+          >
             <span className="time-text">{block.start}</span>
             {indicatorStyle && (
               <img
