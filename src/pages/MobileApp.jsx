@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from 'react';
-import { createPortal } from 'react-dom';
+import { createPortal, flushSync } from 'react-dom';
 import { ChevronLeft, ArrowUp, Maximize2, Minimize2, PenLine, Trash2 } from 'lucide-react';
 import { subDays, addDays, format, isSameDay } from 'date-fns';
 import { SendIntent } from 'send-intent';
@@ -1532,6 +1532,8 @@ function MobileApp({ session, platformInfo }) {
 
     const currentDate = selectedDateRef.current;
     if (isSameDay(currentDate, nextDate)) return;
+    const draggedTodo = todos.find((todo) => todo.id === todoId);
+    const preservedBlock = draggedTodo?.timeOfDay ?? dragOverBlockRef.current ?? null;
 
     const currentDateKey = format(currentDate, 'yyyy-MM-dd');
     const nextDateKey = format(nextDate, 'yyyy-MM-dd');
@@ -1560,14 +1562,21 @@ function MobileApp({ session, platformInfo }) {
       return nextTodos;
     });
 
-    dragOverBlockRef.current = null;
+    dragOverBlockRef.current = preservedBlock;
     dragOverTodoIdRef.current = null;
     dragInsertAfterRef.current = false;
-    setDragOverBlock(null);
+    setDragOverBlock(preservedBlock);
+    syncDragPreview(preservedBlock
+      ? {
+        blockId: preservedBlock,
+        targetTodoId: null,
+        insertAfter: false,
+      }
+      : null);
     triggerDirectDayFlipFeedback(nextDate > currentDate ? 'next' : 'previous');
     selectedDateRef.current = nextDate;
     setSelectedDate(nextDate);
-  }, [setTodos, triggerDirectDayFlipFeedback]);
+  }, [setTodos, syncDragPreview, todos, triggerDirectDayFlipFeedback]);
 
   const updateDragDayAutoFlip = useCallback((touchX, todoId) => {
     const shellEl = timelineShellRef.current || timelineRef.current;
@@ -1904,7 +1913,9 @@ function MobileApp({ session, platformInfo }) {
       event.preventDefault();
     }
 
-    finalizeTouchDrag(todoId);
+    flushSync(() => {
+      finalizeTouchDrag(todoId);
+    });
     return true;
   }, [finalizeTouchDrag, syncDraggedCardPosition]);
 
