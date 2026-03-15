@@ -1799,9 +1799,10 @@ function MobileApp({ session, platformInfo }) {
 
     const el = document.getElementById(`swipe-card-${todoId}`);
     const wrapper = document.getElementById(`swipe-wrapper-${todoId}`);
-    const targetBlock = dragOverBlockRef.current;
-    const targetTodoId = dragOverTodoIdRef.current;
-    const insertAfter = dragInsertAfterRef.current;
+    const fallbackTarget = getTouchDragTarget(todoId, dragTouchY.current);
+    const targetBlock = dragOverBlockRef.current ?? fallbackTarget.blockId;
+    const targetTodoId = dragOverTodoIdRef.current ?? fallbackTarget.targetTodoId;
+    const insertAfter = dragOverBlockRef.current ? dragInsertAfterRef.current : fallbackTarget.insertAfter;
 
     if (targetBlock) {
       setTodos((prev) => {
@@ -1865,7 +1866,7 @@ function MobileApp({ session, platformInfo }) {
     dragTouchY.current = 0;
     dragFloatingRectRef.current = null;
     dragFloatingAnchorRef.current = { x: 0, y: 0 };
-  }, [clearDragDayFlipTimer, detachTouchDragListeners, removeDragGhost, resetDragSourceCardState, stopAutoScroll, suppressNextCardClick, unlockTimelineScroll]);
+  }, [clearDragDayFlipTimer, detachTouchDragListeners, getTouchDragTarget, removeDragGhost, resetDragSourceCardState, stopAutoScroll, suppressNextCardClick, unlockTimelineScroll]);
 
   const startTouchDrag = useCallback((todoId) => {
     closeSwipeActions(todoId);
@@ -1962,6 +1963,16 @@ function MobileApp({ session, platformInfo }) {
         || Boolean(findTouchByIdentifier(event.changedTouches, touchIdentifier));
 
       if (!trackedTouchEnded) return;
+
+      const touch = findTouchByIdentifier(event.changedTouches, touchIdentifier)
+        || event.changedTouches[0]
+        || event.touches[0];
+
+      if (touch) {
+        dragTouchX.current = touch.clientX;
+        dragTouchY.current = touch.clientY;
+        syncDraggedCardPosition(todoId, touch.clientY, touch.clientX);
+      }
 
       if (event.cancelable) {
         event.preventDefault();
