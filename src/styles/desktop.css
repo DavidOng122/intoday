@@ -751,6 +751,32 @@
   cursor: pointer;
 }
 
+.desktop-task-wrapper {
+  position: relative;
+}
+
+.desktop-task-wrapper.is-dragging {
+  z-index: 30;
+}
+
+.desktop-task-card {
+  position: relative;
+}
+
+.desktop-task-card.is-dragging {
+  cursor: grabbing;
+}
+
+.desktop-schedule-task-grid.is-drag-over {
+  background: rgba(239, 47, 47, 0.06);
+  box-shadow: inset 0 0 0 1px rgba(239, 47, 47, 0.18);
+}
+
+body.desktop-task-dragging {
+  user-select: none;
+  cursor: grabbing;
+}
+
 @media (max-width: 900px) {
   .desktop-profile-stage {
     width: min(100%, 368px);

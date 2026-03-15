@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '../supabase';
 import DesktopLogin from '../DesktopLogin';
 import { useSyncedTodos } from '../todoSync';
@@ -29,6 +29,10 @@ const chips = [
   { id: 'evening', label: 'Evening' },
   { id: 'night', label: 'Night' },
 ];
+const DESKTOP_DRAG_LONG_PRESS_MS = 260;
+const DESKTOP_DRAG_CANCEL_DISTANCE = 10;
+const DESKTOP_DRAG_SCROLL_ZONE = 96;
+const DESKTOP_DRAG_MAX_SCROLL_SPEED = 1.35;
 
 const dateKey = (date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 const sameDay = (a, b) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
@@ -173,46 +177,75 @@ const WeekStrip = ({ selectedDate, logicalToday, onSelect }) => {
   );
 };
 
-const TaskCard = ({ task, onClick }) => {
+const TaskCard = ({
+  task,
+  onClick,
+  onPointerDown,
+  onPointerMove,
+  onPointerUp,
+  onPointerCancel,
+  isDragging,
+}) => {
   const { cfg, displayTitle, displaySub } = getTaskCardPresentation(task);
 
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      style={{
-        width: '100%',
-        minHeight: 76,
-        borderRadius: 11,
-        border: '2px solid #f2f2f2',
-        background: '#fff',
-        padding: '12px 14px',
-        display: 'flex',
-        alignItems: 'center',
-        gap: 12,
-        boxShadow: '0 2px 16px rgba(0, 0, 0, 0.03)',
-        cursor: 'pointer',
-        textAlign: 'left',
-        opacity: task.completed ? 0.5 : 1,
-        transition: 'transform 0.2s, box-shadow 0.2s, opacity 0.2s',
-      }}
-    >
-      <div style={{ width: 32, height: 32, borderRadius: 8, background: cfg.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-        <img src={cfg.icon} alt={task.cardType || 'plain'} style={{ width: 18, height: 18, objectFit: 'contain' }} />
-      </div>
-      <div style={{ minWidth: 0, flex: 1, display: 'flex', flexDirection: 'column', gap: 2 }}>
-        <div style={{ display: '-webkit-box', WebkitBoxOrient: 'vertical', WebkitLineClamp: 2, overflow: 'hidden', wordBreak: 'break-word', color: task.completed ? '#8e8e93' : '#181818', textDecoration: task.completed ? 'line-through' : 'none', fontSize: 13, fontWeight: 590, lineHeight: '20px' }}>
-          {displayTitle}
+    <div id={`desktop-task-wrapper-${task.id}`} className={`desktop-task-wrapper ${isDragging ? 'is-dragging' : ''}`}>
+      <button
+        id={`desktop-task-card-${task.id}`}
+        type="button"
+        className={`desktop-task-card ${isDragging ? 'is-dragging' : ''}`}
+        onClick={onClick}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        onPointerCancel={onPointerCancel}
+        style={{
+          width: '100%',
+          minHeight: 76,
+          borderRadius: 11,
+          border: '2px solid #f2f2f2',
+          background: '#fff',
+          padding: '12px 14px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 12,
+          boxShadow: '0 2px 16px rgba(0, 0, 0, 0.03)',
+          cursor: isDragging ? 'grabbing' : 'pointer',
+          textAlign: 'left',
+          opacity: task.completed ? 0.5 : 1,
+          transition: 'transform 0.2s, box-shadow 0.2s, opacity 0.2s',
+          touchAction: 'none',
+          userSelect: 'none',
+        }}
+      >
+        <div style={{ width: 32, height: 32, borderRadius: 8, background: cfg.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+          <img src={cfg.icon} alt={task.cardType || 'plain'} style={{ width: 18, height: 18, objectFit: 'contain' }} />
         </div>
-        <div style={{ color: '#8e8e93', fontSize: 11, fontWeight: 400, lineHeight: 1.3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-          {displaySub}
+        <div style={{ minWidth: 0, flex: 1, display: 'flex', flexDirection: 'column', gap: 2 }}>
+          <div style={{ display: '-webkit-box', WebkitBoxOrient: 'vertical', WebkitLineClamp: 2, overflow: 'hidden', wordBreak: 'break-word', color: task.completed ? '#8e8e93' : '#181818', textDecoration: task.completed ? 'line-through' : 'none', fontSize: 13, fontWeight: 590, lineHeight: '20px' }}>
+            {displayTitle}
+          </div>
+          <div style={{ color: '#8e8e93', fontSize: 11, fontWeight: 400, lineHeight: 1.3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {displaySub}
+          </div>
         </div>
-      </div>
-    </button>
+      </button>
+    </div>
   );
 };
 
-const ScheduleSection = ({ section, tasks, showMarker, onTaskClick }) => (
+const ScheduleSection = ({
+  section,
+  tasks,
+  showMarker,
+  onTaskClick,
+  onTaskPointerDown,
+  onTaskPointerMove,
+  onTaskPointerUp,
+  onTaskPointerCancel,
+  draggedTaskId,
+  isDragOver,
+}) => (
   <section style={{ borderBottom: '1px solid #ece4da', background: '#fffdfb' }}>
     <div style={{ width: 'min(1120px, calc(100% - 72px))', margin: '0 auto', padding: '22px 0 24px' }}>
       <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minWidth: 72, padding: '6px 14px', borderRadius: 999, background: section.pillBg, color: section.pillColor, fontFamily: 'DM Serif Display, serif', fontSize: 14, fontStyle: 'italic' }}>{section.label}</span>
@@ -223,8 +256,23 @@ const ScheduleSection = ({ section, tasks, showMarker, onTaskClick }) => (
           {showMarker ? <div style={{ position: 'absolute', left: 2, top: 48, width: 7, height: 7, borderRadius: '50%', background: '#ef2f2f' }} /> : null}
           <div style={{ position: 'absolute', left: 0, bottom: 0, color: '#161616', fontSize: 15, fontWeight: 500 }}>{section.end}</div>
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(260px, 1fr))', gap: 18, alignItems: 'start' }}>
-          {tasks.map((task) => <TaskCard key={task.id} task={task} onClick={() => onTaskClick(task)} />)}
+        <div
+          data-desktop-block-id={section.mobileId}
+          className={`desktop-schedule-task-grid ${isDragOver ? 'is-drag-over' : ''}`}
+          style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(260px, 1fr))', gap: 18, alignItems: 'start', padding: 8, margin: '-8px', borderRadius: 18, transition: 'background-color 0.18s ease, box-shadow 0.18s ease' }}
+        >
+          {tasks.map((task) => (
+            <TaskCard
+              key={task.id}
+              task={task}
+              isDragging={draggedTaskId === task.id}
+              onClick={() => onTaskClick(task)}
+              onPointerDown={(event) => onTaskPointerDown(task, event)}
+              onPointerMove={(event) => onTaskPointerMove(task, event)}
+              onPointerUp={(event) => onTaskPointerUp(task, event)}
+              onPointerCancel={(event) => onTaskPointerCancel(task, event)}
+            />
+          ))}
         </div>
       </div>
     </div>
@@ -359,15 +407,48 @@ function App() {
   const [activeChip, setActiveChip] = useState('now');
   const [inputText, setInputText] = useState('');
   const [editingTaskId, setEditingTaskId] = useState(null);
+  const [draggedTaskId, setDraggedTaskId] = useState(null);
+  const [dragOverSection, setDragOverSection] = useState(null);
   const [tasks, setTasks] = useSyncedTodos({
     userId: user?.id || null,
     normalizeTodo: normalizeTask,
   });
   const userProfile = useMemo(() => getUserProfile(user), [user]);
+  const mainScrollRef = useRef(null);
+  const desktopDragStateRef = useRef({
+    pointerId: null,
+    taskId: null,
+    startX: 0,
+    startY: 0,
+  });
+  const desktopDragPointerRef = useRef({ x: 0, y: 0 });
+  const desktopDragModeRef = useRef(false);
+  const desktopDragPressTimerRef = useRef(null);
+  const dragOverSectionRef = useRef(null);
+  const lockedMainScrollTopRef = useRef(0);
+  const desktopAutoScrollVelocityRef = useRef(0);
+  const desktopAutoScrollFrameRef = useRef(null);
+  const desktopAutoScrollLastTsRef = useRef(null);
+  const suppressTaskClickRef = useRef(null);
+  const suppressTaskClickTimeoutRef = useRef(null);
 
   useEffect(() => {
     const interval = setInterval(() => setCurrentTime(new Date()), 60000);
     return () => clearInterval(interval);
+  }, []);
+  useEffect(() => () => {
+    if (desktopDragPressTimerRef.current !== null) {
+      window.clearTimeout(desktopDragPressTimerRef.current);
+      desktopDragPressTimerRef.current = null;
+    }
+    if (suppressTaskClickTimeoutRef.current !== null) {
+      window.clearTimeout(suppressTaskClickTimeoutRef.current);
+      suppressTaskClickTimeoutRef.current = null;
+    }
+    if (desktopAutoScrollFrameRef.current !== null) {
+      window.cancelAnimationFrame(desktopAutoScrollFrameRef.current);
+      desktopAutoScrollFrameRef.current = null;
+    }
   }, []);
   useEffect(() => {
     localStorage.setItem(SHARED_SELECTED_DATE_KEY, dateKey(selectedDate));
@@ -414,6 +495,272 @@ function App() {
   useEffect(() => {
     if (!visibleChips.some((chip) => chip.id === activeChip)) setActiveChip(visibleChips[0]?.id || 'now');
   }, [activeChip, visibleChips]);
+
+  const clearDesktopDragPressTimer = useCallback(() => {
+    if (desktopDragPressTimerRef.current !== null) {
+      window.clearTimeout(desktopDragPressTimerRef.current);
+      desktopDragPressTimerRef.current = null;
+    }
+  }, []);
+
+  const suppressNextTaskClick = useCallback((taskId) => {
+    if (suppressTaskClickTimeoutRef.current !== null) {
+      window.clearTimeout(suppressTaskClickTimeoutRef.current);
+    }
+    suppressTaskClickRef.current = taskId;
+    suppressTaskClickTimeoutRef.current = window.setTimeout(() => {
+      if (suppressTaskClickRef.current === taskId) {
+        suppressTaskClickRef.current = null;
+      }
+      suppressTaskClickTimeoutRef.current = null;
+    }, 250);
+  }, []);
+
+  const getNearestDesktopSection = useCallback((clientY) => {
+    const zones = document.querySelectorAll('[data-desktop-block-id]');
+    let nearest = null;
+    let nearestDistance = Number.POSITIVE_INFINITY;
+
+    zones.forEach((zone) => {
+      const rect = zone.getBoundingClientRect();
+      const centerY = rect.top + (rect.height / 2);
+      const distance = Math.abs(clientY - centerY);
+      if (distance < nearestDistance) {
+        nearestDistance = distance;
+        nearest = zone.getAttribute('data-desktop-block-id');
+      }
+    });
+
+    return nearest;
+  }, []);
+
+  const syncDesktopDraggedTaskPosition = useCallback((taskId, clientX, clientY) => {
+    const card = document.getElementById(`desktop-task-card-${taskId}`);
+    const mainScroll = mainScrollRef.current;
+    if (!card) return;
+
+    const scrollDelta = mainScroll ? mainScroll.scrollTop - lockedMainScrollTopRef.current : 0;
+    const offsetX = clientX - desktopDragStateRef.current.startX;
+    const offsetY = clientY - desktopDragStateRef.current.startY + scrollDelta;
+    card.style.transform = `translate3d(${offsetX}px, ${offsetY}px, 0) scale(1.03)`;
+
+    const nearestSection = getNearestDesktopSection(clientY);
+    if (nearestSection !== dragOverSectionRef.current) {
+      dragOverSectionRef.current = nearestSection;
+      setDragOverSection(nearestSection);
+    }
+  }, [getNearestDesktopSection]);
+
+  const stopDesktopAutoScroll = useCallback(() => {
+    desktopAutoScrollVelocityRef.current = 0;
+    desktopAutoScrollLastTsRef.current = null;
+    if (desktopAutoScrollFrameRef.current !== null) {
+      window.cancelAnimationFrame(desktopAutoScrollFrameRef.current);
+      desktopAutoScrollFrameRef.current = null;
+    }
+  }, []);
+
+  const runDesktopAutoScroll = useCallback((timestamp) => {
+    if (!desktopDragModeRef.current || !desktopDragStateRef.current.taskId) {
+      stopDesktopAutoScroll();
+      return;
+    }
+
+    const mainScroll = mainScrollRef.current;
+    if (!mainScroll) {
+      stopDesktopAutoScroll();
+      return;
+    }
+
+    if (desktopAutoScrollLastTsRef.current === null) {
+      desktopAutoScrollLastTsRef.current = timestamp;
+    }
+
+    const elapsed = Math.min(timestamp - desktopAutoScrollLastTsRef.current, 32);
+    desktopAutoScrollLastTsRef.current = timestamp;
+
+    if (desktopAutoScrollVelocityRef.current !== 0) {
+      const maxScrollTop = Math.max(0, mainScroll.scrollHeight - mainScroll.clientHeight);
+      const prevScrollTop = mainScroll.scrollTop;
+      const nextScrollTop = Math.max(
+        0,
+        Math.min(maxScrollTop, prevScrollTop + (desktopAutoScrollVelocityRef.current * elapsed)),
+      );
+
+      if (nextScrollTop !== prevScrollTop) {
+        mainScroll.scrollTop = nextScrollTop;
+        syncDesktopDraggedTaskPosition(
+          desktopDragStateRef.current.taskId,
+          desktopDragPointerRef.current.x,
+          desktopDragPointerRef.current.y,
+        );
+      } else {
+        stopDesktopAutoScroll();
+        return;
+      }
+    }
+
+    if (desktopAutoScrollVelocityRef.current !== 0) {
+      desktopAutoScrollFrameRef.current = window.requestAnimationFrame(runDesktopAutoScroll);
+    } else {
+      desktopAutoScrollFrameRef.current = null;
+      desktopAutoScrollLastTsRef.current = null;
+    }
+  }, [stopDesktopAutoScroll, syncDesktopDraggedTaskPosition]);
+
+  const updateDesktopAutoScroll = useCallback((clientY) => {
+    const mainScroll = mainScrollRef.current;
+    if (!mainScroll) return;
+
+    const rect = mainScroll.getBoundingClientRect();
+    const maxScrollTop = Math.max(0, mainScroll.scrollHeight - mainScroll.clientHeight);
+    let velocity = 0;
+
+    if (clientY < rect.top + DESKTOP_DRAG_SCROLL_ZONE) {
+      const intensity = (rect.top + DESKTOP_DRAG_SCROLL_ZONE - clientY) / DESKTOP_DRAG_SCROLL_ZONE;
+      velocity = -DESKTOP_DRAG_MAX_SCROLL_SPEED * Math.min(Math.max(intensity, 0), 1);
+    } else if (clientY > rect.bottom - DESKTOP_DRAG_SCROLL_ZONE) {
+      const intensity = (clientY - (rect.bottom - DESKTOP_DRAG_SCROLL_ZONE)) / DESKTOP_DRAG_SCROLL_ZONE;
+      velocity = DESKTOP_DRAG_MAX_SCROLL_SPEED * Math.min(Math.max(intensity, 0), 1);
+    }
+
+    if ((velocity < 0 && mainScroll.scrollTop <= 0) || (velocity > 0 && mainScroll.scrollTop >= maxScrollTop)) {
+      velocity = 0;
+    }
+
+    desktopAutoScrollVelocityRef.current = velocity;
+
+    if (velocity !== 0 && desktopAutoScrollFrameRef.current === null) {
+      desktopAutoScrollFrameRef.current = window.requestAnimationFrame(runDesktopAutoScroll);
+    } else if (velocity === 0) {
+      stopDesktopAutoScroll();
+    }
+  }, [runDesktopAutoScroll, stopDesktopAutoScroll]);
+
+  const startDesktopTaskDrag = useCallback((taskId) => {
+    clearDesktopDragPressTimer();
+    desktopDragModeRef.current = true;
+    dragOverSectionRef.current = null;
+    setDraggedTaskId(taskId);
+    lockedMainScrollTopRef.current = mainScrollRef.current?.scrollTop || 0;
+    document.body.classList.add('desktop-task-dragging');
+
+    const card = document.getElementById(`desktop-task-card-${taskId}`);
+    const wrapper = document.getElementById(`desktop-task-wrapper-${taskId}`);
+    if (wrapper) wrapper.classList.add('is-dragging');
+    if (card) {
+      card.style.transition = 'transform 0s, box-shadow 0.12s ease, opacity 0.12s ease';
+      card.style.boxShadow = '0 16px 34px rgba(0, 0, 0, 0.14)';
+      card.style.opacity = '0.96';
+      card.style.zIndex = '50';
+      card.style.willChange = 'transform';
+    }
+
+    syncDesktopDraggedTaskPosition(
+      taskId,
+      desktopDragPointerRef.current.x,
+      desktopDragPointerRef.current.y,
+    );
+  }, [clearDesktopDragPressTimer, syncDesktopDraggedTaskPosition]);
+
+  const finishDesktopTaskDrag = useCallback((task, pointerTarget, pointerId) => {
+    clearDesktopDragPressTimer();
+    stopDesktopAutoScroll();
+
+    const card = document.getElementById(`desktop-task-card-${task.id}`);
+    const wrapper = document.getElementById(`desktop-task-wrapper-${task.id}`);
+    if (card) {
+      card.style.transition = 'transform 0.22s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.22s ease, opacity 0.22s ease';
+      card.style.transform = '';
+      card.style.boxShadow = '';
+      card.style.opacity = '';
+      card.style.zIndex = '';
+      card.style.willChange = '';
+      window.setTimeout(() => {
+        const nextCard = document.getElementById(`desktop-task-card-${task.id}`);
+        if (nextCard) nextCard.style.transition = '';
+      }, 260);
+    }
+    if (wrapper) wrapper.classList.remove('is-dragging');
+
+    document.body.classList.remove('desktop-task-dragging');
+
+    if (desktopDragModeRef.current) {
+      suppressNextTaskClick(task.id);
+      const targetSection = dragOverSectionRef.current;
+      if (targetSection && targetSection !== task.timeOfDay) {
+        setTasks((prev) => prev.map((item) => (
+          item.id === task.id ? normalizeTask({ ...item, timeOfDay: targetSection }) : item
+        )));
+      }
+    }
+
+    desktopDragModeRef.current = false;
+    desktopDragStateRef.current = { pointerId: null, taskId: null, startX: 0, startY: 0 };
+    dragOverSectionRef.current = null;
+    setDragOverSection(null);
+    setDraggedTaskId(null);
+
+    if (pointerTarget?.hasPointerCapture?.(pointerId)) {
+      try {
+        pointerTarget.releasePointerCapture(pointerId);
+      } catch (_) {
+        // Pointer capture may already be released.
+      }
+    }
+  }, [clearDesktopDragPressTimer, setTasks, stopDesktopAutoScroll, suppressNextTaskClick]);
+
+  const handleTaskPointerDown = useCallback((task, event) => {
+    if (!event.isPrimary || event.button !== 0) return;
+
+    clearDesktopDragPressTimer();
+    desktopDragModeRef.current = false;
+    desktopDragStateRef.current = {
+      pointerId: event.pointerId,
+      taskId: task.id,
+      startX: event.clientX,
+      startY: event.clientY,
+    };
+    desktopDragPointerRef.current = { x: event.clientX, y: event.clientY };
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+
+    desktopDragPressTimerRef.current = window.setTimeout(() => {
+      desktopDragPressTimerRef.current = null;
+      if (desktopDragStateRef.current.taskId !== task.id) return;
+      startDesktopTaskDrag(task.id);
+    }, DESKTOP_DRAG_LONG_PRESS_MS);
+  }, [clearDesktopDragPressTimer, startDesktopTaskDrag]);
+
+  const handleTaskPointerMove = useCallback((task, event) => {
+    if (desktopDragStateRef.current.pointerId !== event.pointerId || desktopDragStateRef.current.taskId !== task.id) return;
+
+    desktopDragPointerRef.current = { x: event.clientX, y: event.clientY };
+    const deltaX = event.clientX - desktopDragStateRef.current.startX;
+    const deltaY = event.clientY - desktopDragStateRef.current.startY;
+
+    if (!desktopDragModeRef.current) {
+      if (Math.abs(deltaX) > DESKTOP_DRAG_CANCEL_DISTANCE || Math.abs(deltaY) > DESKTOP_DRAG_CANCEL_DISTANCE) {
+        clearDesktopDragPressTimer();
+      }
+      return;
+    }
+
+    if (event.cancelable) {
+      event.preventDefault();
+    }
+    syncDesktopDraggedTaskPosition(task.id, event.clientX, event.clientY);
+    updateDesktopAutoScroll(event.clientY);
+  }, [clearDesktopDragPressTimer, syncDesktopDraggedTaskPosition, updateDesktopAutoScroll]);
+
+  const handleTaskPointerUp = useCallback((task, event) => {
+    if (desktopDragStateRef.current.pointerId !== event.pointerId || desktopDragStateRef.current.taskId !== task.id) return;
+    finishDesktopTaskDrag(task, event.currentTarget, event.pointerId);
+  }, [finishDesktopTaskDrag]);
+
+  const handleTaskPointerCancel = useCallback((task, event) => {
+    if (desktopDragStateRef.current.pointerId !== event.pointerId || desktopDragStateRef.current.taskId !== task.id) return;
+    finishDesktopTaskDrag(task, event.currentTarget, event.pointerId);
+  }, [finishDesktopTaskDrag]);
 
   if (loading) {
     return (
@@ -494,6 +841,10 @@ function App() {
     setTasks((prev) => prev.map((task) => (task.id === taskId ? normalizeTask({ ...task, completed: !task.completed }) : task)));
   };
   const handleTaskClick = (task) => {
+    if (suppressTaskClickRef.current === task.id) {
+      suppressTaskClickRef.current = null;
+      return;
+    }
     const { redirectUrl, isPlain } = getTaskCardPresentation(task);
     if (isPlain) {
       openTaskEditor(task);
@@ -566,8 +917,22 @@ function App() {
         <div style={{ display: 'flex', height: 'calc(100vh - 74px)' }}>
           <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', background: 'linear-gradient(180deg, #fbf9f6 0%, #fbf9f6 52px, #fffdfb 52px, #fffdfb 100%)' }}>
             <WeekStrip selectedDate={selectedDate} logicalToday={logicalToday} onSelect={(date) => { setSelectedDate(date); setProfileOpen(false); }} />
-            <main style={{ flex: 1, overflowY: 'auto', background: '#fffdfb' }}>
-              {sections.map((section) => <ScheduleSection key={section.id} section={section} tasks={selectedTasks.filter((task) => task.timeOfDay === section.mobileId)} showMarker={todaySelected && currentBlock === section.id} onTaskClick={handleTaskClick} />)}
+            <main ref={mainScrollRef} style={{ flex: 1, overflowY: 'auto', background: '#fffdfb' }}>
+              {sections.map((section) => (
+                <ScheduleSection
+                  key={section.id}
+                  section={section}
+                  tasks={selectedTasks.filter((task) => task.timeOfDay === section.mobileId)}
+                  showMarker={todaySelected && currentBlock === section.id}
+                  onTaskClick={handleTaskClick}
+                  onTaskPointerDown={handleTaskPointerDown}
+                  onTaskPointerMove={handleTaskPointerMove}
+                  onTaskPointerUp={handleTaskPointerUp}
+                  onTaskPointerCancel={handleTaskPointerCancel}
+                  draggedTaskId={draggedTaskId}
+                  isDragOver={dragOverSection === section.mobileId}
+                />
+              ))}
             </main>
           </div>
           <AddPanel open={panelOpen} selectedDate={selectedDate} chipsToShow={visibleChips} activeChip={activeChip} setActiveChip={setActiveChip} inputText={inputText} setInputText={setInputText} onClose={closePanel} onSubmit={saveTask} onSelectDate={setSelectedDate} />
