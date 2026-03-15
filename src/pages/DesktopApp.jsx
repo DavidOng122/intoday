@@ -330,6 +330,8 @@ const AddPanel = ({ open, selectedDate, chipsToShow, activeChip, setActiveChip, 
   const trailingCells = Math.max(0, 42 - startOffset - daysInMonth);
   const isAtMinMonth = monthStart.getFullYear() === logicalToday.getFullYear() && monthStart.getMonth() === logicalToday.getMonth();
   const isAtMaxMonth = monthStart.getFullYear() === maxDate.getFullYear() && monthStart.getMonth() === maxDate.getMonth();
+  const desktopCalendarCellSize = 32;
+  const desktopCalendarGap = 6;
   return (
     <aside style={{ width: 348, borderLeft: '1px solid #ece4da', background: '#fffdfb', display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
       <div style={{ padding: '18px 22px', display: 'flex', justifyContent: 'flex-end' }}>
@@ -356,7 +358,7 @@ const AddPanel = ({ open, selectedDate, chipsToShow, activeChip, setActiveChip, 
           <svg xmlns="http://www.w3.org/2000/svg" width="8" height="13" viewBox="0 0 9 14" fill="none" style={{ transform: isCalendarOpen ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.24s cubic-bezier(0.16, 1, 0.3, 1)' }}><path fillRule="evenodd" clipRule="evenodd" d="M8.78019 6.54928C8.92094 6.66887 9 6.83098 9 7C9 7.16902 8.92094 7.33113 8.78019 7.45072L1.26401 13.8288C1.12153 13.9415 0.933079 14.0028 0.738359 13.9999C0.543638 13.997 0.357853 13.93 0.220144 13.8132C0.0824342 13.6963 0.00355271 13.5387 0.000117099 13.3734C-0.00331851 13.2082 0.06896 13.0483 0.201726 12.9274L7.18676 7L0.201726 1.07262C0.06896 0.951712 -0.00331851 0.791795 0.000117099 0.626558C0.00355271 0.461322 0.0824342 0.303668 0.220144 0.18681C0.357853 0.0699525 0.543638 0.00301477 0.738359 9.93682e-05C0.933079 -0.00281603 1.12153 0.0585185 1.26401 0.171181L8.78019 6.54928Z" fill="black" /></svg>
         </button>
         {isCalendarOpen ? (
-          <div style={{ marginBottom: 20, padding: '14px 14px 16px', borderRadius: 20, background: '#faf7f2', border: '1px solid #efe8de' }}>
+          <div style={{ width: 'fit-content', maxWidth: '100%', marginBottom: 20, padding: '14px 14px 16px', borderRadius: 20, background: '#faf7f2', border: '1px solid #efe8de' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
               <button type="button" disabled={isAtMinMonth} onClick={() => setCalendarOffset((prev) => prev - 1)} style={{ width: 30, height: 30, borderRadius: '50%', border: 'none', background: '#f0ece6', color: isAtMinMonth ? '#c9c3bb' : '#111', cursor: isAtMinMonth ? 'default' : 'pointer' }}>
                 {'<'}
@@ -366,7 +368,7 @@ const AddPanel = ({ open, selectedDate, chipsToShow, activeChip, setActiveChip, 
                 {'>'}
               </button>
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 10 }}>
+            <div style={{ display: 'grid', width: 'fit-content', maxWidth: '100%', gridTemplateColumns: `repeat(7, ${desktopCalendarCellSize}px)`, gap: desktopCalendarGap }}>
               {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((label) => (
                 <div key={label} style={{ textAlign: 'center', fontSize: 13, fontWeight: 600, color: '#a0a4ab' }}>{label}</div>
               ))}
@@ -388,7 +390,7 @@ const AddPanel = ({ open, selectedDate, chipsToShow, activeChip, setActiveChip, 
                       setIsCalendarOpen(false);
                     }}
                     style={{
-                      width: '100%',
+                      width: desktopCalendarCellSize,
                       aspectRatio: '1 / 1',
                       borderRadius: '50%',
                       border: today && !selected ? '1px solid #ed1f1f' : 'none',

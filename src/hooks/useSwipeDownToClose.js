@@ -34,6 +34,8 @@ export default function useSwipeDownToClose({
   getScrollElement,
   ignoreSwipeFrom,
   getSwipeEndAction,
+  onSwipeStart,
+  onSwipeMove,
   threshold = SWIPE_CLOSE_THRESHOLD,
 }) {
   const touchStartY = useRef(null);
@@ -114,7 +116,11 @@ export default function useSwipeDownToClose({
     touchStartY.current = touch.clientY;
     currentOffsetY.current = 0;
     isSwiping.current = true;
-  }, [baseTransform, canSwipeFromTarget, enabled, resetSwipeState]);
+    onSwipeStart?.({
+      container,
+      event,
+    });
+  }, [baseTransform, canSwipeFromTarget, enabled, onSwipeStart, resetSwipeState]);
 
   const handleTouchMove = useCallback((event) => {
     if (!enabled || touchStartY.current === null || !isSwiping.current) return;
@@ -135,11 +141,16 @@ export default function useSwipeDownToClose({
     currentOffsetY.current = offsetY;
     container.style.transition = 'none';
     container.style.transform = baseTransform(getSwipeVisualOffset(offsetY));
+    onSwipeMove?.({
+      container,
+      event,
+      offsetY,
+    });
 
     if (event.cancelable) {
       event.preventDefault();
     }
-  }, [baseTransform, canSwipeFromTarget, enabled, resetSwipeState, restorePosition]);
+  }, [baseTransform, canSwipeFromTarget, enabled, onSwipeMove, resetSwipeState, restorePosition]);
 
   const handleTouchEnd = useCallback((event) => {
     if (!enabled) return;

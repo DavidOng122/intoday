@@ -136,6 +136,8 @@ function MobileApp({ session, platformInfo }) {
   const [sheetBaseViewportHeight, setSheetBaseViewportHeight] = useState(0);
   const [sheetContentLiftStartOffset, setSheetContentLiftStartOffset] = useState(190);
   const sheetContentLiftBaselineLockedRef = useRef(false);
+  const sheetKeyboardDismissedDuringSwipeRef = useRef(false);
+  const sheetSwipeStartedWithKeyboardOpenRef = useRef(false);
 
   useEffect(() => {
     const textarea = taskInputRef.current;
@@ -355,24 +357,44 @@ function MobileApp({ session, platformInfo }) {
     }
   }, []);
 
-  const handleSheetSwipeEndAction = useCallback(({ offsetY }) => {
-    const isKeyboardOpen = sheetKeyboardOffset > 0 || isTaskInputFocused;
+  const handleSheetSwipeStart = useCallback(() => {
+    sheetKeyboardDismissedDuringSwipeRef.current = false;
+    sheetSwipeStartedWithKeyboardOpenRef.current = sheetKeyboardOffset > 0 || isTaskInputFocused;
+  }, [isTaskInputFocused, sheetKeyboardOffset]);
 
-    if (!isKeyboardOpen) {
+  const handleSheetSwipeMove = useCallback(({ offsetY }) => {
+    if (
+      !sheetSwipeStartedWithKeyboardOpenRef.current
+      || sheetKeyboardDismissedDuringSwipeRef.current
+      || offsetY <= SHEET_KEYBOARD_DISMISS_SWIPE_THRESHOLD
+    ) {
+      return;
+    }
+
+    sheetKeyboardDismissedDuringSwipeRef.current = true;
+    dismissSheetKeyboard();
+  }, [dismissSheetKeyboard]);
+
+  const handleSheetSwipeEndAction = useCallback(({ offsetY }) => {
+    const startedWithKeyboardOpen = sheetSwipeStartedWithKeyboardOpenRef.current;
+
+    if (!startedWithKeyboardOpen) {
       return undefined;
     }
 
     if (offsetY > SHEET_KEYBOARD_CLOSE_SWIPE_THRESHOLD) {
-      dismissSheetKeyboard();
+      if (!sheetKeyboardDismissedDuringSwipeRef.current) {
+        dismissSheetKeyboard();
+      }
       return 'close';
     }
 
-    if (offsetY > SHEET_KEYBOARD_DISMISS_SWIPE_THRESHOLD) {
+    if (offsetY > SHEET_KEYBOARD_DISMISS_SWIPE_THRESHOLD && !sheetKeyboardDismissedDuringSwipeRef.current) {
       dismissSheetKeyboard();
     }
 
     return 'reset';
-  }, [dismissSheetKeyboard, isTaskInputFocused, sheetKeyboardOffset]);
+  }, [dismissSheetKeyboard]);
 
   const openQuickAdd = useCallback(() => {
     setIsSheetOpen(true);
@@ -429,6 +451,8 @@ function MobileApp({ session, platformInfo }) {
     onClose: closeSheet,
     getScrollElement: '.sheet-content',
     ignoreSwipeFrom: '.sheet-input-area',
+    onSwipeStart: handleSheetSwipeStart,
+    onSwipeMove: handleSheetSwipeMove,
     getSwipeEndAction: handleSheetSwipeEndAction,
   });
   const profileSwipeHandlers = useSwipeDownToClose({
