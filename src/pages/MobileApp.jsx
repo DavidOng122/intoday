@@ -1351,6 +1351,12 @@ function MobileApp({ session, platformInfo }) {
 
     wrappers.forEach((wrapper) => {
       const id = wrapper.getAttribute('data-swipe-wrapper-id');
+      if (id && draggedTodoId !== null && Number(id) === draggedTodoId) {
+        wrapper.style.transition = 'none';
+        wrapper.style.transform = 'translate3d(0, 0, 0)';
+        return;
+      }
+
       const prevRect = prevRects.get(id);
       const nextRect = nextRects.get(id);
       if (!id || !prevRect || !nextRect) return;

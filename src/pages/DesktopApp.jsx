@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { flushSync } from 'react-dom';
 import { supabase } from '../supabase';
 import DesktopLogin from '../DesktopLogin';
 import { useSyncedTodos } from '../todoSync';
@@ -153,6 +154,17 @@ const getFirstAvailableDesktopSlot = (tasks, dateString, timeOfDay) => {
   const index = slots.findIndex((task) => task === null);
   return index === -1 ? null : index;
 };
+const reflowDesktopSectionSlots = (tasks, dateString, timeOfDay) => {
+  const sectionTasks = tasks.filter((task) => task.dateString === dateString && task.timeOfDay === timeOfDay);
+  const { slots, overflow } = resolveDesktopSectionSlots(sectionTasks);
+  const orderedTasks = [...slots.filter(Boolean), ...overflow];
+
+  orderedTasks.forEach((task, index) => {
+    const targetTask = tasks.find((item) => item.id === task.id);
+    if (!targetTask) return;
+    targetTask.desktopSlot = index < DESKTOP_SLOT_COUNT ? index : null;
+  });
+};
 const buildDesktopRenderSections = ({ selectedTasks, draggedTaskId, dragOverSection, dragOverSlot }) => {
   const baseSections = Object.fromEntries(
     sections.map((section) => {
@@ -241,6 +253,8 @@ const applyDesktopTaskDrop = ({ tasks, draggedTaskId, dateString, sourceSection,
 
   draggedTask.timeOfDay = targetSection;
   draggedTask.desktopSlot = resolvedTargetSlot;
+  reflowDesktopSectionSlots(nextTasks, dateString, sourceSection);
+  reflowDesktopSectionSlots(nextTasks, dateString, targetSection);
   return nextTasks.map(normalizeTask);
 };
 
@@ -1042,15 +1056,17 @@ function App() {
       const targetSection = dragOverSectionRef.current;
       const targetSlot = dragOverSlotRef.current;
       if (targetSection && isValidDesktopSlot(targetSlot)) {
-        setTasks((prev) => applyDesktopTaskDrop({
-          tasks: prev,
-          draggedTaskId: task.id,
-          dateString: task.dateString,
-          sourceSection: task.timeOfDay,
-          sourceSlot: task.desktopSlot,
-          targetSection,
-          targetSlot,
-        }));
+        flushSync(() => {
+          setTasks((prev) => applyDesktopTaskDrop({
+            tasks: prev,
+            draggedTaskId: task.id,
+            dateString: task.dateString,
+            sourceSection: task.timeOfDay,
+            sourceSlot: task.desktopSlot,
+            targetSection,
+            targetSlot,
+          }));
+        });
       }
     }
 
