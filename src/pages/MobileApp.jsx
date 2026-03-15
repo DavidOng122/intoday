@@ -63,6 +63,18 @@ const INITIAL_EDIT_MODAL_VIEWPORT = {
   keyboardInset: 0,
 };
 const modalSwipeTransform = (offsetY = 0) => `translateY(${offsetY}px)`;
+const findTouchByIdentifier = (touchList, identifier) => {
+  if (!touchList || identifier === null || identifier === undefined) return null;
+
+  for (let index = 0; index < touchList.length; index += 1) {
+    const touch = touchList[index];
+    if (touch.identifier === identifier) {
+      return touch;
+    }
+  }
+
+  return null;
+};
 const parseSharedSelectedDate = (value) => {
   if (!value) return null;
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
@@ -914,7 +926,6 @@ function MobileApp({ session, platformInfo }) {
   const [dragOverBlock, setDragOverBlock] = useState(null);
 
   const dragOverBlockRef = React.useRef(null); // readable in onTouchEnd closure
-  const scrollBlocker = React.useRef(null);     // non-passive touchmove blocker
 
   const swipeTouchStartX = React.useRef(null);
   const swipeTouchStartY = React.useRef(null);
@@ -925,11 +936,14 @@ function MobileApp({ session, platformInfo }) {
   const touchDragReadyRef = React.useRef(false);
   const dragOriginY = React.useRef(0);
   const dragTouchY = React.useRef(0);
+  const activeTouchIdentifierRef = React.useRef(null);
   const activeDragTodoIdRef = React.useRef(null);
   const lockedTimelineScrollTop = React.useRef(0);
   const autoScrollVelocity = React.useRef(0);
   const autoScrollFrameRef = React.useRef(null);
   const autoScrollLastTsRef = React.useRef(null);
+  const dragTouchMoveHandlerRef = React.useRef(null);
+  const dragTouchEndHandlerRef = React.useRef(null);
 
   useEffect(() => () => {
     if (touchDragPressTimerRef.current !== null) {
@@ -938,6 +952,15 @@ function MobileApp({ session, platformInfo }) {
     }
     if (suppressClickTimeoutRef.current !== null) {
       window.clearTimeout(suppressClickTimeoutRef.current);
+    }
+    if (dragTouchMoveHandlerRef.current) {
+      window.removeEventListener('touchmove', dragTouchMoveHandlerRef.current);
+      dragTouchMoveHandlerRef.current = null;
+    }
+    if (dragTouchEndHandlerRef.current) {
+      window.removeEventListener('touchend', dragTouchEndHandlerRef.current);
+      window.removeEventListener('touchcancel', dragTouchEndHandlerRef.current);
+      dragTouchEndHandlerRef.current = null;
     }
   }, []);
 
@@ -1058,8 +1081,8 @@ function MobileApp({ session, platformInfo }) {
     if (!timelineEl) return;
 
     const rect = timelineEl.getBoundingClientRect();
-    const SCROLL_ZONE = 96;
-    const MAX_SPEED = 1.35; // px per ms
+    const SCROLL_ZONE = 140;
+    const MAX_SPEED = 2.1; // px per ms
     const maxScrollTop = Math.max(0, timelineEl.scrollHeight - timelineEl.clientHeight);
 
     let velocity = 0;
@@ -1089,6 +1112,19 @@ function MobileApp({ session, platformInfo }) {
     if (touchDragPressTimerRef.current !== null) {
       window.clearTimeout(touchDragPressTimerRef.current);
       touchDragPressTimerRef.current = null;
+    }
+  }, []);
+
+  const detachTouchDragListeners = useCallback(() => {
+    if (dragTouchMoveHandlerRef.current) {
+      window.removeEventListener('touchmove', dragTouchMoveHandlerRef.current);
+      dragTouchMoveHandlerRef.current = null;
+    }
+
+    if (dragTouchEndHandlerRef.current) {
+      window.removeEventListener('touchend', dragTouchEndHandlerRef.current);
+      window.removeEventListener('touchcancel', dragTouchEndHandlerRef.current);
+      dragTouchEndHandlerRef.current = null;
     }
   }, []);
 
@@ -1131,6 +1167,54 @@ function MobileApp({ session, platformInfo }) {
     openSwipeTodoIdRef.current = todoId;
   }, [closeSwipeActions, setSwipeOffset]);
 
+  const finalizeTouchDrag = useCallback((todoId) => {
+    if (!todoId) return;
+
+    suppressNextCardClick(todoId);
+    isDragMode.current = false;
+    touchDragReadyRef.current = false;
+    stopAutoScroll();
+    detachTouchDragListeners();
+
+    const el = document.getElementById(`swipe-card-${todoId}`);
+    const wrapper = document.getElementById(`swipe-wrapper-${todoId}`);
+    const targetBlock = dragOverBlockRef.current;
+
+    if (targetBlock) {
+      setTodos((prev) => prev.map((todo) => (
+        todo.id === todoId ? { ...todo, timeOfDay: targetBlock } : todo
+      )));
+    }
+
+    if (el) {
+      el.style.transition = 'transform 0.3s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.25s, opacity 0.2s';
+      el.style.transform = '';
+      el.style.boxShadow = '';
+      el.style.opacity = '';
+      el.style.zIndex = '';
+      el.style.willChange = '';
+      setTimeout(() => { if (el) el.style.transition = ''; }, 350);
+    }
+
+    if (wrapper) {
+      wrapper.classList.remove('is-dragging');
+      const parentBlock = wrapper.closest('.time-block');
+      if (parentBlock) parentBlock.classList.remove('is-dragging-parent');
+    }
+
+    document.body.classList.remove('is-dragging-global');
+    unlockTimelineScroll();
+    activeTouchIdentifierRef.current = null;
+    activeDragTodoIdRef.current = null;
+    setDraggedTodoId(null);
+    setDragOverBlock(null);
+    dragOverBlockRef.current = null;
+    swipeTouchStartX.current = null;
+    swipeTouchStartY.current = null;
+    swipeStartOffset.current = 0;
+    swipeCurrentOffset.current = 0;
+  }, [detachTouchDragListeners, stopAutoScroll, suppressNextCardClick, unlockTimelineScroll]);
+
   const startTouchDrag = useCallback((todoId) => {
     closeSwipeActions(todoId);
     touchDragReadyRef.current = true;
@@ -1150,17 +1234,55 @@ function MobileApp({ session, platformInfo }) {
       el.style.willChange = 'transform';
     }
 
-    const blocker = (ev) => ev.preventDefault();
-    scrollBlocker.current = blocker;
-    window.addEventListener('touchmove', blocker, { passive: false });
-
     if (wrapper) {
       wrapper.classList.add('is-dragging');
       const parentBlock = wrapper.closest('.time-block');
       if (parentBlock) parentBlock.classList.add('is-dragging-parent');
     }
     document.body.classList.add('is-dragging-global');
-  }, [closeSwipeActions, lockTimelineScroll]);
+
+    detachTouchDragListeners();
+
+    const handleWindowTouchMove = (event) => {
+      if (!isDragMode.current || activeDragTodoIdRef.current !== todoId) return;
+
+      const touch = findTouchByIdentifier(event.touches, activeTouchIdentifierRef.current)
+        || findTouchByIdentifier(event.changedTouches, activeTouchIdentifierRef.current)
+        || event.touches[0]
+        || event.changedTouches[0];
+
+      if (!touch) return;
+
+      dragTouchY.current = touch.clientY;
+      if (event.cancelable) {
+        event.preventDefault();
+      }
+      updateAutoScroll(touch.clientY);
+      syncDraggedCardPosition(todoId, touch.clientY);
+    };
+
+    const handleWindowTouchEnd = (event) => {
+      if (!isDragMode.current || activeDragTodoIdRef.current !== todoId) return;
+
+      const touchIdentifier = activeTouchIdentifierRef.current;
+      const trackedTouchEnded = event.type === 'touchcancel'
+        || touchIdentifier === null
+        || Boolean(findTouchByIdentifier(event.changedTouches, touchIdentifier));
+
+      if (!trackedTouchEnded) return;
+
+      if (event.cancelable) {
+        event.preventDefault();
+      }
+      finalizeTouchDrag(todoId);
+    };
+
+    dragTouchMoveHandlerRef.current = handleWindowTouchMove;
+    dragTouchEndHandlerRef.current = handleWindowTouchEnd;
+    window.addEventListener('touchmove', handleWindowTouchMove, { passive: false });
+    window.addEventListener('touchend', handleWindowTouchEnd, { passive: false });
+    window.addEventListener('touchcancel', handleWindowTouchEnd, { passive: false });
+  }, [closeSwipeActions, detachTouchDragListeners, finalizeTouchDrag, lockTimelineScroll, updateAutoScroll]);
 
   const deleteTodo = useCallback((id) => {
     if (openSwipeTodoIdRef.current === id) {
@@ -1191,6 +1313,7 @@ function MobileApp({ session, platformInfo }) {
       if (openSwipeTodoIdRef.current && openSwipeTodoIdRef.current !== todoId) {
         closeSwipeActions(openSwipeTodoIdRef.current, { animate: true });
       }
+      activeTouchIdentifierRef.current = touch.identifier;
       swipeTouchStartX.current = touch.clientX;
       swipeTouchStartY.current = touch.clientY;
       dragTouchY.current = touch.clientY;
@@ -1215,9 +1338,6 @@ function MobileApp({ session, platformInfo }) {
 
       // If already in drag mode, handle vertical dragging
       if (isDragMode.current) {
-        e.preventDefault();
-        updateAutoScroll(touch.clientY);
-        syncDraggedCardPosition(todoId, touch.clientY);
         return;
       }
 
@@ -1260,48 +1380,6 @@ function MobileApp({ session, platformInfo }) {
     onTouchEnd: () => {
       clearTouchDragPressTimer();
       if (isDragMode.current) {
-        suppressNextCardClick(todoId);
-        isDragMode.current = false;
-        touchDragReadyRef.current = false;
-        stopAutoScroll();
-        const el = document.getElementById(`swipe-card-${todoId}`);
-        const wrapper = document.getElementById(`swipe-wrapper-${todoId}`);
-
-        // Use ref for stale-closure-safe latest nearest block
-        const targetBlock = dragOverBlockRef.current;
-        if (targetBlock) {
-          setTodos(prev => prev.map(t => t.id === todoId ? { ...t, timeOfDay: targetBlock } : t));
-        }
-
-        if (el) {
-          el.style.transition = 'transform 0.3s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.25s, opacity 0.2s';
-          el.style.transform = '';
-          el.style.boxShadow = '';
-          el.style.opacity = '';
-          el.style.zIndex = '';
-          el.style.willChange = '';
-          setTimeout(() => { if (el) el.style.transition = ''; }, 350);
-        }
-        if (wrapper) {
-          wrapper.classList.remove('is-dragging');
-          const parentBlock = wrapper.closest('.time-block');
-          if (parentBlock) parentBlock.classList.remove('is-dragging-parent');
-        }
-        document.body.classList.remove('is-dragging-global');
-        unlockTimelineScroll();
-        activeDragTodoIdRef.current = null;
-        setDraggedTodoId(null);
-        setDragOverBlock(null);
-        // Release scroll lock
-        if (scrollBlocker.current) {
-          window.removeEventListener('touchmove', scrollBlocker.current);
-          scrollBlocker.current = null;
-        }
-        dragOverBlockRef.current = null;
-        swipeTouchStartX.current = null;
-        swipeTouchStartY.current = null;
-        swipeStartOffset.current = 0;
-        swipeCurrentOffset.current = 0;
         return;
       }
 
@@ -1320,6 +1398,7 @@ function MobileApp({ session, platformInfo }) {
       swipeStartOffset.current = 0;
       swipeCurrentOffset.current = 0;
       touchDragReadyRef.current = false;
+      activeTouchIdentifierRef.current = null;
     },
     onTouchCancel: () => {
       clearTouchDragPressTimer();
@@ -1336,6 +1415,7 @@ function MobileApp({ session, platformInfo }) {
       swipeStartOffset.current = 0;
       swipeCurrentOffset.current = 0;
       touchDragReadyRef.current = false;
+      activeTouchIdentifierRef.current = null;
     },
   });
 
