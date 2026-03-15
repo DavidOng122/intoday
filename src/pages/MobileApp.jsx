@@ -1092,37 +1092,6 @@ function MobileApp({ session, platformInfo }) {
     }
   }, []);
 
-  const startTouchDrag = useCallback((todoId) => {
-    closeSwipeActions(todoId);
-    touchDragReadyRef.current = true;
-    isDragMode.current = true;
-    dragOriginY.current = dragTouchY.current || swipeTouchStartY.current || 0;
-    activeDragTodoIdRef.current = todoId;
-    setDraggedTodoId(todoId);
-    lockTimelineScroll();
-
-    const el = document.getElementById(`swipe-card-${todoId}`);
-    const wrapper = document.getElementById(`swipe-wrapper-${todoId}`);
-    if (el) {
-      el.style.transition = 'box-shadow 0.12s ease, opacity 0.12s ease';
-      el.style.boxShadow = '0 12px 30px rgba(0, 0, 0, 0.12)';
-      el.style.opacity = '0.95';
-      el.style.zIndex = '100';
-      el.style.willChange = 'transform';
-    }
-
-    const blocker = (ev) => ev.preventDefault();
-    scrollBlocker.current = blocker;
-    window.addEventListener('touchmove', blocker, { passive: false });
-
-    if (wrapper) {
-      wrapper.classList.add('is-dragging');
-      const parentBlock = wrapper.closest('.time-block');
-      if (parentBlock) parentBlock.classList.add('is-dragging-parent');
-    }
-    document.body.classList.add('is-dragging-global');
-  }, [closeSwipeActions, lockTimelineScroll]);
-
   const setSwipeOffset = useCallback((todoId, offset, options = {}) => {
     const { animate = false } = options;
     const nextOffset = Math.max(0, Math.min(offset, SWIPE_ACTION_OPEN));
@@ -1161,6 +1130,37 @@ function MobileApp({ session, platformInfo }) {
     setSwipeOffset(todoId, SWIPE_ACTION_OPEN, { animate: true });
     openSwipeTodoIdRef.current = todoId;
   }, [closeSwipeActions, setSwipeOffset]);
+
+  const startTouchDrag = useCallback((todoId) => {
+    closeSwipeActions(todoId);
+    touchDragReadyRef.current = true;
+    isDragMode.current = true;
+    dragOriginY.current = dragTouchY.current || swipeTouchStartY.current || 0;
+    activeDragTodoIdRef.current = todoId;
+    setDraggedTodoId(todoId);
+    lockTimelineScroll();
+
+    const el = document.getElementById(`swipe-card-${todoId}`);
+    const wrapper = document.getElementById(`swipe-wrapper-${todoId}`);
+    if (el) {
+      el.style.transition = 'box-shadow 0.12s ease, opacity 0.12s ease';
+      el.style.boxShadow = '0 12px 30px rgba(0, 0, 0, 0.12)';
+      el.style.opacity = '0.95';
+      el.style.zIndex = '100';
+      el.style.willChange = 'transform';
+    }
+
+    const blocker = (ev) => ev.preventDefault();
+    scrollBlocker.current = blocker;
+    window.addEventListener('touchmove', blocker, { passive: false });
+
+    if (wrapper) {
+      wrapper.classList.add('is-dragging');
+      const parentBlock = wrapper.closest('.time-block');
+      if (parentBlock) parentBlock.classList.add('is-dragging-parent');
+    }
+    document.body.classList.add('is-dragging-global');
+  }, [closeSwipeActions, lockTimelineScroll]);
 
   const deleteTodo = useCallback((id) => {
     if (openSwipeTodoIdRef.current === id) {
