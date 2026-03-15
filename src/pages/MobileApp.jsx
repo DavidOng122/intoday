@@ -56,6 +56,7 @@ const TOUCH_DRAG_CANCEL_DISTANCE = 10;
 const SWIPE_ACTION_MAX = 132;
 const SWIPE_ACTION_OPEN = 108;
 const SWIPE_ACTION_THRESHOLD = 44;
+const DESKTOP_SLOT_COUNT = 4;
 const SHEET_KEYBOARD_DISMISS_SWIPE_THRESHOLD = 72;
 const SHEET_KEYBOARD_CLOSE_SWIPE_THRESHOLD = 240;
 const INITIAL_EDIT_MODAL_VIEWPORT = {
@@ -85,6 +86,7 @@ const parseSharedSelectedDate = (value) => {
   const parsed = new Date(Number(year), Number(month) - 1, Number(day));
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 };
+const isValidDesktopSlot = (value) => Number.isInteger(value) && value >= 0 && value < DESKTOP_SLOT_COUNT;
 const normalizeTodoRecord = (todo) => ({
   ...todo,
   text: todo.text || '',
@@ -92,7 +94,43 @@ const normalizeTodoRecord = (todo) => ({
   dateString: todo.dateString || format(new Date(), 'yyyy-MM-dd'),
   timeOfDay: todo.timeOfDay || DESKTOP_SECTION_TO_MOBILE_BLOCK[todo.section] || 'Morning',
   cardType: todo.cardType || 'plain',
+  desktopSlot: isValidDesktopSlot(todo.desktopSlot) ? todo.desktopSlot : null,
 });
+const getBlockTodosInDisplayOrder = (todos, dateString, timeOfDay) => todos
+  .map((todo, index) => ({ todo, index }))
+  .filter(({ todo }) => todo.dateString === dateString && todo.timeOfDay === timeOfDay)
+  .sort((a, b) => {
+    const aSlot = isValidDesktopSlot(a.todo.desktopSlot) ? a.todo.desktopSlot : Number.POSITIVE_INFINITY;
+    const bSlot = isValidDesktopSlot(b.todo.desktopSlot) ? b.todo.desktopSlot : Number.POSITIVE_INFINITY;
+    return aSlot - bSlot || a.index - b.index;
+  })
+  .map(({ todo }) => todo);
+const getFirstAvailableDesktopSlot = (todos, dateString, timeOfDay) => {
+  const occupied = new Set(
+    todos
+      .filter((todo) => todo.dateString === dateString && todo.timeOfDay === timeOfDay && isValidDesktopSlot(todo.desktopSlot))
+      .map((todo) => todo.desktopSlot),
+  );
+
+  for (let slot = 0; slot < DESKTOP_SLOT_COUNT; slot += 1) {
+    if (!occupied.has(slot)) return slot;
+  }
+  return null;
+};
+const reflowDesktopSlotsForBlock = (todos, dateString, timeOfDay, orderedIds = null) => {
+  const nextTodos = todos.map((todo) => ({ ...todo }));
+  const orderedBlockTodos = orderedIds
+    ? orderedIds
+      .map((id) => nextTodos.find((todo) => todo.id === id && todo.dateString === dateString && todo.timeOfDay === timeOfDay))
+      .filter(Boolean)
+    : getBlockTodosInDisplayOrder(nextTodos, dateString, timeOfDay);
+
+  orderedBlockTodos.forEach((todo, index) => {
+    todo.desktopSlot = index < DESKTOP_SLOT_COUNT ? index : null;
+  });
+
+  return nextTodos.map(normalizeTodoRecord);
+};
 
 function MobileApp({ session, platformInfo }) {
   const { platform, isNativePlatform, isIOS, isAndroid } = platformInfo;
@@ -1080,6 +1118,7 @@ function MobileApp({ session, platformInfo }) {
     normalizeTodo: normalizeTodoRecord,
   });
   const suppressCardClickRef = useRef(null);
+  const suppressAllCardClicksUntilRef = useRef(0);
   const suppressClickTimeoutRef = useRef(null);
   const openSwipeTodoIdRef = useRef(null);
   const openTaskRedirect = useCallback((url) => {
@@ -1115,10 +1154,14 @@ function MobileApp({ session, platformInfo }) {
       dateString: format(selectedDate, 'yyyy-MM-dd'),
       cardType,
       videoUrl,
-      mapUrl
+      mapUrl,
+      desktopSlot: null,
     };
 
-    setTodos(prev => [...prev, newTodo]);
+    setTodos(prev => {
+      const desktopSlot = getFirstAvailableDesktopSlot(prev, newTodo.dateString, newTodo.timeOfDay);
+      return [...prev, normalizeTodoRecord({ ...newTodo, desktopSlot })];
+    });
     setInputText('');
     closeSheet();
 
@@ -1188,6 +1231,7 @@ function MobileApp({ session, platformInfo }) {
       window.clearTimeout(suppressClickTimeoutRef.current);
     }
 
+    suppressAllCardClicksUntilRef.current = Date.now() + 350;
     suppressCardClickRef.current = todoId;
     suppressClickTimeoutRef.current = window.setTimeout(() => {
       if (suppressCardClickRef.current === todoId) {
@@ -1430,9 +1474,21 @@ function MobileApp({ session, platformInfo }) {
     const targetBlock = dragOverBlockRef.current;
 
     if (targetBlock) {
-      setTodos((prev) => prev.map((todo) => (
-        todo.id === todoId ? { ...todo, timeOfDay: targetBlock } : todo
-      )));
+      setTodos((prev) => {
+        const draggedTodo = prev.find((todo) => todo.id === todoId);
+        if (!draggedTodo) return prev;
+        if (draggedTodo.timeOfDay === targetBlock) return prev;
+
+        const sourceBlock = draggedTodo.timeOfDay;
+        const dateString = draggedTodo.dateString;
+        const targetSlot = getFirstAvailableDesktopSlot(prev.filter((todo) => todo.id !== todoId), dateString, targetBlock);
+        let nextTodos = prev.map((todo) => (
+          todo.id === todoId ? normalizeTodoRecord({ ...todo, timeOfDay: targetBlock, desktopSlot: targetSlot }) : todo
+        ));
+        nextTodos = reflowDesktopSlotsForBlock(nextTodos, dateString, sourceBlock);
+        nextTodos = reflowDesktopSlotsForBlock(nextTodos, dateString, targetBlock);
+        return nextTodos;
+      });
     }
 
     if (el) {
@@ -1688,29 +1744,57 @@ function MobileApp({ session, platformInfo }) {
     if (!draggedTodoId || draggedTodoId === targetTodo.id) return;
     const rect = e.currentTarget.getBoundingClientRect();
     const isBottomHalf = e.clientY > rect.top + rect.height / 2;
-    const todosCopy = [...todos];
-    const draggedIndex = todosCopy.findIndex(t => t.id === draggedTodoId);
-    if (draggedIndex === -1) return;
-    const draggedTodo = todosCopy[draggedIndex];
-    draggedTodo.timeOfDay = targetTodo.timeOfDay;
-    todosCopy.splice(draggedIndex, 1);
-    const newTargetIndex = todosCopy.findIndex(t => t.id === targetTodo.id);
-    const insertIndex = isBottomHalf ? newTargetIndex + 1 : newTargetIndex;
-    todosCopy.splice(insertIndex, 0, draggedTodo);
-    setTodos(todosCopy);
+    suppressNextCardClick(draggedTodoId);
+    setTodos((prev) => {
+      const draggedTodo = prev.find((todo) => todo.id === draggedTodoId);
+      if (!draggedTodo) return prev;
+
+      const sourceBlock = draggedTodo.timeOfDay;
+      const targetBlock = targetTodo.timeOfDay;
+      const dateString = draggedTodo.dateString;
+      const targetOrder = getBlockTodosInDisplayOrder(prev, dateString, targetBlock)
+        .filter((todo) => todo.id !== draggedTodoId)
+        .map((todo) => todo.id);
+      const targetIndex = targetOrder.findIndex((id) => id === targetTodo.id);
+      const insertIndex = targetIndex === -1 ? targetOrder.length : (isBottomHalf ? targetIndex + 1 : targetIndex);
+      targetOrder.splice(insertIndex, 0, draggedTodoId);
+
+      let nextTodos = prev.map((todo) => (
+        todo.id === draggedTodoId ? normalizeTodoRecord({ ...todo, timeOfDay: targetBlock }) : todo
+      ));
+      if (sourceBlock !== targetBlock) {
+        nextTodos = reflowDesktopSlotsForBlock(nextTodos, dateString, sourceBlock);
+      }
+      nextTodos = reflowDesktopSlotsForBlock(nextTodos, dateString, targetBlock, targetOrder);
+      return nextTodos;
+    });
   };
 
   const handleDropOnBlock = (e, blockId) => {
     e.preventDefault();
     if (!draggedTodoId) return;
-    const todosCopy = [...todos];
-    const draggedIndex = todosCopy.findIndex(t => t.id === draggedTodoId);
-    if (draggedIndex === -1) return;
-    const draggedTodo = todosCopy[draggedIndex];
-    draggedTodo.timeOfDay = blockId;
-    todosCopy.splice(draggedIndex, 1);
-    todosCopy.push(draggedTodo);
-    setTodos(todosCopy);
+    suppressNextCardClick(draggedTodoId);
+    setTodos((prev) => {
+      const draggedTodo = prev.find((todo) => todo.id === draggedTodoId);
+      if (!draggedTodo) return prev;
+      const sourceBlock = draggedTodo.timeOfDay;
+      const dateString = draggedTodo.dateString;
+      const targetOrder = [
+        ...getBlockTodosInDisplayOrder(prev, dateString, blockId)
+          .filter((todo) => todo.id !== draggedTodoId)
+          .map((todo) => todo.id),
+        draggedTodoId,
+      ];
+
+      let nextTodos = prev.map((todo) => (
+        todo.id === draggedTodoId ? normalizeTodoRecord({ ...todo, timeOfDay: blockId }) : todo
+      ));
+      if (sourceBlock !== blockId) {
+        nextTodos = reflowDesktopSlotsForBlock(nextTodos, dateString, sourceBlock);
+      }
+      nextTodos = reflowDesktopSlotsForBlock(nextTodos, dateString, blockId, targetOrder);
+      return nextTodos;
+    });
   };
 
   const logicalToday = getLogicalToday(currentTime);
@@ -1885,7 +1969,7 @@ function MobileApp({ session, platformInfo }) {
     const dateKey = format(date, 'yyyy-MM-dd');
 
     return timeBlocks.map((block) => {
-      const blockTodos = dayTodos.filter(t => t.timeOfDay === block.id);
+      const blockTodos = getBlockTodosInDisplayOrder(dayTodos, dateKey, block.id);
       const axisState = getTimeBlockAxisState(block, date);
 
       return (
@@ -1962,6 +2046,9 @@ function MobileApp({ session, platformInfo }) {
                     id={`swipe-card-${todo.id}`}
                     className={`task-card ${todo.completed ? 'completed' : ''} ${draggedTodoId === todo.id ? 'dragging' : ''}`}
                     onClick={() => {
+                      if (Date.now() < suppressAllCardClicksUntilRef.current) {
+                        return;
+                      }
                       if (openSwipeTodoIdRef.current === todo.id) {
                         closeSwipeActions(todo.id, { animate: true });
                         return;

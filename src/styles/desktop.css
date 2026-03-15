@@ -756,6 +756,18 @@
   padding: 4px 0 8px;
 }
 
+.desktop-schedule-slot {
+  min-height: 98px;
+  border-radius: 22px;
+  padding: 4px;
+}
+
+.desktop-empty-slot {
+  min-height: 90px;
+  border-radius: 18px;
+  background: transparent;
+}
+
 .desktop-task-wrapper::before {
   content: '';
   position: absolute;

@@ -5,6 +5,7 @@ import { useSyncedTodos } from '../todoSync';
 import { getUserProfile } from '../userProfile';
 import DesktopProfilePage from '../components/DesktopProfilePage';
 import IntoDayLogo from '../components/IntoDayLogo';
+import { DAY_BOUNDARY_HOUR, getLogicalToday } from '../lib/dateHelpers';
 import {
   detectCardType,
   extractMapUrl,
@@ -21,7 +22,7 @@ const sections = [
   { id: 'morning', mobileId: 'Morning', label: 'Morning', start: '06:00', end: '12:00', pillBg: '#f7d8a5', pillColor: '#6b3f06', accent: '#2990d7', iconBg: '#e8f2fb' },
   { id: 'afternoon', mobileId: 'Afternoon', label: 'Afternoon', start: '12:00', end: '18:00', pillBg: '#bfe3fb', pillColor: '#0d4c82', accent: '#41a2e5', iconBg: '#eaf6ff' },
   { id: 'evening', mobileId: 'Evening', label: 'Evening', start: '18:00', end: '22:00', pillBg: '#eadffd', pillColor: '#5f2d90', accent: '#9161d4', iconBg: '#f5efff' },
-  { id: 'night', mobileId: 'Night', label: 'Night', start: '22:00', end: '00:00', pillBg: '#dfe6ef', pillColor: '#213243', accent: '#70839a', iconBg: '#eef2f6' },
+  { id: 'night', mobileId: 'Night', label: 'Night', start: '22:00', end: '06:00', pillBg: '#dfe6ef', pillColor: '#213243', accent: '#70839a', iconBg: '#eef2f6' },
 ];
 const chips = [
   { id: 'now', label: 'Now' },
@@ -37,6 +38,87 @@ const DESKTOP_DRAG_EDGE_OVERFLOW_TOP = 20;
 const DESKTOP_DRAG_EDGE_OVERFLOW_BOTTOM = 64;
 const DESKTOP_DRAG_EDGE_RESISTANCE = 0.22;
 const DESKTOP_DRAG_MAX_EDGE_OVERFLOW = 96;
+const DESKTOP_SLOT_COUNT = 4;
+const DESKTOP_TIME_AXIS_LINE_TOP = 26;
+const DESKTOP_TIME_AXIS_LINE_BOTTOM = 36;
+const DESKTOP_TIME_MARKER_SIZE = 7;
+
+const isValidDesktopSlot = (value) => Number.isInteger(value) && value >= 0 && value < DESKTOP_SLOT_COUNT;
+const resolveDesktopSectionSlots = (tasks) => {
+  const slots = Array.from({ length: DESKTOP_SLOT_COUNT }, () => null);
+  const overflow = [];
+  const orderedTasks = tasks
+    .map((task, index) => ({
+      task,
+      index,
+      preferredSlot: isValidDesktopSlot(task.desktopSlot) ? task.desktopSlot : null,
+    }))
+    .sort((a, b) => {
+      const aHasSlot = a.preferredSlot !== null;
+      const bHasSlot = b.preferredSlot !== null;
+      if (aHasSlot && bHasSlot) {
+        return a.preferredSlot - b.preferredSlot || a.index - b.index;
+      }
+      if (aHasSlot) return -1;
+      if (bHasSlot) return 1;
+      return a.index - b.index;
+    });
+
+  orderedTasks.forEach(({ task, preferredSlot }) => {
+    let slot = preferredSlot;
+    if (slot === null || slots[slot]) {
+      slot = slots.findIndex((entry) => entry === null);
+    }
+    if (slot === -1) {
+      overflow.push(task);
+      return;
+    }
+    slots[slot] = normalizeTask({ ...task, desktopSlot: slot });
+  });
+
+  return { slots, overflow };
+};
+const getFirstAvailableDesktopSlot = (tasks, dateString, timeOfDay) => {
+  const { slots } = resolveDesktopSectionSlots(
+    tasks.filter((task) => task.dateString === dateString && task.timeOfDay === timeOfDay),
+  );
+  const index = slots.findIndex((task) => task === null);
+  return index === -1 ? null : index;
+};
+const applyDesktopTaskDrop = ({ tasks, draggedTaskId, dateString, sourceSection, sourceSlot, targetSection, targetSlot }) => {
+  if (!targetSection || !isValidDesktopSlot(targetSlot)) return tasks;
+
+  const nextTasks = tasks.map((task) => ({ ...task }));
+  const draggedTask = nextTasks.find((task) => task.id === draggedTaskId);
+  if (!draggedTask) return tasks;
+
+  if (sourceSection === targetSection) {
+    if (!isValidDesktopSlot(sourceSlot) || sourceSlot === targetSlot) return tasks;
+
+    const sameSectionTasks = nextTasks.filter((task) => task.dateString === dateString && task.timeOfDay === targetSection);
+    const { slots } = resolveDesktopSectionSlots(sameSectionTasks);
+    const targetTaskId = slots[targetSlot]?.id;
+    const targetTask = targetTaskId ? nextTasks.find((task) => task.id === targetTaskId) : null;
+    if (!targetTask) return tasks;
+
+    draggedTask.desktopSlot = targetSlot;
+    if (targetTask) {
+      targetTask.desktopSlot = sourceSlot;
+    }
+    return nextTasks.map(normalizeTask);
+  }
+
+  const resolvedTargetSlot = getFirstAvailableDesktopSlot(
+    nextTasks.filter((task) => task.id !== draggedTaskId),
+    dateString,
+    targetSection,
+  );
+  if (resolvedTargetSlot === null) return tasks;
+
+  draggedTask.timeOfDay = targetSection;
+  draggedTask.desktopSlot = resolvedTargetSlot;
+  return nextTasks.map(normalizeTask);
+};
 
 const dateKey = (date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 const sameDay = (a, b) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
@@ -47,12 +129,6 @@ const parseSharedSelectedDate = (value) => {
   const [, year, month, day] = match;
   const parsed = new Date(Number(year), Number(month) - 1, Number(day));
   return Number.isNaN(parsed.getTime()) ? null : parsed;
-};
-const getLogicalToday = () => {
-  const now = new Date();
-  now.setHours(now.getHours() - 6);
-  now.setHours(0, 0, 0, 0);
-  return now;
 };
 const sectionIdToMobileId = (sectionId) => {
   const matched = sections.find((section) => section.id === sectionId);
@@ -69,6 +145,7 @@ const normalizeTask = (task) => ({
   dateString: task.dateString || dateKey(getLogicalToday()),
   timeOfDay: task.timeOfDay || sectionIdToMobileId(task.section),
   cardType: task.cardType || 'plain',
+  desktopSlot: isValidDesktopSlot(task.desktopSlot) ? task.desktopSlot : null,
 });
 const currentSection = (date = new Date()) => {
   const hour = date.getHours();
@@ -76,6 +153,47 @@ const currentSection = (date = new Date()) => {
   if (hour >= 12 && hour < 18) return 'afternoon';
   if (hour >= 18 && hour < 22) return 'evening';
   return 'night';
+};
+const getSectionBounds = (section, logicalDate) => {
+  const baseDate = new Date(logicalDate);
+  baseDate.setHours(0, 0, 0, 0);
+
+  const [startHour, startMinute] = section.start.split(':').map(Number);
+  const [endHour, endMinute] = section.end.split(':').map(Number);
+
+  const sectionStart = new Date(baseDate);
+  sectionStart.setHours(startHour, startMinute, 0, 0);
+  if (startHour < DAY_BOUNDARY_HOUR) {
+    sectionStart.setDate(sectionStart.getDate() + 1);
+  }
+
+  const sectionEnd = new Date(baseDate);
+  sectionEnd.setHours(endHour, endMinute, 0, 0);
+  if (sectionEnd <= sectionStart) {
+    sectionEnd.setDate(sectionEnd.getDate() + 1);
+  }
+
+  return { sectionStart, sectionEnd };
+};
+const getSectionMarkerStyle = (section, currentTime, selectedDate) => {
+  const logicalToday = getLogicalToday(currentTime);
+  const logicalSelectedDate = new Date(selectedDate);
+  logicalSelectedDate.setHours(0, 0, 0, 0);
+
+  if (!sameDay(logicalSelectedDate, logicalToday)) return null;
+
+  const { sectionStart, sectionEnd } = getSectionBounds(section, logicalSelectedDate);
+
+  if (currentTime < sectionStart || currentTime >= sectionEnd) return null;
+
+  const progress = Math.max(
+    0,
+    Math.min(1, (currentTime.getTime() - sectionStart.getTime()) / (sectionEnd.getTime() - sectionStart.getTime())),
+  );
+
+  return {
+    top: `calc(${DESKTOP_TIME_AXIS_LINE_TOP}px + ((100% - ${DESKTOP_TIME_AXIS_LINE_TOP}px - ${DESKTOP_TIME_AXIS_LINE_BOTTOM}px) * ${progress}) - ${(DESKTOP_TIME_MARKER_SIZE / 2)}px)`,
+  };
 };
 const panelLabel = (date) => sameDay(date, getLogicalToday()) ? 'Today' : date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
 
@@ -168,7 +286,7 @@ const WeekStrip = ({ selectedDate, logicalToday, onSelect }) => {
   });
   return (
     <div style={{ borderTop: '1px solid #e6e0d9', borderBottom: '1px solid #ede7df', background: '#f6f3ef' }}>
-      <div style={{ width: 'min(1120px, calc(100% - 72px))', margin: '0 auto', display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: 12, padding: '8px 0' }}>
+      <div style={{ width: 'min(1008px, calc(100% - 72px))', margin: '0 auto', display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: 12, padding: '8px 0' }}>
         {week.map((day) => (
           <button key={day.key} type="button" onClick={() => onSelect(day.date)} style={{ border: 'none', background: 'transparent', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', height: 48, padding: '8px 0', position: 'relative' }}>
             <span style={{ fontSize: 14, fontWeight: day.active ? 700 : 500, letterSpacing: '0.06em', color: day.active ? '#111' : day.isPast ? '#a0a4ab' : '#7d7b77' }}>{day.label}</span>
@@ -269,8 +387,9 @@ const DragOverlayCard = ({ task, rect }) => {
 
 const ScheduleSection = ({
   section,
-  tasks,
-  showMarker,
+  slots,
+  overflowTasks,
+  markerStyle,
   onTaskClick,
   onTaskPointerDown,
   onTaskPointerMove,
@@ -280,33 +399,49 @@ const ScheduleSection = ({
   isDragOver,
 }) => (
   <section style={{ borderBottom: '1px solid #ece4da', background: '#fffdfb' }}>
-    <div style={{ width: 'min(1120px, calc(100% - 72px))', margin: '0 auto', padding: '22px 0 24px' }}>
+    <div style={{ width: 'min(1008px, calc(100% - 72px))', margin: '0 auto', padding: '22px 0 24px' }}>
       <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minWidth: 72, padding: '6px 14px', borderRadius: 999, background: section.pillBg, color: section.pillColor, fontFamily: 'DM Serif Display, serif', fontSize: 14, fontStyle: 'italic' }}>{section.label}</span>
       <div style={{ display: 'grid', gridTemplateColumns: '110px minmax(0, 1fr)', gap: 24, marginTop: 18, alignItems: 'start' }}>
         <div style={{ position: 'relative', minHeight: 220 }}>
           <div style={{ color: '#161616', fontSize: 15, fontWeight: 500 }}>{section.start}</div>
-          <div style={{ position: 'absolute', left: 5, top: 26, bottom: 36, width: 1, background: '#e2ddd7' }} />
-          {showMarker ? <div style={{ position: 'absolute', left: 2, top: 48, width: 7, height: 7, borderRadius: '50%', background: '#ef2f2f' }} /> : null}
+          <div style={{ position: 'absolute', left: 5, top: DESKTOP_TIME_AXIS_LINE_TOP, bottom: DESKTOP_TIME_AXIS_LINE_BOTTOM, width: 1, background: '#e2ddd7' }} />
+          {markerStyle ? <div style={{ position: 'absolute', left: 2, width: DESKTOP_TIME_MARKER_SIZE, height: DESKTOP_TIME_MARKER_SIZE, borderRadius: '50%', background: '#ef2f2f', ...markerStyle }} /> : null}
           <div style={{ position: 'absolute', left: 0, bottom: 0, color: '#161616', fontSize: 15, fontWeight: 500 }}>{section.end}</div>
         </div>
         <div
           data-desktop-block-id={section.mobileId}
           className={`desktop-schedule-task-grid ${isDragOver ? 'is-drag-over' : ''}`}
-          style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(260px, 1fr))', gap: 22, alignItems: 'start' }}
+          style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(260px, 1fr))', gap: 22, alignItems: 'stretch' }}
         >
-          {tasks.map((task) => (
-            <TaskCard
-              key={task.id}
-              task={task}
-              isDragging={draggedTaskId === task.id}
-              onClick={() => onTaskClick(task)}
-              onPointerDown={(event) => onTaskPointerDown(task, event)}
-              onPointerMove={(event) => onTaskPointerMove(task, event)}
-              onPointerUp={(event) => onTaskPointerUp(task, event)}
-              onPointerCancel={(event) => onTaskPointerCancel(task, event)}
-            />
+          {slots.map((task, slotIndex) => (
+            <div
+              key={`${section.mobileId}-${slotIndex}`}
+              data-desktop-slot-id={`${section.mobileId}-${slotIndex}`}
+              data-desktop-slot-section={section.mobileId}
+              data-desktop-slot-index={slotIndex}
+              className="desktop-schedule-slot"
+            >
+              {task ? (
+                <TaskCard
+                  task={task}
+                  isDragging={draggedTaskId === task.id}
+                  onClick={() => onTaskClick(task)}
+                  onPointerDown={(event) => onTaskPointerDown(task, event)}
+                  onPointerMove={(event) => onTaskPointerMove(task, event)}
+                  onPointerUp={(event) => onTaskPointerUp(task, event)}
+                  onPointerCancel={(event) => onTaskPointerCancel(task, event)}
+                />
+              ) : (
+                <div className="desktop-empty-slot" aria-hidden="true" />
+              )}
+            </div>
           ))}
         </div>
+        {overflowTasks.length > 0 ? (
+          <div style={{ marginTop: 14, color: '#8d867f', fontSize: 12 }}>
+            {overflowTasks.length} more task{overflowTasks.length > 1 ? 's' : ''} waiting for an open slot in this block.
+          </div>
+        ) : null}
       </div>
     </div>
   </section>
@@ -445,6 +580,7 @@ function App() {
   const [editText, setEditText] = useState('');
   const [draggedTaskId, setDraggedTaskId] = useState(null);
   const [dragOverSection, setDragOverSection] = useState(null);
+  const [dragOverSlot, setDragOverSlot] = useState(null);
   const [tasks, setTasks] = useSyncedTodos({
     userId: user?.id || null,
     normalizeTodo: normalizeTask,
@@ -464,10 +600,12 @@ function App() {
   const desktopDragOverlayRectRef = useRef(null);
   const desktopDragModeRef = useRef(false);
   const dragOverSectionRef = useRef(null);
+  const dragOverSlotRef = useRef(null);
   const lockedMainScrollTopRef = useRef(0);
   const desktopAutoScrollFrameRef = useRef(null);
   const desktopAutoScrollLastTsRef = useRef(null);
   const suppressTaskClickRef = useRef(null);
+  const suppressAllTaskClicksUntilRef = useRef(0);
   const suppressTaskClickTimeoutRef = useRef(null);
 
   useEffect(() => {
@@ -534,6 +672,7 @@ function App() {
     if (suppressTaskClickTimeoutRef.current !== null) {
       window.clearTimeout(suppressTaskClickTimeoutRef.current);
     }
+    suppressAllTaskClicksUntilRef.current = Date.now() + 350;
     suppressTaskClickRef.current = taskId;
     suppressTaskClickTimeoutRef.current = window.setTimeout(() => {
       if (suppressTaskClickRef.current === taskId) {
@@ -543,18 +682,24 @@ function App() {
     }, 250);
   }, []);
 
-  const getNearestDesktopSection = useCallback((targetY) => {
-    const zones = document.querySelectorAll('[data-desktop-block-id]');
+  const getNearestDesktopDropTarget = useCallback((clientX, clientY) => {
+    const slots = document.querySelectorAll('[data-desktop-slot-id]');
     let nearest = null;
-    let nearestDistance = Number.POSITIVE_INFINITY;
+    let nearestScore = Number.POSITIVE_INFINITY;
 
-    zones.forEach((zone) => {
-      const rect = zone.getBoundingClientRect();
-      const centerY = rect.top + (rect.height / 2);
-      const distance = Math.abs(targetY - centerY);
-      if (distance < nearestDistance) {
-        nearestDistance = distance;
-        nearest = zone.getAttribute('data-desktop-block-id');
+    slots.forEach((slot) => {
+      const rect = slot.getBoundingClientRect();
+      const clampedX = Math.max(rect.left, Math.min(clientX, rect.right));
+      const clampedY = Math.max(rect.top, Math.min(clientY, rect.bottom));
+      const edgeDistance = Math.hypot(clientX - clampedX, clientY - clampedY);
+      const centerDistance = Math.hypot(clientX - (rect.left + (rect.width / 2)), clientY - (rect.top + (rect.height / 2)));
+      const score = (edgeDistance * 1000) + centerDistance;
+      if (score < nearestScore) {
+        nearestScore = score;
+        nearest = {
+          section: slot.getAttribute('data-desktop-slot-section'),
+          slot: Number(slot.getAttribute('data-desktop-slot-index')),
+        };
       }
     });
 
@@ -579,12 +724,17 @@ function App() {
       };
     }
 
-    const nearestSection = getNearestDesktopSection(clientY);
-    if (nearestSection !== dragOverSectionRef.current) {
-      dragOverSectionRef.current = nearestSection;
-      setDragOverSection(nearestSection);
+    const nearestTarget = getNearestDesktopDropTarget(clientX, clientY);
+    const nextSection = nearestTarget?.section || null;
+    const nextSlot = Number.isInteger(nearestTarget?.slot) ? nearestTarget.slot : null;
+
+    if (nextSection !== dragOverSectionRef.current || nextSlot !== dragOverSlotRef.current) {
+      dragOverSectionRef.current = nextSection;
+      dragOverSlotRef.current = nextSlot;
+      setDragOverSection(nextSection);
+      setDragOverSlot(nextSlot);
     }
-  }, [getNearestDesktopSection]);
+  }, [getNearestDesktopDropTarget]);
 
   const stopDesktopAutoScroll = useCallback(() => {
     desktopAutoScrollLastTsRef.current = null;
@@ -648,6 +798,7 @@ function App() {
   const startDesktopTaskDrag = useCallback((taskId) => {
     desktopDragModeRef.current = true;
     dragOverSectionRef.current = null;
+    dragOverSlotRef.current = null;
     lockedMainScrollTopRef.current = mainScrollRef.current?.scrollTop || 0;
     document.body.classList.add('desktop-task-dragging');
 
@@ -696,10 +847,17 @@ function App() {
     if (desktopDragModeRef.current) {
       suppressNextTaskClick(task.id);
       const targetSection = dragOverSectionRef.current;
-      if (targetSection && targetSection !== task.timeOfDay) {
-        setTasks((prev) => prev.map((item) => (
-          item.id === task.id ? normalizeTask({ ...item, timeOfDay: targetSection }) : item
-        )));
+      const targetSlot = dragOverSlotRef.current;
+      if (targetSection && isValidDesktopSlot(targetSlot)) {
+        setTasks((prev) => applyDesktopTaskDrop({
+          tasks: prev,
+          draggedTaskId: task.id,
+          dateString: task.dateString,
+          sourceSection: task.timeOfDay,
+          sourceSlot: task.desktopSlot,
+          targetSection,
+          targetSlot,
+        }));
       }
     }
 
@@ -709,7 +867,9 @@ function App() {
     desktopDragPointerOffsetRef.current = { x: 0, y: 0 };
     desktopDragOverlayRectRef.current = null;
     dragOverSectionRef.current = null;
+    dragOverSlotRef.current = null;
     setDragOverSection(null);
+    setDragOverSlot(null);
     setDraggedTaskId(null);
 
     if (pointerTarget?.hasPointerCapture?.(pointerId)) {
@@ -857,7 +1017,14 @@ function App() {
     };
   }, [finishDesktopTaskDrag, processDesktopDragMove]);
 
-  const selectedTasks = tasks.filter((task) => task.dateString === dateKey(selectedDate));
+  const selectedDateKey = dateKey(selectedDate);
+  const selectedTasks = tasks.filter((task) => task.dateString === selectedDateKey);
+  const desktopSectionTasks = useMemo(() => Object.fromEntries(
+    sections.map((section) => [
+      section.mobileId,
+      resolveDesktopSectionSlots(selectedTasks.filter((task) => task.timeOfDay === section.mobileId)),
+    ]),
+  ), [selectedTasks]);
   const editingTask = editingTaskId ? tasks.find((task) => task.id === editingTaskId) || null : null;
   const canSaveEdit = editText.trim().length > 0;
   const closeEditModal = useCallback(() => {
@@ -924,7 +1091,7 @@ function App() {
       text: rawText,
       completed: false,
       timeOfDay: sectionIdToMobileId(resolvedSectionId),
-      dateString: dateKey(selectedDate),
+      dateString: selectedDateKey,
       cardType,
       videoUrl,
       mapUrl,
@@ -933,9 +1100,13 @@ function App() {
       mapTitle: null,
       mapSubtitle: null,
       redirectUrl: null,
+      desktopSlot: null,
     });
 
-    setTasks((prev) => [...prev, nextTask]);
+    setTasks((prev) => {
+      const desktopSlot = getFirstAvailableDesktopSlot(prev, selectedDateKey, nextTask.timeOfDay);
+      return [...prev, normalizeTask({ ...nextTask, desktopSlot })];
+    });
 
     setInputText('');
     setPanelOpen(false);
@@ -963,6 +1134,9 @@ function App() {
     setTasks((prev) => prev.map((task) => (task.id === taskId ? normalizeTask({ ...task, completed: !task.completed }) : task)));
   };
   const handleTaskClick = (task) => {
+    if (Date.now() < suppressAllTaskClicksUntilRef.current) {
+      return;
+    }
     if (suppressTaskClickRef.current === task.id) {
       suppressTaskClickRef.current = null;
       return;
@@ -1044,8 +1218,9 @@ function App() {
                 <ScheduleSection
                   key={section.id}
                   section={section}
-                  tasks={selectedTasks.filter((task) => task.timeOfDay === section.mobileId)}
-                  showMarker={todaySelected && currentBlock === section.id}
+                  slots={desktopSectionTasks[section.mobileId]?.slots || Array.from({ length: DESKTOP_SLOT_COUNT }, () => null)}
+                  overflowTasks={desktopSectionTasks[section.mobileId]?.overflow || []}
+                  markerStyle={getSectionMarkerStyle(section, currentTime, selectedDate)}
                   onTaskClick={handleTaskClick}
                   onTaskPointerDown={handleTaskPointerDown}
                   onTaskPointerMove={handleTaskPointerMove}
