@@ -1190,10 +1190,12 @@ function MobileApp({ session, platformInfo }) {
 
   const [draggedTodoId, setDraggedTodoId] = useState(null);
   const [dragOverBlock, setDragOverBlock] = useState(null);
+  const [dragPreview, setDragPreview] = useState(null);
 
   const dragOverBlockRef = React.useRef(null); // readable in onTouchEnd closure
   const dragOverTodoIdRef = React.useRef(null);
   const dragInsertAfterRef = React.useRef(false);
+  const dragPreviewRef = React.useRef(null);
 
   const swipeTouchStartX = React.useRef(null);
   const swipeTouchStartY = React.useRef(null);
@@ -1219,6 +1221,8 @@ function MobileApp({ session, platformInfo }) {
   const dragDayFlipDirectionRef = React.useRef(0);
   const dragDayFlipCooldownUntilRef = React.useRef(0);
   const dragGhostRef = React.useRef(null);
+  const dragPlaceholderHeightRef = React.useRef(88);
+  const swipeWrapperRectsRef = React.useRef(new Map());
 
   const clearDragDayFlipTimer = useCallback(() => {
     if (dragDayFlipTimerRef.current !== null) {
@@ -1280,6 +1284,26 @@ function MobileApp({ session, platformInfo }) {
     sourceEl.style.zIndex = '';
     sourceEl.style.willChange = 'opacity, transform';
   }, []);
+  const syncDragPreview = useCallback((nextPreview) => {
+    const normalizedPreview = nextPreview?.blockId
+      ? {
+        blockId: nextPreview.blockId,
+        targetTodoId: nextPreview.targetTodoId ?? null,
+        insertAfter: Boolean(nextPreview.insertAfter),
+      }
+      : null;
+    const currentPreview = dragPreviewRef.current;
+    const hasChanged = (
+      currentPreview?.blockId !== normalizedPreview?.blockId
+      || currentPreview?.targetTodoId !== normalizedPreview?.targetTodoId
+      || currentPreview?.insertAfter !== normalizedPreview?.insertAfter
+    );
+
+    if (!hasChanged) return;
+
+    dragPreviewRef.current = normalizedPreview;
+    setDragPreview(normalizedPreview);
+  }, []);
 
   useEffect(() => () => {
     if (touchDragPressTimerRef.current !== null) {
@@ -1308,6 +1332,32 @@ function MobileApp({ session, platformInfo }) {
     }
     removeDragGhost();
   }, [removeDragGhost]);
+
+  useLayoutEffect(() => {
+    const wrappers = Array.from(document.querySelectorAll('[data-swipe-wrapper-id]'));
+    const nextRects = new Map(
+      wrappers.map((wrapper) => [wrapper.getAttribute('data-swipe-wrapper-id'), wrapper.getBoundingClientRect()]),
+    );
+    const prevRects = swipeWrapperRectsRef.current;
+
+    wrappers.forEach((wrapper) => {
+      const id = wrapper.getAttribute('data-swipe-wrapper-id');
+      const prevRect = prevRects.get(id);
+      const nextRect = nextRects.get(id);
+      if (!id || !prevRect || !nextRect) return;
+
+      const deltaY = prevRect.top - nextRect.top;
+      if (Math.abs(deltaY) < 0.5) return;
+
+      wrapper.style.transition = 'none';
+      wrapper.style.transform = `translate3d(0, ${deltaY}px, 0)`;
+      wrapper.getBoundingClientRect();
+      wrapper.style.transition = 'transform 280ms cubic-bezier(0.22, 1, 0.36, 1)';
+      wrapper.style.transform = 'translate3d(0, 0, 0)';
+    });
+
+    swipeWrapperRectsRef.current = nextRects;
+  }, [dragPreview, draggedTodoId, selectedDate, todos]);
 
   const suppressNextCardClick = useCallback((todoId) => {
     if (suppressClickTimeoutRef.current !== null) {
@@ -1410,7 +1460,8 @@ function MobileApp({ session, platformInfo }) {
     }
     dragOverTodoIdRef.current = dragTarget.targetTodoId;
     dragInsertAfterRef.current = dragTarget.insertAfter;
-  }, [applyDragSourceCardState, ensureDragGhost, getTouchDragTarget]);
+    syncDragPreview(dragTarget);
+  }, [applyDragSourceCardState, ensureDragGhost, getTouchDragTarget, syncDragPreview]);
 
   const moveDraggedTodoToDate = useCallback((todoId, nextDate) => {
     if (!todoId || !nextDate) return;
@@ -1738,10 +1789,12 @@ function MobileApp({ session, platformInfo }) {
     activeTouchIdentifierRef.current = null;
     activeDragTodoIdRef.current = null;
     setDraggedTodoId(null);
+    setDragPreview(null);
     setDragOverBlock(null);
     dragOverBlockRef.current = null;
     dragOverTodoIdRef.current = null;
     dragInsertAfterRef.current = false;
+    dragPreviewRef.current = null;
     swipeTouchStartX.current = null;
     swipeTouchStartY.current = null;
     swipeStartOffset.current = 0;
@@ -1765,6 +1818,7 @@ function MobileApp({ session, platformInfo }) {
     ensureDragGhost(todoId);
     const wrapper = document.getElementById(`swipe-wrapper-${todoId}`);
     if (el) {
+      dragPlaceholderHeightRef.current = Math.max(72, Math.round(el.getBoundingClientRect().height));
       applyDragSourceCardState(todoId);
     }
 
@@ -1774,6 +1828,20 @@ function MobileApp({ session, platformInfo }) {
       if (parentBlock) parentBlock.classList.add('is-dragging-parent');
     }
     document.body.classList.add('is-dragging-global');
+
+    const draggedTodo = todos.find((todo) => todo.id === todoId);
+    if (draggedTodo) {
+      const blockTodos = getBlockTodosInDisplayOrder(todos, draggedTodo.dateString, draggedTodo.timeOfDay);
+      const sourceIndex = blockTodos.findIndex((todo) => todo.id === todoId);
+      const nextTodo = blockTodos[sourceIndex + 1] || null;
+      const previousTodo = blockTodos[sourceIndex - 1] || null;
+
+      syncDragPreview({
+        blockId: draggedTodo.timeOfDay,
+        targetTodoId: nextTodo?.id || previousTodo?.id || null,
+        insertAfter: !nextTodo && Boolean(previousTodo),
+      });
+    }
 
     detachTouchDragListeners();
 
@@ -1818,7 +1886,7 @@ function MobileApp({ session, platformInfo }) {
     window.addEventListener('touchmove', handleWindowTouchMove, { passive: false });
     window.addEventListener('touchend', handleWindowTouchEnd, { passive: false });
     window.addEventListener('touchcancel', handleWindowTouchEnd, { passive: false });
-  }, [applyDragSourceCardState, closeSwipeActions, detachTouchDragListeners, ensureDragGhost, finalizeTouchDrag, lockTimelineScroll, syncDraggedCardPosition, updateAutoScroll, updateDragDayAutoFlip]);
+  }, [applyDragSourceCardState, closeSwipeActions, detachTouchDragListeners, ensureDragGhost, finalizeTouchDrag, lockTimelineScroll, syncDragPreview, syncDraggedCardPosition, todos, updateAutoScroll, updateDragDayAutoFlip]);
 
   useLayoutEffect(() => {
     if (!isDragMode.current || !activeDragTodoIdRef.current) return undefined;
@@ -2229,6 +2297,19 @@ function MobileApp({ session, platformInfo }) {
 
     return timeBlocks.map((block) => {
       const blockTodos = getBlockTodosInDisplayOrder(dayTodos, dateKey, block.id);
+      const visibleBlockTodos = draggedTodoId
+        ? blockTodos.filter((todo) => todo.id !== draggedTodoId)
+        : blockTodos;
+      const renderedItems = visibleBlockTodos.map((todo) => ({ type: 'todo', todo }));
+      if (draggedTodoId && dragPreview?.blockId === block.id) {
+        const targetIndex = dragPreview.targetTodoId
+          ? visibleBlockTodos.findIndex((todo) => todo.id === dragPreview.targetTodoId)
+          : -1;
+        const insertIndex = targetIndex === -1
+          ? renderedItems.length
+          : (dragPreview.insertAfter ? targetIndex + 1 : targetIndex);
+        renderedItems.splice(insertIndex, 0, { type: 'placeholder', key: `${block.id}-drag-placeholder` });
+      }
       const axisState = getTimeBlockAxisState(block, date);
 
       return (
@@ -2260,7 +2341,19 @@ function MobileApp({ session, platformInfo }) {
             onDragOver={options.isStatic ? undefined : handleDragOver}
             onDrop={options.isStatic ? undefined : (e) => handleDropOnBlock(e, block.id)}
           >
-            {blockTodos.map(todo => {
+            {renderedItems.map((item) => {
+              if (item.type === 'placeholder') {
+                return (
+                  <div
+                    key={item.key}
+                    className="task-insert-placeholder"
+                    style={{ height: `${dragPlaceholderHeightRef.current}px` }}
+                    aria-hidden="true"
+                  />
+                );
+              }
+
+              const { todo } = item;
               const {
                 cType,
                 cfg,
@@ -2271,7 +2364,7 @@ function MobileApp({ session, platformInfo }) {
               const canUseDesktopDrag = !options.isStatic && !isCoarsePointer;
 
               return (
-                <div key={todo.id} id={`swipe-wrapper-${todo.id}`} className="swipe-wrapper">
+                <div key={todo.id} id={`swipe-wrapper-${todo.id}`} data-swipe-wrapper-id={todo.id} className="swipe-wrapper">
                   <div className="swipe-actions">
                     <button
                       type="button"
@@ -2345,7 +2438,7 @@ function MobileApp({ session, platformInfo }) {
         </div>
       );
     });
-  }, [appearance, closeSwipeActions, deleteTodo, draggedTodoId, getDayTodos, getSwipeHandlers, handleDragEnd, handleDragOver, handleDropOnBlock, handleDropOnTodo, isCoarsePointer, language, openEdit]);
+  }, [appearance, closeSwipeActions, deleteTodo, dragPreview, draggedTodoId, getDayTodos, getSwipeHandlers, handleDragEnd, handleDragOver, handleDropOnBlock, handleDropOnTodo, isCoarsePointer, language, openEdit]);
 
   const timelinePanels = useMemo(() => {
     if (!dayTransition) {
