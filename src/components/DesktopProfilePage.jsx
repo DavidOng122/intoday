@@ -132,7 +132,7 @@ function DesktopProfilePage({
       <div className="desktop-profile-page-orb desktop-profile-page-orb-left" aria-hidden="true" />
       <div className="desktop-profile-page-orb desktop-profile-page-orb-right" aria-hidden="true" />
 
-      <button type="button" className="desktop-profile-page-close" onClick={handleClose} aria-label="Close">
+      <button type="button" className="desktop-profile-page-close" onClick={handleClose} aria-label={t.close}>
         <CloseIcon />
       </button>
 

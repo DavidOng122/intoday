@@ -7,6 +7,7 @@ import DesktopProfilePage from '../components/DesktopProfilePage';
 import IntoDayLogo from '../components/IntoDayLogo';
 import { DAY_BOUNDARY_HOUR, getLogicalToday } from '../lib/dateHelpers';
 import { timeBlocks } from '../lib/timeBlocks';
+import { translations } from '../lib/translations';
 import {
   fetchMapMeta,
   fetchVideoMeta,
@@ -18,12 +19,19 @@ import {
 const SHARED_SELECTED_DATE_KEY = 'shared_selected_date';
 const DESKTOP_LANGUAGE_KEY = 'desktop_profile_language';
 const DESKTOP_APPEARANCE_KEY = 'desktop_profile_appearance';
+const LANGUAGE_LOCALES = {
+  EN: 'en-US',
+  ZH: 'zh-CN',
+  MS: 'ms-MY',
+  JA: 'ja-JP',
+  TH: 'th-TH',
+};
 const MOBILE_BLOCK_STYLES = Object.fromEntries(timeBlocks.map((block) => [block.id, block]));
 const sections = [
   {
     id: 'morning',
     mobileId: 'Morning',
-    label: 'Morning',
+    labelKey: 'morning',
     start: '06:00',
     end: '12:00',
     pillBg: '#f7d8a5',
@@ -35,7 +43,7 @@ const sections = [
   {
     id: 'afternoon',
     mobileId: 'Afternoon',
-    label: 'Afternoon',
+    labelKey: 'afternoon',
     start: '12:00',
     end: '18:00',
     pillBg: '#bfe3fb',
@@ -47,7 +55,7 @@ const sections = [
   {
     id: 'evening',
     mobileId: 'Evening',
-    label: 'Evening',
+    labelKey: 'evening',
     start: '18:00',
     end: '22:00',
     pillBg: '#eadffd',
@@ -59,7 +67,7 @@ const sections = [
   {
     id: 'night',
     mobileId: 'Night',
-    label: 'Night',
+    labelKey: 'night',
     start: '22:00',
     end: '06:00',
     pillBg: '#dfe6ef',
@@ -70,11 +78,11 @@ const sections = [
   },
 ];
 const chips = [
-  { id: 'now', label: 'Now' },
-  { id: 'morning', label: 'Morning' },
-  { id: 'afternoon', label: 'Afternoon' },
-  { id: 'evening', label: 'Evening' },
-  { id: 'night', label: 'Night' },
+  { id: 'now', labelKey: 'now' },
+  { id: 'morning', labelKey: 'morning' },
+  { id: 'afternoon', labelKey: 'afternoon' },
+  { id: 'evening', labelKey: 'evening' },
+  { id: 'night', labelKey: 'night' },
 ];
 const DESKTOP_DRAG_START_DISTANCE = 4;
 const DESKTOP_DRAG_SCROLL_ZONE = 96;
@@ -182,6 +190,12 @@ const applyDesktopTaskDrop = ({ tasks, draggedTaskId, dateString, sourceSection,
 
 const dateKey = (date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 const sameDay = (a, b) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+const getLocaleForLanguage = (language) => LANGUAGE_LOCALES[language] || LANGUAGE_LOCALES.EN;
+const getTranslationsForLanguage = (language) => translations[language] || translations.EN;
+const formatTemplate = (template, values) => Object.entries(values).reduce(
+  (result, [key, value]) => result.replaceAll(`{${key}}`, String(value)),
+  template,
+);
 const parseSharedSelectedDate = (value) => {
   if (!value) return null;
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
@@ -260,7 +274,32 @@ const getSectionMarkerStyle = (section, currentTime, selectedDate) => {
     top: `calc(${DESKTOP_TIME_AXIS_LINE_TOP}px + ((100% - ${DESKTOP_TIME_AXIS_LINE_TOP}px - ${DESKTOP_TIME_AXIS_LINE_BOTTOM}px) * ${progress}) - ${(DESKTOP_TIME_MARKER_SIZE / 2)}px)`,
   };
 };
-const panelLabel = (date) => sameDay(date, getLogicalToday()) ? 'Today' : date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+const getCalendarWeekdayLabels = (language) => {
+  const locale = getLocaleForLanguage(language);
+  const baseSunday = new Date(Date.UTC(2024, 0, 7));
+
+  return Array.from({ length: 7 }, (_, index) => {
+    const date = new Date(baseSunday);
+    date.setUTCDate(baseSunday.getUTCDate() + index);
+    return new Intl.DateTimeFormat(locale, { weekday: 'narrow' }).format(date);
+  });
+};
+const formatOverflowTasksMessage = (count, language) => {
+  const t = getTranslationsForLanguage(language);
+  return formatTemplate(count === 1 ? t.overflowTasksOne : t.overflowTasksOther, { count });
+};
+const panelLabel = (date, language) => {
+  const t = getTranslationsForLanguage(language);
+  if (sameDay(date, getLogicalToday())) {
+    return t.today;
+  }
+
+  return date.toLocaleDateString(getLocaleForLanguage(language), {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+  });
+};
 
 const GlobalStyles = ({ appearance }) => {
   useEffect(() => {
@@ -331,7 +370,8 @@ const ReturnTodayIcon = () => (
   </svg>
 );
 
-const WeekStrip = ({ selectedDate, logicalToday, onSelect }) => {
+const WeekStrip = ({ selectedDate, logicalToday, language, onSelect }) => {
+  const t = getTranslationsForLanguage(language);
   const logicalMidnight = new Date(logicalToday);
   logicalMidnight.setHours(0, 0, 0, 0);
   const week = Array.from({ length: 7 }, (_, index) => {
@@ -341,7 +381,7 @@ const WeekStrip = ({ selectedDate, logicalToday, onSelect }) => {
     normalizedDate.setHours(0, 0, 0, 0);
     return {
       key: date.toISOString(),
-      label: date.toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase(),
+      label: t.dayNames[date.getDay()] || date.toLocaleDateString(getLocaleForLanguage(language), { weekday: 'short' }).toUpperCase(),
       num: date.getDate(),
       active: sameDay(date, selectedDate),
       isToday: sameDay(date, logicalToday),
@@ -355,9 +395,9 @@ const WeekStrip = ({ selectedDate, logicalToday, onSelect }) => {
       <div style={{ width: 'min(1008px, calc(100% - 72px))', margin: '0 auto', display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: 12, padding: '8px 0' }}>
         {week.map((day) => (
           <button key={day.key} type="button" onClick={() => onSelect(day.date)} style={{ border: 'none', background: 'transparent', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', height: 48, padding: '8px 0', position: 'relative' }}>
-            <span style={{ fontSize: 14, fontWeight: day.active ? 700 : 500, letterSpacing: '0.06em', color: day.active ? 'var(--desktop-root-text)' : day.isPast ? 'var(--desktop-muted-subtle)' : 'var(--desktop-muted-strong)' }}>{day.label}</span>
-            <span style={{ width: 22, minWidth: 22, maxWidth: 22, height: 22, minHeight: 22, maxHeight: 22, aspectRatio: '1 / 1', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, background: day.active ? 'var(--desktop-active-date-bg)' : 'transparent', color: day.active ? '#fff' : day.isPast ? 'var(--desktop-muted-subtle)' : 'var(--desktop-muted-strong)', fontSize: 14, lineHeight: 1, fontWeight: day.active ? 700 : 500 }}>{day.num}</span>
-            {!day.active && day.isToday ? <span style={{ position: 'absolute', left: '50%', bottom: 2, width: 4, height: 4, borderRadius: '50%', background: 'var(--desktop-accent)', transform: 'translateX(-50%)' }} /> : null}
+            <span style={{ fontSize: 14, fontWeight: day.active || day.isFuture ? 700 : 500, letterSpacing: '0.06em', color: day.active || day.isFuture ? 'var(--desktop-root-text)' : day.isPast ? 'var(--desktop-muted-subtle)' : 'var(--desktop-muted-strong)' }}>{day.label}</span>
+            <span style={{ width: 22, minWidth: 22, maxWidth: 22, height: 22, minHeight: 22, maxHeight: 22, aspectRatio: '1 / 1', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, background: day.active ? 'var(--desktop-active-date-bg)' : 'transparent', color: day.active ? '#fff' : day.isFuture ? 'var(--desktop-root-text)' : day.isPast ? 'var(--desktop-muted-subtle)' : 'var(--desktop-muted-strong)', fontSize: 14, lineHeight: 1, fontWeight: day.active || day.isFuture ? 700 : 500 }}>{day.num}</span>
+            {!day.active && day.isToday ? <span style={{ position: 'absolute', left: '50%', bottom: -2, width: 4, height: 4, borderRadius: '50%', background: 'var(--desktop-accent)', transform: 'translateX(-50%)' }} /> : null}
           </button>
         ))}
       </div>
@@ -365,8 +405,8 @@ const WeekStrip = ({ selectedDate, logicalToday, onSelect }) => {
   );
 };
 
-const TaskCardContent = ({ task, appearance }) => {
-  const { cfg, displayTitle, displaySub } = getTaskCardPresentation(task);
+const TaskCardContent = ({ task, appearance, labels }) => {
+  const { cfg, displayTitle, displaySub } = getTaskCardPresentation(task, labels);
   const iconBackground = appearance === 'dark' ? cfg.darkBg : cfg.bg;
   const iconBorder = appearance === 'dark' ? `1px solid ${cfg.darkStroke}` : 'none';
 
@@ -376,7 +416,7 @@ const TaskCardContent = ({ task, appearance }) => {
         <img src={cfg.icon} alt={normalizeCardType(task.cardType)} style={{ width: 18, height: 18, objectFit: 'contain' }} />
       </div>
       <div style={{ minWidth: 0, flex: 1, display: 'flex', flexDirection: 'column', gap: 2 }}>
-        <div style={{ display: '-webkit-box', WebkitBoxOrient: 'vertical', WebkitLineClamp: 2, overflow: 'hidden', wordBreak: 'break-word', color: task.completed ? 'var(--desktop-card-desc)' : 'var(--desktop-card-title)', textDecoration: task.completed ? 'line-through' : 'none', fontSize: 13, fontWeight: 590, lineHeight: '20px' }}>
+        <div style={{ display: '-webkit-box', WebkitBoxOrient: 'vertical', WebkitLineClamp: 2, overflow: 'hidden', wordBreak: 'break-word', color: 'var(--desktop-card-title)', fontSize: 13, fontWeight: 590, lineHeight: '20px' }}>
           {displayTitle}
         </div>
         <div style={{ color: 'var(--desktop-card-desc)', fontSize: 11, fontWeight: 400, lineHeight: 1.3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
@@ -390,6 +430,7 @@ const TaskCardContent = ({ task, appearance }) => {
 const TaskCard = ({
   task,
   appearance,
+  labels,
   onClick,
   onPointerDown,
   onPointerMove,
@@ -421,19 +462,19 @@ const TaskCard = ({
           boxShadow: 'var(--desktop-task-shadow)',
           cursor: isDragging ? 'grabbing' : 'pointer',
           textAlign: 'left',
-          opacity: task.completed ? 0.5 : 1,
+          opacity: 1,
           transition: 'none',
           touchAction: 'none',
           userSelect: 'none',
         }}
       >
-        <TaskCardContent task={task} appearance={appearance} />
+        <TaskCardContent task={task} appearance={appearance} labels={labels} />
       </button>
     </div>
   );
 };
 
-const DragOverlayCard = ({ task, rect, appearance }) => {
+const DragOverlayCard = ({ task, rect, appearance, labels }) => {
   if (!task || !rect) return null;
 
   return (
@@ -447,8 +488,8 @@ const DragOverlayCard = ({ task, rect, appearance }) => {
         height: rect.height,
       }}
     >
-      <div className="desktop-task-drag-overlay-card" style={{ opacity: task.completed ? 0.5 : 1 }}>
-        <TaskCardContent task={task} appearance={appearance} />
+      <div className="desktop-task-drag-overlay-card" style={{ opacity: 1 }}>
+        <TaskCardContent task={task} appearance={appearance} labels={labels} />
       </div>
     </div>
   );
@@ -457,6 +498,8 @@ const DragOverlayCard = ({ task, rect, appearance }) => {
 const ScheduleSection = ({
   section,
   appearance,
+  language,
+  labels,
   slots,
   overflowTasks,
   markerStyle,
@@ -469,11 +512,12 @@ const ScheduleSection = ({
   isDragOver,
 }) => {
   const pillStyle = getDesktopSectionPillStyle(section, appearance);
+  const t = getTranslationsForLanguage(language);
 
   return (
   <section style={{ borderBottom: '1px solid var(--desktop-divider)', background: 'var(--desktop-section-bg)' }}>
     <div style={{ width: 'min(1008px, calc(100% - 72px))', margin: '0 auto', padding: '22px 0 24px' }}>
-      <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minWidth: 72, padding: '6px 14px', borderRadius: 999, fontFamily: 'DM Serif Display, serif', fontSize: 14, fontStyle: 'italic', ...pillStyle }}>{section.label}</span>
+      <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minWidth: 72, padding: '6px 14px', borderRadius: 999, fontFamily: 'DM Serif Display, serif', fontSize: 14, fontStyle: 'italic', ...pillStyle }}>{t[section.labelKey]}</span>
       <div style={{ display: 'grid', gridTemplateColumns: '110px minmax(0, 1fr)', gap: 24, marginTop: 18, alignItems: 'start' }}>
         <div style={{ position: 'relative', minHeight: 220 }}>
           <div style={{ color: 'var(--desktop-root-text)', fontSize: 15, fontWeight: 500 }}>{section.start}</div>
@@ -498,6 +542,7 @@ const ScheduleSection = ({
                 <TaskCard
                   task={task}
                   appearance={appearance}
+                  labels={labels}
                   isDragging={draggedTaskId === task.id}
                   onClick={() => onTaskClick(task)}
                   onPointerDown={(event) => onTaskPointerDown(task, event)}
@@ -513,7 +558,7 @@ const ScheduleSection = ({
         </div>
         {overflowTasks.length > 0 ? (
           <div style={{ marginTop: 14, color: 'var(--desktop-muted)', fontSize: 12 }}>
-            {overflowTasks.length} more task{overflowTasks.length > 1 ? 's' : ''} waiting for an open slot in this block.
+            {formatOverflowTasksMessage(overflowTasks.length, language)}
           </div>
         ) : null}
       </div>
@@ -522,9 +567,11 @@ const ScheduleSection = ({
   );
 };
 
-const AddPanel = ({ open, selectedDate, chipsToShow, activeChip, setActiveChip, inputText, setInputText, onClose, onSubmit, onSelectDate }) => {
+const AddPanel = ({ open, language, selectedDate, chipsToShow, activeChip, setActiveChip, inputText, setInputText, onClose, onSubmit, onSelectDate }) => {
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const [calendarOffset, setCalendarOffset] = useState(0);
+  const t = getTranslationsForLanguage(language);
+  const locale = getLocaleForLanguage(language);
 
   if (!open) return null;
 
@@ -534,7 +581,7 @@ const AddPanel = ({ open, selectedDate, chipsToShow, activeChip, setActiveChip, 
   maxDate.setDate(maxDate.getDate() + 30);
   const calendarMonth = new Date(selectedDate.getFullYear(), selectedDate.getMonth() + calendarOffset, 1);
   const monthStart = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth(), 1);
-  const monthLabel = monthStart.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+  const monthLabel = monthStart.toLocaleDateString(locale, { month: 'short', year: 'numeric' });
   const startOffset = monthStart.getDay();
   const daysInMonth = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 0).getDate();
   const trailingCells = Math.max(0, 42 - startOffset - daysInMonth);
@@ -542,10 +589,11 @@ const AddPanel = ({ open, selectedDate, chipsToShow, activeChip, setActiveChip, 
   const isAtMaxMonth = monthStart.getFullYear() === maxDate.getFullYear() && monthStart.getMonth() === maxDate.getMonth();
   const desktopCalendarCellSize = 32;
   const desktopCalendarGap = 6;
+  const calendarWeekdayLabels = getCalendarWeekdayLabels(language);
   return (
     <aside style={{ width: 348, borderLeft: '1px solid var(--desktop-divider)', background: 'var(--desktop-section-bg)', display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
       <div style={{ padding: '18px 22px', display: 'flex', justifyContent: 'flex-end' }}>
-        <button type="button" onClick={onClose} style={{ width: 36, height: 36, borderRadius: '50%', border: 'none', background: 'var(--desktop-panel-close-bg)', color: 'var(--desktop-panel-close-text)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}><CloseIcon /></button>
+        <button type="button" onClick={onClose} aria-label={t.close} style={{ width: 36, height: 36, borderRadius: '50%', border: 'none', background: 'var(--desktop-panel-close-bg)', color: 'var(--desktop-panel-close-text)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}><CloseIcon /></button>
       </div>
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '28px 28px 22px' }}>
         <div style={{ width: 42, height: 38, marginBottom: 26 }}>
@@ -564,7 +612,7 @@ const AddPanel = ({ open, selectedDate, chipsToShow, activeChip, setActiveChip, 
           if (!isCalendarOpen) setCalendarOffset(0);
           setIsCalendarOpen((prev) => !prev);
         }} style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: isCalendarOpen ? 18 : 30, padding: 0, border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--desktop-root-text)' }}>
-          <h2 style={{ margin: 0, fontFamily: 'DM Serif Display, serif', fontSize: 38, fontStyle: 'italic', lineHeight: 1 }}>{panelLabel(selectedDate)}</h2>
+          <h2 style={{ margin: 0, fontFamily: 'DM Serif Display, serif', fontSize: 38, fontStyle: 'italic', lineHeight: 1 }}>{panelLabel(selectedDate, language)}</h2>
           <svg xmlns="http://www.w3.org/2000/svg" width="8" height="13" viewBox="0 0 9 14" fill="none" style={{ transform: isCalendarOpen ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.24s cubic-bezier(0.16, 1, 0.3, 1)' }}><path fillRule="evenodd" clipRule="evenodd" d="M8.78019 6.54928C8.92094 6.66887 9 6.83098 9 7C9 7.16902 8.92094 7.33113 8.78019 7.45072L1.26401 13.8288C1.12153 13.9415 0.933079 14.0028 0.738359 13.9999C0.543638 13.997 0.357853 13.93 0.220144 13.8132C0.0824342 13.6963 0.00355271 13.5387 0.000117099 13.3734C-0.00331851 13.2082 0.06896 13.0483 0.201726 12.9274L7.18676 7L0.201726 1.07262C0.06896 0.951712 -0.00331851 0.791795 0.000117099 0.626558C0.00355271 0.461322 0.0824342 0.303668 0.220144 0.18681C0.357853 0.0699525 0.543638 0.00301477 0.738359 9.93682e-05C0.933079 -0.00281603 1.12153 0.0585185 1.26401 0.171181L8.78019 6.54928Z" fill="black" /></svg>
         </button>
         {isCalendarOpen ? (
@@ -579,8 +627,8 @@ const AddPanel = ({ open, selectedDate, chipsToShow, activeChip, setActiveChip, 
               </button>
             </div>
             <div style={{ display: 'grid', width: 'fit-content', maxWidth: '100%', gridTemplateColumns: `repeat(7, ${desktopCalendarCellSize}px)`, gap: desktopCalendarGap }}>
-              {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((label) => (
-                <div key={label} style={{ textAlign: 'center', fontSize: 13, fontWeight: 600, color: 'var(--desktop-muted-subtle)' }}>{label}</div>
+              {calendarWeekdayLabels.map((label, index) => (
+                <div key={`${label}-${index}`} style={{ textAlign: 'center', fontSize: 13, fontWeight: 600, color: 'var(--desktop-muted-subtle)' }}>{label}</div>
               ))}
               {Array.from({ length: startOffset }).map((_, index) => <div key={`empty-${index}`} />)}
               {Array.from({ length: daysInMonth }).map((_, index) => {
@@ -619,17 +667,17 @@ const AddPanel = ({ open, selectedDate, chipsToShow, activeChip, setActiveChip, 
             </div>
           </div>
         ) : null}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 18, fontSize: 13, fontWeight: 700, letterSpacing: '0.03em', color: 'var(--desktop-root-text)' }}><ClockOutline />TIME OF DAY</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 18, fontSize: 13, fontWeight: 700, letterSpacing: '0.03em', color: 'var(--desktop-root-text)' }}><ClockOutline />{t.timeOfDay}</div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {rows.map((row, i) => (
             <div key={i} style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-              {row.map((chip) => <button key={chip.id} type="button" onClick={() => setActiveChip(chip.id)} style={{ minWidth: 62, height: 30, padding: '0 14px', borderRadius: 999, border: '1px solid transparent', background: activeChip === chip.id ? 'var(--desktop-chip-active-bg)' : 'var(--desktop-chip-bg)', color: activeChip === chip.id ? 'var(--desktop-chip-active-text)' : 'var(--desktop-chip-text)', cursor: 'pointer', fontSize: 13, fontWeight: 500 }}>{chip.label}</button>)}
+              {row.map((chip) => <button key={chip.id} type="button" onClick={() => setActiveChip(chip.id)} style={{ minWidth: 62, height: 30, padding: '0 14px', borderRadius: 999, border: '1px solid transparent', background: activeChip === chip.id ? 'var(--desktop-chip-active-bg)' : 'var(--desktop-chip-bg)', color: activeChip === chip.id ? 'var(--desktop-chip-active-text)' : 'var(--desktop-chip-text)', cursor: 'pointer', fontSize: 13, fontWeight: 500 }}>{t[chip.labelKey]}</button>)}
             </div>
           ))}
         </div>
         <div style={{ flex: 1 }} />
         <div style={{ position: 'relative' }}>
-          <input type="text" autoFocus value={inputText} onChange={(event) => setInputText(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); onSubmit(); } }} placeholder="e.g Buy groceries at 9pm..." style={{ width: '100%', minHeight: 58, height: 58, borderRadius: 22, border: '1px solid var(--desktop-input-border)', background: 'var(--desktop-input-bg)', color: 'var(--desktop-root-text)', padding: '0 58px 0 16px', outline: 'none', fontSize: 15, boxShadow: 'var(--desktop-input-shadow)' }} />
+          <input type="text" autoFocus value={inputText} onChange={(event) => setInputText(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); onSubmit(); } }} placeholder={t.placeholder} style={{ width: '100%', minHeight: 58, height: 58, borderRadius: 22, border: '1px solid var(--desktop-input-border)', background: 'var(--desktop-input-bg)', color: 'var(--desktop-root-text)', padding: '0 58px 0 16px', outline: 'none', fontSize: 15, boxShadow: 'var(--desktop-input-shadow)' }} />
           <button type="button" onClick={onSubmit} style={{ position: 'absolute', right: 8, bottom: 9, width: 40, height: 40, borderRadius: '50%', border: 'none', background: 'var(--desktop-submit-bg)', color: 'var(--desktop-submit-text)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', boxShadow: 'var(--desktop-submit-shadow)' }}><ArrowUpIcon /></button>
         </div>
       </div>
@@ -660,6 +708,7 @@ function App() {
     userId: user?.id || null,
     normalizeTodo: normalizeTask,
   });
+  const t = useMemo(() => getTranslationsForLanguage(language), [language]);
   const userProfile = useMemo(() => getUserProfile(user), [user]);
   const mainScrollRef = useRef(null);
   const desktopDragStateRef = useRef({
@@ -1199,9 +1248,6 @@ function App() {
     applyAsyncMetadata(editingTask.id, typeFields.cardType, typeFields.videoUrl, typeFields.mapUrl);
     closeEditModal();
   };
-  const toggleTask = (taskId) => {
-    setTasks((prev) => prev.map((task) => (task.id === taskId ? normalizeTask({ ...task, completed: !task.completed }) : task)));
-  };
   const handleTaskClick = (task) => {
     if (Date.now() < suppressAllTaskClicksUntilRef.current) {
       return;
@@ -1210,16 +1256,7 @@ function App() {
       suppressTaskClickRef.current = null;
       return;
     }
-    const { redirectUrl, isText } = getTaskCardPresentation(task);
-    if (isText) {
-      openTaskEditor(task);
-      return;
-    }
-    if (redirectUrl) {
-      window.open(redirectUrl, '_blank', 'noopener,noreferrer');
-      return;
-    }
-    toggleTask(task.id);
+    openTaskEditor(task);
   };
   const handleSignOut = async () => {
     try {
@@ -1235,7 +1272,7 @@ function App() {
       <div className={`desktop-app ${appearance === 'dark' ? 'desktop-app-dark dark-theme' : 'desktop-app-light'}`} style={{ width: '100vw', height: '100vh', overflow: 'hidden', background: 'var(--desktop-root-bg)', color: 'var(--desktop-root-text)', fontFamily: 'Inter, sans-serif' }}>
         <header style={{ height: 74, padding: '0 38px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--desktop-header-bg)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 18 }}>
-            <h1 style={{ margin: 0, fontFamily: 'DM Serif Display, serif', fontSize: 28, fontStyle: 'italic', lineHeight: 1 }}>{panelLabel(selectedDate)}</h1>
+            <h1 style={{ margin: 0, fontFamily: 'DM Serif Display, serif', fontSize: 28, fontStyle: 'italic', lineHeight: 1 }}>{panelLabel(selectedDate, language)}</h1>
             {!todaySelected ? (
               <button
                 type="button"
@@ -1243,7 +1280,7 @@ function App() {
                   setSelectedDate(logicalToday);
                   setProfileOpen(false);
                 }}
-                aria-label="Back to Today"
+                aria-label={t.backToToday}
                 style={{
                   height: 34,
                   padding: '0 14px',
@@ -1263,7 +1300,7 @@ function App() {
                 }}
               >
                 <ReturnTodayIcon />
-                <span>Today</span>
+                <span>{t.today}</span>
               </button>
             ) : null}
             {todaySelected ? <Clock /> : null}
@@ -1281,13 +1318,15 @@ function App() {
 
         <div style={{ display: 'flex', height: 'calc(100vh - 74px)' }}>
           <div style={{ flex: 1, minWidth: 0, minHeight: 0, display: 'flex', flexDirection: 'column', background: 'var(--desktop-main-gradient)' }}>
-            <WeekStrip selectedDate={selectedDate} logicalToday={logicalToday} onSelect={(date) => { setSelectedDate(date); setProfileOpen(false); }} />
+            <WeekStrip selectedDate={selectedDate} logicalToday={logicalToday} language={language} onSelect={(date) => { setSelectedDate(date); setProfileOpen(false); }} />
             <main ref={mainScrollRef} style={{ flex: 1, minHeight: 0, overflowY: 'auto', background: 'var(--desktop-root-bg)' }}>
               {sections.map((section) => (
                 <ScheduleSection
                   key={section.id}
                   section={section}
                   appearance={appearance}
+                  language={language}
+                  labels={t}
                   slots={desktopSectionTasks[section.mobileId]?.slots || Array.from({ length: DESKTOP_SLOT_COUNT }, () => null)}
                   overflowTasks={desktopSectionTasks[section.mobileId]?.overflow || []}
                   markerStyle={getSectionMarkerStyle(section, currentTime, selectedDate)}
@@ -1302,10 +1341,10 @@ function App() {
               ))}
             </main>
           </div>
-          <AddPanel open={panelOpen} selectedDate={selectedDate} chipsToShow={visibleChips} activeChip={activeChip} setActiveChip={setActiveChip} inputText={inputText} setInputText={setInputText} onClose={closePanel} onSubmit={saveTask} onSelectDate={setSelectedDate} />
+          <AddPanel open={panelOpen} language={language} selectedDate={selectedDate} chipsToShow={visibleChips} activeChip={activeChip} setActiveChip={setActiveChip} inputText={inputText} setInputText={setInputText} onClose={closePanel} onSubmit={saveTask} onSelectDate={setSelectedDate} />
         </div>
 
-        {!panelOpen ? <button type="button" onClick={() => { setProfileOpen(false); closeEditModal(); setActiveChip(visibleChips[0]?.id || 'now'); setInputText(''); setPanelOpen(true); }} aria-label="Add task" style={{ position: 'fixed', right: 42, bottom: 30, width: 50, height: 50, borderRadius: '50%', border: '1px solid var(--desktop-floating-border)', background: 'var(--desktop-floating-bg)', color: 'var(--desktop-floating-text)', boxShadow: 'var(--desktop-floating-shadow)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', zIndex: 20 }}><PlusIcon /></button> : null}
+        {!panelOpen ? <button type="button" onClick={() => { setProfileOpen(false); closeEditModal(); setActiveChip(visibleChips[0]?.id || 'now'); setInputText(''); setPanelOpen(true); }} aria-label={t.addTaskAria} style={{ position: 'fixed', right: 42, bottom: 30, width: 50, height: 50, borderRadius: '50%', border: '1px solid var(--desktop-floating-border)', background: 'var(--desktop-floating-bg)', color: 'var(--desktop-floating-text)', boxShadow: 'var(--desktop-floating-shadow)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', zIndex: 20 }}><PlusIcon /></button> : null}
 
         {editingTask ? (
           <div
@@ -1348,10 +1387,10 @@ function App() {
                     iconClassName="desktop-edit-modal-logo-icon"
                   />
                   <h2 id="desktop-edit-modal-title" style={{ margin: 0, fontFamily: 'DM Serif Display, serif', fontSize: 28, fontStyle: 'italic', lineHeight: 1, color: 'var(--desktop-root-text)' }}>
-                    Edit Task
+                    {t.editTaskTitle}
                   </h2>
                 </div>
-                <button type="button" onClick={closeEditModal} aria-label="Close edit modal" style={{ width: 32, height: 32, borderRadius: '50%', background: 'var(--desktop-modal-close-bg)', border: '1px solid var(--desktop-edit-border)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: 0, color: 'var(--desktop-modal-close-text)' }}>
+                <button type="button" onClick={closeEditModal} aria-label={t.close} style={{ width: 32, height: 32, borderRadius: '50%', background: 'var(--desktop-modal-close-bg)', border: '1px solid var(--desktop-edit-border)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: 0, color: 'var(--desktop-modal-close-text)' }}>
                   <CloseIcon />
                 </button>
               </div>
@@ -1367,7 +1406,7 @@ function App() {
                   }}
                   autoFocus
                   rows={10}
-                  placeholder="Edit task..."
+                  placeholder={t.editTaskPlaceholder}
                   style={{
                     width: '100%',
                     height: '100%',
@@ -1387,10 +1426,10 @@ function App() {
               </div>
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, padding: '16px 24px 24px', borderTop: '1px solid var(--desktop-edit-border)' }}>
                 <button type="button" onClick={closeEditModal} style={{ minWidth: 96, height: 44, padding: '0 18px', borderRadius: 14, border: '1px solid var(--desktop-cancel-border)', background: 'var(--desktop-cancel-bg)', color: 'var(--desktop-cancel-text)', fontSize: 15, fontWeight: 600, cursor: 'pointer' }}>
-                  Cancel
+                  {t.cancel}
                 </button>
                 <button type="button" onClick={handleEditSave} disabled={!canSaveEdit} style={{ minWidth: 136, height: 44, padding: '0 20px', background: canSaveEdit ? 'var(--desktop-save-bg)' : 'var(--desktop-save-disabled-bg)', color: canSaveEdit ? 'var(--desktop-save-text)' : 'var(--desktop-save-disabled-text)', border: 'none', borderRadius: 14, fontSize: 15, fontWeight: 600, cursor: canSaveEdit ? 'pointer' : 'not-allowed' }}>
-                  Save
+                  {t.save}
                 </button>
               </div>
             </div>
@@ -1407,7 +1446,7 @@ function App() {
           setAppearance={setAppearance}
           onSignOut={handleSignOut}
         />
-        <DragOverlayCard task={draggedTask} rect={desktopDragOverlayRectRef.current} appearance={appearance} />
+        <DragOverlayCard task={draggedTask} rect={desktopDragOverlayRectRef.current} appearance={appearance} labels={t} />
       </div>
     </>
   );

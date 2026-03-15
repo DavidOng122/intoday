@@ -1,7 +1,10 @@
 import { useState } from 'react';
 import { supabase, isSupabaseConfigured } from './supabase';
 import IntoDayLogo from './components/IntoDayLogo';
+import { translations } from './lib/translations';
 import './DesktopLogin.css';
+
+const DESKTOP_LANGUAGE_KEY = 'desktop_profile_language';
 
 const GoogleIcon = () => (
   <svg viewBox="0 0 24 24" className="desktop-login__google-icon" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
@@ -15,6 +18,8 @@ const GoogleIcon = () => (
 function DesktopLogin() {
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const [language] = useState(() => localStorage.getItem(DESKTOP_LANGUAGE_KEY) || 'EN');
+  const t = translations[language] || translations.EN;
 
   const handleGoogleLogin = async () => {
     if (!isSupabaseConfigured) return;
@@ -35,7 +40,7 @@ function DesktopLogin() {
       }
     } catch (error) {
       console.error('Login error:', error);
-      setErrorMessage(error?.message || 'Unable to start Google sign-in.');
+      setErrorMessage(error?.message || t.loginErrorDefault);
       setLoading(false);
     }
   };
@@ -51,7 +56,7 @@ function DesktopLogin() {
       </header>
 
       <main className="desktop-login__main">
-        <section className="desktop-login__panel" aria-label="Login introduction">
+        <section className="desktop-login__panel" aria-label={t.loginIntroduction}>
           <div className="desktop-login__hero-mark" aria-hidden="true">
             <img
               src="/stonereal-1.svg"
@@ -60,10 +65,10 @@ function DesktopLogin() {
             />
           </div>
 
-          <h1 className="desktop-login__title">Pick up your day</h1>
+          <h1 className="desktop-login__title">{t.loginHeroTitle}</h1>
 
           <p className="desktop-login__description">
-            Sign in to keep today&apos;s things in one place.
+            {t.loginHeroDescription}
           </p>
 
           <div className="desktop-login__actions">
@@ -78,7 +83,7 @@ function DesktopLogin() {
               ) : (
                 <GoogleIcon />
               )}
-              <span>{loading ? 'Signing in...' : 'Continue with Google'}</span>
+              <span>{loading ? t.signingIn : t.continueWithGoogle}</span>
             </button>
 
             {errorMessage && (
@@ -87,7 +92,7 @@ function DesktopLogin() {
 
             {!isSupabaseConfigured && (
               <p className="desktop-login__status desktop-login__status--warning">
-                Supabase is not configured yet. Check your environment variables.
+                {t.supabaseConfigWarning}
               </p>
             )}
           </div>

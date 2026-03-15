@@ -23,6 +23,66 @@ export {
   normalizeCardType,
 };
 
+const DEFAULT_TASK_CARD_LABELS = {
+  actionItem: 'Action Item',
+  music: 'Music',
+  link: 'Link',
+  video: 'Video',
+  podcast: 'Podcast',
+  place: 'Place',
+  text: 'Text',
+  document: 'Document',
+  meeting: 'Meeting',
+  social: 'Social',
+  shopping: 'Shopping',
+  financial: 'Financial',
+  savedVideo: 'Saved Video',
+  savedFromYouTube: 'Saved from YouTube',
+  savedFromVimeo: 'Saved from Vimeo',
+  savedFromTikTok: 'Saved from TikTok',
+  googleMaps: 'Google Maps',
+  location: 'Location',
+  meetingLink: 'Meeting Link',
+};
+
+const normalizeTaskCardLabels = (labels) => {
+  if (!labels) return DEFAULT_TASK_CARD_LABELS;
+  if (typeof labels === 'string') {
+    return {
+      ...DEFAULT_TASK_CARD_LABELS,
+      actionItem: labels,
+    };
+  }
+
+  return {
+    ...DEFAULT_TASK_CARD_LABELS,
+    ...labels,
+  };
+};
+
+const resolveLocalizedTaskCardSubLabel = (value, labels) => {
+  if (!value) return value;
+
+  switch (value) {
+    case 'Saved Video':
+      return labels.savedVideo;
+    case 'Saved from YouTube':
+      return labels.savedFromYouTube;
+    case 'Saved from Vimeo':
+      return labels.savedFromVimeo;
+    case 'Saved from TikTok':
+      return labels.savedFromTikTok;
+    case 'Google Maps':
+      return labels.googleMaps;
+    case 'Location':
+      return labels.location;
+    case 'Meeting Link':
+      return labels.meetingLink;
+    default:
+      return value;
+  }
+};
+
 export const fetchVideoMeta = async (url) => {
   try {
     if (/youtube\.com|youtu\.be/i.test(url)) {
@@ -141,8 +201,9 @@ export const fetchMapMeta = async (url) => {
 
 export const getTaskCardPresentation = (
   task,
-  actionItemLabel = 'Action Item'
+  labelsInput = DEFAULT_TASK_CARD_LABELS
 ) => {
+  const labels = normalizeTaskCardLabels(labelsInput);
   const cType = normalizeCardType(task.cardType);
   const cfg = cardTypeConfig[cType] || cardTypeConfig[CARD_TYPES.TEXT];
 
@@ -152,7 +213,7 @@ export const getTaskCardPresentation = (
   const isText = isTextCardType(cType);
 
   let displayTitle = task.text || '';
-  let displaySub = isText ? actionItemLabel : (cardTypeLabels[cType] || 'Link');
+  let displaySub = isText ? labels.actionItem : (labels[cType] || cardTypeLabels[cType] || labels.link);
   let redirectUrl =
     task.redirectUrl ||
     task.videoUrl ||
@@ -162,18 +223,18 @@ export const getTaskCardPresentation = (
 
   if (isVideo && task.videoTitle) {
     displayTitle = task.videoTitle;
-    displaySub = task.videoPlatform || 'Saved Video';
+    displaySub = resolveLocalizedTaskCardSubLabel(task.videoPlatform, labels) || labels.savedVideo;
     redirectUrl = task.videoUrl || redirectUrl;
   } else if (isPlace && task.mapTitle) {
     displayTitle = task.mapTitle;
-    displaySub = task.mapSubtitle || 'Location';
+    displaySub = resolveLocalizedTaskCardSubLabel(task.mapSubtitle, labels) || labels.location;
     redirectUrl = task.mapUrl || redirectUrl;
   } else if (isMeeting) {
     const timeMatch = (task.text || '').match(
       /\b(\d{1,2}:\d{2}(?:\s*[APap][Mm])?|\d{1,2}\s*[APap][Mm])\b/
     );
 
-    displaySub = timeMatch ? timeMatch[1].trim() : 'Meeting Link';
+    displaySub = timeMatch ? timeMatch[1].trim() : labels.meetingLink;
     redirectUrl = task.redirectUrl || extractMeetingUrl(task.text || '') || redirectUrl;
 
     displayTitle =

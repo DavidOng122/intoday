@@ -1140,20 +1140,6 @@ function MobileApp({ session, platformInfo }) {
   const suppressAllCardClicksUntilRef = useRef(0);
   const suppressClickTimeoutRef = useRef(null);
   const openSwipeTodoIdRef = useRef(null);
-  const openTaskRedirect = useCallback((url) => {
-    if (!url) return;
-
-    if (isNativePlatform) {
-      try {
-        window.location.assign(url);
-        return;
-      } catch (_) {
-        // Fall back to a regular browser open when native handoff is unavailable.
-      }
-    }
-
-    window.open(url, '_blank', 'noopener,noreferrer');
-  }, [isNativePlatform]);
 
   const handleAddTodo = () => {
     if (!inputText.trim()) return;
@@ -1191,12 +1177,6 @@ function MobileApp({ session, platformInfo }) {
         setTodos(prev => prev.map(t => t.id === newTodoId ? { ...t, ...meta } : t));
       });
     }
-  };
-
-  const toggleTodo = (id) => {
-    setTodos(prev => prev.map(todo =>
-      todo.id === id ? { ...todo, completed: !todo.completed } : todo
-    ));
   };
 
   const [draggedTodoId, setDraggedTodoId] = useState(null);
@@ -2085,9 +2065,7 @@ function MobileApp({ session, platformInfo }) {
                 cfg,
                 displayTitle,
                 displaySub,
-                redirectUrl,
-                isText,
-              } = getTaskCardPresentation(todo, translations[language].actionItem);
+              } = getTaskCardPresentation(todo, translations[language]);
 
               const canUseDesktopDrag = !options.isStatic && !isCoarsePointer;
 
@@ -2123,7 +2101,7 @@ function MobileApp({ session, platformInfo }) {
                   <div
                     id={`swipe-card-${todo.id}`}
                     data-todo-id={todo.id}
-                    className={`task-card ${todo.completed ? 'completed' : ''} ${draggedTodoId === todo.id ? 'dragging' : ''}`}
+                    className={`task-card ${draggedTodoId === todo.id ? 'dragging' : ''}`}
                     onClick={() => {
                       if (Date.now() < suppressAllCardClicksUntilRef.current) {
                         return;
@@ -2136,15 +2114,7 @@ function MobileApp({ session, platformInfo }) {
                         suppressCardClickRef.current = null;
                         return;
                       }
-                      if (isText) {
-                        openEdit(todo);
-                        return;
-                      }
-                      if (redirectUrl) {
-                        openTaskRedirect(redirectUrl);
-                      } else {
-                        toggleTodo(todo.id);
-                      }
+                      openEdit(todo);
                     }}
                     draggable={canUseDesktopDrag}
                     onDragStart={canUseDesktopDrag ? (e) => handleDragStart(e, todo.id) : undefined}
@@ -2174,7 +2144,7 @@ function MobileApp({ session, platformInfo }) {
         </div>
       );
     });
-  }, [appearance, closeSwipeActions, deleteTodo, draggedTodoId, getDayTodos, getSwipeHandlers, handleDragEnd, handleDragOver, handleDropOnBlock, handleDropOnTodo, isCoarsePointer, language, openEdit, openTaskRedirect, toggleTodo]);
+  }, [appearance, closeSwipeActions, deleteTodo, draggedTodoId, getDayTodos, getSwipeHandlers, handleDragEnd, handleDragOver, handleDropOnBlock, handleDropOnTodo, isCoarsePointer, language, openEdit]);
 
   const timelinePanels = useMemo(() => {
     if (!dayTransition) {
@@ -2779,8 +2749,8 @@ function MobileApp({ session, platformInfo }) {
               {...editSwipeHandlers}
             >
               <div className="edit-modal-header">
-                <h2 className="edit-modal-title" id="edit-modal-title">Edit</h2>
-                <button type="button" className="edit-modal-close" onClick={closeEditModal} aria-label="Close edit modal">
+                <h2 className="edit-modal-title" id="edit-modal-title">{translations[language].editTaskTitle}</h2>
+                <button type="button" className="edit-modal-close" onClick={closeEditModal} aria-label={translations[language].close}>
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="black" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
                 </button>
               </div>
@@ -2799,12 +2769,12 @@ function MobileApp({ session, platformInfo }) {
                   }}
                   autoFocus
                   rows={6}
-                  placeholder="Edit task..."
+                  placeholder={translations[language].editTaskPlaceholder}
                 />
               </div>
               <div className="edit-modal-actions">
                 <button type="button" className="edit-modal-save-btn" onClick={handleEditSave}>
-                  Save Changes
+                  {translations[language].save}
                 </button>
               </div>
             </div>
