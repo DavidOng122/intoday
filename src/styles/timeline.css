@@ -164,11 +164,6 @@
   opacity: 0;
 }
 
-.tasks-col-swipe-enabled {
-  touch-action: pan-y;
-  user-select: none;
-}
-
 .tasks-col.drag-over {
   border-radius: 12px;
   background: rgba(0, 0, 0, 0.03);

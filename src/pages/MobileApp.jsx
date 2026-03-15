@@ -544,21 +544,12 @@ function MobileApp({ session, platformInfo }) {
   const [secondaryOverlayBlockIds, setSecondaryOverlayBlockIds] = useState([]);
   const dayScrollPositionsRef = React.useRef({});
   const hasAutoScrolledToTodayRef = React.useRef(false);
-  // Scroll behavior is explicit so initial Today entry, Today-icon taps,
-  // and horizontal day navigation can each do the right thing.
+  // Scroll behavior is explicit so initial Today entry and date-selection
+  // transitions can each do the right thing.
   const pendingTimelineScrollActionRef = React.useRef({
     type: 'initial-today',
     scrollTop: null,
     behavior: 'auto',
-  });
-  const daySwipeStateRef = React.useRef({
-    pointerId: null,
-    startX: 0,
-    startY: 0,
-    lastX: 0,
-    lastY: 0,
-    startTime: 0,
-    lock: null,
   });
   const transitionTimeoutRef = React.useRef(null);
 
@@ -802,18 +793,6 @@ function MobileApp({ session, platformInfo }) {
     return () => clearInterval(timer);
   }, []);
 
-  const resetDaySwipeState = useCallback(() => {
-    daySwipeStateRef.current = {
-      pointerId: null,
-      startX: 0,
-      startY: 0,
-      lastX: 0,
-      lastY: 0,
-      startTime: 0,
-      lock: null,
-    };
-  }, []);
-
   const finishDayTransition = useCallback((nextDate) => {
     setSelectedDate(nextDate);
     setDaySwipeOffset(0);
@@ -942,6 +921,7 @@ function MobileApp({ session, platformInfo }) {
   const autoScrollVelocity = React.useRef(0);
   const autoScrollFrameRef = React.useRef(null);
   const autoScrollLastTsRef = React.useRef(null);
+  const autoScrollRemainderRef = React.useRef(0);
   const dragTouchMoveHandlerRef = React.useRef(null);
   const dragTouchEndHandlerRef = React.useRef(null);
 
@@ -1026,10 +1006,29 @@ function MobileApp({ session, platformInfo }) {
   const stopAutoScroll = useCallback(() => {
     autoScrollVelocity.current = 0;
     autoScrollLastTsRef.current = null;
+    autoScrollRemainderRef.current = 0;
     if (autoScrollFrameRef.current !== null) {
       cancelAnimationFrame(autoScrollFrameRef.current);
       autoScrollFrameRef.current = null;
     }
+  }, []);
+
+  const applyAutoScrollDelta = useCallback((rawDelta, todoId) => {
+    const timelineEl = timelineRef.current;
+    if (!timelineEl || !todoId || rawDelta === 0) return false;
+
+    const maxScrollTop = Math.max(0, timelineEl.scrollHeight - timelineEl.clientHeight);
+    const prevScrollTop = timelineEl.scrollTop;
+    const nextScrollTop = Math.max(0, Math.min(maxScrollTop, prevScrollTop + rawDelta));
+    const appliedDelta = nextScrollTop - prevScrollTop;
+
+    if (appliedDelta === 0) {
+      return false;
+    }
+
+    timelineEl.scrollTop = nextScrollTop;
+    syncDraggedCardPosition(todoId, dragTouchY.current);
+    return true;
   }, []);
 
   const runAutoScroll = useCallback((timestamp) => {
@@ -1053,16 +1052,16 @@ function MobileApp({ session, platformInfo }) {
     autoScrollLastTsRef.current = timestamp;
 
     if (autoScrollVelocity.current !== 0) {
-      const prevScrollTop = timelineEl.scrollTop;
-      const maxScrollTop = Math.max(0, timelineEl.scrollHeight - timelineEl.clientHeight);
-      const nextScrollTop = Math.max(
-        0,
-        Math.min(maxScrollTop, prevScrollTop + autoScrollVelocity.current * elapsed)
-      );
-      if (nextScrollTop !== prevScrollTop) {
-        timelineEl.scrollTop = nextScrollTop;
-        syncDraggedCardPosition(todoId, dragTouchY.current);
-      } else {
+      autoScrollRemainderRef.current += autoScrollVelocity.current * elapsed;
+      const delta = autoScrollRemainderRef.current > 0
+        ? Math.floor(autoScrollRemainderRef.current)
+        : Math.ceil(autoScrollRemainderRef.current);
+
+      if (delta !== 0) {
+        autoScrollRemainderRef.current -= delta;
+      }
+
+      if (delta !== 0 && !applyAutoScrollDelta(delta, todoId)) {
         stopAutoScroll();
         return;
       }
@@ -1081,17 +1080,20 @@ function MobileApp({ session, platformInfo }) {
     if (!timelineEl) return;
 
     const rect = timelineEl.getBoundingClientRect();
-    const SCROLL_ZONE = 140;
-    const MAX_SPEED = 2.1; // px per ms
+    const viewportHeight = window.visualViewport?.height || window.innerHeight;
+    const topBoundary = Math.max(rect.top, 0);
+    const bottomBoundary = Math.min(rect.bottom, viewportHeight);
+    const SCROLL_ZONE = Math.min(180, Math.max(120, (bottomBoundary - topBoundary) * 0.24));
+    const MAX_SPEED = 2.8; // px per ms
     const maxScrollTop = Math.max(0, timelineEl.scrollHeight - timelineEl.clientHeight);
 
     let velocity = 0;
 
-    if (touchY < rect.top + SCROLL_ZONE) {
-      const intensity = (rect.top + SCROLL_ZONE - touchY) / SCROLL_ZONE;
+    if (touchY < topBoundary + SCROLL_ZONE) {
+      const intensity = (topBoundary + SCROLL_ZONE - touchY) / SCROLL_ZONE;
       velocity = -MAX_SPEED * Math.min(Math.max(intensity, 0), 1);
-    } else if (touchY > rect.bottom - SCROLL_ZONE) {
-      const intensity = (touchY - (rect.bottom - SCROLL_ZONE)) / SCROLL_ZONE;
+    } else if (touchY > bottomBoundary - SCROLL_ZONE) {
+      const intensity = (touchY - (bottomBoundary - SCROLL_ZONE)) / SCROLL_ZONE;
       velocity = MAX_SPEED * Math.min(Math.max(intensity, 0), 1);
     }
 
@@ -1101,12 +1103,20 @@ function MobileApp({ session, platformInfo }) {
 
     autoScrollVelocity.current = velocity;
 
+    if (velocity !== 0) {
+      const immediateDelta = velocity * 18;
+      if (!applyAutoScrollDelta(immediateDelta, activeDragTodoIdRef.current)) {
+        velocity = 0;
+        autoScrollVelocity.current = 0;
+      }
+    }
+
     if (velocity !== 0 && autoScrollFrameRef.current === null) {
       autoScrollFrameRef.current = requestAnimationFrame(runAutoScroll);
     } else if (velocity === 0) {
       stopAutoScroll();
     }
-  }, [runAutoScroll, stopAutoScroll]);
+  }, [applyAutoScrollDelta, runAutoScroll, stopAutoScroll]);
 
   const clearTouchDragPressTimer = useCallback(() => {
     if (touchDragPressTimerRef.current !== null) {
@@ -1594,92 +1604,6 @@ function MobileApp({ session, platformInfo }) {
 
   const getRelativeWeekText = () => <strong>{getRelativeWeekLabel()}</strong>;
 
-  const handleDaySwipePointerDown = useCallback((e) => {
-    if (!isCoarsePointer || anyOverlayOpen || dayTransition || !e.isPrimary || e.pointerType !== 'touch') return;
-    if (e.currentTarget !== e.target) return;
-    timelineTouchActiveRef.current = true;
-    activateTimelineLabels();
-
-    daySwipeStateRef.current = {
-      pointerId: e.pointerId,
-      startX: e.clientX,
-      startY: e.clientY,
-      lastX: e.clientX,
-      lastY: e.clientY,
-      startTime: performance.now(),
-      lock: null,
-    };
-
-    e.currentTarget.setPointerCapture?.(e.pointerId);
-  }, [activateTimelineLabels, anyOverlayOpen, dayTransition, isCoarsePointer]);
-
-  const handleDaySwipePointerMove = useCallback((e) => {
-    const swipe = daySwipeStateRef.current;
-    if (swipe.pointerId !== e.pointerId || anyOverlayOpen || dayTransition) return;
-    timelineTouchActiveRef.current = true;
-    activateTimelineLabels();
-
-    const dx = e.clientX - swipe.startX;
-    const dy = e.clientY - swipe.startY;
-    swipe.lastX = e.clientX;
-    swipe.lastY = e.clientY;
-
-    if (!swipe.lock) {
-      if (Math.abs(dx) < DAY_SWIPE_CONFIG.INTENT_THRESHOLD_PX && Math.abs(dy) < DAY_SWIPE_CONFIG.INTENT_THRESHOLD_PX) {
-        return;
-      }
-
-      if (Math.abs(dx) > Math.abs(dy) * DAY_SWIPE_CONFIG.HORIZONTAL_LOCK_RATIO && Math.abs(dx) > DAY_SWIPE_CONFIG.INTENT_THRESHOLD_PX) {
-        swipe.lock = 'horizontal';
-      } else {
-        swipe.lock = 'vertical';
-        setDaySwipeOffset(0);
-        return;
-      }
-    }
-
-    if (swipe.lock !== 'horizontal') return;
-
-    if (e.cancelable) {
-      e.preventDefault();
-    }
-
-    const resistedOffset = Math.sign(dx) * Math.min(
-      Math.abs(dx) * DAY_SWIPE_CONFIG.DRAG_RESISTANCE,
-      DAY_SWIPE_CONFIG.MAX_DRAG_OFFSET_PX
-    );
-    setDaySwipeOffset(resistedOffset);
-  }, [activateTimelineLabels, anyOverlayOpen, dayTransition]);
-
-  const handleDaySwipePointerEnd = useCallback((e) => {
-    const swipe = daySwipeStateRef.current;
-    if (swipe.pointerId !== e.pointerId) return;
-    timelineTouchActiveRef.current = false;
-
-    e.currentTarget.releasePointerCapture?.(e.pointerId);
-
-    const totalDx = e.clientX - swipe.startX;
-    const elapsed = Math.max(performance.now() - swipe.startTime, 1);
-    const velocityX = totalDx / elapsed;
-
-    const shouldChangeDay = swipe.lock === 'horizontal' && (
-      Math.abs(totalDx) >= DAY_SWIPE_CONFIG.CHANGE_DAY_THRESHOLD_PX ||
-      Math.abs(velocityX) >= DAY_SWIPE_CONFIG.VELOCITY_THRESHOLD_PX_PER_MS
-    );
-
-    if (shouldChangeDay && !dayTransition && !anyOverlayOpen) {
-      const nextDate = totalDx < 0 ? addDays(selectedDate, 1) : subDays(selectedDate, 1);
-      transitionToDate(nextDate, {
-        durationMs: DAY_SWIPE_CONFIG.SWIPE_ANIMATION_DURATION_MS,
-      });
-    } else {
-      setDaySwipeOffset(0);
-    }
-
-    resetDaySwipeState();
-    scheduleHideTimelineLabels(900);
-  }, [anyOverlayOpen, dayTransition, resetDaySwipeState, scheduleHideTimelineLabels, selectedDate, transitionToDate]);
-
   const renderTimelineBlocks = useCallback((date, options = {}) => {
     const dayTodos = getDayTodos(date);
     const dateKey = format(date, 'yyyy-MM-dd');
@@ -1687,7 +1611,6 @@ function MobileApp({ session, platformInfo }) {
     return timeBlocks.map((block) => {
       const blockTodos = dayTodos.filter(t => t.timeOfDay === block.id);
       const indicatorStyle = getTimeIndicatorStyle(block, date);
-      const enableEmptyAreaSwipe = !options.isStatic;
 
       return (
         <div
@@ -1710,14 +1633,10 @@ function MobileApp({ session, platformInfo }) {
             <span className="time-text bottom">{block.end}</span>
           </div>
           <div
-            className={`tasks-col ${enableEmptyAreaSwipe ? 'tasks-col-swipe-enabled' : ''}`}
+            className="tasks-col"
             data-block-id={block.id}
             onDragOver={options.isStatic ? undefined : handleDragOver}
             onDrop={options.isStatic ? undefined : (e) => handleDropOnBlock(e, block.id)}
-            onPointerDown={enableEmptyAreaSwipe ? handleDaySwipePointerDown : undefined}
-            onPointerMove={enableEmptyAreaSwipe ? handleDaySwipePointerMove : undefined}
-            onPointerUp={enableEmptyAreaSwipe ? handleDaySwipePointerEnd : undefined}
-            onPointerCancel={enableEmptyAreaSwipe ? handleDaySwipePointerEnd : undefined}
           >
             {blockTodos.map(todo => {
               const cType = todo.cardType || 'plain';
@@ -1843,7 +1762,7 @@ function MobileApp({ session, platformInfo }) {
         </div>
       );
     });
-  }, [appearance, closeSwipeActions, deleteTodo, draggedTodoId, getDayTodos, getSwipeHandlers, handleDaySwipePointerDown, handleDaySwipePointerEnd, handleDaySwipePointerMove, handleDragEnd, handleDragOver, handleDropOnBlock, handleDropOnTodo, isCoarsePointer, language, openEdit, toggleTodo]);
+  }, [appearance, closeSwipeActions, deleteTodo, draggedTodoId, getDayTodos, getSwipeHandlers, handleDragEnd, handleDragOver, handleDropOnBlock, handleDropOnTodo, isCoarsePointer, language, openEdit, toggleTodo]);
 
   const timelinePanels = useMemo(() => {
     if (!dayTransition) {
