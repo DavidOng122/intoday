@@ -60,6 +60,14 @@
 }
 
 .time-block {
+  --timeline-overlay-offset: 12px;
+  --timeline-overlay-label-height: 16px;
+  --timeline-overlay-label-gap: 10px;
+  --timeline-overlay-clearance: calc(
+    var(--timeline-overlay-offset) +
+    var(--timeline-overlay-label-height) +
+    var(--timeline-overlay-label-gap)
+  );
   display: flex;
   min-height: 248px;
   border-bottom: 1px solid #EEE8DF;
@@ -121,7 +129,7 @@
 
 .tasks-col {
   flex: 1;
-  padding: 14px 18px 24px;
+  padding: var(--timeline-overlay-clearance) 18px 24px;
   display: flex;
   flex-direction: column;
   gap: 12px;
