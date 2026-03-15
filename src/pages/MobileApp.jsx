@@ -51,6 +51,8 @@ const DAY_SWIPE_CONFIG = {
   SWIPE_ANIMATION_DURATION_MS: 250,
   TAP_ANIMATION_DURATION_MS: 220,
 };
+const TOUCH_DRAG_LONG_PRESS_MS = 260;
+const TOUCH_DRAG_CANCEL_DISTANCE = 10;
 const SWIPE_ACTION_MAX = 132;
 const SWIPE_ACTION_OPEN = 108;
 const SWIPE_ACTION_THRESHOLD = 44;
@@ -919,6 +921,8 @@ function MobileApp({ session, platformInfo }) {
   const swipeStartOffset = React.useRef(0);
   const swipeCurrentOffset = React.useRef(0);
   const isDragMode = React.useRef(false);
+  const touchDragPressTimerRef = React.useRef(null);
+  const touchDragReadyRef = React.useRef(false);
   const dragOriginY = React.useRef(0);
   const dragTouchY = React.useRef(0);
   const activeDragTodoIdRef = React.useRef(null);
@@ -928,6 +932,10 @@ function MobileApp({ session, platformInfo }) {
   const autoScrollLastTsRef = React.useRef(null);
 
   useEffect(() => () => {
+    if (touchDragPressTimerRef.current !== null) {
+      window.clearTimeout(touchDragPressTimerRef.current);
+      touchDragPressTimerRef.current = null;
+    }
     if (suppressClickTimeoutRef.current !== null) {
       window.clearTimeout(suppressClickTimeoutRef.current);
     }
@@ -1077,6 +1085,44 @@ function MobileApp({ session, platformInfo }) {
     }
   }, [runAutoScroll, stopAutoScroll]);
 
+  const clearTouchDragPressTimer = useCallback(() => {
+    if (touchDragPressTimerRef.current !== null) {
+      window.clearTimeout(touchDragPressTimerRef.current);
+      touchDragPressTimerRef.current = null;
+    }
+  }, []);
+
+  const startTouchDrag = useCallback((todoId) => {
+    closeSwipeActions(todoId);
+    touchDragReadyRef.current = true;
+    isDragMode.current = true;
+    dragOriginY.current = dragTouchY.current || swipeTouchStartY.current || 0;
+    activeDragTodoIdRef.current = todoId;
+    setDraggedTodoId(todoId);
+    lockTimelineScroll();
+
+    const el = document.getElementById(`swipe-card-${todoId}`);
+    const wrapper = document.getElementById(`swipe-wrapper-${todoId}`);
+    if (el) {
+      el.style.transition = 'box-shadow 0.12s ease, opacity 0.12s ease';
+      el.style.boxShadow = '0 12px 30px rgba(0, 0, 0, 0.12)';
+      el.style.opacity = '0.95';
+      el.style.zIndex = '100';
+      el.style.willChange = 'transform';
+    }
+
+    const blocker = (ev) => ev.preventDefault();
+    scrollBlocker.current = blocker;
+    window.addEventListener('touchmove', blocker, { passive: false });
+
+    if (wrapper) {
+      wrapper.classList.add('is-dragging');
+      const parentBlock = wrapper.closest('.time-block');
+      if (parentBlock) parentBlock.classList.add('is-dragging-parent');
+    }
+    document.body.classList.add('is-dragging-global');
+  }, [closeSwipeActions, lockTimelineScroll]);
+
   const setSwipeOffset = useCallback((todoId, offset, options = {}) => {
     const { animate = false } = options;
     const nextOffset = Math.max(0, Math.min(offset, SWIPE_ACTION_OPEN));
@@ -1147,9 +1193,17 @@ function MobileApp({ session, platformInfo }) {
       }
       swipeTouchStartX.current = touch.clientX;
       swipeTouchStartY.current = touch.clientY;
+      dragTouchY.current = touch.clientY;
       swipeStartOffset.current = openSwipeTodoIdRef.current === todoId ? SWIPE_ACTION_OPEN : 0;
-      isDragMode.current = false; // wait for direction detection in onTouchMove
+      touchDragReadyRef.current = false;
+      isDragMode.current = false;
       swipeCurrentOffset.current = swipeStartOffset.current;
+      clearTouchDragPressTimer();
+      touchDragPressTimerRef.current = window.setTimeout(() => {
+        touchDragPressTimerRef.current = null;
+        if (swipeTouchStartY.current === null || swipeTouchStartX.current === null || isDragMode.current) return;
+        startTouchDrag(todoId);
+      }, TOUCH_DRAG_LONG_PRESS_MS);
     },
     onTouchMove: (e) => {
       const touch = e.touches[0];
@@ -1157,11 +1211,11 @@ function MobileApp({ session, platformInfo }) {
 
       const deltaX = touch.clientX - swipeTouchStartX.current;
       const deltaY = touch.clientY - swipeTouchStartY.current;
+      dragTouchY.current = touch.clientY;
 
       // If already in drag mode, handle vertical dragging
       if (isDragMode.current) {
         e.preventDefault();
-        dragTouchY.current = touch.clientY;
         updateAutoScroll(touch.clientY);
         syncDraggedCardPosition(todoId, touch.clientY);
         return;
@@ -1171,40 +1225,16 @@ function MobileApp({ session, platformInfo }) {
       const DIRECTION_THRESHOLD = 8;
       if (Math.abs(deltaX) < DIRECTION_THRESHOLD && Math.abs(deltaY) < DIRECTION_THRESHOLD) return;
 
+      const movedTooFarForLongPress = (
+        Math.abs(deltaX) > TOUCH_DRAG_CANCEL_DISTANCE ||
+        Math.abs(deltaY) > TOUCH_DRAG_CANCEL_DISTANCE
+      );
+      if (movedTooFarForLongPress && !touchDragReadyRef.current) {
+        clearTouchDragPressTimer();
+      }
+
       if (Math.abs(deltaY) > Math.abs(deltaX)) {
-        // Vertical movement → activate drag immediately (no long press)
-        e.preventDefault();
-        closeSwipeActions(todoId);
-        isDragMode.current = true;
-        dragOriginY.current = swipeTouchStartY.current;
-        dragTouchY.current = touch.clientY;
-        activeDragTodoIdRef.current = todoId;
-        setDraggedTodoId(todoId);
-        lockTimelineScroll();
-
-        const el = document.getElementById(`swipe-card-${todoId}`);
-        const wrapper = document.getElementById(`swipe-wrapper-${todoId}`);
-        if (el) {
-          el.style.transition = 'box-shadow 0.12s ease, opacity 0.12s ease';
-          el.style.boxShadow = '0 12px 30px rgba(0, 0, 0, 0.12)';
-          el.style.opacity = '0.95';
-          el.style.zIndex = '100';
-          el.style.willChange = 'transform';
-        }
-        // Lock page scroll
-        const blocker = (ev) => ev.preventDefault();
-        scrollBlocker.current = blocker;
-        window.addEventListener('touchmove', blocker, { passive: false });
-
-        if (wrapper) {
-          wrapper.classList.add('is-dragging');
-          const parentBlock = wrapper.closest('.time-block');
-          if (parentBlock) parentBlock.classList.add('is-dragging-parent');
-        }
-        document.body.classList.add('is-dragging-global');
-
-        syncDraggedCardPosition(todoId, touch.clientY);
-        updateAutoScroll(touch.clientY);
+        return;
       } else {
         // Horizontal movement → reveal actions
         if (e.cancelable) {
@@ -1228,9 +1258,11 @@ function MobileApp({ session, platformInfo }) {
       }
     },
     onTouchEnd: () => {
+      clearTouchDragPressTimer();
       if (isDragMode.current) {
         suppressNextCardClick(todoId);
         isDragMode.current = false;
+        touchDragReadyRef.current = false;
         stopAutoScroll();
         const el = document.getElementById(`swipe-card-${todoId}`);
         const wrapper = document.getElementById(`swipe-wrapper-${todoId}`);
@@ -1287,8 +1319,10 @@ function MobileApp({ session, platformInfo }) {
       swipeTouchStartY.current = null;
       swipeStartOffset.current = 0;
       swipeCurrentOffset.current = 0;
+      touchDragReadyRef.current = false;
     },
     onTouchCancel: () => {
+      clearTouchDragPressTimer();
       if (isDragMode.current) return;
 
       if (swipeCurrentOffset.current >= SWIPE_ACTION_THRESHOLD) {
@@ -1301,6 +1335,7 @@ function MobileApp({ session, platformInfo }) {
       swipeTouchStartY.current = null;
       swipeStartOffset.current = 0;
       swipeCurrentOffset.current = 0;
+      touchDragReadyRef.current = false;
     },
   });
 
@@ -1647,6 +1682,8 @@ function MobileApp({ session, platformInfo }) {
                 redirectUrl = todo.mapUrl;
               }
 
+              const canUseDesktopDrag = !options.isStatic && !isCoarsePointer;
+
               return (
                 <div key={todo.id} id={`swipe-wrapper-${todo.id}`} className="swipe-wrapper">
                   <div className="swipe-actions">
@@ -1698,11 +1735,11 @@ function MobileApp({ session, platformInfo }) {
                         toggleTodo(todo.id);
                       }
                     }}
-                    draggable={!options.isStatic}
-                    onDragStart={options.isStatic ? undefined : (e) => handleDragStart(e, todo.id)}
-                    onDragEnd={options.isStatic ? undefined : handleDragEnd}
-                    onDragOver={options.isStatic ? undefined : handleDragOver}
-                    onDrop={options.isStatic ? undefined : (e) => handleDropOnTodo(e, todo)}
+                    draggable={canUseDesktopDrag}
+                    onDragStart={canUseDesktopDrag ? (e) => handleDragStart(e, todo.id) : undefined}
+                    onDragEnd={canUseDesktopDrag ? handleDragEnd : undefined}
+                    onDragOver={canUseDesktopDrag ? handleDragOver : undefined}
+                    onDrop={canUseDesktopDrag ? (e) => handleDropOnTodo(e, todo) : undefined}
                     {...(options.isStatic ? {} : getSwipeHandlers(todo.id))}
                   >
                     <div
@@ -1726,7 +1763,7 @@ function MobileApp({ session, platformInfo }) {
         </div>
       );
     });
-  }, [appearance, closeSwipeActions, deleteTodo, draggedTodoId, getDayTodos, getSwipeHandlers, handleDaySwipePointerDown, handleDaySwipePointerEnd, handleDaySwipePointerMove, handleDragEnd, handleDragOver, handleDropOnBlock, handleDropOnTodo, language, openEdit, toggleTodo]);
+  }, [appearance, closeSwipeActions, deleteTodo, draggedTodoId, getDayTodos, getSwipeHandlers, handleDaySwipePointerDown, handleDaySwipePointerEnd, handleDaySwipePointerMove, handleDragEnd, handleDragOver, handleDropOnBlock, handleDropOnTodo, isCoarsePointer, language, openEdit, toggleTodo]);
 
   const timelinePanels = useMemo(() => {
     if (!dayTransition) {
