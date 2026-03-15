@@ -1697,7 +1697,7 @@ function MobileApp({ session, platformInfo }) {
                         openEdit(todo);
                       }}
                     >
-                      <PenLine size={18} strokeWidth={2.2} />
+                      <PenLine size={14.4} strokeWidth={2.2} />
                     </button>
                     <button
                       type="button"
@@ -1709,7 +1709,7 @@ function MobileApp({ session, platformInfo }) {
                         deleteTodo(todo.id);
                       }}
                     >
-                      <Trash2 size={18} strokeWidth={2.2} />
+                      <Trash2 size={14.4} strokeWidth={2.2} />
                     </button>
                   </div>
 
