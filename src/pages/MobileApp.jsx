@@ -818,6 +818,7 @@ function MobileApp({ session, platformInfo }) {
   });
   const [daySwipeOffset, setDaySwipeOffset] = useState(0);
   const [dayTransition, setDayTransition] = useState(null);
+  const [directDayFlipDirection, setDirectDayFlipDirection] = useState(null);
   const stripRef = React.useRef(null);
   const timelineShellRef = React.useRef(null);
   const dayRefs = React.useRef({});
@@ -841,6 +842,7 @@ function MobileApp({ session, platformInfo }) {
     behavior: 'auto',
   });
   const transitionTimeoutRef = React.useRef(null);
+  const directDayFlipTimeoutRef = React.useRef(null);
 
   useEffect(() => {
     if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return undefined;
@@ -1201,6 +1203,7 @@ function MobileApp({ session, platformInfo }) {
   const touchDragPressTimerRef = React.useRef(null);
   const touchDragReadyRef = React.useRef(false);
   const dragOriginY = React.useRef(0);
+  const dragOriginX = React.useRef(0);
   const dragTouchX = React.useRef(0);
   const dragTouchY = React.useRef(0);
   const activeTouchIdentifierRef = React.useRef(null);
@@ -1215,6 +1218,7 @@ function MobileApp({ session, platformInfo }) {
   const dragDayFlipTimerRef = React.useRef(null);
   const dragDayFlipDirectionRef = React.useRef(0);
   const dragDayFlipCooldownUntilRef = React.useRef(0);
+  const dragGhostRef = React.useRef(null);
 
   const clearDragDayFlipTimer = useCallback(() => {
     if (dragDayFlipTimerRef.current !== null) {
@@ -1222,6 +1226,59 @@ function MobileApp({ session, platformInfo }) {
       dragDayFlipTimerRef.current = null;
     }
     dragDayFlipDirectionRef.current = 0;
+  }, []);
+
+  const triggerDirectDayFlipFeedback = useCallback((direction) => {
+    if (!direction) return;
+    if (directDayFlipTimeoutRef.current !== null) {
+      window.clearTimeout(directDayFlipTimeoutRef.current);
+    }
+    setDirectDayFlipDirection(direction);
+    directDayFlipTimeoutRef.current = window.setTimeout(() => {
+      directDayFlipTimeoutRef.current = null;
+      setDirectDayFlipDirection(null);
+    }, 320);
+  }, []);
+
+  const removeDragGhost = useCallback(() => {
+    if (dragGhostRef.current) {
+      dragGhostRef.current.remove();
+      dragGhostRef.current = null;
+    }
+  }, []);
+
+  const ensureDragGhost = useCallback((todoId) => {
+    if (dragGhostRef.current) return dragGhostRef.current;
+
+    const sourceEl = document.getElementById(`swipe-card-${todoId}`);
+    if (!sourceEl) return null;
+
+    const rect = sourceEl.getBoundingClientRect();
+    const ghost = sourceEl.cloneNode(true);
+    ghost.removeAttribute('id');
+    ghost.removeAttribute('data-todo-id');
+    ghost.classList.remove('dragging');
+    ghost.classList.add('task-drag-ghost');
+    ghost.style.width = `${rect.width}px`;
+    ghost.style.height = `${rect.height}px`;
+    ghost.style.left = `${rect.left}px`;
+    ghost.style.top = `${rect.top}px`;
+    ghost.style.transform = 'translate3d(0, 0, 0) scale(1.04)';
+    document.body.appendChild(ghost);
+    dragGhostRef.current = ghost;
+    return ghost;
+  }, []);
+
+  const applyDragSourceCardState = useCallback((todoId) => {
+    const sourceEl = document.getElementById(`swipe-card-${todoId}`);
+    if (!sourceEl) return;
+
+    sourceEl.style.transition = 'opacity 0.12s ease, transform 0.12s ease';
+    sourceEl.style.opacity = '0.12';
+    sourceEl.style.transform = 'scale(0.985)';
+    sourceEl.style.boxShadow = 'none';
+    sourceEl.style.zIndex = '';
+    sourceEl.style.willChange = 'opacity, transform';
   }, []);
 
   useEffect(() => () => {
@@ -1245,7 +1302,12 @@ function MobileApp({ session, platformInfo }) {
       window.clearTimeout(dragDayFlipTimerRef.current);
       dragDayFlipTimerRef.current = null;
     }
-  }, []);
+    if (directDayFlipTimeoutRef.current !== null) {
+      window.clearTimeout(directDayFlipTimeoutRef.current);
+      directDayFlipTimeoutRef.current = null;
+    }
+    removeDragGhost();
+  }, [removeDragGhost]);
 
   const suppressNextCardClick = useCallback((todoId) => {
     if (suppressClickTimeoutRef.current !== null) {
@@ -1323,13 +1385,23 @@ function MobileApp({ session, platformInfo }) {
     return { blockId, targetTodoId: nearestTodoId, insertAfter };
   }, []);
 
-  const syncDraggedCardPosition = useCallback((todoId, touchY) => {
+  const syncDraggedCardPosition = useCallback((todoId, touchY, touchX = dragTouchX.current) => {
     const timelineEl = timelineRef.current;
     const scrollDelta = timelineEl ? timelineEl.scrollTop - lockedTimelineScrollTop.current : 0;
+    const rawDx = touchX - dragOriginX.current;
+    const dx = Math.max(-160, Math.min(160, rawDx));
     const rawDy = touchY - dragOriginY.current + scrollDelta;
     const dy = Math.max(-2000, Math.min(2000, rawDy));
-    const el = document.getElementById(`swipe-card-${todoId}`);
-    if (el) el.style.transform = `translate3d(0, ${dy}px, 0) scale(1.04)`;
+    const ghostEl = ensureDragGhost(todoId);
+    if (ghostEl) {
+      ghostEl.style.transform = `translate3d(${dx}px, ${dy}px, 0) scale(1.04)`;
+    } else {
+      const sourceEl = document.getElementById(`swipe-card-${todoId}`);
+      if (sourceEl) {
+        sourceEl.style.transform = `translate3d(${dx}px, ${dy}px, 0) scale(1.04)`;
+      }
+    }
+    applyDragSourceCardState(todoId);
 
     const dragTarget = getTouchDragTarget(todoId, touchY);
     if (dragTarget.blockId !== dragOverBlockRef.current) {
@@ -1338,7 +1410,7 @@ function MobileApp({ session, platformInfo }) {
     }
     dragOverTodoIdRef.current = dragTarget.targetTodoId;
     dragInsertAfterRef.current = dragTarget.insertAfter;
-  }, [getTouchDragTarget]);
+  }, [applyDragSourceCardState, ensureDragGhost, getTouchDragTarget]);
 
   const moveDraggedTodoToDate = useCallback((todoId, nextDate) => {
     if (!todoId || !nextDate) return;
@@ -1377,9 +1449,10 @@ function MobileApp({ session, platformInfo }) {
     dragOverTodoIdRef.current = null;
     dragInsertAfterRef.current = false;
     setDragOverBlock(null);
+    triggerDirectDayFlipFeedback(nextDate > currentDate ? 'next' : 'previous');
     selectedDateRef.current = nextDate;
     setSelectedDate(nextDate);
-  }, [setTodos]);
+  }, [setTodos, triggerDirectDayFlipFeedback]);
 
   const updateDragDayAutoFlip = useCallback((touchX, todoId) => {
     const shellEl = timelineShellRef.current || timelineRef.current;
@@ -1652,6 +1725,8 @@ function MobileApp({ session, platformInfo }) {
       setTimeout(() => { if (el) el.style.transition = ''; }, 350);
     }
 
+    removeDragGhost();
+
     if (wrapper) {
       wrapper.classList.remove('is-dragging');
       const parentBlock = wrapper.closest('.time-block');
@@ -1672,12 +1747,13 @@ function MobileApp({ session, platformInfo }) {
     swipeStartOffset.current = 0;
     swipeCurrentOffset.current = 0;
     dragTouchX.current = 0;
-  }, [clearDragDayFlipTimer, detachTouchDragListeners, stopAutoScroll, suppressNextCardClick, unlockTimelineScroll]);
+  }, [clearDragDayFlipTimer, detachTouchDragListeners, removeDragGhost, stopAutoScroll, suppressNextCardClick, unlockTimelineScroll]);
 
   const startTouchDrag = useCallback((todoId) => {
     closeSwipeActions(todoId);
     touchDragReadyRef.current = true;
     isDragMode.current = true;
+    dragOriginX.current = dragTouchX.current || swipeTouchStartX.current || 0;
     dragOriginY.current = dragTouchY.current || swipeTouchStartY.current || 0;
     activeDragTodoIdRef.current = todoId;
     dragOverTodoIdRef.current = null;
@@ -1686,13 +1762,10 @@ function MobileApp({ session, platformInfo }) {
     lockTimelineScroll();
 
     const el = document.getElementById(`swipe-card-${todoId}`);
+    ensureDragGhost(todoId);
     const wrapper = document.getElementById(`swipe-wrapper-${todoId}`);
     if (el) {
-      el.style.transition = 'box-shadow 0.12s ease, opacity 0.12s ease';
-      el.style.boxShadow = '0 12px 30px rgba(0, 0, 0, 0.12)';
-      el.style.opacity = '0.95';
-      el.style.zIndex = '100';
-      el.style.willChange = 'transform';
+      applyDragSourceCardState(todoId);
     }
 
     if (wrapper) {
@@ -1745,7 +1818,7 @@ function MobileApp({ session, platformInfo }) {
     window.addEventListener('touchmove', handleWindowTouchMove, { passive: false });
     window.addEventListener('touchend', handleWindowTouchEnd, { passive: false });
     window.addEventListener('touchcancel', handleWindowTouchEnd, { passive: false });
-  }, [closeSwipeActions, detachTouchDragListeners, finalizeTouchDrag, lockTimelineScroll, syncDraggedCardPosition, updateAutoScroll, updateDragDayAutoFlip]);
+  }, [applyDragSourceCardState, closeSwipeActions, detachTouchDragListeners, ensureDragGhost, finalizeTouchDrag, lockTimelineScroll, syncDraggedCardPosition, updateAutoScroll, updateDragDayAutoFlip]);
 
   useLayoutEffect(() => {
     if (!isDragMode.current || !activeDragTodoIdRef.current) return undefined;
@@ -1753,7 +1826,7 @@ function MobileApp({ session, platformInfo }) {
     const todoId = activeDragTodoIdRef.current;
     const frame = window.requestAnimationFrame(() => {
       if (!isDragMode.current || activeDragTodoIdRef.current !== todoId) return;
-      syncDraggedCardPosition(todoId, dragTouchY.current);
+      syncDraggedCardPosition(todoId, dragTouchY.current, dragTouchX.current);
     });
 
     return () => {
@@ -2279,7 +2352,7 @@ function MobileApp({ session, platformInfo }) {
       return [{
         key: format(selectedDate, 'yyyy-MM-dd'),
         date: selectedDate,
-        className: 'timeline-panel is-active',
+        className: `timeline-panel is-active ${directDayFlipDirection ? `timeline-panel-direct-flip timeline-panel-direct-flip-${directDayFlipDirection}` : ''}`,
         style: { transform: `translate3d(${daySwipeOffset}px, 0, 0)` },
         isStatic: false,
       }];
@@ -2301,7 +2374,9 @@ function MobileApp({ session, platformInfo }) {
         isStatic: true,
       }
     ];
-  }, [daySwipeOffset, dayTransition, selectedDate]);
+  }, [daySwipeOffset, dayTransition, directDayFlipDirection, selectedDate]);
+
+  const dayFeedbackDirection = dayTransition?.direction || directDayFlipDirection;
 
   const overlayBlockMeta = overlayBlockId
     ? timeBlocks.find((block) => block.id === overlayBlockId) || null
@@ -2382,7 +2457,7 @@ function MobileApp({ session, platformInfo }) {
             </div>
           </div>
 
-          <div className={`header-center ${isAndroid ? 'header-center-android' : 'header-center-ios'}`} style={{ justifyContent: isSameDay(selectedDate, getLogicalToday()) ? 'flex-start' : 'center' }}>
+          <div className={`header-center ${isAndroid ? 'header-center-android' : 'header-center-ios'} ${dayFeedbackDirection ? `header-day-feedback-${dayFeedbackDirection}` : ''}`} style={{ justifyContent: isSameDay(selectedDate, getLogicalToday()) ? 'flex-start' : 'center' }}>
             <div className="header-title-container" style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }} onClick={() => {
               if (isSameDay(selectedDate, getLogicalToday())) {
                 scrollTimelineToCurrentTime('smooth');
@@ -2397,7 +2472,7 @@ function MobileApp({ session, platformInfo }) {
               {!isSameDay(selectedDate, getLogicalToday()) && (
                 <img src={appearance === 'dark' ? '/whiteuturn.png' : '/uturn.png'} alt="Back to Today" style={{ width: '16px', height: '16px', objectFit: 'contain' }} />
               )}
-              <div className="header-title" style={{ transition: 'all 0.3s', fontSize: isSameDay(selectedDate, getLogicalToday()) ? '16px' : '20px', fontStyle: 'italic', fontFamily: '"LTC Bodoni 175", serif', fontWeight: 400, wordWrap: 'break-word', margin: 0 }}>
+              <div key={format(selectedDate, 'yyyy-MM-dd')} className={`header-title ${dayFeedbackDirection ? `header-title-feedback-${dayFeedbackDirection}` : ''}`} style={{ transition: 'all 0.3s', fontSize: isSameDay(selectedDate, getLogicalToday()) ? '16px' : '20px', fontStyle: 'italic', fontFamily: '"LTC Bodoni 175", serif', fontWeight: 400, wordWrap: 'break-word', margin: 0 }}>
                 {getRelativeWeekText()}
               </div>
             </div>
@@ -2433,7 +2508,7 @@ function MobileApp({ session, platformInfo }) {
         {/* Calendar Strip — native horizontal scroll with snap */}
         <div
           ref={stripRef}
-          className="calendar-strip"
+          className={`calendar-strip ${dayFeedbackDirection ? `day-feedback-${dayFeedbackDirection}` : ''}`}
         >
           {calendarDays.map((day, idx) => (
             <div

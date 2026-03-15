@@ -8,6 +8,7 @@
   flex-direction: column;
   overflow: hidden;
   background: #FFFFFF;
+  perspective: 1400px;
 }
 
 .timeline-area {
@@ -52,10 +53,73 @@
 }
 
 .timeline-panel-animating {
-  transition: transform 250ms cubic-bezier(0.22, 1, 0.36, 1);
+  transition: transform 250ms cubic-bezier(0.22, 1, 0.36, 1), opacity 250ms ease, filter 250ms ease;
 }
 
 .timeline-swiping .timeline-panel {
+  will-change: transform;
+}
+
+.timeline-swiping .timeline-panel-current {
+  opacity: 0.94;
+  filter: saturate(0.97);
+  transform-origin: 34% 50%;
+}
+
+.timeline-swiping .timeline-panel-incoming {
+  opacity: 1;
+  filter: none;
+  transform-origin: 66% 50%;
+}
+
+.timeline-panel-direct-flip {
+  will-change: transform, opacity, filter;
+}
+
+.timeline-panel-direct-flip-next {
+  transform-origin: 66% 50%;
+  animation: mobileTimelineDirectFlipNext 300ms cubic-bezier(0.2, 0.92, 0.26, 1) both;
+}
+
+.timeline-panel-direct-flip-previous {
+  transform-origin: 34% 50%;
+  animation: mobileTimelineDirectFlipPrevious 300ms cubic-bezier(0.2, 0.92, 0.26, 1) both;
+}
+
+@keyframes mobileTimelineDirectFlipNext {
+  from {
+    opacity: 0.76;
+    filter: saturate(0.95);
+    transform: translate3d(28px, 0, 0) rotateY(-6deg) scale(0.992);
+  }
+  to {
+    opacity: 1;
+    filter: none;
+    transform: translate3d(0, 0, 0) rotateY(0deg) scale(1);
+  }
+}
+
+@keyframes mobileTimelineDirectFlipPrevious {
+  from {
+    opacity: 0.76;
+    filter: saturate(0.95);
+    transform: translate3d(-28px, 0, 0) rotateY(6deg) scale(0.992);
+  }
+  to {
+    opacity: 1;
+    filter: none;
+    transform: translate3d(0, 0, 0) rotateY(0deg) scale(1);
+  }
+}
+
+.task-drag-ghost {
+  position: fixed;
+  margin: 0;
+  pointer-events: none;
+  z-index: 2200;
+  box-shadow: 0 18px 38px rgba(15, 23, 42, 0.18);
+  transform-origin: center center;
+  transition: none !important;
   will-change: transform;
 }
 
