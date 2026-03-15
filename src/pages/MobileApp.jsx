@@ -1951,6 +1951,11 @@ function MobileApp({ session, platformInfo }) {
     };
   }, [selectedDate, syncDraggedCardPosition]);
 
+  const draggedOverlayTodo = useMemo(
+    () => (draggedTodoId ? todos.find((todo) => todo.id === draggedTodoId) || null : null),
+    [draggedTodoId, todos],
+  );
+
   useLayoutEffect(() => {
     if (!draggedOverlayTodo) return undefined;
 
@@ -2539,10 +2544,6 @@ function MobileApp({ session, platformInfo }) {
   }, [daySwipeOffset, dayTransition, directDayFlipDirection, selectedDate]);
 
   const dayFeedbackDirection = dayTransition?.direction || directDayFlipDirection;
-  const draggedOverlayTodo = useMemo(
-    () => (draggedTodoId ? todos.find((todo) => todo.id === draggedTodoId) || null : null),
-    [draggedTodoId, todos],
-  );
 
   const overlayBlockMeta = overlayBlockId
     ? timeBlocks.find((block) => block.id === overlayBlockId) || null
