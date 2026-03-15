@@ -1439,7 +1439,7 @@ function MobileApp({ session, platformInfo }) {
 
   // Helper: find nearest time block by vertical center proximity
   const getNearestBlock = (touchY) => {
-    const blocks = document.querySelectorAll('[data-block-id]');
+    const blocks = document.querySelectorAll('[data-block-id]:not([data-drag-target-disabled="true"])');
     let nearestId = null;
     let nearestDist = Infinity;
     blocks.forEach(block => {
@@ -1459,7 +1459,7 @@ function MobileApp({ session, platformInfo }) {
       return { blockId: null, targetTodoId: null, insertAfter: false };
     }
 
-    const blockEl = document.querySelector(`[data-block-id="${blockId}"]`);
+    const blockEl = document.querySelector(`[data-block-id="${blockId}"]:not([data-drag-target-disabled="true"])`);
     const todoCards = blockEl
       ? Array.from(blockEl.querySelectorAll('[data-todo-id]')).filter((card) => Number(card.getAttribute('data-todo-id')) !== todoId)
       : [];
@@ -1729,6 +1729,8 @@ function MobileApp({ session, platformInfo }) {
 
   const detachTouchDragListeners = useCallback(() => {
     if (dragTouchMoveHandlerRef.current) {
+      document.removeEventListener('touchmove', dragTouchMoveHandlerRef.current, { capture: true });
+      window.removeEventListener('touchmove', dragTouchMoveHandlerRef.current, { capture: true });
       window.removeEventListener('touchmove', dragTouchMoveHandlerRef.current);
       dragTouchMoveHandlerRef.current = null;
     }
@@ -2000,6 +2002,8 @@ function MobileApp({ session, platformInfo }) {
 
     dragTouchMoveHandlerRef.current = handleWindowTouchMove;
     dragTouchEndHandlerRef.current = handleWindowTouchEnd;
+    document.addEventListener('touchmove', handleWindowTouchMove, { passive: false, capture: true });
+    window.addEventListener('touchmove', handleWindowTouchMove, { passive: false, capture: true });
     window.addEventListener('touchmove', handleWindowTouchMove, { passive: false });
     document.addEventListener('touchend', handleWindowTouchEnd, { passive: false, capture: true });
     document.addEventListener('touchcancel', handleWindowTouchEnd, { passive: false, capture: true });
@@ -2476,6 +2480,7 @@ function MobileApp({ session, platformInfo }) {
           key={`${dateKey}-${block.id}`}
           data-time-block-id={block.id}
           data-date-key={dateKey}
+          data-drag-target-disabled={options.disableDragTarget ? 'true' : 'false'}
           data-overlay-source={!options.isStatic ? 'true' : 'false'}
           style={{ '--time-block-visible-task-count': visibleTaskCount }}
         >
@@ -2497,6 +2502,7 @@ function MobileApp({ session, platformInfo }) {
           <div
             className="tasks-col"
             data-block-id={block.id}
+            data-drag-target-disabled={options.disableDragTarget ? 'true' : 'false'}
             onDragOver={options.isStatic ? undefined : handleDragOver}
             onDrop={options.isStatic ? undefined : (e) => handleDropOnBlock(e, block.id)}
           >
@@ -2594,12 +2600,13 @@ function MobileApp({ session, platformInfo }) {
       if (dragSourceDate && !isSameDay(dragSourceDate, selectedDate)) {
         return [
           {
-            key: `drag-retained-${format(dragSourceDate, 'yyyy-MM-dd')}`,
+            key: format(dragSourceDate, 'yyyy-MM-dd'),
             date: dragSourceDate,
             className: 'timeline-panel timeline-panel-retained-drag-source',
             style: { transform: 'translate3d(0, 0, 0)' },
             isStatic: true,
             showDragPreview: false,
+            disableDragTarget: true,
           },
           activePanel,
         ];
@@ -2804,6 +2811,7 @@ function MobileApp({ session, platformInfo }) {
                   {renderTimelineBlocks(panel.date, {
                     isStatic: panel.isStatic,
                     showDragPreview: panel.showDragPreview,
+                    disableDragTarget: panel.disableDragTarget,
                   })}
                 </div>
               ))}
