@@ -138,6 +138,19 @@
 
 .bottom-sheet-ios {
   border-radius: 38px 38px 0 0;
+  position: absolute;
+  transform: translate3d(-50%, 0, 0);
+  will-change: transform;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+.bottom-sheet-ios .sheet-content,
+.bottom-sheet-ios .sheet-main-stack,
+.bottom-sheet-ios .sheet-input-area {
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
 }
 .sheet-close {
   position: absolute;

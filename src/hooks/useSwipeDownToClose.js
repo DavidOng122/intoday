@@ -7,7 +7,7 @@ const SWIPE_CLOSE_TRANSITION = 'transform 0.25s ease-out';
 const SWIPE_RESET_TRANSITION = 'transform 0.25s cubic-bezier(0.22, 1, 0.36, 1)';
 const SWIPE_FREE_DRAG_DISTANCE = 18;
 const SWIPE_DRAG_RESISTANCE = 0.92;
-const centeredSwipeTransform = (offsetY = 0) => `translateX(-50%) translateY(${offsetY}px)`;
+const centeredSwipeTransform = (offsetY = 0) => `translate3d(-50%, ${offsetY}px, 0)`;
 
 const getSwipeVisualOffset = (offsetY) => {
   if (offsetY <= 0) return 0;
