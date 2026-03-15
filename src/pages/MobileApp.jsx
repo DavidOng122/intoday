@@ -149,6 +149,7 @@ function MobileApp({ session, platformInfo }) {
   const taskInputRef = useRef(null);
   const expandedTaskInputRef = useRef(null);
   const sheetLowerStackRef = useRef(null);
+  const sheetPanelRef = useRef(null);
   const chipsContainerRef = useRef(null);
   const compactComposerRef = useRef(null);
   const [isTaskInputFocused, setIsTaskInputFocused] = useState(false);
@@ -477,6 +478,61 @@ function MobileApp({ session, platformInfo }) {
     onSwipeMove: handleSheetSwipeMove,
     getSwipeEndAction: handleSheetSwipeEndAction,
   });
+
+  useEffect(() => {
+    if (!isSheetOpen || !isIOS) return undefined;
+
+    const sheetElement = sheetPanelRef.current;
+    if (!sheetElement) return undefined;
+
+    let touchStartY = 0;
+
+    const resolveScrollableElement = (eventTarget) => {
+      if (!(eventTarget instanceof Element)) return null;
+      return eventTarget.closest('.sheet-content, .task-input, .expanded-task-input');
+    };
+
+    const handleTouchStart = (event) => {
+      const touch = event.touches?.[0];
+      touchStartY = touch ? touch.clientY : 0;
+    };
+
+    const handleTouchMove = (event) => {
+      const touch = event.touches?.[0];
+      if (!touch) return;
+
+      const scrollableElement = resolveScrollableElement(event.target);
+      if (!scrollableElement) {
+        event.preventDefault();
+        return;
+      }
+
+      const deltaY = touch.clientY - touchStartY;
+      const canScroll = scrollableElement.scrollHeight > scrollableElement.clientHeight;
+
+      if (!canScroll) {
+        event.preventDefault();
+        return;
+      }
+
+      const scrollTop = scrollableElement.scrollTop;
+      const maxScrollTop = scrollableElement.scrollHeight - scrollableElement.clientHeight;
+      const isPullingPastTop = scrollTop <= 0 && deltaY > 0;
+      const isPushingPastBottom = scrollTop >= maxScrollTop && deltaY < 0;
+
+      if (isPullingPastTop || isPushingPastBottom) {
+        event.preventDefault();
+      }
+    };
+
+    sheetElement.addEventListener('touchstart', handleTouchStart, { passive: true });
+    sheetElement.addEventListener('touchmove', handleTouchMove, { passive: false });
+
+    return () => {
+      sheetElement.removeEventListener('touchstart', handleTouchStart);
+      sheetElement.removeEventListener('touchmove', handleTouchMove);
+    };
+  }, [isIOS, isSheetOpen]);
   const profileSwipeHandlers = useSwipeDownToClose({
     enabled: isProfileOpen && isIOS,
     onClose: () => closeProfile(true),
@@ -2164,6 +2220,7 @@ function MobileApp({ session, platformInfo }) {
           >
             <div
               className={`bottom-sheet ${isAndroid ? 'bottom-sheet-android' : 'bottom-sheet-ios'}`}
+              ref={sheetPanelRef}
               onClick={(e) => e.stopPropagation()}
               style={sheetBaseHeight ? { height: `${sheetBaseHeight}px`, maxHeight: `${sheetBaseHeight}px` } : undefined}
               {...sheetSwipeHandlers}
