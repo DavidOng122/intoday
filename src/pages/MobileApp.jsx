@@ -1841,7 +1841,7 @@ function MobileApp({ session, platformInfo }) {
       };
       dragFloatingAnchorRef.current = {
         x: rect.width / 2,
-        y: Math.min(28, Math.max(18, rect.height * 0.32)),
+        y: rect.height / 2,
       };
       dragPlaceholderHeightRef.current = Math.max(72, Math.round(rect.height));
       applyDragSourceCardState(todoId);
