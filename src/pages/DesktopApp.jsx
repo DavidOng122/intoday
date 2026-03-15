@@ -92,7 +92,7 @@ const DESKTOP_DRAG_EDGE_OVERFLOW_TOP = 20;
 const DESKTOP_DRAG_EDGE_OVERFLOW_BOTTOM = 64;
 const DESKTOP_DRAG_EDGE_RESISTANCE = 0.22;
 const DESKTOP_DRAG_MAX_EDGE_OVERFLOW = 96;
-const DESKTOP_SLOT_COUNT = 4;
+const DESKTOP_BASE_SLOT_COUNT = 4;
 const DESKTOP_TIME_AXIS_LINE_TOP = 26;
 const DESKTOP_TIME_AXIS_LINE_BOTTOM = 36;
 const DESKTOP_TIME_MARKER_SIZE = 7;
@@ -112,10 +112,19 @@ const getDesktopSectionPillStyle = (section, appearance) => (
     }
 );
 
-const isValidDesktopSlot = (value) => Number.isInteger(value) && value >= 0 && value < DESKTOP_SLOT_COUNT;
+const isValidDesktopSlot = (value) => Number.isInteger(value) && value >= 0;
+const getDesktopSlotCapacity = (tasks) => {
+  const preferredSlotCount = tasks.reduce((max, task) => (
+    isValidDesktopSlot(task.desktopSlot) ? Math.max(max, task.desktopSlot + 1) : max
+  ), 0);
+  const itemCount = Math.max(tasks.length, preferredSlotCount);
+  return Math.max(
+    DESKTOP_BASE_SLOT_COUNT,
+    itemCount <= DESKTOP_BASE_SLOT_COUNT ? DESKTOP_BASE_SLOT_COUNT : Math.ceil(itemCount / 2) * 2,
+  );
+};
 const resolveDesktopSectionSlots = (tasks) => {
-  const slots = Array.from({ length: DESKTOP_SLOT_COUNT }, () => null);
-  const overflow = [];
+  const slots = Array.from({ length: getDesktopSlotCapacity(tasks) }, () => null);
   const orderedTasks = tasks
     .map((task, index) => ({
       task,
@@ -138,14 +147,10 @@ const resolveDesktopSectionSlots = (tasks) => {
     if (slot === null || slots[slot]) {
       slot = slots.findIndex((entry) => entry === null);
     }
-    if (slot === -1) {
-      overflow.push(task);
-      return;
-    }
     slots[slot] = normalizeTask({ ...task, desktopSlot: slot });
   });
 
-  return { slots, overflow };
+  return { slots };
 };
 const getFirstAvailableDesktopSlot = (tasks, dateString, timeOfDay) => {
   const { slots } = resolveDesktopSectionSlots(
@@ -156,8 +161,8 @@ const getFirstAvailableDesktopSlot = (tasks, dateString, timeOfDay) => {
 };
 const getDesktopSectionTaskOrder = (tasks, dateString, timeOfDay) => {
   const sectionTasks = tasks.filter((task) => task.dateString === dateString && task.timeOfDay === timeOfDay);
-  const { slots, overflow } = resolveDesktopSectionSlots(sectionTasks);
-  return [...slots.filter(Boolean), ...overflow];
+  const { slots } = resolveDesktopSectionSlots(sectionTasks);
+  return slots.filter(Boolean);
 };
 const reflowDesktopSectionSlots = (tasks, dateString, timeOfDay, orderedIds = null) => {
   const currentOrderedTasks = getDesktopSectionTaskOrder(tasks, dateString, timeOfDay);
@@ -173,18 +178,17 @@ const reflowDesktopSectionSlots = (tasks, dateString, timeOfDay, orderedIds = nu
   orderedTasks.forEach((task, index) => {
     const targetTask = tasks.find((item) => item.id === task.id);
     if (!targetTask) return;
-    targetTask.desktopSlot = index < DESKTOP_SLOT_COUNT ? index : null;
+    targetTask.desktopSlot = index;
   });
 };
 const buildDesktopRenderSections = ({ selectedTasks, draggedTaskId, dragOverSection, dragOverSlot }) => {
   const baseSections = Object.fromEntries(
     sections.map((section) => {
-      const { slots, overflow } = resolveDesktopSectionSlots(
+      const { slots } = resolveDesktopSectionSlots(
         selectedTasks.filter((task) => task.timeOfDay === section.mobileId),
       );
       return [section.mobileId, {
         renderSlots: slots.map((task) => (task ? { type: 'task', task } : { type: 'empty' })),
-        overflow,
       }];
     }),
   );
@@ -210,7 +214,7 @@ const buildDesktopRenderSections = ({ selectedTasks, draggedTaskId, dragOverSect
   const previewDraggedTask = previewTasks.find((task) => task.id === draggedTaskId) || draggedTask;
   const previewSections = Object.fromEntries(
     sections.map((section) => {
-      const { slots, overflow } = resolveDesktopSectionSlots(
+      const { slots } = resolveDesktopSectionSlots(
         previewTasks.filter((task) => task.timeOfDay === section.mobileId),
       );
       const renderSlots = slots.map((task, slotIndex) => {
@@ -226,7 +230,7 @@ const buildDesktopRenderSections = ({ selectedTasks, draggedTaskId, dragOverSect
         return task ? { type: 'task', task } : { type: 'empty' };
       });
 
-      return [section.mobileId, { renderSlots, overflow }];
+      return [section.mobileId, { renderSlots }];
     }),
   );
 
@@ -364,10 +368,6 @@ const getCalendarWeekdayLabels = (language) => {
     date.setUTCDate(baseSunday.getUTCDate() + index);
     return new Intl.DateTimeFormat(locale, { weekday: 'narrow' }).format(date);
   });
-};
-const formatOverflowTasksMessage = (count, language) => {
-  const t = getTranslationsForLanguage(language);
-  return formatTemplate(count === 1 ? t.overflowTasksOne : t.overflowTasksOther, { count });
 };
 const panelLabel = (date, language) => {
   const t = getTranslationsForLanguage(language);
@@ -587,7 +587,6 @@ const ScheduleSection = ({
   language,
   labels,
   renderSlots,
-  overflowTasks,
   markerStyle,
   onTaskClick,
   onTaskPointerDown,
@@ -646,11 +645,6 @@ const ScheduleSection = ({
             </div>
           ))}
         </div>
-        {overflowTasks.length > 0 ? (
-          <div style={{ marginTop: 14, color: 'var(--desktop-muted)', fontSize: 12 }}>
-            {formatOverflowTasksMessage(overflowTasks.length, language)}
-          </div>
-        ) : null}
       </div>
     </div>
   </section>
@@ -1450,8 +1444,7 @@ function App() {
                   appearance={appearance}
                   language={language}
                   labels={t}
-                  renderSlots={desktopSectionTasks[section.mobileId]?.renderSlots || Array.from({ length: DESKTOP_SLOT_COUNT }, () => ({ type: 'empty' }))}
-                  overflowTasks={desktopSectionTasks[section.mobileId]?.overflow || []}
+                  renderSlots={desktopSectionTasks[section.mobileId]?.renderSlots || Array.from({ length: DESKTOP_BASE_SLOT_COUNT }, () => ({ type: 'empty' }))}
                   markerStyle={getSectionMarkerStyle(section, currentTime, selectedDate)}
                   onTaskClick={handleTaskClick}
                   onTaskPointerDown={handleTaskPointerDown}
