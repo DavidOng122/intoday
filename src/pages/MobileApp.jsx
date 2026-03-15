@@ -56,6 +56,8 @@ const TOUCH_DRAG_CANCEL_DISTANCE = 10;
 const SWIPE_ACTION_MAX = 132;
 const SWIPE_ACTION_OPEN = 108;
 const SWIPE_ACTION_THRESHOLD = 44;
+const SHEET_KEYBOARD_DISMISS_SWIPE_THRESHOLD = 72;
+const SHEET_KEYBOARD_CLOSE_SWIPE_THRESHOLD = 180;
 const INITIAL_EDIT_MODAL_VIEWPORT = {
   baseHeight: 0,
   visibleHeight: 0,
@@ -306,6 +308,56 @@ function MobileApp({ session, platformInfo }) {
     setIsSheetOpen(false);
   }, []);
 
+  const dismissSheetKeyboard = useCallback(() => {
+    setIsTaskInputFocused(false);
+
+    const activeElement = document.activeElement;
+    const composerInputs = [taskInputRef.current, expandedTaskInputRef.current].filter(Boolean);
+
+    if (activeElement instanceof HTMLElement && activeElement.closest('.sheet-input-area')) {
+      try {
+        activeElement.blur();
+      } catch (_) {
+        // Ignore blur failures from mobile browsers that tightly control focus.
+      }
+    }
+
+    composerInputs.forEach((input) => {
+      if (input && input !== activeElement) {
+        try {
+          input.blur();
+        } catch (_) {
+          // Ignore blur failures from mobile browsers that tightly control focus.
+        }
+      }
+    });
+
+    try {
+      navigator.virtualKeyboard?.hide?.();
+    } catch (_) {
+      // Some browsers expose the API without permitting imperative hides.
+    }
+  }, []);
+
+  const handleSheetSwipeEndAction = useCallback(({ offsetY }) => {
+    const isKeyboardOpen = sheetKeyboardOffset > 0 || isTaskInputFocused;
+
+    if (!isKeyboardOpen) {
+      return undefined;
+    }
+
+    if (offsetY > SHEET_KEYBOARD_CLOSE_SWIPE_THRESHOLD) {
+      dismissSheetKeyboard();
+      return 'close';
+    }
+
+    if (offsetY > SHEET_KEYBOARD_DISMISS_SWIPE_THRESHOLD) {
+      dismissSheetKeyboard();
+    }
+
+    return 'reset';
+  }, [dismissSheetKeyboard, isTaskInputFocused, sheetKeyboardOffset]);
+
   const openQuickAdd = useCallback(() => {
     setIsSheetOpen(true);
   }, []);
@@ -361,6 +413,7 @@ function MobileApp({ session, platformInfo }) {
     onClose: closeSheet,
     getScrollElement: '.sheet-content',
     ignoreSwipeFrom: '.sheet-input-area',
+    getSwipeEndAction: handleSheetSwipeEndAction,
   });
   const profileSwipeHandlers = useSwipeDownToClose({
     enabled: isProfileOpen && isIOS,
