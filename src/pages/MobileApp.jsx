@@ -1685,18 +1685,25 @@ function MobileApp({ session, platformInfo }) {
     const viewportHeight = window.visualViewport?.height || window.innerHeight;
     const topBoundary = Math.max(rect.top, 0);
     const bottomBoundary = Math.min(rect.bottom, viewportHeight);
-    const SCROLL_ZONE = Math.min(180, Math.max(120, (bottomBoundary - topBoundary) * 0.24));
-    const MAX_SPEED = 2.8; // px per ms
+    const SCROLL_ZONE = Math.min(132, Math.max(88, (bottomBoundary - topBoundary) * 0.18));
+    const EDGE_DEAD_ZONE = 20;
+    const MAX_SPEED = 1.45; // px per ms
     const maxScrollTop = Math.max(0, timelineEl.scrollHeight - timelineEl.clientHeight);
 
     let velocity = 0;
 
     if (touchY < topBoundary + SCROLL_ZONE) {
-      const intensity = (topBoundary + SCROLL_ZONE - touchY) / SCROLL_ZONE;
-      velocity = -MAX_SPEED * Math.min(Math.max(intensity, 0), 1);
+      const distanceIntoZone = topBoundary + SCROLL_ZONE - touchY;
+      const effectiveDistance = Math.max(0, distanceIntoZone - EDGE_DEAD_ZONE);
+      const effectiveZone = Math.max(1, SCROLL_ZONE - EDGE_DEAD_ZONE);
+      const intensity = effectiveDistance / effectiveZone;
+      velocity = -MAX_SPEED * Math.min(Math.max(intensity, 0), 1) ** 1.35;
     } else if (touchY > bottomBoundary - SCROLL_ZONE) {
-      const intensity = (touchY - (bottomBoundary - SCROLL_ZONE)) / SCROLL_ZONE;
-      velocity = MAX_SPEED * Math.min(Math.max(intensity, 0), 1);
+      const distanceIntoZone = touchY - (bottomBoundary - SCROLL_ZONE);
+      const effectiveDistance = Math.max(0, distanceIntoZone - EDGE_DEAD_ZONE);
+      const effectiveZone = Math.max(1, SCROLL_ZONE - EDGE_DEAD_ZONE);
+      const intensity = effectiveDistance / effectiveZone;
+      velocity = MAX_SPEED * Math.min(Math.max(intensity, 0), 1) ** 1.35;
     }
 
     if ((velocity < 0 && timelineEl.scrollTop <= 0) || (velocity > 0 && timelineEl.scrollTop >= maxScrollTop)) {
@@ -1706,7 +1713,7 @@ function MobileApp({ session, platformInfo }) {
     autoScrollVelocity.current = velocity;
 
     if (velocity !== 0) {
-      const immediateDelta = velocity * 18;
+      const immediateDelta = velocity * 8;
       if (!applyAutoScrollDelta(immediateDelta, activeDragTodoIdRef.current)) {
         velocity = 0;
         autoScrollVelocity.current = 0;
