@@ -1741,6 +1741,10 @@ function MobileApp({ session, platformInfo }) {
     }
 
     if (dragTouchEndHandlerRef.current) {
+      document.removeEventListener('touchend', dragTouchEndHandlerRef.current, { capture: true });
+      document.removeEventListener('touchcancel', dragTouchEndHandlerRef.current, { capture: true });
+      window.removeEventListener('touchend', dragTouchEndHandlerRef.current, { capture: true });
+      window.removeEventListener('touchcancel', dragTouchEndHandlerRef.current, { capture: true });
       window.removeEventListener('touchend', dragTouchEndHandlerRef.current);
       window.removeEventListener('touchcancel', dragTouchEndHandlerRef.current);
       dragTouchEndHandlerRef.current = null;
@@ -1787,7 +1791,7 @@ function MobileApp({ session, platformInfo }) {
   }, [closeSwipeActions, setSwipeOffset]);
 
   const finalizeTouchDrag = useCallback((todoId) => {
-    if (!todoId) return;
+    if (!todoId || !isDragMode.current || activeDragTodoIdRef.current !== todoId) return;
 
     suppressNextCardClick(todoId);
     isDragMode.current = false;
@@ -1867,6 +1871,42 @@ function MobileApp({ session, platformInfo }) {
     dragFloatingRectRef.current = null;
     dragFloatingAnchorRef.current = { x: 0, y: 0 };
   }, [clearDragDayFlipTimer, detachTouchDragListeners, getTouchDragTarget, removeDragGhost, resetDragSourceCardState, stopAutoScroll, suppressNextCardClick, unlockTimelineScroll]);
+
+  const finalizeTouchDragRelease = useCallback((todoId, event) => {
+    if (!todoId || !isDragMode.current || activeDragTodoIdRef.current !== todoId) {
+      return false;
+    }
+
+    const touchIdentifier = activeTouchIdentifierRef.current;
+    const trackedTouchStillActive = touchIdentifier !== null
+      && Boolean(findTouchByIdentifier(event.touches, touchIdentifier));
+    const trackedTouchEnded = event.type === 'touchcancel'
+      || touchIdentifier === null
+      || Boolean(findTouchByIdentifier(event.changedTouches, touchIdentifier))
+      || !trackedTouchStillActive
+      || event.touches.length === 0;
+
+    if (!trackedTouchEnded) {
+      return false;
+    }
+
+    const touch = findTouchByIdentifier(event.changedTouches, touchIdentifier)
+      || event.changedTouches[0]
+      || event.touches[0];
+
+    if (touch) {
+      dragTouchX.current = touch.clientX;
+      dragTouchY.current = touch.clientY;
+      syncDraggedCardPosition(todoId, touch.clientY, touch.clientX);
+    }
+
+    if (event.cancelable) {
+      event.preventDefault();
+    }
+
+    finalizeTouchDrag(todoId);
+    return true;
+  }, [finalizeTouchDrag, syncDraggedCardPosition]);
 
   const startTouchDrag = useCallback((todoId) => {
     closeSwipeActions(todoId);
@@ -1955,37 +1995,19 @@ function MobileApp({ session, platformInfo }) {
     };
 
     const handleWindowTouchEnd = (event) => {
-      if (!isDragMode.current || activeDragTodoIdRef.current !== todoId) return;
-
-      const touchIdentifier = activeTouchIdentifierRef.current;
-      const trackedTouchEnded = event.type === 'touchcancel'
-        || touchIdentifier === null
-        || Boolean(findTouchByIdentifier(event.changedTouches, touchIdentifier));
-
-      if (!trackedTouchEnded) return;
-
-      const touch = findTouchByIdentifier(event.changedTouches, touchIdentifier)
-        || event.changedTouches[0]
-        || event.touches[0];
-
-      if (touch) {
-        dragTouchX.current = touch.clientX;
-        dragTouchY.current = touch.clientY;
-        syncDraggedCardPosition(todoId, touch.clientY, touch.clientX);
-      }
-
-      if (event.cancelable) {
-        event.preventDefault();
-      }
-      finalizeTouchDrag(todoId);
+      finalizeTouchDragRelease(todoId, event);
     };
 
     dragTouchMoveHandlerRef.current = handleWindowTouchMove;
     dragTouchEndHandlerRef.current = handleWindowTouchEnd;
     window.addEventListener('touchmove', handleWindowTouchMove, { passive: false });
+    document.addEventListener('touchend', handleWindowTouchEnd, { passive: false, capture: true });
+    document.addEventListener('touchcancel', handleWindowTouchEnd, { passive: false, capture: true });
+    window.addEventListener('touchend', handleWindowTouchEnd, { passive: false, capture: true });
+    window.addEventListener('touchcancel', handleWindowTouchEnd, { passive: false, capture: true });
     window.addEventListener('touchend', handleWindowTouchEnd, { passive: false });
     window.addEventListener('touchcancel', handleWindowTouchEnd, { passive: false });
-  }, [applyDragSourceCardState, closeSwipeActions, detachTouchDragListeners, finalizeTouchDrag, lockTimelineScroll, syncDragOverlayPosition, syncDragPreview, syncDraggedCardPosition, todos, updateAutoScroll, updateDragDayAutoFlip]);
+  }, [applyDragSourceCardState, closeSwipeActions, detachTouchDragListeners, finalizeTouchDragRelease, lockTimelineScroll, syncDragOverlayPosition, syncDragPreview, syncDraggedCardPosition, todos, updateAutoScroll, updateDragDayAutoFlip]);
 
   useLayoutEffect(() => {
     if (!isDragMode.current || !activeDragTodoIdRef.current) return undefined;
@@ -2120,9 +2142,9 @@ function MobileApp({ session, platformInfo }) {
         setSwipeOffset(todoId, offset);
       }
     },
-    onTouchEnd: () => {
+    onTouchEnd: (event) => {
       clearTouchDragPressTimer();
-      if (isDragMode.current) {
+      if (finalizeTouchDragRelease(todoId, event)) {
         return;
       }
 
@@ -2143,9 +2165,9 @@ function MobileApp({ session, platformInfo }) {
       touchDragReadyRef.current = false;
       activeTouchIdentifierRef.current = null;
     },
-    onTouchCancel: () => {
+    onTouchCancel: (event) => {
       clearTouchDragPressTimer();
-      if (isDragMode.current) return;
+      if (finalizeTouchDragRelease(todoId, event)) return;
 
       if (swipeCurrentOffset.current >= SWIPE_ACTION_THRESHOLD) {
         openSwipeActions(todoId);
