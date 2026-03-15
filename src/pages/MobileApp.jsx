@@ -1790,7 +1790,7 @@ function MobileApp({ session, platformInfo }) {
       return {
         timeColStyle: {
           '--time-axis-color': axisColor,
-          '--time-axis-background': axisColor,
+          '--time-axis-background': '#FFFFFF',
         },
         indicatorStyle: null,
       };
