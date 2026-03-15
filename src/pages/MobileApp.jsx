@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from 'react';
-import { ChevronLeft, ArrowUp, Maximize2, Minimize2 } from 'lucide-react';
+import { ChevronLeft, ArrowUp, Maximize2, Minimize2, PenLine, Trash2 } from 'lucide-react';
 import { subDays, addDays, format, isSameDay } from 'date-fns';
 import { SendIntent } from 'send-intent';
 import useKeyboardOffset from '../hooks/useKeyboardOffset';
@@ -51,10 +51,9 @@ const DAY_SWIPE_CONFIG = {
   SWIPE_ANIMATION_DURATION_MS: 250,
   TAP_ANIMATION_DURATION_MS: 220,
 };
-const DELETE_UNDO_DURATION_MS = 4500;
-const SWIPE_DELETE_MAX = 132;
-const SWIPE_DELETE_THRESHOLD = 92;
-const PENDING_DELETE_STORAGE_KEY = 'mobile_pending_deletes';
+const SWIPE_ACTION_MAX = 132;
+const SWIPE_ACTION_OPEN = 108;
+const SWIPE_ACTION_THRESHOLD = 44;
 const INITIAL_EDIT_MODAL_VIEWPORT = {
   baseHeight: 0,
   visibleHeight: 0,
@@ -862,38 +861,9 @@ function MobileApp({ session, platformInfo }) {
     userId: session?.user?.id || null,
     normalizeTodo: normalizeTodoRecord,
   });
-  const [pendingDeletes, setPendingDeletes] = useState(() => {
-    const saved = localStorage.getItem(PENDING_DELETE_STORAGE_KEY);
-    if (!saved) return [];
-
-    try {
-      const now = Date.now();
-      const parsed = JSON.parse(saved);
-      return Array.isArray(parsed)
-        ? parsed.filter((item) => item?.id !== undefined && item?.todo && item?.expiresAt > now)
-        : [];
-    } catch (_) {
-      return [];
-    }
-  });
-  const pendingDeleteTimersRef = useRef(new Map());
   const suppressCardClickRef = useRef(null);
   const suppressClickTimeoutRef = useRef(null);
-
-  useEffect(() => {
-    if (pendingDeletes.length > 0) {
-      localStorage.setItem(PENDING_DELETE_STORAGE_KEY, JSON.stringify(pendingDeletes));
-    } else {
-      localStorage.removeItem(PENDING_DELETE_STORAGE_KEY);
-    }
-  }, [pendingDeletes]);
-
-  useEffect(() => {
-    setPendingDeletes((prev) => {
-      const next = prev.filter((item) => todos.some((todo) => todo.id === item.id));
-      return next.length === prev.length ? prev : next;
-    });
-  }, [todos]);
+  const openSwipeTodoIdRef = useRef(null);
 
   const handleAddTodo = () => {
     if (!inputText.trim()) return;
@@ -946,6 +916,7 @@ function MobileApp({ session, platformInfo }) {
 
   const swipeTouchStartX = React.useRef(null);
   const swipeTouchStartY = React.useRef(null);
+  const swipeStartOffset = React.useRef(0);
   const swipeCurrentOffset = React.useRef(0);
   const isDragMode = React.useRef(false);
   const dragOriginY = React.useRef(0);
@@ -956,48 +927,7 @@ function MobileApp({ session, platformInfo }) {
   const autoScrollFrameRef = React.useRef(null);
   const autoScrollLastTsRef = React.useRef(null);
 
-  const clearPendingDeleteTimer = useCallback((id) => {
-    const timerId = pendingDeleteTimersRef.current.get(id);
-    if (timerId !== undefined) {
-      window.clearTimeout(timerId);
-      pendingDeleteTimersRef.current.delete(id);
-    }
-  }, []);
-
-  const finalizePendingDelete = useCallback((id) => {
-    clearPendingDeleteTimer(id);
-    setPendingDeletes((prev) => prev.filter((item) => item.id !== id));
-    setTodos((prev) => prev.filter((todo) => todo.id !== id));
-  }, [clearPendingDeleteTimer, setTodos]);
-
-  useEffect(() => {
-    const now = Date.now();
-    const activeIds = new Set();
-
-    pendingDeletes.forEach((item) => {
-      activeIds.add(item.id);
-      if (pendingDeleteTimersRef.current.has(item.id)) return;
-
-      const remainingMs = Math.max(item.expiresAt - now, 0);
-      const timerId = window.setTimeout(() => {
-        finalizePendingDelete(item.id);
-      }, remainingMs);
-
-      pendingDeleteTimersRef.current.set(item.id, timerId);
-    });
-
-    pendingDeleteTimersRef.current.forEach((timerId, id) => {
-      if (!activeIds.has(id)) {
-        window.clearTimeout(timerId);
-        pendingDeleteTimersRef.current.delete(id);
-      }
-    });
-  }, [finalizePendingDelete, pendingDeletes]);
-
   useEffect(() => () => {
-    pendingDeleteTimersRef.current.forEach((timerId) => window.clearTimeout(timerId));
-    pendingDeleteTimersRef.current.clear();
-
     if (suppressClickTimeoutRef.current !== null) {
       window.clearTimeout(suppressClickTimeoutRef.current);
     }
@@ -1016,11 +946,6 @@ function MobileApp({ session, platformInfo }) {
       suppressClickTimeoutRef.current = null;
     }, 250);
   }, []);
-
-  const undoDeleteTodo = useCallback((id) => {
-    clearPendingDeleteTimer(id);
-    setPendingDeletes((prev) => prev.filter((item) => item.id !== id));
-  }, [clearPendingDeleteTimer]);
 
   const lockTimelineScroll = useCallback(() => {
     const timelineEl = timelineRef.current;
@@ -1152,20 +1077,56 @@ function MobileApp({ session, platformInfo }) {
     }
   }, [runAutoScroll, stopAutoScroll]);
 
+  const setSwipeOffset = useCallback((todoId, offset, options = {}) => {
+    const { animate = false } = options;
+    const nextOffset = Math.max(0, Math.min(offset, SWIPE_ACTION_OPEN));
+    const progress = Math.min(nextOffset / SWIPE_ACTION_OPEN, 1);
+    const card = document.getElementById(`swipe-card-${todoId}`);
+    const wrapper = document.getElementById(`swipe-wrapper-${todoId}`);
+
+    if (card) {
+      card.style.transition = animate ? 'transform 0.22s cubic-bezier(0.34, 1.56, 0.64, 1)' : 'none';
+      card.style.transform = `translateX(-${nextOffset}px)`;
+      if (animate) {
+        window.setTimeout(() => {
+          if (card) card.style.transition = '';
+        }, 280);
+      }
+    }
+
+    if (wrapper) {
+      wrapper.style.setProperty('--swipe-action-progress', progress.toString());
+      wrapper.classList.toggle('actions-visible', nextOffset > 0);
+    }
+  }, []);
+
+  const closeSwipeActions = useCallback((todoId = openSwipeTodoIdRef.current, options = {}) => {
+    if (todoId === null || todoId === undefined) return;
+    setSwipeOffset(todoId, 0, options);
+    if (openSwipeTodoIdRef.current === todoId) {
+      openSwipeTodoIdRef.current = null;
+    }
+  }, [setSwipeOffset]);
+
+  const openSwipeActions = useCallback((todoId) => {
+    if (openSwipeTodoIdRef.current && openSwipeTodoIdRef.current !== todoId) {
+      closeSwipeActions(openSwipeTodoIdRef.current, { animate: true });
+    }
+    setSwipeOffset(todoId, SWIPE_ACTION_OPEN, { animate: true });
+    openSwipeTodoIdRef.current = todoId;
+  }, [closeSwipeActions, setSwipeOffset]);
+
   const deleteTodo = useCallback((id) => {
-    const todoToDelete = todos.find((todo) => todo.id === id);
-    if (!todoToDelete) return;
-    clearPendingDeleteTimer(id);
-    setPendingDeletes((prev) => [...prev.filter((item) => item.id !== id), {
-      id,
-      todo: todoToDelete,
-      expiresAt: Date.now() + DELETE_UNDO_DURATION_MS,
-    }]);
-  }, [clearPendingDeleteTimer, todos]);
+    if (openSwipeTodoIdRef.current === id) {
+      openSwipeTodoIdRef.current = null;
+    }
+    setTodos((prev) => prev.filter((todo) => todo.id !== id));
+  }, [setTodos]);
 
 
 
   const openEdit = (todo) => {
+    closeSwipeActions(todo.id, { animate: true });
     setEditingTodo(todo);
     setEditText(todo.text);
   };
@@ -1181,15 +1142,14 @@ function MobileApp({ session, platformInfo }) {
   const getSwipeHandlers = (todoId) => ({
     onTouchStart: (e) => {
       const touch = e.touches[0];
+      if (openSwipeTodoIdRef.current && openSwipeTodoIdRef.current !== todoId) {
+        closeSwipeActions(openSwipeTodoIdRef.current, { animate: true });
+      }
       swipeTouchStartX.current = touch.clientX;
       swipeTouchStartY.current = touch.clientY;
+      swipeStartOffset.current = openSwipeTodoIdRef.current === todoId ? SWIPE_ACTION_OPEN : 0;
       isDragMode.current = false; // wait for direction detection in onTouchMove
-      swipeCurrentOffset.current = 0;
-      const wrapper = document.getElementById(`swipe-wrapper-${todoId}`);
-      if (wrapper) {
-        wrapper.style.setProperty('--swipe-delete-progress', '0');
-        wrapper.classList.remove('delete-ready');
-      }
+      swipeCurrentOffset.current = swipeStartOffset.current;
     },
     onTouchMove: (e) => {
       const touch = e.touches[0];
@@ -1214,6 +1174,7 @@ function MobileApp({ session, platformInfo }) {
       if (Math.abs(deltaY) > Math.abs(deltaX)) {
         // Vertical movement → activate drag immediately (no long press)
         e.preventDefault();
+        closeSwipeActions(todoId);
         isDragMode.current = true;
         dragOriginY.current = swipeTouchStartY.current;
         dragTouchY.current = touch.clientY;
@@ -1245,31 +1206,28 @@ function MobileApp({ session, platformInfo }) {
         syncDraggedCardPosition(todoId, touch.clientY);
         updateAutoScroll(touch.clientY);
       } else {
-        // Horizontal movement → swipe left to delete
-        if (deltaX > 0) return;
+        // Horizontal movement → reveal actions
         if (e.cancelable) {
           e.preventDefault();
         }
-        const rawOffset = Math.abs(deltaX);
+        const rawOffset = swipeStartOffset.current - deltaX;
+        if (rawOffset <= 0) {
+          swipeCurrentOffset.current = 0;
+          setSwipeOffset(todoId, 0);
+          return;
+        }
         let offset;
-        if (rawOffset <= SWIPE_DELETE_MAX) {
+        if (rawOffset <= SWIPE_ACTION_MAX) {
           offset = rawOffset;
         } else {
-          const overflow = rawOffset - SWIPE_DELETE_MAX;
-          offset = SWIPE_DELETE_MAX + overflow * 0.18;
+          const overflow = rawOffset - SWIPE_ACTION_MAX;
+          offset = SWIPE_ACTION_MAX + overflow * 0.18;
         }
         swipeCurrentOffset.current = offset;
-        const el = document.getElementById(`swipe-card-${todoId}`);
-        const wrapper = document.getElementById(`swipe-wrapper-${todoId}`);
-        if (el) el.style.transform = `translateX(-${offset}px)`;
-        if (wrapper) {
-          const progress = Math.min(offset / SWIPE_DELETE_THRESHOLD, 1);
-          wrapper.style.setProperty('--swipe-delete-progress', progress.toString());
-          wrapper.classList.toggle('delete-ready', offset >= SWIPE_DELETE_THRESHOLD);
-        }
+        setSwipeOffset(todoId, offset);
       }
     },
-    onTouchEnd: (e) => {
+    onTouchEnd: () => {
       if (isDragMode.current) {
         suppressNextCardClick(todoId);
         isDragMode.current = false;
@@ -1310,31 +1268,38 @@ function MobileApp({ session, platformInfo }) {
         dragOverBlockRef.current = null;
         swipeTouchStartX.current = null;
         swipeTouchStartY.current = null;
+        swipeStartOffset.current = 0;
         swipeCurrentOffset.current = 0;
         return;
       }
 
-      // Direct swipe-to-delete
       const offset = swipeCurrentOffset.current;
-      const el = document.getElementById(`swipe-card-${todoId}`);
-      const wrapper = document.getElementById(`swipe-wrapper-${todoId}`);
-
-      if (offset >= SWIPE_DELETE_THRESHOLD) {
+      if (Math.abs(offset - swipeStartOffset.current) > 10) {
         suppressNextCardClick(todoId);
-        deleteTodo(todoId);
+      }
+
+      if (offset >= SWIPE_ACTION_THRESHOLD) {
+        openSwipeActions(todoId);
       } else {
-        if (el) {
-          el.style.transition = 'transform 0.22s cubic-bezier(0.34, 1.56, 0.64, 1)';
-          el.style.transform = 'translateX(0)';
-          setTimeout(() => { if (el) el.style.transition = ''; }, 280);
-        }
-        if (wrapper) {
-          wrapper.style.setProperty('--swipe-delete-progress', '0');
-          wrapper.classList.remove('delete-ready');
-        }
+        closeSwipeActions(todoId, { animate: true });
       }
       swipeTouchStartX.current = null;
       swipeTouchStartY.current = null;
+      swipeStartOffset.current = 0;
+      swipeCurrentOffset.current = 0;
+    },
+    onTouchCancel: () => {
+      if (isDragMode.current) return;
+
+      if (swipeCurrentOffset.current >= SWIPE_ACTION_THRESHOLD) {
+        openSwipeActions(todoId);
+      } else {
+        closeSwipeActions(todoId, { animate: true });
+      }
+
+      swipeTouchStartX.current = null;
+      swipeTouchStartY.current = null;
+      swipeStartOffset.current = 0;
       swipeCurrentOffset.current = 0;
     },
   });
@@ -1404,18 +1369,10 @@ function MobileApp({ session, platformInfo }) {
     };
   });
 
-  const activePendingDelete = pendingDeletes.length > 0
-    ? pendingDeletes[pendingDeletes.length - 1]
-    : null;
-  const pendingDeleteIds = useMemo(
-    () => new Set(pendingDeletes.map((item) => item.id)),
-    [pendingDeletes],
-  );
-
   const getDayTodos = useCallback((date) => {
     const dateString = format(date, 'yyyy-MM-dd');
-    return todos.filter((t) => t.dateString === dateString && !pendingDeleteIds.has(t.id));
-  }, [pendingDeleteIds, todos]);
+    return todos.filter((t) => t.dateString === dateString);
+  }, [todos]);
 
   const allChips = [
     { id: 'Now', key: 'now' },
@@ -1692,15 +1649,41 @@ function MobileApp({ session, platformInfo }) {
 
               return (
                 <div key={todo.id} id={`swipe-wrapper-${todo.id}`} className="swipe-wrapper">
-                  <div className="swipe-delete-background" aria-hidden="true">
-                    <img src="/delete.png" alt="" className="swipe-delete-icon" />
-                    <span className="swipe-delete-label">{translations[language].delete}</span>
+                  <div className="swipe-actions">
+                    <button
+                      type="button"
+                      className="swipe-action-button swipe-action-edit"
+                      aria-label={translations[language].edit}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        suppressCardClickRef.current = null;
+                        openEdit(todo);
+                      }}
+                    >
+                      <PenLine size={18} strokeWidth={2.2} />
+                    </button>
+                    <button
+                      type="button"
+                      className="swipe-action-button swipe-action-delete"
+                      aria-label={translations[language].delete}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        suppressCardClickRef.current = null;
+                        deleteTodo(todo.id);
+                      }}
+                    >
+                      <Trash2 size={18} strokeWidth={2.2} />
+                    </button>
                   </div>
 
                   <div
                     id={`swipe-card-${todo.id}`}
                     className={`task-card ${todo.completed ? 'completed' : ''} ${draggedTodoId === todo.id ? 'dragging' : ''}`}
                     onClick={() => {
+                      if (openSwipeTodoIdRef.current === todo.id) {
+                        closeSwipeActions(todo.id, { animate: true });
+                        return;
+                      }
                       if (suppressCardClickRef.current === todo.id) {
                         suppressCardClickRef.current = null;
                         return;
@@ -1743,7 +1726,7 @@ function MobileApp({ session, platformInfo }) {
         </div>
       );
     });
-  }, [appearance, deleteTodo, draggedTodoId, getDayTodos, getSwipeHandlers, handleDaySwipePointerDown, handleDaySwipePointerEnd, handleDaySwipePointerMove, handleDragEnd, handleDragOver, handleDropOnBlock, handleDropOnTodo, language, openEdit, toggleTodo]);
+  }, [appearance, closeSwipeActions, deleteTodo, draggedTodoId, getDayTodos, getSwipeHandlers, handleDaySwipePointerDown, handleDaySwipePointerEnd, handleDaySwipePointerMove, handleDragEnd, handleDragOver, handleDropOnBlock, handleDropOnTodo, language, openEdit, toggleTodo]);
 
   const timelinePanels = useMemo(() => {
     if (!dayTransition) {
@@ -1783,7 +1766,7 @@ function MobileApp({ session, platformInfo }) {
 
   useLayoutEffect(() => {
     scheduleOverlayRefresh();
-  }, [scheduleOverlayRefresh, selectedDate, dayTransition, secondaryOverlayBlockIds, pendingDeleteIds, todos]);
+  }, [scheduleOverlayRefresh, selectedDate, dayTransition, secondaryOverlayBlockIds, todos]);
 
   useEffect(() => {
     const handleViewportChange = () => scheduleOverlayRefresh();
@@ -1999,22 +1982,6 @@ function MobileApp({ session, platformInfo }) {
         >
           <span aria-hidden="true">+</span>
         </button>
-
-        {activePendingDelete && (
-          <div className="undo-snackbar" role="status" aria-live="polite">
-            <div className="undo-snackbar-copy">
-              <span className="undo-snackbar-title">{translations[language].taskDeleted}</span>
-              <span className="undo-snackbar-text">{activePendingDelete.todo.text}</span>
-            </div>
-            <button
-              type="button"
-              className="undo-snackbar-action"
-              onClick={() => undoDeleteTodo(activePendingDelete.id)}
-            >
-              {translations[language].undo}
-            </button>
-          </div>
-        )}
 
         {/* Bottom Sheet Modal */}
         {isSheetOpen && (
