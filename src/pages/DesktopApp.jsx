@@ -1423,7 +1423,7 @@ function App() {
                   appearance={appearance}
                   language={language}
                   labels={t}
-                  slots={desktopSectionTasks[section.mobileId]?.slots || Array.from({ length: DESKTOP_SLOT_COUNT }, () => null)}
+                  renderSlots={desktopSectionTasks[section.mobileId]?.renderSlots || Array.from({ length: DESKTOP_SLOT_COUNT }, () => ({ type: 'empty' }))}
                   overflowTasks={desktopSectionTasks[section.mobileId]?.overflow || []}
                   markerStyle={getSectionMarkerStyle(section, currentTime, selectedDate)}
                   onTaskClick={handleTaskClick}

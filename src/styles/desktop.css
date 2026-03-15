@@ -910,10 +910,39 @@
   padding: 4px;
 }
 
+.desktop-schedule-slot > [data-desktop-layout-id] {
+  transform: translate3d(0, 0, 0);
+  will-change: transform;
+}
+
+.desktop-drag-placeholder {
+  min-height: 90px;
+  border-radius: 18px;
+  background: linear-gradient(180deg, rgba(246, 241, 233, 0.86) 0%, rgba(251, 248, 243, 0.94) 100%);
+  box-shadow:
+    inset 0 0 0 1px rgba(198, 184, 167, 0.24),
+    inset 0 1px 0 rgba(255, 255, 255, 0.78);
+  opacity: 0;
+  transform: scaleY(0.76);
+  transform-origin: center top;
+  animation: desktopDragPlaceholderIn 220ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
 .desktop-empty-slot {
   min-height: 90px;
   border-radius: 18px;
   background: transparent;
+}
+
+@keyframes desktopDragPlaceholderIn {
+  from {
+    opacity: 0;
+    transform: scaleY(0.76);
+  }
+  to {
+    opacity: 1;
+    transform: scaleY(1);
+  }
 }
 
 .desktop-task-wrapper::before {
