@@ -7,7 +7,7 @@ import useSwipeDownToClose from '../hooks/useSwipeDownToClose';
 import { useSyncedTodos } from '../todoSync';
 import { supabase } from '../supabase';
 import { DAY_BOUNDARY_HOUR, getCurrentTimeBlock, getLogicalToday } from '../lib/dateHelpers';
-import { detectCardType, extractMapUrl, extractVideoUrl, fetchMapMeta, fetchVideoMeta } from '../lib/taskParsers';
+import { fetchMapMeta, fetchVideoMeta, getDerivedTaskFields, normalizeCardType } from '../lib/taskParsers';
 import { getTaskCardPresentation } from '../taskCardUtils';
 import { timeBlocks } from '../lib/timeBlocks';
 import { translations } from '../lib/translations';
@@ -87,15 +87,20 @@ const parseSharedSelectedDate = (value) => {
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 };
 const isValidDesktopSlot = (value) => Number.isInteger(value) && value >= 0 && value < DESKTOP_SLOT_COUNT;
-const normalizeTodoRecord = (todo) => ({
-  ...todo,
-  text: todo.text || '',
-  completed: todo.completed ?? false,
-  dateString: todo.dateString || format(new Date(), 'yyyy-MM-dd'),
-  timeOfDay: todo.timeOfDay || DESKTOP_SECTION_TO_MOBILE_BLOCK[todo.section] || 'Morning',
-  cardType: todo.cardType || 'plain',
-  desktopSlot: isValidDesktopSlot(todo.desktopSlot) ? todo.desktopSlot : null,
-});
+const normalizeTodoRecord = (todo) => {
+  const derivedFields = getDerivedTaskFields(todo.text || '');
+
+  return {
+    ...derivedFields,
+    ...todo,
+    text: todo.text || '',
+    completed: todo.completed ?? false,
+    dateString: todo.dateString || format(new Date(), 'yyyy-MM-dd'),
+    timeOfDay: todo.timeOfDay || DESKTOP_SECTION_TO_MOBILE_BLOCK[todo.section] || 'Morning',
+    cardType: normalizeCardType(todo.cardType || derivedFields.cardType),
+    desktopSlot: isValidDesktopSlot(todo.desktopSlot) ? todo.desktopSlot : null,
+  };
+};
 const getBlockTodosInDisplayOrder = (todos, dateString, timeOfDay) => todos
   .map((todo, index) => ({ todo, index }))
   .filter(({ todo }) => todo.dateString === dateString && todo.timeOfDay === timeOfDay)
@@ -119,17 +124,31 @@ const getFirstAvailableDesktopSlot = (todos, dateString, timeOfDay) => {
 };
 const reflowDesktopSlotsForBlock = (todos, dateString, timeOfDay, orderedIds = null) => {
   const nextTodos = todos.map((todo) => ({ ...todo }));
+  const currentOrderedBlockTodos = getBlockTodosInDisplayOrder(nextTodos, dateString, timeOfDay);
   const orderedBlockTodos = orderedIds
-    ? orderedIds
-      .map((id) => nextTodos.find((todo) => todo.id === id && todo.dateString === dateString && todo.timeOfDay === timeOfDay))
-      .filter(Boolean)
-    : getBlockTodosInDisplayOrder(nextTodos, dateString, timeOfDay);
+    ? [
+      ...orderedIds
+        .map((id) => nextTodos.find((todo) => todo.id === id && todo.dateString === dateString && todo.timeOfDay === timeOfDay))
+        .filter(Boolean),
+      ...currentOrderedBlockTodos.filter((todo) => !orderedIds.includes(todo.id)),
+    ]
+    : currentOrderedBlockTodos;
 
   orderedBlockTodos.forEach((todo, index) => {
     todo.desktopSlot = index < DESKTOP_SLOT_COUNT ? index : null;
   });
 
-  return nextTodos.map(normalizeTodoRecord);
+  let blockCursor = 0;
+  const reorderedTodos = nextTodos.map((todo) => {
+    if (todo.dateString === dateString && todo.timeOfDay === timeOfDay) {
+      const nextTodo = orderedBlockTodos[blockCursor];
+      blockCursor += 1;
+      return nextTodo || todo;
+    }
+    return todo;
+  });
+
+  return reorderedTodos.map(normalizeTodoRecord);
 };
 
 function MobileApp({ session, platformInfo }) {
@@ -1140,11 +1159,10 @@ function MobileApp({ session, platformInfo }) {
     if (!inputText.trim()) return;
     const resolvedBlock = activeChip === 'Now' ? getCurrentTimeBlock() : activeChip;
     const rawText = inputText.trim();
-    const cardType = detectCardType(rawText);
+    const typeFields = getDerivedTaskFields(rawText);
+    const { cardType, videoUrl, mapUrl } = typeFields;
 
     const newTodoId = Date.now();
-    const videoUrl = cardType === 'video' ? extractVideoUrl(rawText) : null;
-    const mapUrl = cardType === 'map' ? extractMapUrl(rawText) : null;
 
     const newTodo = {
       id: newTodoId,
@@ -1152,9 +1170,7 @@ function MobileApp({ session, platformInfo }) {
       timeOfDay: resolvedBlock,
       completed: false,
       dateString: format(selectedDate, 'yyyy-MM-dd'),
-      cardType,
-      videoUrl,
-      mapUrl,
+      ...typeFields,
       desktopSlot: null,
     };
 
@@ -1170,7 +1186,7 @@ function MobileApp({ session, platformInfo }) {
       fetchVideoMeta(videoUrl).then(meta => {
         setTodos(prev => prev.map(t => t.id === newTodoId ? { ...t, ...meta } : t));
       });
-    } else if (cardType === 'map' && mapUrl) {
+    } else if (cardType === 'place' && mapUrl) {
       fetchMapMeta(mapUrl).then(meta => {
         setTodos(prev => prev.map(t => t.id === newTodoId ? { ...t, ...meta } : t));
       });
@@ -1187,6 +1203,8 @@ function MobileApp({ session, platformInfo }) {
   const [dragOverBlock, setDragOverBlock] = useState(null);
 
   const dragOverBlockRef = React.useRef(null); // readable in onTouchEnd closure
+  const dragOverTodoIdRef = React.useRef(null);
+  const dragInsertAfterRef = React.useRef(false);
 
   const swipeTouchStartX = React.useRef(null);
   const swipeTouchStartY = React.useRef(null);
@@ -1270,6 +1288,37 @@ function MobileApp({ session, platformInfo }) {
     });
     return nearestId;
   };
+  const getTouchDragTarget = useCallback((todoId, touchY) => {
+    const blockId = getNearestBlock(touchY);
+    if (!blockId) {
+      return { blockId: null, targetTodoId: null, insertAfter: false };
+    }
+
+    const blockEl = document.querySelector(`[data-block-id="${blockId}"]`);
+    const todoCards = blockEl ? Array.from(blockEl.querySelectorAll('[data-todo-id]')) : [];
+    let nearestTodoId = null;
+    let nearestScore = Number.POSITIVE_INFINITY;
+    let insertAfter = false;
+
+    todoCards.forEach((card) => {
+      const candidateId = Number(card.getAttribute('data-todo-id'));
+      if (candidateId === todoId) return;
+
+      const rect = card.getBoundingClientRect();
+      const clampedY = Math.max(rect.top, Math.min(touchY, rect.bottom));
+      const edgeDistance = Math.abs(touchY - clampedY);
+      const centerDistance = Math.abs(touchY - (rect.top + (rect.height / 2)));
+      const score = (edgeDistance * 1000) + centerDistance;
+
+      if (score < nearestScore) {
+        nearestScore = score;
+        nearestTodoId = candidateId;
+        insertAfter = touchY > rect.top + (rect.height / 2);
+      }
+    });
+
+    return { blockId, targetTodoId: nearestTodoId, insertAfter };
+  }, []);
 
   const syncDraggedCardPosition = (todoId, touchY) => {
     const timelineEl = timelineRef.current;
@@ -1279,11 +1328,13 @@ function MobileApp({ session, platformInfo }) {
     const el = document.getElementById(`swipe-card-${todoId}`);
     if (el) el.style.transform = `translate3d(0, ${dy}px, 0) scale(1.04)`;
 
-    const nearest = getNearestBlock(touchY);
-    if (nearest !== dragOverBlockRef.current) {
-      dragOverBlockRef.current = nearest;
-      setDragOverBlock(nearest);
+    const dragTarget = getTouchDragTarget(todoId, touchY);
+    if (dragTarget.blockId !== dragOverBlockRef.current) {
+      dragOverBlockRef.current = dragTarget.blockId;
+      setDragOverBlock(dragTarget.blockId);
     }
+    dragOverTodoIdRef.current = dragTarget.targetTodoId;
+    dragInsertAfterRef.current = dragTarget.insertAfter;
   };
 
   const stopAutoScroll = useCallback(() => {
@@ -1472,21 +1523,32 @@ function MobileApp({ session, platformInfo }) {
     const el = document.getElementById(`swipe-card-${todoId}`);
     const wrapper = document.getElementById(`swipe-wrapper-${todoId}`);
     const targetBlock = dragOverBlockRef.current;
+    const targetTodoId = dragOverTodoIdRef.current;
+    const insertAfter = dragInsertAfterRef.current;
 
     if (targetBlock) {
       setTodos((prev) => {
         const draggedTodo = prev.find((todo) => todo.id === todoId);
         if (!draggedTodo) return prev;
-        if (draggedTodo.timeOfDay === targetBlock) return prev;
 
         const sourceBlock = draggedTodo.timeOfDay;
         const dateString = draggedTodo.dateString;
-        const targetSlot = getFirstAvailableDesktopSlot(prev.filter((todo) => todo.id !== todoId), dateString, targetBlock);
+        const targetOrder = getBlockTodosInDisplayOrder(prev, dateString, targetBlock)
+          .filter((todo) => todo.id !== todoId)
+          .map((todo) => todo.id);
+        const targetIndex = targetTodoId ? targetOrder.findIndex((id) => id === targetTodoId) : -1;
+        const insertIndex = targetIndex === -1
+          ? targetOrder.length
+          : (insertAfter ? targetIndex + 1 : targetIndex);
+        targetOrder.splice(insertIndex, 0, todoId);
+
         let nextTodos = prev.map((todo) => (
-          todo.id === todoId ? normalizeTodoRecord({ ...todo, timeOfDay: targetBlock, desktopSlot: targetSlot }) : todo
+          todo.id === todoId ? normalizeTodoRecord({ ...todo, timeOfDay: targetBlock }) : todo
         ));
-        nextTodos = reflowDesktopSlotsForBlock(nextTodos, dateString, sourceBlock);
-        nextTodos = reflowDesktopSlotsForBlock(nextTodos, dateString, targetBlock);
+        if (sourceBlock !== targetBlock) {
+          nextTodos = reflowDesktopSlotsForBlock(nextTodos, dateString, sourceBlock);
+        }
+        nextTodos = reflowDesktopSlotsForBlock(nextTodos, dateString, targetBlock, targetOrder);
         return nextTodos;
       });
     }
@@ -1514,6 +1576,8 @@ function MobileApp({ session, platformInfo }) {
     setDraggedTodoId(null);
     setDragOverBlock(null);
     dragOverBlockRef.current = null;
+    dragOverTodoIdRef.current = null;
+    dragInsertAfterRef.current = false;
     swipeTouchStartX.current = null;
     swipeTouchStartY.current = null;
     swipeStartOffset.current = 0;
@@ -1526,6 +1590,8 @@ function MobileApp({ session, platformInfo }) {
     isDragMode.current = true;
     dragOriginY.current = dragTouchY.current || swipeTouchStartY.current || 0;
     activeDragTodoIdRef.current = todoId;
+    dragOverTodoIdRef.current = null;
+    dragInsertAfterRef.current = false;
     setDraggedTodoId(todoId);
     lockTimelineScroll();
 
@@ -1605,10 +1671,22 @@ function MobileApp({ session, platformInfo }) {
   };
 
   const handleEditSave = () => {
-    if (!editText.trim()) return;
+    const rawText = editText.trim();
+    if (!rawText || !editingTodo) return;
+
+    const typeFields = getDerivedTaskFields(rawText);
     setTodos(prev => prev.map(t =>
-      t.id === editingTodo.id ? { ...t, text: editText.trim() } : t
+      t.id === editingTodo.id ? normalizeTodoRecord({ ...t, text: rawText, ...typeFields }) : t
     ));
+    if (typeFields.cardType === 'video' && typeFields.videoUrl) {
+      fetchVideoMeta(typeFields.videoUrl).then(meta => {
+        setTodos(prev => prev.map(t => t.id === editingTodo.id ? normalizeTodoRecord({ ...t, ...meta }) : t));
+      });
+    } else if (typeFields.cardType === 'place' && typeFields.mapUrl) {
+      fetchMapMeta(typeFields.mapUrl).then(meta => {
+        setTodos(prev => prev.map(t => t.id === editingTodo.id ? normalizeTodoRecord({ ...t, ...meta }) : t));
+      });
+    }
     closeEditModal();
   };
 
@@ -2008,7 +2086,7 @@ function MobileApp({ session, platformInfo }) {
                 displayTitle,
                 displaySub,
                 redirectUrl,
-                isPlain,
+                isText,
               } = getTaskCardPresentation(todo, translations[language].actionItem);
 
               const canUseDesktopDrag = !options.isStatic && !isCoarsePointer;
@@ -2044,6 +2122,7 @@ function MobileApp({ session, platformInfo }) {
 
                   <div
                     id={`swipe-card-${todo.id}`}
+                    data-todo-id={todo.id}
                     className={`task-card ${todo.completed ? 'completed' : ''} ${draggedTodoId === todo.id ? 'dragging' : ''}`}
                     onClick={() => {
                       if (Date.now() < suppressAllCardClicksUntilRef.current) {
@@ -2057,7 +2136,7 @@ function MobileApp({ session, platformInfo }) {
                         suppressCardClickRef.current = null;
                         return;
                       }
-                      if (isPlain) {
+                      if (isText) {
                         openEdit(todo);
                         return;
                       }

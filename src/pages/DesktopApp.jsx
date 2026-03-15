@@ -6,23 +6,68 @@ import { getUserProfile } from '../userProfile';
 import DesktopProfilePage from '../components/DesktopProfilePage';
 import IntoDayLogo from '../components/IntoDayLogo';
 import { DAY_BOUNDARY_HOUR, getLogicalToday } from '../lib/dateHelpers';
+import { timeBlocks } from '../lib/timeBlocks';
 import {
-  detectCardType,
-  extractMapUrl,
-  extractVideoUrl,
   fetchMapMeta,
   fetchVideoMeta,
+  getDerivedTaskFields,
   getTaskCardPresentation,
+  normalizeCardType,
 } from '../taskCardUtils';
 
 const SHARED_SELECTED_DATE_KEY = 'shared_selected_date';
 const DESKTOP_LANGUAGE_KEY = 'desktop_profile_language';
 const DESKTOP_APPEARANCE_KEY = 'desktop_profile_appearance';
+const MOBILE_BLOCK_STYLES = Object.fromEntries(timeBlocks.map((block) => [block.id, block]));
 const sections = [
-  { id: 'morning', mobileId: 'Morning', label: 'Morning', start: '06:00', end: '12:00', pillBg: '#f7d8a5', pillColor: '#6b3f06', accent: '#2990d7', iconBg: '#e8f2fb' },
-  { id: 'afternoon', mobileId: 'Afternoon', label: 'Afternoon', start: '12:00', end: '18:00', pillBg: '#bfe3fb', pillColor: '#0d4c82', accent: '#41a2e5', iconBg: '#eaf6ff' },
-  { id: 'evening', mobileId: 'Evening', label: 'Evening', start: '18:00', end: '22:00', pillBg: '#eadffd', pillColor: '#5f2d90', accent: '#9161d4', iconBg: '#f5efff' },
-  { id: 'night', mobileId: 'Night', label: 'Night', start: '22:00', end: '06:00', pillBg: '#dfe6ef', pillColor: '#213243', accent: '#70839a', iconBg: '#eef2f6' },
+  {
+    id: 'morning',
+    mobileId: 'Morning',
+    label: 'Morning',
+    start: '06:00',
+    end: '12:00',
+    pillBg: '#f7d8a5',
+    pillColor: '#6b3f06',
+    darkPillBg: MOBILE_BLOCK_STYLES.Morning.color,
+    darkPillColor: MOBILE_BLOCK_STYLES.Morning.textColor,
+    darkPillBorder: MOBILE_BLOCK_STYLES.Morning.strokeColor,
+  },
+  {
+    id: 'afternoon',
+    mobileId: 'Afternoon',
+    label: 'Afternoon',
+    start: '12:00',
+    end: '18:00',
+    pillBg: '#bfe3fb',
+    pillColor: '#0d4c82',
+    darkPillBg: MOBILE_BLOCK_STYLES.Afternoon.color,
+    darkPillColor: MOBILE_BLOCK_STYLES.Afternoon.textColor,
+    darkPillBorder: MOBILE_BLOCK_STYLES.Afternoon.strokeColor,
+  },
+  {
+    id: 'evening',
+    mobileId: 'Evening',
+    label: 'Evening',
+    start: '18:00',
+    end: '22:00',
+    pillBg: '#eadffd',
+    pillColor: '#5f2d90',
+    darkPillBg: MOBILE_BLOCK_STYLES.Evening.color,
+    darkPillColor: MOBILE_BLOCK_STYLES.Evening.textColor,
+    darkPillBorder: MOBILE_BLOCK_STYLES.Evening.strokeColor,
+  },
+  {
+    id: 'night',
+    mobileId: 'Night',
+    label: 'Night',
+    start: '22:00',
+    end: '06:00',
+    pillBg: '#dfe6ef',
+    pillColor: '#213243',
+    darkPillBg: MOBILE_BLOCK_STYLES.Night.color,
+    darkPillColor: MOBILE_BLOCK_STYLES.Night.textColor,
+    darkPillBorder: MOBILE_BLOCK_STYLES.Night.strokeColor,
+  },
 ];
 const chips = [
   { id: 'now', label: 'Now' },
@@ -42,6 +87,21 @@ const DESKTOP_SLOT_COUNT = 4;
 const DESKTOP_TIME_AXIS_LINE_TOP = 26;
 const DESKTOP_TIME_AXIS_LINE_BOTTOM = 36;
 const DESKTOP_TIME_MARKER_SIZE = 7;
+const getDesktopSectionPillStyle = (section, appearance) => (
+  appearance === 'dark'
+    ? {
+      background: section.darkPillBg,
+      color: section.darkPillColor,
+      border: `1px solid ${section.darkPillBorder}`,
+      WebkitTextStroke: `0.2px ${section.darkPillBorder}`,
+    }
+    : {
+      background: section.pillBg,
+      color: section.pillColor,
+      border: 'none',
+      WebkitTextStroke: '0',
+    }
+);
 
 const isValidDesktopSlot = (value) => Number.isInteger(value) && value >= 0 && value < DESKTOP_SLOT_COUNT;
 const resolveDesktopSectionSlots = (tasks) => {
@@ -138,15 +198,20 @@ const mobileIdToSectionId = (mobileId) => {
   const matched = sections.find((section) => section.mobileId === mobileId);
   return matched?.id || 'morning';
 };
-const normalizeTask = (task) => ({
-  ...task,
-  text: task.text || '',
-  completed: task.completed ?? false,
-  dateString: task.dateString || dateKey(getLogicalToday()),
-  timeOfDay: task.timeOfDay || sectionIdToMobileId(task.section),
-  cardType: task.cardType || 'plain',
-  desktopSlot: isValidDesktopSlot(task.desktopSlot) ? task.desktopSlot : null,
-});
+const normalizeTask = (task) => {
+  const derivedFields = getDerivedTaskFields(task.text || '');
+
+  return {
+    ...derivedFields,
+    ...task,
+    text: task.text || '',
+    completed: task.completed ?? false,
+    dateString: task.dateString || dateKey(getLogicalToday()),
+    timeOfDay: task.timeOfDay || sectionIdToMobileId(task.section),
+    cardType: normalizeCardType(task.cardType || derivedFields.cardType),
+    desktopSlot: isValidDesktopSlot(task.desktopSlot) ? task.desktopSlot : null,
+  };
+};
 const currentSection = (date = new Date()) => {
   const hour = date.getHours();
   if (hour >= 6 && hour < 12) return 'morning';
@@ -197,16 +262,17 @@ const getSectionMarkerStyle = (section, currentTime, selectedDate) => {
 };
 const panelLabel = (date) => sameDay(date, getLogicalToday()) ? 'Today' : date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
 
-const GlobalStyles = () => {
+const GlobalStyles = ({ appearance }) => {
   useEffect(() => {
     const link = document.createElement('link');
     link.href = 'https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap';
     link.rel = 'stylesheet';
     document.head.appendChild(link);
     const style = document.createElement('style');
+    const shellBackground = appearance === 'dark' ? '#121212' : '#f8f5f1';
     style.textContent = `
       * { box-sizing: border-box; }
-      html, body, #root { margin: 0; min-height: 100%; background: #f8f5f1; }
+      html, body, #root { margin: 0; min-height: 100%; background: ${shellBackground}; }
       body { overflow: hidden; }
       button, input { font: inherit; }
       ::selection { background-color: #ef4444; color: white; }
@@ -216,7 +282,7 @@ const GlobalStyles = () => {
       document.head.removeChild(link);
       document.head.removeChild(style);
     };
-  }, []);
+  }, [appearance]);
   return null;
 };
 
@@ -251,9 +317,9 @@ const Clock = () => {
   const mm = String(time.getMinutes()).padStart(2, '0');
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-      {[...hh].map((digit, i) => <span key={`h${i}`} style={{ width: 24, height: 24, borderRadius: 6, border: '1px solid #ddd6cf', background: '#f4f1ed', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'JetBrains Mono, monospace', fontSize: 13 }}>{digit}</span>)}
-      <span style={{ color: '#7f7b76' }}>:</span>
-      {[...mm].map((digit, i) => <span key={`m${i}`} style={{ width: 24, height: 24, borderRadius: 6, border: '1px solid #ddd6cf', background: '#f4f1ed', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'JetBrains Mono, monospace', fontSize: 13 }}>{digit}</span>)}
+      {[...hh].map((digit, i) => <span key={`h${i}`} style={{ width: 24, height: 24, borderRadius: 6, border: '1px solid var(--desktop-clock-border)', background: 'var(--desktop-clock-bg)', color: 'var(--desktop-clock-text)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'JetBrains Mono, monospace', fontSize: 13 }}>{digit}</span>)}
+      <span style={{ color: 'var(--desktop-muted)' }}>:</span>
+      {[...mm].map((digit, i) => <span key={`m${i}`} style={{ width: 24, height: 24, borderRadius: 6, border: '1px solid var(--desktop-clock-border)', background: 'var(--desktop-clock-bg)', color: 'var(--desktop-clock-text)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'JetBrains Mono, monospace', fontSize: 13 }}>{digit}</span>)}
     </div>
   );
 };
@@ -285,13 +351,13 @@ const WeekStrip = ({ selectedDate, logicalToday, onSelect }) => {
     };
   });
   return (
-    <div style={{ borderTop: '1px solid #e6e0d9', borderBottom: '1px solid #ede7df', background: '#f6f3ef' }}>
+    <div style={{ borderTop: '1px solid var(--desktop-week-top-divider)', borderBottom: '1px solid var(--desktop-week-bottom-divider)', background: 'var(--desktop-week-strip-bg)' }}>
       <div style={{ width: 'min(1008px, calc(100% - 72px))', margin: '0 auto', display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: 12, padding: '8px 0' }}>
         {week.map((day) => (
           <button key={day.key} type="button" onClick={() => onSelect(day.date)} style={{ border: 'none', background: 'transparent', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', height: 48, padding: '8px 0', position: 'relative' }}>
-            <span style={{ fontSize: 14, fontWeight: day.active ? 700 : 500, letterSpacing: '0.06em', color: day.active ? '#111' : day.isPast ? '#a0a4ab' : '#7d7b77' }}>{day.label}</span>
-            <span style={{ width: 22, minWidth: 22, maxWidth: 22, height: 22, minHeight: 22, maxHeight: 22, aspectRatio: '1 / 1', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, background: day.active ? '#ef2f2f' : 'transparent', color: day.active ? '#fff' : day.isPast ? '#a0a4ab' : '#7d7b77', fontSize: 14, lineHeight: 1, fontWeight: day.active ? 700 : 500 }}>{day.num}</span>
-            {!day.active && day.isToday ? <span style={{ position: 'absolute', left: '50%', bottom: 2, width: 4, height: 4, borderRadius: '50%', background: '#ef2f2f', transform: 'translateX(-50%)' }} /> : null}
+            <span style={{ fontSize: 14, fontWeight: day.active ? 700 : 500, letterSpacing: '0.06em', color: day.active ? 'var(--desktop-root-text)' : day.isPast ? 'var(--desktop-muted-subtle)' : 'var(--desktop-muted-strong)' }}>{day.label}</span>
+            <span style={{ width: 22, minWidth: 22, maxWidth: 22, height: 22, minHeight: 22, maxHeight: 22, aspectRatio: '1 / 1', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, background: day.active ? 'var(--desktop-active-date-bg)' : 'transparent', color: day.active ? '#fff' : day.isPast ? 'var(--desktop-muted-subtle)' : 'var(--desktop-muted-strong)', fontSize: 14, lineHeight: 1, fontWeight: day.active ? 700 : 500 }}>{day.num}</span>
+            {!day.active && day.isToday ? <span style={{ position: 'absolute', left: '50%', bottom: 2, width: 4, height: 4, borderRadius: '50%', background: 'var(--desktop-accent)', transform: 'translateX(-50%)' }} /> : null}
           </button>
         ))}
       </div>
@@ -299,19 +365,21 @@ const WeekStrip = ({ selectedDate, logicalToday, onSelect }) => {
   );
 };
 
-const TaskCardContent = ({ task }) => {
+const TaskCardContent = ({ task, appearance }) => {
   const { cfg, displayTitle, displaySub } = getTaskCardPresentation(task);
+  const iconBackground = appearance === 'dark' ? cfg.darkBg : cfg.bg;
+  const iconBorder = appearance === 'dark' ? `1px solid ${cfg.darkStroke}` : 'none';
 
   return (
     <>
-      <div style={{ width: 32, height: 32, borderRadius: 8, background: cfg.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-        <img src={cfg.icon} alt={task.cardType || 'plain'} style={{ width: 18, height: 18, objectFit: 'contain' }} />
+      <div style={{ width: 32, height: 32, borderRadius: 8, background: iconBackground, border: iconBorder, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+        <img src={cfg.icon} alt={normalizeCardType(task.cardType)} style={{ width: 18, height: 18, objectFit: 'contain' }} />
       </div>
       <div style={{ minWidth: 0, flex: 1, display: 'flex', flexDirection: 'column', gap: 2 }}>
-        <div style={{ display: '-webkit-box', WebkitBoxOrient: 'vertical', WebkitLineClamp: 2, overflow: 'hidden', wordBreak: 'break-word', color: task.completed ? '#8e8e93' : '#181818', textDecoration: task.completed ? 'line-through' : 'none', fontSize: 13, fontWeight: 590, lineHeight: '20px' }}>
+        <div style={{ display: '-webkit-box', WebkitBoxOrient: 'vertical', WebkitLineClamp: 2, overflow: 'hidden', wordBreak: 'break-word', color: task.completed ? 'var(--desktop-card-desc)' : 'var(--desktop-card-title)', textDecoration: task.completed ? 'line-through' : 'none', fontSize: 13, fontWeight: 590, lineHeight: '20px' }}>
           {displayTitle}
         </div>
-        <div style={{ color: '#8e8e93', fontSize: 11, fontWeight: 400, lineHeight: 1.3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+        <div style={{ color: 'var(--desktop-card-desc)', fontSize: 11, fontWeight: 400, lineHeight: 1.3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
           {displaySub}
         </div>
       </div>
@@ -321,6 +389,7 @@ const TaskCardContent = ({ task }) => {
 
 const TaskCard = ({
   task,
+  appearance,
   onClick,
   onPointerDown,
   onPointerMove,
@@ -343,13 +412,13 @@ const TaskCard = ({
           width: '100%',
           minHeight: 76,
           borderRadius: 11,
-          border: '2px solid #f2f2f2',
-          background: '#fff',
+          border: '2px solid var(--desktop-task-border)',
+          background: 'var(--desktop-task-bg)',
           padding: '12px 14px',
           display: 'flex',
           alignItems: 'center',
           gap: 12,
-          boxShadow: '0 2px 16px rgba(0, 0, 0, 0.03)',
+          boxShadow: 'var(--desktop-task-shadow)',
           cursor: isDragging ? 'grabbing' : 'pointer',
           textAlign: 'left',
           opacity: task.completed ? 0.5 : 1,
@@ -358,13 +427,13 @@ const TaskCard = ({
           userSelect: 'none',
         }}
       >
-        <TaskCardContent task={task} />
+        <TaskCardContent task={task} appearance={appearance} />
       </button>
     </div>
   );
 };
 
-const DragOverlayCard = ({ task, rect }) => {
+const DragOverlayCard = ({ task, rect, appearance }) => {
   if (!task || !rect) return null;
 
   return (
@@ -379,7 +448,7 @@ const DragOverlayCard = ({ task, rect }) => {
       }}
     >
       <div className="desktop-task-drag-overlay-card" style={{ opacity: task.completed ? 0.5 : 1 }}>
-        <TaskCardContent task={task} />
+        <TaskCardContent task={task} appearance={appearance} />
       </div>
     </div>
   );
@@ -387,6 +456,7 @@ const DragOverlayCard = ({ task, rect }) => {
 
 const ScheduleSection = ({
   section,
+  appearance,
   slots,
   overflowTasks,
   markerStyle,
@@ -397,16 +467,19 @@ const ScheduleSection = ({
   onTaskPointerCancel,
   draggedTaskId,
   isDragOver,
-}) => (
-  <section style={{ borderBottom: '1px solid #ece4da', background: '#fffdfb' }}>
+}) => {
+  const pillStyle = getDesktopSectionPillStyle(section, appearance);
+
+  return (
+  <section style={{ borderBottom: '1px solid var(--desktop-divider)', background: 'var(--desktop-section-bg)' }}>
     <div style={{ width: 'min(1008px, calc(100% - 72px))', margin: '0 auto', padding: '22px 0 24px' }}>
-      <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minWidth: 72, padding: '6px 14px', borderRadius: 999, background: section.pillBg, color: section.pillColor, fontFamily: 'DM Serif Display, serif', fontSize: 14, fontStyle: 'italic' }}>{section.label}</span>
+      <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minWidth: 72, padding: '6px 14px', borderRadius: 999, fontFamily: 'DM Serif Display, serif', fontSize: 14, fontStyle: 'italic', ...pillStyle }}>{section.label}</span>
       <div style={{ display: 'grid', gridTemplateColumns: '110px minmax(0, 1fr)', gap: 24, marginTop: 18, alignItems: 'start' }}>
         <div style={{ position: 'relative', minHeight: 220 }}>
-          <div style={{ color: '#161616', fontSize: 15, fontWeight: 500 }}>{section.start}</div>
-          <div style={{ position: 'absolute', left: 5, top: DESKTOP_TIME_AXIS_LINE_TOP, bottom: DESKTOP_TIME_AXIS_LINE_BOTTOM, width: 1, background: '#e2ddd7' }} />
-          {markerStyle ? <div style={{ position: 'absolute', left: 2, width: DESKTOP_TIME_MARKER_SIZE, height: DESKTOP_TIME_MARKER_SIZE, borderRadius: '50%', background: '#ef2f2f', ...markerStyle }} /> : null}
-          <div style={{ position: 'absolute', left: 0, bottom: 0, color: '#161616', fontSize: 15, fontWeight: 500 }}>{section.end}</div>
+          <div style={{ color: 'var(--desktop-root-text)', fontSize: 15, fontWeight: 500 }}>{section.start}</div>
+          <div style={{ position: 'absolute', left: 5, top: DESKTOP_TIME_AXIS_LINE_TOP, bottom: DESKTOP_TIME_AXIS_LINE_BOTTOM, width: 1, background: 'var(--desktop-time-axis-line)' }} />
+          {markerStyle ? <div style={{ position: 'absolute', left: 2, width: DESKTOP_TIME_MARKER_SIZE, height: DESKTOP_TIME_MARKER_SIZE, borderRadius: '50%', background: 'var(--desktop-accent)', ...markerStyle }} /> : null}
+          <div style={{ position: 'absolute', left: 0, bottom: 0, color: 'var(--desktop-root-text)', fontSize: 15, fontWeight: 500 }}>{section.end}</div>
         </div>
         <div
           data-desktop-block-id={section.mobileId}
@@ -424,6 +497,7 @@ const ScheduleSection = ({
               {task ? (
                 <TaskCard
                   task={task}
+                  appearance={appearance}
                   isDragging={draggedTaskId === task.id}
                   onClick={() => onTaskClick(task)}
                   onPointerDown={(event) => onTaskPointerDown(task, event)}
@@ -438,14 +512,15 @@ const ScheduleSection = ({
           ))}
         </div>
         {overflowTasks.length > 0 ? (
-          <div style={{ marginTop: 14, color: '#8d867f', fontSize: 12 }}>
+          <div style={{ marginTop: 14, color: 'var(--desktop-muted)', fontSize: 12 }}>
             {overflowTasks.length} more task{overflowTasks.length > 1 ? 's' : ''} waiting for an open slot in this block.
           </div>
         ) : null}
       </div>
     </div>
   </section>
-);
+  );
+};
 
 const AddPanel = ({ open, selectedDate, chipsToShow, activeChip, setActiveChip, inputText, setInputText, onClose, onSubmit, onSelectDate }) => {
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
@@ -468,9 +543,9 @@ const AddPanel = ({ open, selectedDate, chipsToShow, activeChip, setActiveChip, 
   const desktopCalendarCellSize = 32;
   const desktopCalendarGap = 6;
   return (
-    <aside style={{ width: 348, borderLeft: '1px solid #ece4da', background: '#fffdfb', display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
+    <aside style={{ width: 348, borderLeft: '1px solid var(--desktop-divider)', background: 'var(--desktop-section-bg)', display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
       <div style={{ padding: '18px 22px', display: 'flex', justifyContent: 'flex-end' }}>
-        <button type="button" onClick={onClose} style={{ width: 36, height: 36, borderRadius: '50%', border: 'none', background: '#f5f1ec', color: '#202020', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}><CloseIcon /></button>
+        <button type="button" onClick={onClose} style={{ width: 36, height: 36, borderRadius: '50%', border: 'none', background: 'var(--desktop-panel-close-bg)', color: 'var(--desktop-panel-close-text)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}><CloseIcon /></button>
       </div>
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '28px 28px 22px' }}>
         <div style={{ width: 42, height: 38, marginBottom: 26 }}>
@@ -488,24 +563,24 @@ const AddPanel = ({ open, selectedDate, chipsToShow, activeChip, setActiveChip, 
         <button type="button" onClick={() => {
           if (!isCalendarOpen) setCalendarOffset(0);
           setIsCalendarOpen((prev) => !prev);
-        }} style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: isCalendarOpen ? 18 : 30, padding: 0, border: 'none', background: 'transparent', cursor: 'pointer', color: '#111' }}>
+        }} style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: isCalendarOpen ? 18 : 30, padding: 0, border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--desktop-root-text)' }}>
           <h2 style={{ margin: 0, fontFamily: 'DM Serif Display, serif', fontSize: 38, fontStyle: 'italic', lineHeight: 1 }}>{panelLabel(selectedDate)}</h2>
           <svg xmlns="http://www.w3.org/2000/svg" width="8" height="13" viewBox="0 0 9 14" fill="none" style={{ transform: isCalendarOpen ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.24s cubic-bezier(0.16, 1, 0.3, 1)' }}><path fillRule="evenodd" clipRule="evenodd" d="M8.78019 6.54928C8.92094 6.66887 9 6.83098 9 7C9 7.16902 8.92094 7.33113 8.78019 7.45072L1.26401 13.8288C1.12153 13.9415 0.933079 14.0028 0.738359 13.9999C0.543638 13.997 0.357853 13.93 0.220144 13.8132C0.0824342 13.6963 0.00355271 13.5387 0.000117099 13.3734C-0.00331851 13.2082 0.06896 13.0483 0.201726 12.9274L7.18676 7L0.201726 1.07262C0.06896 0.951712 -0.00331851 0.791795 0.000117099 0.626558C0.00355271 0.461322 0.0824342 0.303668 0.220144 0.18681C0.357853 0.0699525 0.543638 0.00301477 0.738359 9.93682e-05C0.933079 -0.00281603 1.12153 0.0585185 1.26401 0.171181L8.78019 6.54928Z" fill="black" /></svg>
         </button>
         {isCalendarOpen ? (
           <div style={{ width: 'fit-content', maxWidth: '100%', marginBottom: 20, padding: '14px 0 16px' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-              <button type="button" disabled={isAtMinMonth} onClick={() => setCalendarOffset((prev) => prev - 1)} style={{ width: 30, height: 30, borderRadius: '50%', border: 'none', background: '#f0ece6', color: isAtMinMonth ? '#c9c3bb' : '#111', cursor: isAtMinMonth ? 'default' : 'pointer' }}>
+              <button type="button" disabled={isAtMinMonth} onClick={() => setCalendarOffset((prev) => prev - 1)} style={{ width: 30, height: 30, borderRadius: '50%', border: 'none', background: 'var(--desktop-panel-close-bg)', color: isAtMinMonth ? 'var(--desktop-muted-subtle)' : 'var(--desktop-root-text)', cursor: isAtMinMonth ? 'default' : 'pointer' }}>
                 {'<'}
               </button>
               <span style={{ fontFamily: 'DM Serif Display, serif', fontSize: 20, fontStyle: 'italic' }}>{monthLabel}</span>
-              <button type="button" disabled={isAtMaxMonth} onClick={() => setCalendarOffset((prev) => prev + 1)} style={{ width: 30, height: 30, borderRadius: '50%', border: 'none', background: '#f0ece6', color: isAtMaxMonth ? '#c9c3bb' : '#111', cursor: isAtMaxMonth ? 'default' : 'pointer' }}>
+              <button type="button" disabled={isAtMaxMonth} onClick={() => setCalendarOffset((prev) => prev + 1)} style={{ width: 30, height: 30, borderRadius: '50%', border: 'none', background: 'var(--desktop-panel-close-bg)', color: isAtMaxMonth ? 'var(--desktop-muted-subtle)' : 'var(--desktop-root-text)', cursor: isAtMaxMonth ? 'default' : 'pointer' }}>
                 {'>'}
               </button>
             </div>
             <div style={{ display: 'grid', width: 'fit-content', maxWidth: '100%', gridTemplateColumns: `repeat(7, ${desktopCalendarCellSize}px)`, gap: desktopCalendarGap }}>
               {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((label) => (
-                <div key={label} style={{ textAlign: 'center', fontSize: 13, fontWeight: 600, color: '#a0a4ab' }}>{label}</div>
+                <div key={label} style={{ textAlign: 'center', fontSize: 13, fontWeight: 600, color: 'var(--desktop-muted-subtle)' }}>{label}</div>
               ))}
               {Array.from({ length: startOffset }).map((_, index) => <div key={`empty-${index}`} />)}
               {Array.from({ length: daysInMonth }).map((_, index) => {
@@ -528,9 +603,9 @@ const AddPanel = ({ open, selectedDate, chipsToShow, activeChip, setActiveChip, 
                       width: desktopCalendarCellSize,
                       aspectRatio: '1 / 1',
                       borderRadius: '50%',
-                      border: today && !selected ? '1px solid #ed1f1f' : 'none',
-                      background: selected ? '#ed1f1f' : 'transparent',
-                      color: selected ? '#fff' : today ? '#ed1f1f' : inRange ? '#111' : '#d0d0d0',
+                      border: today && !selected ? '1px solid var(--desktop-accent)' : 'none',
+                      background: selected ? 'var(--desktop-active-date-bg)' : 'transparent',
+                      color: selected ? '#fff' : today ? 'var(--desktop-accent)' : inRange ? 'var(--desktop-root-text)' : 'var(--desktop-disabled-text)',
                       fontSize: 15,
                       fontWeight: selected || today ? 700 : 500,
                       cursor: inRange ? 'pointer' : 'default',
@@ -544,18 +619,18 @@ const AddPanel = ({ open, selectedDate, chipsToShow, activeChip, setActiveChip, 
             </div>
           </div>
         ) : null}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 18, fontSize: 13, fontWeight: 700, letterSpacing: '0.03em' }}><ClockOutline />TIME OF DAY</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 18, fontSize: 13, fontWeight: 700, letterSpacing: '0.03em', color: 'var(--desktop-root-text)' }}><ClockOutline />TIME OF DAY</div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {rows.map((row, i) => (
             <div key={i} style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-              {row.map((chip) => <button key={chip.id} type="button" onClick={() => setActiveChip(chip.id)} style={{ minWidth: 62, height: 30, padding: '0 14px', borderRadius: 999, border: 'none', background: activeChip === chip.id ? '#ef2f2f' : '#f5f5f5', color: activeChip === chip.id ? '#fff' : '#242424', cursor: 'pointer', fontSize: 13, fontWeight: 500 }}>{chip.label}</button>)}
+              {row.map((chip) => <button key={chip.id} type="button" onClick={() => setActiveChip(chip.id)} style={{ minWidth: 62, height: 30, padding: '0 14px', borderRadius: 999, border: '1px solid transparent', background: activeChip === chip.id ? 'var(--desktop-chip-active-bg)' : 'var(--desktop-chip-bg)', color: activeChip === chip.id ? 'var(--desktop-chip-active-text)' : 'var(--desktop-chip-text)', cursor: 'pointer', fontSize: 13, fontWeight: 500 }}>{chip.label}</button>)}
             </div>
           ))}
         </div>
         <div style={{ flex: 1 }} />
         <div style={{ position: 'relative' }}>
-          <input type="text" autoFocus value={inputText} onChange={(event) => setInputText(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); onSubmit(); } }} placeholder="e.g Buy groceries at 9pm..." style={{ width: '100%', minHeight: 58, height: 58, borderRadius: 22, border: '1px solid #ddd7cf', background: '#fff', padding: '0 58px 0 16px', outline: 'none', fontSize: 15, boxShadow: '0 12px 28px rgba(17, 17, 17, 0.06)' }} />
-          <button type="button" onClick={onSubmit} style={{ position: 'absolute', right: 8, bottom: 9, width: 40, height: 40, borderRadius: '50%', border: 'none', background: '#111', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', boxShadow: '0 8px 18px rgba(17, 17, 17, 0.18)' }}><ArrowUpIcon /></button>
+          <input type="text" autoFocus value={inputText} onChange={(event) => setInputText(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); onSubmit(); } }} placeholder="e.g Buy groceries at 9pm..." style={{ width: '100%', minHeight: 58, height: 58, borderRadius: 22, border: '1px solid var(--desktop-input-border)', background: 'var(--desktop-input-bg)', color: 'var(--desktop-root-text)', padding: '0 58px 0 16px', outline: 'none', fontSize: 15, boxShadow: 'var(--desktop-input-shadow)' }} />
+          <button type="button" onClick={onSubmit} style={{ position: 'absolute', right: 8, bottom: 9, width: 40, height: 40, borderRadius: '50%', border: 'none', background: 'var(--desktop-submit-bg)', color: 'var(--desktop-submit-text)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', boxShadow: 'var(--desktop-submit-shadow)' }}><ArrowUpIcon /></button>
         </div>
       </div>
     </aside>
@@ -1053,8 +1128,8 @@ function App() {
 
   if (loading) {
     return (
-      <div style={{ width: '100vw', height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#faf7f2' }}>
-        <div style={{ width: 42, height: 42, borderRadius: '50%', border: '4px solid #e8e0d6', borderTop: '4px solid #ef2f2f', animation: 'desktop-spin 1s linear infinite' }} />
+      <div style={{ width: '100vw', height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: appearance === 'dark' ? '#121212' : '#faf7f2' }}>
+        <div style={{ width: 42, height: 42, borderRadius: '50%', border: `4px solid ${appearance === 'dark' ? '#333333' : '#e8e0d6'}`, borderTop: '4px solid #ED1F1F', animation: 'desktop-spin 1s linear infinite' }} />
         <style>{`@keyframes desktop-spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}</style>
       </div>
     );
@@ -1070,7 +1145,7 @@ function App() {
       fetchVideoMeta(videoUrl).then((meta) => {
         setTasks((prev) => prev.map((task) => (task.id === taskId ? normalizeTask({ ...task, ...meta }) : task)));
       });
-    } else if (cardType === 'map' && mapUrl) {
+    } else if (cardType === 'place' && mapUrl) {
       fetchMapMeta(mapUrl).then((meta) => {
         setTasks((prev) => prev.map((task) => (task.id === taskId ? normalizeTask({ ...task, ...meta }) : task)));
       });
@@ -1081,9 +1156,8 @@ function App() {
     if (!rawText) return;
 
     const resolvedSectionId = activeChip === 'now' ? currentBlock : activeChip;
-    const cardType = detectCardType(rawText);
-    const videoUrl = cardType === 'video' ? extractVideoUrl(rawText) : null;
-    const mapUrl = cardType === 'map' ? extractMapUrl(rawText) : null;
+    const typeFields = getDerivedTaskFields(rawText);
+    const { cardType, videoUrl, mapUrl } = typeFields;
     const taskId = Date.now();
 
     const nextTask = normalizeTask({
@@ -1092,14 +1166,7 @@ function App() {
       completed: false,
       timeOfDay: sectionIdToMobileId(resolvedSectionId),
       dateString: selectedDateKey,
-      cardType,
-      videoUrl,
-      mapUrl,
-      videoTitle: null,
-      videoPlatform: null,
-      mapTitle: null,
-      mapSubtitle: null,
-      redirectUrl: null,
+      ...typeFields,
       desktopSlot: null,
     });
 
@@ -1123,11 +1190,13 @@ function App() {
     const rawText = editText.trim();
     if (!editingTask || !rawText) return;
 
+    const typeFields = getDerivedTaskFields(rawText);
     setTasks((prev) => prev.map((task) => (
       task.id === editingTask.id
-        ? normalizeTask({ ...task, text: rawText })
+        ? normalizeTask({ ...task, text: rawText, ...typeFields })
         : task
     )));
+    applyAsyncMetadata(editingTask.id, typeFields.cardType, typeFields.videoUrl, typeFields.mapUrl);
     closeEditModal();
   };
   const toggleTask = (taskId) => {
@@ -1141,8 +1210,8 @@ function App() {
       suppressTaskClickRef.current = null;
       return;
     }
-    const { redirectUrl, isPlain } = getTaskCardPresentation(task);
-    if (isPlain) {
+    const { redirectUrl, isText } = getTaskCardPresentation(task);
+    if (isText) {
       openTaskEditor(task);
       return;
     }
@@ -1162,9 +1231,9 @@ function App() {
 
   return (
     <>
-      <GlobalStyles />
-      <div style={{ width: '100vw', height: '100vh', overflow: 'hidden', background: '#fffdfb', color: '#111', fontFamily: 'Inter, sans-serif' }}>
-        <header style={{ height: 74, padding: '0 38px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#fbf9f6' }}>
+      <GlobalStyles appearance={appearance} />
+      <div className={`desktop-app ${appearance === 'dark' ? 'desktop-app-dark dark-theme' : 'desktop-app-light'}`} style={{ width: '100vw', height: '100vh', overflow: 'hidden', background: 'var(--desktop-root-bg)', color: 'var(--desktop-root-text)', fontFamily: 'Inter, sans-serif' }}>
+        <header style={{ height: 74, padding: '0 38px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--desktop-header-bg)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 18 }}>
             <h1 style={{ margin: 0, fontFamily: 'DM Serif Display, serif', fontSize: 28, fontStyle: 'italic', lineHeight: 1 }}>{panelLabel(selectedDate)}</h1>
             {!todaySelected ? (
@@ -1179,9 +1248,9 @@ function App() {
                   height: 34,
                   padding: '0 14px',
                   borderRadius: 999,
-                  border: '1px solid #ddd6cf',
-                  background: '#f4f1ed',
-                  color: '#a63024',
+                  border: '1px solid var(--desktop-back-today-border)',
+                  background: 'var(--desktop-back-today-bg)',
+                  color: 'var(--desktop-back-today-text)',
                   display: 'inline-flex',
                   alignItems: 'center',
                   gap: 8,
@@ -1200,24 +1269,25 @@ function App() {
             {todaySelected ? <Clock /> : null}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, position: 'relative' }}>
-            <button type="button" className="desktop-profile-trigger" onClick={() => setProfileOpen(true)} style={{ width: 34, height: 34, borderRadius: '50%', border: '1px solid #ddd6cf', background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: 0, overflow: 'hidden' }}>
+            <button type="button" className="desktop-profile-trigger" onClick={() => setProfileOpen(true)} style={{ width: 34, height: 34, borderRadius: '50%', border: '1px solid var(--desktop-avatar-border)', background: 'var(--desktop-avatar-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: 0, overflow: 'hidden' }}>
               {userProfile.avatarUrl ? (
                 <img src={userProfile.avatarUrl} alt={userProfile.fullName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
               ) : (
-                <span style={{ fontFamily: 'DM Serif Display, serif', fontSize: 18, color: '#111' }}>{userProfile.initial}</span>
+                <span style={{ fontFamily: 'DM Serif Display, serif', fontSize: 18, color: 'var(--desktop-root-text)' }}>{userProfile.initial}</span>
               )}
             </button>
           </div>
         </header>
 
         <div style={{ display: 'flex', height: 'calc(100vh - 74px)' }}>
-          <div style={{ flex: 1, minWidth: 0, minHeight: 0, display: 'flex', flexDirection: 'column', background: 'linear-gradient(180deg, #fbf9f6 0%, #fbf9f6 52px, #fffdfb 52px, #fffdfb 100%)' }}>
+          <div style={{ flex: 1, minWidth: 0, minHeight: 0, display: 'flex', flexDirection: 'column', background: 'var(--desktop-main-gradient)' }}>
             <WeekStrip selectedDate={selectedDate} logicalToday={logicalToday} onSelect={(date) => { setSelectedDate(date); setProfileOpen(false); }} />
-            <main ref={mainScrollRef} style={{ flex: 1, minHeight: 0, overflowY: 'auto', background: '#fffdfb' }}>
+            <main ref={mainScrollRef} style={{ flex: 1, minHeight: 0, overflowY: 'auto', background: 'var(--desktop-root-bg)' }}>
               {sections.map((section) => (
                 <ScheduleSection
                   key={section.id}
                   section={section}
+                  appearance={appearance}
                   slots={desktopSectionTasks[section.mobileId]?.slots || Array.from({ length: DESKTOP_SLOT_COUNT }, () => null)}
                   overflowTasks={desktopSectionTasks[section.mobileId]?.overflow || []}
                   markerStyle={getSectionMarkerStyle(section, currentTime, selectedDate)}
@@ -1235,7 +1305,7 @@ function App() {
           <AddPanel open={panelOpen} selectedDate={selectedDate} chipsToShow={visibleChips} activeChip={activeChip} setActiveChip={setActiveChip} inputText={inputText} setInputText={setInputText} onClose={closePanel} onSubmit={saveTask} onSelectDate={setSelectedDate} />
         </div>
 
-        {!panelOpen ? <button type="button" onClick={() => { setProfileOpen(false); closeEditModal(); setActiveChip(visibleChips[0]?.id || 'now'); setInputText(''); setPanelOpen(true); }} aria-label="Add task" style={{ position: 'fixed', right: 42, bottom: 30, width: 50, height: 50, borderRadius: '50%', border: '1px solid #d9d1c8', background: '#fffefc', color: '#111', boxShadow: '0 14px 30px rgba(28,17,8,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', zIndex: 20 }}><PlusIcon /></button> : null}
+        {!panelOpen ? <button type="button" onClick={() => { setProfileOpen(false); closeEditModal(); setActiveChip(visibleChips[0]?.id || 'now'); setInputText(''); setPanelOpen(true); }} aria-label="Add task" style={{ position: 'fixed', right: 42, bottom: 30, width: 50, height: 50, borderRadius: '50%', border: '1px solid var(--desktop-floating-border)', background: 'var(--desktop-floating-bg)', color: 'var(--desktop-floating-text)', boxShadow: 'var(--desktop-floating-shadow)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', zIndex: 20 }}><PlusIcon /></button> : null}
 
         {editingTask ? (
           <div
@@ -1245,7 +1315,7 @@ function App() {
               position: 'fixed',
               inset: 0,
               zIndex: 40,
-              background: 'rgba(17, 17, 17, 0.34)',
+              background: 'var(--desktop-modal-backdrop)',
               backdropFilter: 'blur(8px)',
               display: 'flex',
               alignItems: 'center',
@@ -1261,27 +1331,27 @@ function App() {
               style={{
                 width: 'min(100%, 560px)',
                 maxHeight: 'min(640px, calc(100vh - 56px))',
-                background: '#fffdfb',
-                border: '1px solid rgba(99, 77, 52, 0.08)',
+                background: 'var(--desktop-edit-bg)',
+                border: '1px solid var(--desktop-edit-border)',
                 borderRadius: 24,
-                boxShadow: '0 24px 60px rgba(26, 20, 12, 0.18)',
+                boxShadow: 'var(--desktop-edit-shadow)',
                 display: 'grid',
                 gridTemplateRows: 'auto minmax(0, 1fr) auto',
                 overflow: 'hidden',
               }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, padding: '22px 24px 16px', borderBottom: '1px solid rgba(99, 77, 52, 0.08)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, padding: '22px 24px 16px', borderBottom: '1px solid var(--desktop-edit-border)' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                   <IntoDayLogo
                     showWordmark={false}
                     className="desktop-edit-modal-logo"
                     iconClassName="desktop-edit-modal-logo-icon"
                   />
-                  <h2 id="desktop-edit-modal-title" style={{ margin: 0, fontFamily: 'DM Serif Display, serif', fontSize: 28, fontStyle: 'italic', lineHeight: 1, color: '#1f1a14' }}>
+                  <h2 id="desktop-edit-modal-title" style={{ margin: 0, fontFamily: 'DM Serif Display, serif', fontSize: 28, fontStyle: 'italic', lineHeight: 1, color: 'var(--desktop-root-text)' }}>
                     Edit Task
                   </h2>
                 </div>
-                <button type="button" onClick={closeEditModal} aria-label="Close edit modal" style={{ width: 32, height: 32, borderRadius: '50%', background: '#f4f1ec', border: '1px solid rgba(99, 77, 52, 0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: 0, color: '#3a3026' }}>
+                <button type="button" onClick={closeEditModal} aria-label="Close edit modal" style={{ width: 32, height: 32, borderRadius: '50%', background: 'var(--desktop-modal-close-bg)', border: '1px solid var(--desktop-edit-border)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: 0, color: 'var(--desktop-modal-close-text)' }}>
                   <CloseIcon />
                 </button>
               </div>
@@ -1302,24 +1372,24 @@ function App() {
                     width: '100%',
                     height: '100%',
                     minHeight: 280,
-                    border: '1px solid rgba(99, 77, 52, 0.1)',
-                    background: '#fff',
+                    border: '1px solid var(--desktop-edit-input-border)',
+                    background: 'var(--desktop-edit-input-bg)',
                     borderRadius: 18,
                     padding: 18,
                     fontSize: 16,
                     lineHeight: 1.6,
-                    color: '#16120d',
+                    color: 'var(--desktop-root-text)',
                     resize: 'none',
                     outline: 'none',
                     fontFamily: 'Inter, sans-serif',
                   }}
                 />
               </div>
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, padding: '16px 24px 24px', borderTop: '1px solid rgba(99, 77, 52, 0.08)' }}>
-                <button type="button" onClick={closeEditModal} style={{ minWidth: 96, height: 44, padding: '0 18px', borderRadius: 14, border: '1px solid rgba(99, 77, 52, 0.12)', background: '#f5f1ec', color: '#2b241d', fontSize: 15, fontWeight: 600, cursor: 'pointer' }}>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, padding: '16px 24px 24px', borderTop: '1px solid var(--desktop-edit-border)' }}>
+                <button type="button" onClick={closeEditModal} style={{ minWidth: 96, height: 44, padding: '0 18px', borderRadius: 14, border: '1px solid var(--desktop-cancel-border)', background: 'var(--desktop-cancel-bg)', color: 'var(--desktop-cancel-text)', fontSize: 15, fontWeight: 600, cursor: 'pointer' }}>
                   Cancel
                 </button>
-                <button type="button" onClick={handleEditSave} disabled={!canSaveEdit} style={{ minWidth: 136, height: 44, padding: '0 20px', background: canSaveEdit ? '#17120d' : '#b8afa5', color: '#fff', border: 'none', borderRadius: 14, fontSize: 15, fontWeight: 600, cursor: canSaveEdit ? 'pointer' : 'not-allowed' }}>
+                <button type="button" onClick={handleEditSave} disabled={!canSaveEdit} style={{ minWidth: 136, height: 44, padding: '0 20px', background: canSaveEdit ? 'var(--desktop-save-bg)' : 'var(--desktop-save-disabled-bg)', color: canSaveEdit ? 'var(--desktop-save-text)' : 'var(--desktop-save-disabled-text)', border: 'none', borderRadius: 14, fontSize: 15, fontWeight: 600, cursor: canSaveEdit ? 'pointer' : 'not-allowed' }}>
                   Save
                 </button>
               </div>
@@ -1337,7 +1407,7 @@ function App() {
           setAppearance={setAppearance}
           onSignOut={handleSignOut}
         />
-        <DragOverlayCard task={draggedTask} rect={desktopDragOverlayRectRef.current} />
+        <DragOverlayCard task={draggedTask} rect={desktopDragOverlayRectRef.current} appearance={appearance} />
       </div>
     </>
   );
