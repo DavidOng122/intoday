@@ -1637,27 +1637,83 @@ function MobileApp({ session, platformInfo }) {
   }, [chips, activeChip]);
 
 
-  const getTimeIndicatorStyle = (block, date = selectedDate) => {
-    if (!isSameDay(date, getLogicalToday())) return null;
+  const getTimeBlockAxisState = (block, date = selectedDate) => {
+    const axisColor = block.axisColor || '#F7F1EA';
+    const selectedDay = new Date(date);
+    selectedDay.setHours(0, 0, 0, 0);
 
-    // Only show the indicator in the block that matches current time
-    const currentBlockId = getCurrentTimeBlock();
-    if (block.id !== currentBlockId) return null;
+    const today = getLogicalToday();
+    const todayTime = today.getTime();
+    const selectedTime = selectedDay.getTime();
 
-    const parseTime = (timeStr, isEnd) => {
-      const [h, m] = timeStr.split(':').map(Number);
-      return (h === 0 && timeStr === '00:00' && isEnd) ? 24 * 60 : h * 60 + m;
+    if (selectedTime < todayTime) {
+      return {
+        timeColStyle: {
+          '--time-axis-color': axisColor,
+          '--time-axis-background': axisColor,
+        },
+        indicatorStyle: null,
+      };
+    }
+
+    if (selectedTime > todayTime) {
+      return {
+        timeColStyle: {
+          '--time-axis-color': axisColor,
+          '--time-axis-background': '#FFFFFF',
+        },
+        indicatorStyle: null,
+      };
+    }
+
+    const [startHour, startMinute] = block.start.split(':').map(Number);
+    const [endHour, endMinute] = block.end.split(':').map(Number);
+
+    const blockStart = new Date(selectedDay);
+    blockStart.setHours(startHour, startMinute, 0, 0);
+
+    const blockEnd = new Date(selectedDay);
+    blockEnd.setHours(endHour, endMinute, 0, 0);
+    if (blockEnd <= blockStart) {
+      blockEnd.setDate(blockEnd.getDate() + 1);
+    }
+
+    if (currentTime <= blockStart) {
+      return {
+        timeColStyle: {
+          '--time-axis-color': axisColor,
+          '--time-axis-background': '#FFFFFF',
+        },
+        indicatorStyle: null,
+      };
+    }
+
+    if (currentTime >= blockEnd) {
+      return {
+        timeColStyle: {
+          '--time-axis-color': axisColor,
+          '--time-axis-background': axisColor,
+        },
+        indicatorStyle: null,
+      };
+    }
+
+    const progress = Math.max(
+      0,
+      Math.min(1, (currentTime.getTime() - blockStart.getTime()) / (blockEnd.getTime() - blockStart.getTime()))
+    );
+    const linePosition = `calc(var(--time-col-padding-top) + (var(--time-label-size) / 2) + ((100% - var(--time-col-padding-top) - var(--time-col-padding-bottom) - var(--time-label-size)) * ${progress}))`;
+
+    return {
+      timeColStyle: {
+        '--time-axis-color': axisColor,
+        '--time-line-position': linePosition,
+        '--time-axis-background': `linear-gradient(to bottom, ${axisColor} 0px, ${axisColor} ${linePosition}, #FFFFFF ${linePosition}, #FFFFFF 100%)`,
+      },
+      indicatorStyle: {
+        top: linePosition,
+      },
     };
-    const startMins = parseTime(block.start, false);
-    let endMins = parseTime(block.end, true);
-    if (endMins <= startMins) endMins += 24 * 60;
-    const currentMins = currentTime.getHours() * 60 + currentTime.getMinutes();
-
-    let percentage = (currentMins - startMins) / (endMins - startMins);
-    // Clamp between 0 and 1 just in case of edge timing
-    percentage = Math.max(0, Math.min(1, percentage));
-
-    return { top: `calc(70px + (100% - 110px) * ${percentage})` };
   };
 
   const isTimeBlockPast = (block) => {
@@ -1717,7 +1773,7 @@ function MobileApp({ session, platformInfo }) {
 
     return timeBlocks.map((block) => {
       const blockTodos = dayTodos.filter(t => t.timeOfDay === block.id);
-      const indicatorStyle = getTimeIndicatorStyle(block, date);
+      const axisState = getTimeBlockAxisState(block, date);
 
       return (
         <div
@@ -1729,15 +1785,15 @@ function MobileApp({ session, platformInfo }) {
         >
           <div
             className="time-col"
-            style={{ backgroundColor: block.axisColor || '#F7F1EA' }}
+            style={axisState.timeColStyle}
           >
             <span className="time-text">{block.start}</span>
-            {indicatorStyle && (
+            {axisState.indicatorStyle && (
               <img
                 src="/pin.png"
                 alt="now"
                 className="current-time-indicator-wrapper"
-                style={indicatorStyle}
+                style={axisState.indicatorStyle}
               />
             )}
             <span className="time-text bottom">{block.end}</span>

@@ -75,16 +75,22 @@
 }
 
 .time-col {
+  --time-col-padding-top: 42px;
+  --time-col-padding-bottom: 14px;
+  --time-label-size: 11px;
+  --time-axis-color: #F7F1EA;
+  --time-axis-background: var(--time-axis-color);
+  --time-line-position: calc(var(--time-col-padding-top) + (var(--time-label-size) / 2));
   width: var(--timeline-axis-width);
   border-right: 1px solid #EEE8DF;
   display: flex;
   flex-direction: column;
   align-items: flex-end;
   justify-content: space-between;
-  padding: 42px 6px 14px 8px;
+  padding: var(--time-col-padding-top) 6px var(--time-col-padding-bottom) 8px;
   position: relative;
   flex-shrink: 0;
-  background: #F7F1EA;
+  background: var(--time-axis-background);
 }
 
 .time-text {
@@ -108,6 +114,7 @@
   height: 8px;
   object-fit: contain;
   z-index: 2;
+  transform: translateY(-50%);
   transition: top 1000ms linear;
   pointer-events: none;
 }
