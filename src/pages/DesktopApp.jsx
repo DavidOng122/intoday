@@ -427,17 +427,19 @@ const TaskCardContent = ({ task, appearance, labels }) => {
   );
 };
 
-const TaskCard = ({
-  task,
-  appearance,
-  labels,
-  onClick,
-  onPointerDown,
-  onPointerMove,
-  onPointerUp,
-  onPointerCancel,
-  isDragging,
-}) => {
+const TaskCard = (props) => {
+  const {
+    task,
+    appearance,
+    onClick,
+    onPointerDown,
+    onPointerMove,
+    onPointerUp,
+    onPointerCancel,
+    isDragging,
+  } = props;
+  const taskCardLabels = props?.labels;
+
   return (
     <div id={`desktop-task-wrapper-${task.id}`} className={`desktop-task-wrapper ${isDragging ? 'is-dragging' : ''}`}>
       <button
@@ -468,13 +470,16 @@ const TaskCard = ({
           userSelect: 'none',
         }}
       >
-        <TaskCardContent task={task} appearance={appearance} labels={labels} />
+        <TaskCardContent task={task} appearance={appearance} labels={taskCardLabels} />
       </button>
     </div>
   );
 };
 
-const DragOverlayCard = ({ task, rect, appearance, labels }) => {
+const DragOverlayCard = (props) => {
+  const { task, rect, appearance } = props;
+  const taskCardLabels = props?.labels;
+
   if (!task || !rect) return null;
 
   return (
@@ -489,7 +494,7 @@ const DragOverlayCard = ({ task, rect, appearance, labels }) => {
       }}
     >
       <div className="desktop-task-drag-overlay-card" style={{ opacity: 1 }}>
-        <TaskCardContent task={task} appearance={appearance} labels={labels} />
+        <TaskCardContent task={task} appearance={appearance} labels={taskCardLabels} />
       </div>
     </div>
   );
