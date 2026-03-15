@@ -1222,6 +1222,7 @@ function MobileApp({ session, platformInfo }) {
   const dragDayFlipCooldownUntilRef = React.useRef(0);
   const dragGhostRef = React.useRef(null);
   const dragFloatingRectRef = React.useRef(null);
+  const dragFloatingAnchorRef = React.useRef({ x: 0, y: 0 });
   const dragPlaceholderHeightRef = React.useRef(88);
   const swipeWrapperRectsRef = React.useRef(new Map());
 
@@ -1260,6 +1261,7 @@ function MobileApp({ session, platformInfo }) {
     const sourceEl = document.getElementById(`swipe-card-${todoId}`);
     const wrapper = document.getElementById(`swipe-wrapper-${todoId}`);
     const dragRect = dragFloatingRectRef.current;
+    const dragAnchor = dragFloatingAnchorRef.current;
     if (!sourceEl || !wrapper || !dragRect) return;
 
     wrapper.classList.add('is-dragging');
@@ -1277,6 +1279,7 @@ function MobileApp({ session, platformInfo }) {
     sourceEl.style.pointerEvents = 'none';
     sourceEl.style.boxShadow = '0 18px 38px rgba(15, 23, 42, 0.18)';
     sourceEl.style.willChange = 'transform';
+    sourceEl.style.transform = `translate3d(${dragTouchX.current - dragAnchor.x - dragRect.left}px, ${dragTouchY.current - dragAnchor.y - dragRect.top}px, 0) scale(1.04)`;
   }, []);
   const syncDragPreview = useCallback((nextPreview) => {
     const normalizedPreview = nextPreview?.blockId
@@ -1430,15 +1433,15 @@ function MobileApp({ session, platformInfo }) {
   }, []);
 
   const syncDraggedCardPosition = useCallback((todoId, touchY, touchX = dragTouchX.current) => {
-    const timelineEl = timelineRef.current;
-    const scrollDelta = timelineEl ? timelineEl.scrollTop - lockedTimelineScrollTop.current : 0;
-    const rawDx = touchX - dragOriginX.current;
-    const dx = Math.max(-160, Math.min(160, rawDx));
-    const rawDy = touchY - dragOriginY.current + scrollDelta;
-    const dy = Math.max(-2000, Math.min(2000, rawDy));
     const sourceEl = document.getElementById(`swipe-card-${todoId}`);
+    const dragRect = dragFloatingRectRef.current;
+    const dragAnchor = dragFloatingAnchorRef.current;
     if (sourceEl) {
-      sourceEl.style.transform = `translate3d(${dx}px, ${dy}px, 0) scale(1.04)`;
+      if (dragRect) {
+        const nextDx = touchX - dragAnchor.x - dragRect.left;
+        const nextDy = touchY - dragAnchor.y - dragRect.top;
+        sourceEl.style.transform = `translate3d(${nextDx}px, ${nextDy}px, 0) scale(1.04)`;
+      }
       sourceEl.style.opacity = '1';
     }
     applyDragSourceCardState(todoId);
@@ -1799,6 +1802,7 @@ function MobileApp({ session, platformInfo }) {
     swipeCurrentOffset.current = 0;
     dragTouchX.current = 0;
     dragFloatingRectRef.current = null;
+    dragFloatingAnchorRef.current = { x: 0, y: 0 };
   }, [clearDragDayFlipTimer, detachTouchDragListeners, removeDragGhost, stopAutoScroll, suppressNextCardClick, unlockTimelineScroll]);
 
   const startTouchDrag = useCallback((todoId) => {
@@ -1823,9 +1827,12 @@ function MobileApp({ session, platformInfo }) {
         width: rect.width,
         height: rect.height,
       };
+      dragFloatingAnchorRef.current = {
+        x: rect.width / 2,
+        y: Math.min(28, Math.max(18, rect.height * 0.32)),
+      };
       dragPlaceholderHeightRef.current = Math.max(72, Math.round(rect.height));
       applyDragSourceCardState(todoId);
-      el.style.transform = 'translate3d(0, 0, 0) scale(1.04)';
     }
 
     if (wrapper) {

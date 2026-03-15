@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '../supabase';
 import DesktopLogin from '../DesktopLogin';
 import { useSyncedTodos } from '../todoSync';
@@ -152,6 +152,62 @@ const getFirstAvailableDesktopSlot = (tasks, dateString, timeOfDay) => {
   );
   const index = slots.findIndex((task) => task === null);
   return index === -1 ? null : index;
+};
+const buildDesktopRenderSections = ({ selectedTasks, draggedTaskId, dragOverSection, dragOverSlot }) => {
+  const baseSections = Object.fromEntries(
+    sections.map((section) => {
+      const { slots, overflow } = resolveDesktopSectionSlots(
+        selectedTasks.filter((task) => task.timeOfDay === section.mobileId),
+      );
+      return [section.mobileId, {
+        renderSlots: slots.map((task) => (task ? { type: 'task', task } : { type: 'empty' })),
+        overflow,
+      }];
+    }),
+  );
+
+  if (!draggedTaskId) return baseSections;
+
+  const draggedTask = selectedTasks.find((task) => task.id === draggedTaskId);
+  if (!draggedTask) return baseSections;
+
+  let previewTasks = selectedTasks;
+  if (dragOverSection && isValidDesktopSlot(dragOverSlot)) {
+    previewTasks = applyDesktopTaskDrop({
+      tasks: selectedTasks,
+      draggedTaskId,
+      dateString: draggedTask.dateString,
+      sourceSection: draggedTask.timeOfDay,
+      sourceSlot: draggedTask.desktopSlot,
+      targetSection: dragOverSection,
+      targetSlot: dragOverSlot,
+    });
+  }
+
+  const previewDraggedTask = previewTasks.find((task) => task.id === draggedTaskId) || draggedTask;
+  const previewSections = Object.fromEntries(
+    sections.map((section) => {
+      const { slots, overflow } = resolveDesktopSectionSlots(
+        previewTasks.filter((task) => task.timeOfDay === section.mobileId),
+      );
+      const renderSlots = slots.map((task, slotIndex) => {
+        if (
+          previewDraggedTask.timeOfDay === section.mobileId
+          && previewDraggedTask.desktopSlot === slotIndex
+        ) {
+          return { type: 'placeholder' };
+        }
+        if (task && task.id === draggedTaskId) {
+          return { type: 'empty' };
+        }
+        return task ? { type: 'task', task } : { type: 'empty' };
+      });
+
+      return [section.mobileId, { renderSlots, overflow }];
+    }),
+  );
+
+  return previewSections;
 };
 const applyDesktopTaskDrop = ({ tasks, draggedTaskId, dateString, sourceSection, sourceSlot, targetSection, targetSlot }) => {
   if (!targetSection || !isValidDesktopSlot(targetSlot)) return tasks;
@@ -505,7 +561,7 @@ const ScheduleSection = ({
   appearance,
   language,
   labels,
-  slots,
+  renderSlots,
   overflowTasks,
   markerStyle,
   onTaskClick,
@@ -535,7 +591,7 @@ const ScheduleSection = ({
           className={`desktop-schedule-task-grid ${isDragOver ? 'is-drag-over' : ''}`}
           style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(260px, 1fr))', gap: 22, alignItems: 'stretch' }}
         >
-          {slots.map((task, slotIndex) => (
+          {renderSlots.map((item, slotIndex) => (
             <div
               key={`${section.mobileId}-${slotIndex}`}
               data-desktop-slot-id={`${section.mobileId}-${slotIndex}`}
@@ -543,18 +599,22 @@ const ScheduleSection = ({
               data-desktop-slot-index={slotIndex}
               className="desktop-schedule-slot"
             >
-              {task ? (
-                <TaskCard
-                  task={task}
-                  appearance={appearance}
-                  labels={labels}
-                  isDragging={draggedTaskId === task.id}
-                  onClick={() => onTaskClick(task)}
-                  onPointerDown={(event) => onTaskPointerDown(task, event)}
-                  onPointerMove={(event) => onTaskPointerMove(task, event)}
-                  onPointerUp={(event) => onTaskPointerUp(task, event)}
-                  onPointerCancel={(event) => onTaskPointerCancel(task, event)}
-                />
+              {item.type === 'task' ? (
+                <div data-desktop-layout-id={`task-${item.task.id}`}>
+                  <TaskCard
+                    task={item.task}
+                    appearance={appearance}
+                    labels={labels}
+                    isDragging={draggedTaskId === item.task.id}
+                    onClick={() => onTaskClick(item.task)}
+                    onPointerDown={(event) => onTaskPointerDown(item.task, event)}
+                    onPointerMove={(event) => onTaskPointerMove(item.task, event)}
+                    onPointerUp={(event) => onTaskPointerUp(item.task, event)}
+                    onPointerCancel={(event) => onTaskPointerCancel(item.task, event)}
+                  />
+                </div>
+              ) : item.type === 'placeholder' ? (
+                <div data-desktop-layout-id="desktop-drag-placeholder" className="desktop-drag-placeholder" aria-hidden="true" />
               ) : (
                 <div className="desktop-empty-slot" aria-hidden="true" />
               )}
@@ -736,6 +796,7 @@ function App() {
   const suppressTaskClickRef = useRef(null);
   const suppressAllTaskClicksUntilRef = useRef(0);
   const suppressTaskClickTimeoutRef = useRef(null);
+  const desktopLayoutRectsRef = useRef(new Map());
 
   useEffect(() => {
     const interval = setInterval(() => setCurrentTime(new Date()), 60000);
@@ -924,10 +985,11 @@ function App() {
     desktopAutoScrollFrameRef.current = window.requestAnimationFrame(runDesktopAutoScroll);
   }, [stopDesktopAutoScroll, syncDesktopDraggedTaskPosition]);
 
-  const startDesktopTaskDrag = useCallback((taskId) => {
+  const startDesktopTaskDrag = useCallback((task) => {
+    const taskId = task.id;
     desktopDragModeRef.current = true;
-    dragOverSectionRef.current = null;
-    dragOverSlotRef.current = null;
+    dragOverSectionRef.current = task.timeOfDay;
+    dragOverSlotRef.current = task.desktopSlot;
     lockedMainScrollTopRef.current = mainScrollRef.current?.scrollTop || 0;
     document.body.classList.add('desktop-task-dragging');
 
@@ -950,6 +1012,8 @@ function App() {
     }
 
     setDraggedTaskId(taskId);
+    setDragOverSection(task.timeOfDay);
+    setDragOverSlot(task.desktopSlot);
 
     window.requestAnimationFrame(() => {
       syncDesktopDraggedTaskPosition(
@@ -1033,7 +1097,7 @@ function App() {
     if (!desktopDragModeRef.current) {
       const distance = Math.hypot(deltaX, deltaY);
       if (distance >= DESKTOP_DRAG_START_DISTANCE) {
-        startDesktopTaskDrag(task.id);
+        startDesktopTaskDrag(task);
       } else {
         return;
       }
@@ -1148,12 +1212,39 @@ function App() {
 
   const selectedDateKey = dateKey(selectedDate);
   const selectedTasks = tasks.filter((task) => task.dateString === selectedDateKey);
-  const desktopSectionTasks = useMemo(() => Object.fromEntries(
-    sections.map((section) => [
-      section.mobileId,
-      resolveDesktopSectionSlots(selectedTasks.filter((task) => task.timeOfDay === section.mobileId)),
-    ]),
-  ), [selectedTasks]);
+  const desktopSectionTasks = useMemo(() => buildDesktopRenderSections({
+    selectedTasks,
+    draggedTaskId,
+    dragOverSection,
+    dragOverSlot,
+  }), [dragOverSection, dragOverSlot, draggedTaskId, selectedTasks]);
+
+  useLayoutEffect(() => {
+    const elements = Array.from(document.querySelectorAll('[data-desktop-layout-id]'));
+    const nextRects = new Map(
+      elements.map((element) => [element.getAttribute('data-desktop-layout-id'), element.getBoundingClientRect()]),
+    );
+    const prevRects = desktopLayoutRectsRef.current;
+
+    elements.forEach((element) => {
+      const id = element.getAttribute('data-desktop-layout-id');
+      const prevRect = prevRects.get(id);
+      const nextRect = nextRects.get(id);
+      if (!id || !prevRect || !nextRect) return;
+
+      const deltaX = prevRect.left - nextRect.left;
+      const deltaY = prevRect.top - nextRect.top;
+      if (Math.abs(deltaX) < 0.5 && Math.abs(deltaY) < 0.5) return;
+
+      element.style.transition = 'none';
+      element.style.transform = `translate3d(${deltaX}px, ${deltaY}px, 0)`;
+      element.getBoundingClientRect();
+      element.style.transition = 'transform 280ms cubic-bezier(0.22, 1, 0.36, 1)';
+      element.style.transform = 'translate3d(0, 0, 0)';
+    });
+
+    desktopLayoutRectsRef.current = nextRects;
+  }, [desktopSectionTasks]);
   const editingTask = editingTaskId ? tasks.find((task) => task.id === editingTaskId) || null : null;
   const canSaveEdit = editText.trim().length > 0;
   const closeEditModal = useCallback(() => {
