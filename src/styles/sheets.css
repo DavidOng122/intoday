@@ -198,7 +198,9 @@
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  width: min(100%, 318px);
+  width: 100%;
+  max-width: 318px;
+  min-width: 0;
   transition: transform 0.24s cubic-bezier(0.16, 1, 0.3, 1), margin-top 0.24s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
@@ -942,6 +944,9 @@
    ======================================================== */
 .sheet-calendar-picker {
   overflow: hidden;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
   max-height: 0;
   opacity: 0;
   transform: translateY(8px);
@@ -1007,11 +1012,14 @@
 
 .cal-picker-grid {
   display: grid;
+  width: 100%;
+  max-width: 100%;
   grid-template-columns: repeat(7, 1fr);
-  gap: 13px;
+  gap: clamp(8px, 2.8vw, 13px);
 }
 
 .cal-picker-dow {
+  min-width: 0;
   font-size: 14px;
   font-weight: 600;
   color: #A0A4AB;
@@ -1023,6 +1031,7 @@
 
 .cal-picker-day {
   aspect-ratio: 1;
+  min-width: 0;
   border-radius: 50%;
   border: none;
   background: transparent;

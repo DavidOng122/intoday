@@ -5,6 +5,7 @@ export default function useKeyboardOffset({
   baseHeight = 0,
   baseViewportHeight = 0,
   isAndroid = false,
+  contentLiftStartOffset = 190,
 }) {
   const [sheetKeyboardOffset, setSheetKeyboardOffset] = useState(0);
 
@@ -46,12 +47,12 @@ export default function useKeyboardOffset({
   }, [baseViewportHeight, enabled]);
 
   const keyboardLiftOffset = sheetKeyboardOffset > (isAndroid ? 0 : 120) ? sheetKeyboardOffset : 0;
-  const sheetGapCollapse = 190;
   const composerLift = keyboardLiftOffset > 0
     ? Math.min(keyboardLiftOffset, Math.max(0, baseHeight - 170))
     : 0;
-  const sheetContentLift = composerLift > sheetGapCollapse
-    ? composerLift - sheetGapCollapse
+  const effectiveContentLiftStartOffset = Math.max(0, contentLiftStartOffset);
+  const sheetContentLift = composerLift > effectiveContentLiftStartOffset
+    ? composerLift - effectiveContentLiftStartOffset
     : 0;
 
   return {

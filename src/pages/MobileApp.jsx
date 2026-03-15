@@ -111,11 +111,15 @@ function MobileApp({ session, platformInfo }) {
   const [isAppearanceDropdownOpen, setIsAppearanceDropdownOpen] = useState(false);
   const taskInputRef = useRef(null);
   const expandedTaskInputRef = useRef(null);
+  const sheetLowerStackRef = useRef(null);
+  const chipsContainerRef = useRef(null);
+  const compactComposerRef = useRef(null);
   const [isTaskInputFocused, setIsTaskInputFocused] = useState(false);
   const [canExpandComposer, setCanExpandComposer] = useState(false);
   const [isComposerExpanded, setIsComposerExpanded] = useState(false);
   const [sheetBaseHeight, setSheetBaseHeight] = useState(null);
   const [sheetBaseViewportHeight, setSheetBaseViewportHeight] = useState(0);
+  const [sheetContentLiftStartOffset, setSheetContentLiftStartOffset] = useState(190);
 
   useEffect(() => {
     const textarea = taskInputRef.current;
@@ -231,12 +235,58 @@ function MobileApp({ session, platformInfo }) {
     localStorage.setItem(SHARED_SELECTED_DATE_KEY, format(selectedDate, 'yyyy-MM-dd'));
   }, [selectedDate]);
 
-  const { composerLift, sheetContentLift } = useKeyboardOffset({
+  const { sheetKeyboardOffset, composerLift, sheetContentLift } = useKeyboardOffset({
     enabled: isSheetOpen,
     baseHeight: sheetBaseHeight,
     baseViewportHeight: sheetBaseViewportHeight,
     isAndroid,
+    contentLiftStartOffset: sheetContentLiftStartOffset,
   });
+
+  const measureSheetContentLiftStartOffset = useCallback(() => {
+    const composerElement = compactComposerRef.current;
+    const anchorElement = (!isCalendarOpen && chipsContainerRef.current)
+      ? chipsContainerRef.current
+      : sheetLowerStackRef.current;
+
+    if (!composerElement || !anchorElement) return;
+
+    const composerRect = composerElement.getBoundingClientRect();
+    const anchorRect = anchorElement.getBoundingClientRect();
+    const nextOffset = Math.max(0, Math.round(composerRect.top - anchorRect.bottom));
+
+    setSheetContentLiftStartOffset((current) => (
+      Math.abs(current - nextOffset) > 1 ? nextOffset : current
+    ));
+  }, [isCalendarOpen]);
+
+  useLayoutEffect(() => {
+    if (!isSheetOpen || isComposerExpanded || sheetKeyboardOffset > 0) return undefined;
+
+    let frame = window.requestAnimationFrame(measureSheetContentLiftStartOffset);
+
+    const handleLayoutChange = () => {
+      window.cancelAnimationFrame(frame);
+      frame = window.requestAnimationFrame(measureSheetContentLiftStartOffset);
+    };
+
+    window.addEventListener('resize', handleLayoutChange);
+    window.visualViewport?.addEventListener('resize', handleLayoutChange);
+
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.removeEventListener('resize', handleLayoutChange);
+      window.visualViewport?.removeEventListener('resize', handleLayoutChange);
+    };
+  }, [
+    isSheetOpen,
+    isComposerExpanded,
+    isCalendarOpen,
+    canExpandComposer,
+    inputText,
+    sheetKeyboardOffset,
+    measureSheetContentLiftStartOffset,
+  ]);
   const closeSheet = useCallback(() => {
     setIsCalendarOpen(false);
     setIsComposerExpanded(false);
@@ -276,44 +326,6 @@ function MobileApp({ session, platformInfo }) {
     }, 250);
   };
 
-  const accountTouchStartY = React.useRef(null);
-  const accountCurrentY = React.useRef(0);
-
-  const handleAccountTouchStart = (e) => {
-    accountTouchStartY.current = e.touches[0].clientY;
-  };
-  const handleAccountTouchMove = (e) => {
-    const canSwipeToClose = !profileScrollRef.current || profileScrollRef.current.scrollTop <= 0;
-
-    if (!canSwipeToClose || accountTouchStartY.current === null) return;
-
-    const dy = e.touches[0].clientY - accountTouchStartY.current;
-    if (dy > 0) {
-      accountCurrentY.current = dy;
-      const el = e.currentTarget;
-      el.style.transform = `translateY(${dy}px)`;
-      el.style.transition = 'none';
-      if (e.cancelable) {
-        e.preventDefault();
-      }
-    }
-  };
-  const handleAccountTouchEnd = (e) => {
-    if (accountTouchStartY.current === null) return;
-    const dy = accountCurrentY.current;
-    const el = e.currentTarget;
-    if (dy > 120) {
-      el.style.transition = 'transform 0.25s ease-out';
-      el.style.transform = 'translateY(100vh)';
-      setTimeout(() => closeProfile(true), 200);
-    } else {
-      el.style.transition = 'transform 0.25s cubic-bezier(0.22, 1, 0.36, 1)';
-      el.style.transform = 'translateY(0)';
-    }
-    accountTouchStartY.current = null;
-    accountCurrentY.current = 0;
-  };
-
   // ── Android Back Button (PWA) ──────────────────────────────────────────────
   // When any overlay is open we push a dummy history entry so the Android
   // hardware back-button fires `popstate` instead of closing the whole app.
@@ -332,10 +344,16 @@ function MobileApp({ session, platformInfo }) {
 
 
   const sheetSwipeHandlers = useSwipeDownToClose({
-    enabled: isSheetOpen && isIOS,
+    enabled: isSheetOpen,
     onClose: closeSheet,
     getScrollElement: '.sheet-content',
     ignoreSwipeFrom: '.sheet-input-area',
+  });
+  const profileSwipeHandlers = useSwipeDownToClose({
+    enabled: isProfileOpen && isIOS,
+    onClose: () => closeProfile(true),
+    baseTransform: modalSwipeTransform,
+    getScrollElement: '.profile-scroll',
   });
   const editSwipeHandlers = useSwipeDownToClose({
     enabled: !!editingTodo,
@@ -2033,7 +2051,10 @@ function MobileApp({ session, platformInfo }) {
                       <path fillRule="evenodd" clipRule="evenodd" d="M8.78019 6.54928C8.92094 6.66887 9 6.83098 9 7C9 7.16902 8.92094 7.33113 8.78019 7.45072L1.26401 13.8288C1.12153 13.9415 0.933079 14.0028 0.738359 13.9999C0.543638 13.997 0.357853 13.93 0.220144 13.8132C0.0824342 13.6963 0.00355271 13.5387 0.000117099 13.3734C-0.00331851 13.2082 0.06896 13.0483 0.201726 12.9274L7.18676 7L0.201726 1.07262C0.06896 0.951712 -0.00331851 0.791795 0.000117099 0.626558C0.00355271 0.461322 0.0824342 0.303668 0.220144 0.18681C0.357853 0.0699525 0.543638 0.00301477 0.738359 9.93682e-05C0.933079 -0.00281603 1.12153 0.0585185 1.26401 0.171181L8.78019 6.54928Z" fill="black" />
                     </svg>
                   </div>
-                  <div className={`sheet-lower-stack ${isCalendarOpen ? 'calendar-open' : ''}`}>
+                  <div
+                    ref={sheetLowerStackRef}
+                    className={`sheet-lower-stack ${isCalendarOpen ? 'calendar-open' : ''}`}
+                  >
                     {/* Inline calendar picker */}
                     <div className={`sheet-calendar-picker ${isCalendarOpen ? 'open' : ''}`}>
                       {(() => {
@@ -2121,7 +2142,7 @@ function MobileApp({ session, platformInfo }) {
                           {translations[language].timeOfDay}
                         </div>
 
-                        <div className="chips-container">
+                        <div ref={chipsContainerRef} className="chips-container">
                           {chipRows.map((row, rowIdx) => (
                             <div key={rowIdx} className={`chips-row chips-row-${row.length}`}>
                               {row.map((chip) => (
@@ -2146,6 +2167,7 @@ function MobileApp({ session, platformInfo }) {
                 className="sheet-input-area"
               >
                 <div
+                  ref={!isComposerExpanded ? compactComposerRef : null}
                   className={`composer-frame ${isComposerExpanded ? 'expanded' : ''}`}
                   style={!isComposerExpanded && composerLift > 0 ? { transform: `translateY(-${composerLift}px)` } : undefined}
                 >
@@ -2224,10 +2246,7 @@ function MobileApp({ session, platformInfo }) {
           }}>
             <div 
               className={`profile-modal ${isAndroid ? 'profile-modal-android' : 'profile-modal-ios'} ${isClosingProfile ? 'panel-exit' : 'panel-enter'}`}
-              onTouchStart={isIOS ? handleAccountTouchStart : undefined}
-              onTouchMove={isIOS ? handleAccountTouchMove : undefined}
-              onTouchEnd={isIOS ? handleAccountTouchEnd : undefined}
-              onTouchCancel={isIOS ? handleAccountTouchEnd : undefined}
+              {...profileSwipeHandlers}
             >
               <div className="profile-scroll" ref={profileScrollRef}>
                 <button className="profile-back-btn" onClick={closeProfile}>
