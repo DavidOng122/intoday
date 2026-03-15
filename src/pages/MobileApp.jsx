@@ -1419,14 +1419,43 @@ function MobileApp({ session, platformInfo }) {
     }
 
     const blockEl = document.querySelector(`[data-block-id="${blockId}"]`);
-    const todoCards = blockEl ? Array.from(blockEl.querySelectorAll('[data-todo-id]')) : [];
+    const todoCards = blockEl
+      ? Array.from(blockEl.querySelectorAll('[data-todo-id]')).filter((card) => Number(card.getAttribute('data-todo-id')) !== todoId)
+      : [];
+
+    if (todoCards.length === 0) {
+      return { blockId, targetTodoId: null, insertAfter: false };
+    }
+
+    const firstCard = todoCards[0];
+    const lastCard = todoCards[todoCards.length - 1];
+    const firstRect = firstCard.getBoundingClientRect();
+    const lastRect = lastCard.getBoundingClientRect();
+    const firstThreshold = Math.max(18, firstRect.height * 0.35);
+    const lastThreshold = Math.max(18, lastRect.height * 0.35);
+
+    if (touchY <= firstRect.top + firstThreshold) {
+      return {
+        blockId,
+        targetTodoId: Number(firstCard.getAttribute('data-todo-id')),
+        insertAfter: false,
+      };
+    }
+
+    if (touchY >= lastRect.bottom - lastThreshold) {
+      return {
+        blockId,
+        targetTodoId: Number(lastCard.getAttribute('data-todo-id')),
+        insertAfter: true,
+      };
+    }
+
     let nearestTodoId = null;
     let nearestScore = Number.POSITIVE_INFINITY;
     let insertAfter = false;
 
     todoCards.forEach((card) => {
       const candidateId = Number(card.getAttribute('data-todo-id'));
-      if (candidateId === todoId) return;
 
       const rect = card.getBoundingClientRect();
       const clampedY = Math.max(rect.top, Math.min(touchY, rect.bottom));
