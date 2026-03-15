@@ -154,10 +154,21 @@ const getFirstAvailableDesktopSlot = (tasks, dateString, timeOfDay) => {
   const index = slots.findIndex((task) => task === null);
   return index === -1 ? null : index;
 };
-const reflowDesktopSectionSlots = (tasks, dateString, timeOfDay) => {
+const getDesktopSectionTaskOrder = (tasks, dateString, timeOfDay) => {
   const sectionTasks = tasks.filter((task) => task.dateString === dateString && task.timeOfDay === timeOfDay);
   const { slots, overflow } = resolveDesktopSectionSlots(sectionTasks);
-  const orderedTasks = [...slots.filter(Boolean), ...overflow];
+  return [...slots.filter(Boolean), ...overflow];
+};
+const reflowDesktopSectionSlots = (tasks, dateString, timeOfDay, orderedIds = null) => {
+  const currentOrderedTasks = getDesktopSectionTaskOrder(tasks, dateString, timeOfDay);
+  const orderedTasks = orderedIds
+    ? [
+      ...orderedIds
+        .map((id) => currentOrderedTasks.find((task) => task.id === id))
+        .filter(Boolean),
+      ...currentOrderedTasks.filter((task) => !orderedIds.includes(task.id)),
+    ]
+    : currentOrderedTasks;
 
   orderedTasks.forEach((task, index) => {
     const targetTask = tasks.find((item) => item.id === task.id);
@@ -244,17 +255,17 @@ const applyDesktopTaskDrop = ({ tasks, draggedTaskId, dateString, sourceSection,
     return nextTasks.map(normalizeTask);
   }
 
-  const resolvedTargetSlot = getFirstAvailableDesktopSlot(
+  draggedTask.timeOfDay = targetSection;
+  draggedTask.desktopSlot = null;
+  const targetOrder = getDesktopSectionTaskOrder(
     nextTasks.filter((task) => task.id !== draggedTaskId),
     dateString,
     targetSection,
-  );
-  if (resolvedTargetSlot === null) return tasks;
-
-  draggedTask.timeOfDay = targetSection;
-  draggedTask.desktopSlot = resolvedTargetSlot;
+  ).map((task) => task.id);
+  const insertIndex = Math.max(0, Math.min(targetSlot, targetOrder.length));
+  targetOrder.splice(insertIndex, 0, draggedTaskId);
   reflowDesktopSectionSlots(nextTasks, dateString, sourceSection);
-  reflowDesktopSectionSlots(nextTasks, dateString, targetSection);
+  reflowDesktopSectionSlots(nextTasks, dateString, targetSection, targetOrder);
   return nextTasks.map(normalizeTask);
 };
 

@@ -1232,6 +1232,7 @@ function MobileApp({ session, platformInfo }) {
   const dragDayFlipDirectionRef = React.useRef(0);
   const dragDayFlipCooldownUntilRef = React.useRef(0);
   const dragGhostRef = React.useRef(null);
+  const dragOverlayRef = React.useRef(null);
   const dragFloatingRectRef = React.useRef(null);
   const dragFloatingAnchorRef = React.useRef({ x: 0, y: 0 });
   const dragPlaceholderHeightRef = React.useRef(88);
@@ -1272,26 +1273,23 @@ function MobileApp({ session, platformInfo }) {
     const sourceEl = document.getElementById(`swipe-card-${todoId}`);
     const wrapper = document.getElementById(`swipe-wrapper-${todoId}`);
     const dragRect = dragFloatingRectRef.current;
-    const dragAnchor = dragFloatingAnchorRef.current;
     if (!sourceEl || !wrapper || !dragRect) return;
-    const contextRect = getFixedPositionContextRect(sourceEl);
 
     wrapper.classList.add('is-dragging');
     wrapper.style.height = `${dragRect.height}px`;
 
     sourceEl.style.transition = 'none';
-    sourceEl.style.position = 'fixed';
-    sourceEl.style.left = `${dragRect.left - contextRect.left}px`;
-    sourceEl.style.top = `${dragRect.top - contextRect.top}px`;
-    sourceEl.style.width = `${dragRect.width}px`;
-    sourceEl.style.height = `${dragRect.height}px`;
-    sourceEl.style.margin = '0';
-    sourceEl.style.opacity = '1';
-    sourceEl.style.zIndex = '2200';
+    sourceEl.style.opacity = '0';
     sourceEl.style.pointerEvents = 'none';
-    sourceEl.style.boxShadow = '0 18px 38px rgba(15, 23, 42, 0.18)';
-    sourceEl.style.willChange = 'transform';
-    sourceEl.style.transform = `translate3d(${dragTouchX.current - dragAnchor.x - dragRect.left}px, ${dragTouchY.current - dragAnchor.y - dragRect.top}px, 0) scale(1.04)`;
+  }, []);
+
+  const syncDragOverlayPosition = useCallback((touchX = dragTouchX.current, touchY = dragTouchY.current) => {
+    const overlayEl = dragOverlayRef.current;
+    const dragRect = dragFloatingRectRef.current;
+    const dragAnchor = dragFloatingAnchorRef.current;
+    if (!overlayEl || !dragRect) return;
+
+    overlayEl.style.transform = `translate3d(${touchX - dragAnchor.x - dragRect.left}px, ${touchY - dragAnchor.y - dragRect.top}px, 0) scale(1.04)`;
   }, []);
   const syncDragPreview = useCallback((nextPreview) => {
     const normalizedPreview = nextPreview?.blockId
@@ -1480,18 +1478,8 @@ function MobileApp({ session, platformInfo }) {
   }, []);
 
   const syncDraggedCardPosition = useCallback((todoId, touchY, touchX = dragTouchX.current) => {
-    const sourceEl = document.getElementById(`swipe-card-${todoId}`);
-    const dragRect = dragFloatingRectRef.current;
-    const dragAnchor = dragFloatingAnchorRef.current;
-    if (sourceEl) {
-      if (dragRect) {
-        const nextDx = touchX - dragAnchor.x - dragRect.left;
-        const nextDy = touchY - dragAnchor.y - dragRect.top;
-        sourceEl.style.transform = `translate3d(${nextDx}px, ${nextDy}px, 0) scale(1.04)`;
-      }
-      sourceEl.style.opacity = '1';
-    }
     applyDragSourceCardState(todoId);
+    syncDragOverlayPosition(touchX, touchY);
 
     const dragTarget = getTouchDragTarget(todoId, touchY);
     if (dragTarget.blockId !== dragOverBlockRef.current) {
@@ -1501,7 +1489,7 @@ function MobileApp({ session, platformInfo }) {
     dragOverTodoIdRef.current = dragTarget.targetTodoId;
     dragInsertAfterRef.current = dragTarget.insertAfter;
     syncDragPreview(dragTarget);
-  }, [applyDragSourceCardState, getTouchDragTarget, syncDragPreview]);
+  }, [applyDragSourceCardState, getTouchDragTarget, syncDragOverlayPosition, syncDragPreview]);
 
   const moveDraggedTodoToDate = useCallback((todoId, nextDate) => {
     if (!todoId || !nextDate) return;
@@ -1813,12 +1801,6 @@ function MobileApp({ session, platformInfo }) {
       el.style.opacity = '';
       el.style.zIndex = '';
       el.style.willChange = '';
-      el.style.position = '';
-      el.style.left = '';
-      el.style.top = '';
-      el.style.width = '';
-      el.style.height = '';
-      el.style.margin = '';
       el.style.pointerEvents = '';
       setTimeout(() => { if (el) el.style.transition = ''; }, 350);
     }
@@ -1848,6 +1830,7 @@ function MobileApp({ session, platformInfo }) {
     swipeStartOffset.current = 0;
     swipeCurrentOffset.current = 0;
     dragTouchX.current = 0;
+    dragTouchY.current = 0;
     dragFloatingRectRef.current = null;
     dragFloatingAnchorRef.current = { x: 0, y: 0 };
   }, [clearDragDayFlipTimer, detachTouchDragListeners, removeDragGhost, stopAutoScroll, suppressNextCardClick, unlockTimelineScroll]);
@@ -1880,6 +1863,9 @@ function MobileApp({ session, platformInfo }) {
       };
       dragPlaceholderHeightRef.current = Math.max(72, Math.round(rect.height));
       applyDragSourceCardState(todoId);
+      window.requestAnimationFrame(() => {
+        syncDragOverlayPosition(dragTouchX.current, dragTouchY.current);
+      });
     }
 
     if (wrapper) {
@@ -1949,7 +1935,7 @@ function MobileApp({ session, platformInfo }) {
     window.addEventListener('touchmove', handleWindowTouchMove, { passive: false });
     window.addEventListener('touchend', handleWindowTouchEnd, { passive: false });
     window.addEventListener('touchcancel', handleWindowTouchEnd, { passive: false });
-  }, [applyDragSourceCardState, closeSwipeActions, detachTouchDragListeners, finalizeTouchDrag, lockTimelineScroll, syncDragPreview, syncDraggedCardPosition, todos, updateAutoScroll, updateDragDayAutoFlip]);
+  }, [applyDragSourceCardState, closeSwipeActions, detachTouchDragListeners, finalizeTouchDrag, lockTimelineScroll, syncDragOverlayPosition, syncDragPreview, syncDraggedCardPosition, todos, updateAutoScroll, updateDragDayAutoFlip]);
 
   useLayoutEffect(() => {
     if (!isDragMode.current || !activeDragTodoIdRef.current) return undefined;
@@ -1964,6 +1950,18 @@ function MobileApp({ session, platformInfo }) {
       window.cancelAnimationFrame(frame);
     };
   }, [selectedDate, syncDraggedCardPosition]);
+
+  useLayoutEffect(() => {
+    if (!draggedOverlayTodo) return undefined;
+
+    const frame = window.requestAnimationFrame(() => {
+      syncDragOverlayPosition(dragTouchX.current, dragTouchY.current);
+    });
+
+    return () => {
+      window.cancelAnimationFrame(frame);
+    };
+  }, [draggedOverlayTodo, syncDragOverlayPosition]);
 
   const deleteTodo = useCallback((id) => {
     if (openSwipeTodoIdRef.current === id) {
@@ -2354,13 +2352,42 @@ function MobileApp({ session, platformInfo }) {
 
   const getRelativeWeekText = () => <strong>{getRelativeWeekLabel()}</strong>;
 
+  const renderTaskCardInner = useCallback((todo) => {
+    const {
+      cType,
+      cfg,
+      displayTitle,
+      displaySub,
+    } = getTaskCardPresentation(todo, translations[language]);
+
+    return (
+      <>
+        <div
+          className="task-icon-placeholder"
+          style={{
+            backgroundColor: appearance === 'dark' ? cfg.darkBg : cfg.bg,
+            border: appearance === 'dark' ? `1px solid ${cfg.darkStroke}` : 'none'
+          }}
+        >
+          <img src={cfg.icon} alt={cType} className="task-card-icon" style={{ position: 'relative', zIndex: 10 }} />
+        </div>
+        <div className="task-content">
+          <span className="task-title">{displayTitle}</span>
+          <span className="task-desc">{displaySub}</span>
+        </div>
+      </>
+    );
+  }, [appearance, language]);
+
   const renderTimelineBlocks = useCallback((date, options = {}) => {
     const dayTodos = getDayTodos(date);
     const dateKey = format(date, 'yyyy-MM-dd');
 
     return timeBlocks.map((block) => {
       const blockTodos = getBlockTodosInDisplayOrder(dayTodos, dateKey, block.id);
-      const visibleBlockTodos = blockTodos;
+      const visibleBlockTodos = draggedTodoId
+        ? blockTodos.filter((todo) => todo.id !== draggedTodoId)
+        : blockTodos;
       const renderedItems = visibleBlockTodos.map((todo) => ({ type: 'todo', todo }));
       if (draggedTodoId && dragPreview?.blockId === block.id) {
         const targetIndex = dragPreview.targetTodoId
@@ -2415,13 +2442,6 @@ function MobileApp({ session, platformInfo }) {
               }
 
               const { todo } = item;
-              const {
-                cType,
-                cfg,
-                displayTitle,
-                displaySub,
-              } = getTaskCardPresentation(todo, translations[language]);
-
               const canUseDesktopDrag = !options.isStatic && !isCoarsePointer;
 
               return (
@@ -2478,19 +2498,7 @@ function MobileApp({ session, platformInfo }) {
                     onDrop={canUseDesktopDrag ? (e) => handleDropOnTodo(e, todo) : undefined}
                     {...(options.isStatic ? {} : getSwipeHandlers(todo.id))}
                   >
-                    <div
-                      className="task-icon-placeholder"
-                      style={{
-                        backgroundColor: appearance === 'dark' ? cfg.darkBg : cfg.bg,
-                        border: appearance === 'dark' ? `1px solid ${cfg.darkStroke}` : 'none'
-                      }}
-                    >
-                      <img src={cfg.icon} alt={cType} className="task-card-icon" style={{ position: 'relative', zIndex: 10 }} />
-                    </div>
-                    <div className="task-content">
-                      <span className="task-title">{displayTitle}</span>
-                      <span className="task-desc">{displaySub}</span>
-                    </div>
+                    {renderTaskCardInner(todo)}
                   </div>
                 </div>
               );
@@ -2499,7 +2507,7 @@ function MobileApp({ session, platformInfo }) {
         </div>
       );
     });
-  }, [appearance, closeSwipeActions, deleteTodo, dragPreview, draggedTodoId, getDayTodos, getSwipeHandlers, handleDragEnd, handleDragOver, handleDropOnBlock, handleDropOnTodo, isCoarsePointer, language, openEdit]);
+  }, [closeSwipeActions, deleteTodo, dragPreview, draggedTodoId, getDayTodos, getSwipeHandlers, handleDragEnd, handleDragOver, handleDropOnBlock, handleDropOnTodo, isCoarsePointer, openEdit, renderTaskCardInner]);
 
   const timelinePanels = useMemo(() => {
     if (!dayTransition) {
@@ -2531,6 +2539,10 @@ function MobileApp({ session, platformInfo }) {
   }, [daySwipeOffset, dayTransition, directDayFlipDirection, selectedDate]);
 
   const dayFeedbackDirection = dayTransition?.direction || directDayFlipDirection;
+  const draggedOverlayTodo = useMemo(
+    () => (draggedTodoId ? todos.find((todo) => todo.id === draggedTodoId) || null : null),
+    [draggedTodoId, todos],
+  );
 
   const overlayBlockMeta = overlayBlockId
     ? timeBlocks.find((block) => block.id === overlayBlockId) || null
@@ -3138,6 +3150,21 @@ function MobileApp({ session, platformInfo }) {
           </div>
         )}
       </div>
+      {draggedOverlayTodo && dragFloatingRectRef.current && (
+        <div
+          ref={dragOverlayRef}
+          className="task-card task-drag-overlay-card"
+          style={{
+            width: `${dragFloatingRectRef.current.width}px`,
+            height: `${dragFloatingRectRef.current.height}px`,
+            left: `${dragFloatingRectRef.current.left}px`,
+            top: `${dragFloatingRectRef.current.top}px`,
+          }}
+          aria-hidden="true"
+        >
+          {renderTaskCardInner(draggedOverlayTodo)}
+        </div>
+      )}
     </>
   );
 }
