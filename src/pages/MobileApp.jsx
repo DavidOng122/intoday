@@ -80,6 +80,17 @@ const findTouchByIdentifier = (touchList, identifier) => {
 
   return null;
 };
+
+const getFixedPositionContextRect = (element) => {
+  const context = element?.closest('.timeline-panel') || element?.closest('.timeline-stage');
+  if (!context) {
+    return { left: 0, top: 0 };
+  }
+
+  const rect = context.getBoundingClientRect();
+  return { left: rect.left, top: rect.top };
+};
+
 const parseSharedSelectedDate = (value) => {
   if (!value) return null;
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
@@ -1263,14 +1274,15 @@ function MobileApp({ session, platformInfo }) {
     const dragRect = dragFloatingRectRef.current;
     const dragAnchor = dragFloatingAnchorRef.current;
     if (!sourceEl || !wrapper || !dragRect) return;
+    const contextRect = getFixedPositionContextRect(sourceEl);
 
     wrapper.classList.add('is-dragging');
     wrapper.style.height = `${dragRect.height}px`;
 
     sourceEl.style.transition = 'none';
     sourceEl.style.position = 'fixed';
-    sourceEl.style.left = `${dragRect.left}px`;
-    sourceEl.style.top = `${dragRect.top}px`;
+    sourceEl.style.left = `${dragRect.left - contextRect.left}px`;
+    sourceEl.style.top = `${dragRect.top - contextRect.top}px`;
     sourceEl.style.width = `${dragRect.width}px`;
     sourceEl.style.height = `${dragRect.height}px`;
     sourceEl.style.margin = '0';
