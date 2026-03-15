@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { ChevronLeft, ArrowUp, Maximize2, Minimize2, PenLine, Trash2 } from 'lucide-react';
 import { subDays, addDays, format, isSameDay } from 'date-fns';
 import { SendIntent } from 'send-intent';
@@ -58,7 +59,6 @@ const TOUCH_DRAG_DAY_FLIP_COOLDOWN_MS = 420;
 const SWIPE_ACTION_MAX = 132;
 const SWIPE_ACTION_OPEN = 108;
 const SWIPE_ACTION_THRESHOLD = 44;
-const DESKTOP_SLOT_COUNT = 4;
 const SHEET_KEYBOARD_DISMISS_SWIPE_THRESHOLD = 72;
 const SHEET_KEYBOARD_CLOSE_SWIPE_THRESHOLD = 240;
 const INITIAL_EDIT_MODAL_VIEWPORT = {
@@ -99,7 +99,7 @@ const parseSharedSelectedDate = (value) => {
   const parsed = new Date(Number(year), Number(month) - 1, Number(day));
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 };
-const isValidDesktopSlot = (value) => Number.isInteger(value) && value >= 0 && value < DESKTOP_SLOT_COUNT;
+const isValidDesktopSlot = (value) => Number.isInteger(value) && value >= 0;
 const normalizeTodoRecord = (todo) => {
   const derivedFields = getDerivedTaskFields(todo.text || '');
 
@@ -124,16 +124,16 @@ const getBlockTodosInDisplayOrder = (todos, dateString, timeOfDay) => todos
   })
   .map(({ todo }) => todo);
 const getFirstAvailableDesktopSlot = (todos, dateString, timeOfDay) => {
-  const occupied = new Set(
-    todos
-      .filter((todo) => todo.dateString === dateString && todo.timeOfDay === timeOfDay && isValidDesktopSlot(todo.desktopSlot))
-      .map((todo) => todo.desktopSlot),
-  );
+  const occupiedSlots = todos
+    .filter((todo) => todo.dateString === dateString && todo.timeOfDay === timeOfDay && isValidDesktopSlot(todo.desktopSlot))
+    .map((todo) => todo.desktopSlot)
+    .sort((a, b) => a - b);
 
-  for (let slot = 0; slot < DESKTOP_SLOT_COUNT; slot += 1) {
-    if (!occupied.has(slot)) return slot;
+  for (let slot = 0; slot < occupiedSlots.length; slot += 1) {
+    if (occupiedSlots[slot] !== slot) return slot;
   }
-  return null;
+
+  return occupiedSlots.length;
 };
 const reflowDesktopSlotsForBlock = (todos, dateString, timeOfDay, orderedIds = null) => {
   const nextTodos = todos.map((todo) => ({ ...todo }));
@@ -148,7 +148,7 @@ const reflowDesktopSlotsForBlock = (todos, dateString, timeOfDay, orderedIds = n
     : currentOrderedBlockTodos;
 
   orderedBlockTodos.forEach((todo, index) => {
-    todo.desktopSlot = index < DESKTOP_SLOT_COUNT ? index : null;
+    todo.desktopSlot = index;
   });
 
   let blockCursor = 0;
@@ -1204,6 +1204,7 @@ function MobileApp({ session, platformInfo }) {
   const [dragPreview, setDragPreview] = useState(null);
   const [dragOverlayRect, setDragOverlayRect] = useState(null);
   const [dragOverlayTodo, setDragOverlayTodo] = useState(null);
+  const [dragOverlayMounted, setDragOverlayMounted] = useState(false);
 
   const dragOverBlockRef = React.useRef(null); // readable in onTouchEnd closure
   const dragOverTodoIdRef = React.useRef(null);
@@ -1240,6 +1241,11 @@ function MobileApp({ session, platformInfo }) {
   const dragPlaceholderHeightRef = React.useRef(88);
   const swipeWrapperRectsRef = React.useRef(new Map());
 
+  const handleDragOverlayRef = useCallback((node) => {
+    dragOverlayRef.current = node;
+    setDragOverlayMounted(Boolean(node));
+  }, []);
+
   const clearDragDayFlipTimer = useCallback(() => {
     if (dragDayFlipTimerRef.current !== null) {
       window.clearTimeout(dragDayFlipTimerRef.current);
@@ -1274,7 +1280,7 @@ function MobileApp({ session, platformInfo }) {
   const applyDragSourceCardState = useCallback((todoId) => {
     const sourceEl = document.getElementById(`swipe-card-${todoId}`);
     const wrapper = document.getElementById(`swipe-wrapper-${todoId}`);
-    if (!sourceEl || !wrapper || !dragOverlayTodo || !dragOverlayRect || !dragOverlayRef.current) return;
+    if (!sourceEl || !wrapper || !dragOverlayTodo || !dragOverlayRect || !dragOverlayMounted) return;
 
     wrapper.classList.add('is-dragging');
     wrapper.style.height = '0px';
@@ -1282,7 +1288,7 @@ function MobileApp({ session, platformInfo }) {
     sourceEl.style.transition = 'none';
     sourceEl.style.opacity = '0';
     sourceEl.style.pointerEvents = 'none';
-  }, [dragOverlayRect, dragOverlayTodo]);
+  }, [dragOverlayMounted, dragOverlayRect, dragOverlayTodo]);
 
   const resetDragSourceCardState = useCallback((todoId) => {
     const sourceEl = document.getElementById(`swipe-card-${todoId}`);
@@ -1395,12 +1401,12 @@ function MobileApp({ session, platformInfo }) {
   useLayoutEffect(() => {
     if (!draggedTodoId) return;
 
-    if (dragOverlayTodo && dragOverlayRect && dragOverlayRef.current) {
+    if (dragOverlayTodo && dragOverlayRect && dragOverlayMounted) {
       applyDragSourceCardState(draggedTodoId);
     } else {
       resetDragSourceCardState(draggedTodoId);
     }
-  }, [applyDragSourceCardState, dragOverlayRect, dragOverlayTodo, draggedTodoId, resetDragSourceCardState]);
+  }, [applyDragSourceCardState, dragOverlayMounted, dragOverlayRect, dragOverlayTodo, draggedTodoId, resetDragSourceCardState]);
 
   const suppressNextCardClick = useCallback((todoId) => {
     if (suppressClickTimeoutRef.current !== null) {
@@ -1845,6 +1851,7 @@ function MobileApp({ session, platformInfo }) {
     setDragPreview(null);
     setDragOverlayRect(null);
     setDragOverlayTodo(null);
+    setDragOverlayMounted(false);
     setDragOverBlock(null);
     dragOverBlockRef.current = null;
     dragOverTodoIdRef.current = null;
@@ -3177,21 +3184,33 @@ function MobileApp({ session, platformInfo }) {
           </div>
         )}
       </div>
-      {dragOverlayTodo && dragOverlayRect && (
-        <div
-          ref={dragOverlayRef}
-          className="task-card task-drag-overlay-card"
-          style={{
-            width: `${dragOverlayRect.width}px`,
-            height: `${dragOverlayRect.height}px`,
-            left: `${dragOverlayRect.left}px`,
-            top: `${dragOverlayRect.top}px`,
-          }}
-          aria-hidden="true"
-        >
-          {renderTaskCardInner(dragOverlayTodo)}
-        </div>
-      )}
+      {dragOverlayTodo && dragOverlayRect && typeof document !== 'undefined'
+        ? createPortal(
+            <div
+              style={{
+                position: 'fixed',
+                inset: 0,
+                pointerEvents: 'none',
+                zIndex: 99999,
+              }}
+              aria-hidden="true"
+            >
+              <div
+                ref={handleDragOverlayRef}
+                className="task-card task-drag-overlay-card"
+                style={{
+                  width: `${dragOverlayRect.width}px`,
+                  height: `${dragOverlayRect.height}px`,
+                  left: `${dragOverlayRect.left}px`,
+                  top: `${dragOverlayRect.top}px`,
+                }}
+              >
+                {renderTaskCardInner(dragOverlayTodo)}
+              </div>
+            </div>,
+            document.body,
+          )
+        : null}
     </>
   );
 }

@@ -96,6 +96,8 @@ const DESKTOP_BASE_SLOT_COUNT = 4;
 const DESKTOP_TIME_AXIS_LINE_TOP = 26;
 const DESKTOP_TIME_AXIS_LINE_BOTTOM = 36;
 const DESKTOP_TIME_MARKER_SIZE = 7;
+const DESKTOP_SLOT_MIN_HEIGHT = 98;
+const DESKTOP_SLOT_GAP = 22;
 const getDesktopSectionPillStyle = (section, appearance) => (
   appearance === 'dark'
     ? {
@@ -598,13 +600,15 @@ const ScheduleSection = ({
 }) => {
   const pillStyle = getDesktopSectionPillStyle(section, appearance);
   const t = getTranslationsForLanguage(language);
+  const desktopRowCount = Math.max(2, Math.ceil(renderSlots.length / 2));
+  const timelineColumnMinHeight = (desktopRowCount * DESKTOP_SLOT_MIN_HEIGHT) + ((desktopRowCount - 1) * DESKTOP_SLOT_GAP);
 
   return (
   <section style={{ borderBottom: '1px solid var(--desktop-divider)', background: 'var(--desktop-section-bg)' }}>
     <div style={{ width: 'min(1008px, calc(100% - 72px))', margin: '0 auto', padding: '22px 0 24px' }}>
       <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minWidth: 72, padding: '6px 14px', borderRadius: 999, fontFamily: 'DM Serif Display, serif', fontSize: 14, fontStyle: 'italic', ...pillStyle }}>{t[section.labelKey]}</span>
-      <div style={{ display: 'grid', gridTemplateColumns: '110px minmax(0, 1fr)', gap: 24, marginTop: 18, alignItems: 'start' }}>
-        <div style={{ position: 'relative', minHeight: 220 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '110px minmax(0, 1fr)', gap: 24, marginTop: 18, alignItems: 'stretch' }}>
+        <div style={{ position: 'relative', minHeight: timelineColumnMinHeight, height: '100%' }}>
           <div style={{ color: 'var(--desktop-root-text)', fontSize: 15, fontWeight: 500 }}>{section.start}</div>
           <div style={{ position: 'absolute', left: 5, top: DESKTOP_TIME_AXIS_LINE_TOP, bottom: DESKTOP_TIME_AXIS_LINE_BOTTOM, width: 1, background: 'var(--desktop-time-axis-line)' }} />
           {markerStyle ? <div style={{ position: 'absolute', left: 2, width: DESKTOP_TIME_MARKER_SIZE, height: DESKTOP_TIME_MARKER_SIZE, borderRadius: '50%', background: 'var(--desktop-accent)', ...markerStyle }} /> : null}
@@ -613,7 +617,7 @@ const ScheduleSection = ({
         <div
           data-desktop-block-id={section.mobileId}
           className={`desktop-schedule-task-grid ${isDragOver ? 'is-drag-over' : ''}`}
-          style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(260px, 1fr))', gap: 22, alignItems: 'stretch' }}
+          style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(260px, 1fr))', gap: DESKTOP_SLOT_GAP, alignItems: 'stretch' }}
         >
           {renderSlots.map((item, slotIndex) => (
             <div

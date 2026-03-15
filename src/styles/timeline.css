@@ -145,6 +145,7 @@
   --timeline-task-card-min-height: 64px;
   --timeline-task-gap: 12px;
   --timeline-task-bottom-padding: 24px;
+  --time-block-visible-task-count: 3;
   --timeline-overlay-clearance: calc(
     var(--timeline-overlay-offset) +
     var(--timeline-overlay-label-height) +
@@ -154,8 +155,8 @@
   min-height: calc(
     var(--timeline-overlay-clearance) +
     var(--timeline-task-bottom-padding) +
-    (var(--timeline-task-card-min-height) * 3) +
-    (var(--timeline-task-gap) * 2)
+    (var(--timeline-task-card-min-height) * var(--time-block-visible-task-count)) +
+    (var(--timeline-task-gap) * (var(--time-block-visible-task-count) - 1))
   );
   border-bottom: 1px solid #EEE8DF;
   position: relative;
