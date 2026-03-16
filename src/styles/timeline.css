@@ -336,13 +336,15 @@ body.is-dragging-global .time-block {
 }
 
 .swipe-action-button {
-  width: 32px;
+  min-width: 32px;
   height: 32px;
+  padding: 0 11px;
   border: none;
-  border-radius: 50%;
+  border-radius: 999px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  gap: 6px;
   color: #FFFFFF;
   opacity: var(--swipe-action-progress);
   transform:
@@ -354,6 +356,13 @@ body.is-dragging-global .time-block {
     filter 0.18s ease;
   box-shadow: 0 10px 24px rgba(38, 26, 14, 0.14);
   pointer-events: auto;
+}
+
+.swipe-action-button span {
+  font-size: 11px;
+  font-weight: 650;
+  line-height: 1;
+  white-space: nowrap;
 }
 
 .swipe-action-button:active {

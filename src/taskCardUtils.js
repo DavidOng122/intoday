@@ -10,6 +10,7 @@ import {
   isTextCardType,
   normalizeCardType,
 } from './lib/cardTypeDetection';
+import { resolveTaskUrl } from './task-interactions/taskUrlResolver';
 
 export {
   CARD_TYPES,
@@ -214,28 +215,23 @@ export const getTaskCardPresentation = (
 
   let displayTitle = task.text || '';
   let displaySub = isText ? labels.actionItem : (labels[cType] || cardTypeLabels[cType] || labels.link);
-  let redirectUrl =
-    task.redirectUrl ||
-    task.videoUrl ||
-    task.mapUrl ||
-    extractPrimaryUrl(task.text || '') ||
-    null;
+  let redirectUrl = resolveTaskUrl(task);
 
   if (isVideo && task.videoTitle) {
     displayTitle = task.videoTitle;
     displaySub = resolveLocalizedTaskCardSubLabel(task.videoPlatform, labels) || labels.savedVideo;
-    redirectUrl = task.videoUrl || redirectUrl;
+    redirectUrl = resolveTaskUrl({ ...task, cardType: cType });
   } else if (isPlace && task.mapTitle) {
     displayTitle = task.mapTitle;
     displaySub = resolveLocalizedTaskCardSubLabel(task.mapSubtitle, labels) || labels.location;
-    redirectUrl = task.mapUrl || redirectUrl;
+    redirectUrl = resolveTaskUrl({ ...task, cardType: cType });
   } else if (isMeeting) {
     const timeMatch = (task.text || '').match(
       /\b(\d{1,2}:\d{2}(?:\s*[APap][Mm])?|\d{1,2}\s*[APap][Mm])\b/
     );
 
     displaySub = timeMatch ? timeMatch[1].trim() : labels.meetingLink;
-    redirectUrl = task.redirectUrl || extractMeetingUrl(task.text || '') || redirectUrl;
+    redirectUrl = resolveTaskUrl({ ...task, cardType: cType });
 
     displayTitle =
       (task.text || '')

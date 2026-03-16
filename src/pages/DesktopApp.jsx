@@ -16,6 +16,7 @@ import {
   getTaskCardPresentation,
   normalizeCardType,
 } from '../taskCardUtils';
+import { useTaskInteraction } from '../task-interactions/useTaskInteraction';
 
 const SHARED_SELECTED_DATE_KEY = 'shared_selected_date';
 const DESKTOP_LANGUAGE_KEY = 'desktop_profile_language';
@@ -489,6 +490,13 @@ const ReturnTodayIcon = () => (
   </svg>
 );
 
+const EditIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" style={{ width: 14, height: 14 }}>
+    <path d="M12 20H21" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M16.5 3.5C17.3284 2.67157 18.6716 2.67157 19.5 3.5C20.3284 4.32843 20.3284 5.67157 19.5 6.5L7 19L3 20L4 16L16.5 3.5Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+
 const WeekStrip = ({ selectedDate, logicalToday, language, onSelect }) => {
   const t = getTranslationsForLanguage(language);
   const logicalMidnight = new Date(logicalToday);
@@ -551,11 +559,13 @@ const TaskCard = (props) => {
     task,
     appearance,
     onClick,
+    onEdit,
     onPointerDown,
     onPointerMove,
     onPointerUp,
     onPointerCancel,
     isDragging,
+    editLabel,
   } = props;
   const taskCardLabels = props?.labels;
 
@@ -590,6 +600,19 @@ const TaskCard = (props) => {
         }}
       >
         <TaskCardContent task={task} appearance={appearance} labels={taskCardLabels} />
+      </button>
+      <button
+        type="button"
+        className="desktop-task-edit-button"
+        aria-label={editLabel}
+        onPointerDown={(event) => event.stopPropagation()}
+        onClick={(event) => {
+          event.stopPropagation();
+          onEdit?.(task);
+        }}
+      >
+        <EditIcon />
+        <span>{editLabel}</span>
       </button>
     </div>
   );
@@ -655,6 +678,7 @@ const ScheduleSection = ({
   renderSlots,
   markerStyle,
   onTaskClick,
+  onTaskEdit,
   onTaskPointerDown,
   onTaskPointerMove,
   onTaskPointerUp,
@@ -697,8 +721,10 @@ const ScheduleSection = ({
                     task={item.task}
                     appearance={appearance}
                     labels={labels}
+                    editLabel={labels.edit}
                     isDragging={draggedTaskId === item.task.id}
                     onClick={() => onTaskClick(item.task)}
+                    onEdit={() => onTaskEdit(item.task)}
                     onPointerDown={(event) => onTaskPointerDown(item.task, event)}
                     onPointerMove={(event) => onTaskPointerMove(item.task, event)}
                     onPointerUp={(event) => onTaskPointerUp(item.task, event)}
@@ -1510,6 +1536,22 @@ function App() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [closeEditModal, editingTaskId]);
 
+  const openTaskEditor = useCallback((task) => {
+    setProfileOpen(false);
+    setPanelOpen(false);
+    setSelectedDate(parseSharedSelectedDate(task.dateString) || selectedDate);
+    setEditingTaskId(task.id);
+    setEditText(task.text || '');
+  }, [selectedDate]);
+
+  const {
+    onPrimaryAction: handleTaskPrimaryAction,
+    onEditAction: handleTaskEditAction,
+  } = useTaskInteraction({
+    platform: 'desktop',
+    openTaskEditor,
+  });
+
   if (loading) {
     return (
       <div style={{ width: '100vw', height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: appearance === 'dark' ? '#121212' : '#faf7f2' }}>
@@ -1563,13 +1605,6 @@ function App() {
     setPanelOpen(false);
     applyAsyncMetadata(taskId, cardType, videoUrl, mapUrl);
   };
-  const openTaskEditor = (task) => {
-    setProfileOpen(false);
-    setPanelOpen(false);
-    setSelectedDate(parseSharedSelectedDate(task.dateString) || selectedDate);
-    setEditingTaskId(task.id);
-    setEditText(task.text || '');
-  };
   const handleEditSave = () => {
     const rawText = editText.trim();
     if (!editingTask || !rawText) return;
@@ -1591,7 +1626,7 @@ function App() {
       suppressTaskClickRef.current = null;
       return;
     }
-    openTaskEditor(task);
+    handleTaskPrimaryAction(task);
   };
   const handleSignOut = async () => {
     try {
@@ -1670,6 +1705,7 @@ function App() {
                     renderSlots={desktopSectionTasks[section.mobileId]?.renderSlots || Array.from({ length: DESKTOP_BASE_SLOT_COUNT }, () => ({ type: 'empty' }))}
                     markerStyle={getSectionMarkerStyle(section, currentTime, selectedDate)}
                     onTaskClick={handleTaskClick}
+                    onTaskEdit={handleTaskEditAction}
                     onTaskPointerDown={handleTaskPointerDown}
                     onTaskPointerMove={handleTaskPointerMove}
                     onTaskPointerUp={handleTaskPointerUp}

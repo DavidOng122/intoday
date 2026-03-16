@@ -12,6 +12,7 @@ import { fetchMapMeta, fetchVideoMeta, getDerivedTaskFields, normalizeCardType }
 import { getTaskCardPresentation } from '../taskCardUtils';
 import { timeBlocks } from '../lib/timeBlocks';
 import { translations } from '../lib/translations';
+import { useTaskInteraction } from '../task-interactions/useTaskInteraction';
 const SheetPebbleIcon = () => (
   <svg width="42" height="38" viewBox="0 0 42 38" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
     <ellipse cx="21" cy="27.125" rx="21" ry="10.5" fill="url(#sheet_pebble_0)" />
@@ -56,9 +57,10 @@ const TOUCH_DRAG_LONG_PRESS_MS = 260;
 const TOUCH_DRAG_CANCEL_DISTANCE = 10;
 const TOUCH_DRAG_DAY_EDGE_HOLD_MS = 260;
 const TOUCH_DRAG_DAY_FLIP_COOLDOWN_MS = 420;
-const SWIPE_ACTION_MAX = 132;
-const SWIPE_ACTION_OPEN = 108;
-const SWIPE_ACTION_THRESHOLD = 44;
+const TOUCH_DRAG_BLOCK_HYSTERESIS_PX = 16;
+const SWIPE_ACTION_MAX = 148;
+const SWIPE_ACTION_OPEN = 124;
+const SWIPE_ACTION_THRESHOLD = 52;
 const SHEET_KEYBOARD_DISMISS_SWIPE_THRESHOLD = 72;
 const SHEET_KEYBOARD_CLOSE_SWIPE_THRESHOLD = 240;
 const INITIAL_EDIT_MODAL_VIEWPORT = {
@@ -1437,35 +1439,111 @@ function MobileApp({ session, platformInfo }) {
     timelineEl.classList.remove('drag-scroll-locked');
   }, []);
 
-  // Helper: find nearest time block by vertical center proximity
-  const getNearestBlock = (touchY) => {
-    const blocks = document.querySelectorAll('[data-block-id]:not([data-drag-target-disabled="true"])');
-    let nearestId = null;
-    let nearestDist = Infinity;
-    blocks.forEach(block => {
-      const rect = block.getBoundingClientRect();
-      const centerY = rect.top + rect.height / 2;
-      const dist = Math.abs(touchY - centerY);
-      if (dist < nearestDist) {
-        nearestDist = dist;
-        nearestId = block.dataset.blockId;
-      }
-    });
-    return nearestId;
-  };
-  const getTouchDragTarget = useCallback((todoId, touchY) => {
-    const blockId = getNearestBlock(touchY);
-    if (!blockId) {
-      return { blockId: null, targetTodoId: null, insertAfter: false };
+  // Resolve drag blocks inside the active timeline panel first, then keep the
+  // previous block unless the finger clearly moves into a neighbor.
+  const getEligibleTouchDragBlocks = useCallback(() => {
+    const timelineEl = timelineRef.current;
+    const scope = timelineEl?.querySelector('.timeline-panel.is-active')
+      || timelineEl?.querySelector('.timeline-panel-current')
+      || timelineEl?.querySelector('.timeline-panel:not(.timeline-panel-retained-drag-source)')
+      || timelineEl
+      || document;
+
+    return Array.from(scope.querySelectorAll('[data-block-id]'))
+      .filter((element) => element.getAttribute('data-drag-target-disabled') !== 'true')
+      .map((element) => ({
+        blockId: element.getAttribute('data-block-id'),
+        element,
+        rect: element.getBoundingClientRect(),
+      }));
+  }, []);
+  const getBlockVerticalDistance = useCallback((touchY, rect) => {
+    if (touchY >= rect.top && touchY <= rect.bottom) {
+      return 0;
+    }
+    if (touchY < rect.top) {
+      return rect.top - touchY;
+    }
+    return touchY - rect.bottom;
+  }, []);
+  const getNearestBlock = useCallback((touchY, previousBlockId = null) => {
+    const blocks = getEligibleTouchDragBlocks();
+    if (blocks.length === 0) {
+      return null;
     }
 
-    const blockEl = document.querySelector(`[data-block-id="${blockId}"]:not([data-drag-target-disabled="true"])`);
-    const todoCards = blockEl
-      ? Array.from(blockEl.querySelectorAll('[data-todo-id]')).filter((card) => Number(card.getAttribute('data-todo-id')) !== todoId)
-      : [];
+    const previousBlock = previousBlockId
+      ? blocks.find((block) => block.blockId === previousBlockId) || null
+      : null;
+
+    if (
+      previousBlock
+      && touchY >= previousBlock.rect.top - TOUCH_DRAG_BLOCK_HYSTERESIS_PX
+      && touchY <= previousBlock.rect.bottom + TOUCH_DRAG_BLOCK_HYSTERESIS_PX
+    ) {
+      return previousBlock;
+    }
+
+    const containingBlock = blocks.find((block) => touchY >= block.rect.top && touchY <= block.rect.bottom) || null;
+    if (containingBlock) {
+      if (previousBlock && containingBlock.blockId !== previousBlock.blockId) {
+        const movingDownward = previousBlock.rect.top < containingBlock.rect.top;
+        const hasClearlyEnteredContainingBlock = movingDownward
+          ? touchY >= containingBlock.rect.top + TOUCH_DRAG_BLOCK_HYSTERESIS_PX
+          : touchY <= containingBlock.rect.bottom - TOUCH_DRAG_BLOCK_HYSTERESIS_PX;
+
+        if (!hasClearlyEnteredContainingBlock) {
+          return previousBlock;
+        }
+      }
+      return containingBlock;
+    }
+
+    let nearestBlock = null;
+    let nearestDistance = Number.POSITIVE_INFINITY;
+    blocks.forEach((block) => {
+      const distance = getBlockVerticalDistance(touchY, block.rect);
+      if (distance < nearestDistance) {
+        nearestDistance = distance;
+        nearestBlock = block;
+      }
+    });
+
+    if (!nearestBlock) {
+      return null;
+    }
+
+    if (previousBlock && nearestBlock.blockId !== previousBlock.blockId) {
+      const previousDistance = getBlockVerticalDistance(touchY, previousBlock.rect);
+      if (previousDistance <= nearestDistance + TOUCH_DRAG_BLOCK_HYSTERESIS_PX) {
+        return previousBlock;
+      }
+    }
+
+    return nearestBlock;
+  }, [getBlockVerticalDistance, getEligibleTouchDragBlocks]);
+  const getTouchDragTarget = useCallback((todoId, touchY) => {
+    const resolvedBlock = getNearestBlock(touchY, dragOverBlockRef.current);
+    if (!resolvedBlock) {
+      return {
+        blockId: null,
+        block: null,
+        targetTodoId: null,
+        insertAfter: false,
+      };
+    }
+
+    const { blockId, element: blockEl } = resolvedBlock;
+    const todoCards = Array.from(blockEl.querySelectorAll('[data-todo-id]'))
+      .filter((card) => Number(card.getAttribute('data-todo-id')) !== todoId);
 
     if (todoCards.length === 0) {
-      return { blockId, targetTodoId: null, insertAfter: false };
+      return {
+        blockId,
+        block: resolvedBlock,
+        targetTodoId: null,
+        insertAfter: false,
+      };
     }
 
     const firstCard = todoCards[0];
@@ -1478,6 +1556,7 @@ function MobileApp({ session, platformInfo }) {
     if (touchY <= firstRect.top + firstThreshold) {
       return {
         blockId,
+        block: resolvedBlock,
         targetTodoId: Number(firstCard.getAttribute('data-todo-id')),
         insertAfter: false,
       };
@@ -1486,6 +1565,7 @@ function MobileApp({ session, platformInfo }) {
     if (touchY >= lastRect.bottom - lastThreshold) {
       return {
         blockId,
+        block: resolvedBlock,
         targetTodoId: Number(lastCard.getAttribute('data-todo-id')),
         insertAfter: true,
       };
@@ -1511,20 +1591,33 @@ function MobileApp({ session, platformInfo }) {
       }
     });
 
-    return { blockId, targetTodoId: nearestTodoId, insertAfter };
-  }, []);
+    return {
+      blockId,
+      block: resolvedBlock,
+      targetTodoId: nearestTodoId,
+      insertAfter,
+    };
+  }, [getNearestBlock]);
 
   const syncDraggedCardPosition = useCallback((todoId, touchY, touchX = dragTouchX.current) => {
     applyDragSourceCardState(todoId);
     syncDragOverlayPosition(touchX, touchY);
 
     const dragTarget = getTouchDragTarget(todoId, touchY);
-    if (dragTarget.blockId !== dragOverBlockRef.current) {
+    const blockChanged = dragTarget.blockId !== dragOverBlockRef.current;
+    const targetTodoChanged = dragTarget.targetTodoId !== dragOverTodoIdRef.current;
+    const insertAfterChanged = dragTarget.insertAfter !== dragInsertAfterRef.current;
+
+    if (blockChanged) {
       dragOverBlockRef.current = dragTarget.blockId;
       setDragOverBlock(dragTarget.blockId);
     }
-    dragOverTodoIdRef.current = dragTarget.targetTodoId;
-    dragInsertAfterRef.current = dragTarget.insertAfter;
+    if (targetTodoChanged) {
+      dragOverTodoIdRef.current = dragTarget.targetTodoId;
+    }
+    if (insertAfterChanged) {
+      dragInsertAfterRef.current = dragTarget.insertAfter;
+    }
     syncDragPreview(dragTarget);
   }, [applyDragSourceCardState, getTouchDragTarget, syncDragOverlayPosition, syncDragPreview]);
 
@@ -2055,11 +2148,19 @@ function MobileApp({ session, platformInfo }) {
 
 
 
-  const openEdit = (todo) => {
+  const openEdit = useCallback((todo) => {
     closeSwipeActions(todo.id, { animate: true });
     setEditingTodo(todo);
     setEditText(todo.text);
-  };
+  }, [closeSwipeActions]);
+
+  const {
+    onPrimaryAction: handleTaskPrimaryAction,
+    onEditAction: handleTaskEditAction,
+  } = useTaskInteraction({
+    platform: 'mobile',
+    openTaskEditor: openEdit,
+  });
 
   const handleEditSave = () => {
     const rawText = editText.trim();
@@ -2538,10 +2639,11 @@ function MobileApp({ session, platformInfo }) {
                       onClick={(e) => {
                         e.stopPropagation();
                         suppressCardClickRef.current = null;
-                        openEdit(todo);
+                        handleTaskEditAction(todo);
                       }}
                     >
                       <PenLine size={14.4} strokeWidth={2.2} />
+                      <span>{translations[language].edit}</span>
                     </button>
                     <button
                       type="button"
@@ -2573,7 +2675,7 @@ function MobileApp({ session, platformInfo }) {
                         suppressCardClickRef.current = null;
                         return;
                       }
-                      openEdit(todo);
+                      handleTaskPrimaryAction(todo);
                     }}
                     draggable={canUseDesktopDrag}
                     onDragStart={canUseDesktopDrag ? (e) => handleDragStart(e, todo.id) : undefined}
@@ -2591,7 +2693,7 @@ function MobileApp({ session, platformInfo }) {
         </div>
       );
     });
-  }, [closeSwipeActions, deleteTodo, dragOverlayRect, dragOverlayTodo, dragPreview, draggedTodoId, getDayTodos, getSwipeHandlers, handleDragEnd, handleDragOver, handleDropOnBlock, handleDropOnTodo, isCoarsePointer, openEdit, renderTaskCardInner]);
+  }, [closeSwipeActions, deleteTodo, dragOverlayRect, dragOverlayTodo, dragPreview, draggedTodoId, getDayTodos, getSwipeHandlers, handleDragEnd, handleDragOver, handleDropOnBlock, handleDropOnTodo, handleTaskEditAction, handleTaskPrimaryAction, isCoarsePointer, renderTaskCardInner]);
 
   const timelinePanels = useMemo(() => {
     if (!dayTransition) {
