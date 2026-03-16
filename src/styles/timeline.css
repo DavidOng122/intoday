@@ -338,7 +338,7 @@ body.is-dragging-global .time-block {
 .swipe-action-button {
   min-width: 32px;
   height: 32px;
-  padding: 0 11px;
+  padding: 0;
   border: none;
   border-radius: 999px;
   display: inline-flex;

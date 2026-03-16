@@ -2643,7 +2643,6 @@ function MobileApp({ session, platformInfo }) {
                       }}
                     >
                       <PenLine size={14.4} strokeWidth={2.2} />
-                      <span>{translations[language].edit}</span>
                     </button>
                     <button
                       type="button"
