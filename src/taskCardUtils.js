@@ -11,6 +11,11 @@ import {
   normalizeCardType,
 } from './lib/cardTypeDetection';
 import { resolveTaskUrl } from './task-interactions/taskUrlResolver';
+import { 
+  deriveTaskDisplayTitle, 
+  deriveTaskDisplaySubtitle,
+  parsePlaceFromUrl 
+} from './lib/taskDisplayUtils';
 
 export {
   CARD_TYPES,
@@ -132,20 +137,6 @@ export const fetchVideoMeta = async (url) => {
   };
 };
 
-const parsePlaceFromUrl = (url) => {
-  try {
-    const decoded = decodeURIComponent(url);
-    const match = decoded.match(/\/maps\/place\/([^/@?#]+)/);
-    if (match && match[1]) {
-      return match[1].replace(/\+/g, ' ').trim();
-    }
-  } catch {
-    // Ignore malformed URLs and keep the fallback label.
-  }
-
-  return null;
-};
-
 export const fetchMapMeta = async (url) => {
   try {
     const directName = parsePlaceFromUrl(url);
@@ -207,53 +198,25 @@ export const getTaskCardPresentation = (
   const labels = normalizeTaskCardLabels(labelsInput);
   const cType = normalizeCardType(task.cardType);
   const cfg = cardTypeConfig[cType] || cardTypeConfig[CARD_TYPES.TEXT];
-
-  const isVideo = cType === CARD_TYPES.VIDEO;
-  const isPlace = cType === CARD_TYPES.PLACE;
-  const isMeeting = cType === CARD_TYPES.MEETING;
   const isText = isTextCardType(cType);
 
-  let displayTitle = task.text || '';
-  let displaySub = isText ? labels.actionItem : (labels[cType] || cardTypeLabels[cType] || labels.link);
-  let redirectUrl = resolveTaskUrl(task);
-
-  if (isVideo && task.videoTitle) {
-    displayTitle = task.videoTitle;
-    displaySub = resolveLocalizedTaskCardSubLabel(task.videoPlatform, labels) || labels.savedVideo;
-    redirectUrl = resolveTaskUrl({ ...task, cardType: cType });
-  } else if (isPlace && task.mapTitle) {
-    displayTitle = task.mapTitle;
-    displaySub = resolveLocalizedTaskCardSubLabel(task.mapSubtitle, labels) || labels.location;
-    redirectUrl = resolveTaskUrl({ ...task, cardType: cType });
-  } else if (isMeeting) {
-    const timeMatch = (task.text || '').match(
-      /\b(\d{1,2}:\d{2}(?:\s*[APap][Mm])?|\d{1,2}\s*[APap][Mm])\b/
-    );
-
-    displaySub = timeMatch ? timeMatch[1].trim() : labels.meetingLink;
-    redirectUrl = resolveTaskUrl({ ...task, cardType: cType });
-
-    displayTitle =
-      (task.text || '')
-        .split(/\n|\u3000/)
-        .map((line) => line.trim())
-        .filter(
-          (line) =>
-            line.length > 0 &&
-            !/https?:\/\//i.test(line) &&
-            !/^開催日時|^開催方法|^date:|^time:|^method:/i.test(line) &&
-            !/^meeting id:/i.test(line) &&
-            !/^passcode:/i.test(line) &&
-            !/^one tap mobile/i.test(line) &&
-            !/^join by sip/i.test(line) &&
-            !/^join instructions/i.test(line)
-        )
-        .join(' ')
-        .replace(/https?:\/\/\S+/gi, '')
-        .replace(/\d{4}\/\d{2}\/\d{2}\s*\d{1,2}:\d{2}～?/g, '')
-        .replace(/\s{2,}/g, ' ')
-        .trim() || task.text || '';
+  // Use unified derivation logic
+  let displayTitle = deriveTaskDisplayTitle(task);
+  let displaySub = deriveTaskDisplaySubtitle(task, labels);
+  
+  // Handle specific text labels for standard types if no specific platform derived
+  if (isText) {
+    displaySub = labels.actionItem;
   }
+
+  // Preserve specifically fetched video/map platforms if derivedSub is generic
+  if (cType === CARD_TYPES.VIDEO && task.videoPlatform && displaySub === (labels.video || 'Video')) {
+    displaySub = resolveLocalizedTaskCardSubLabel(task.videoPlatform, labels) || labels.savedVideo;
+  } else if (cType === CARD_TYPES.PLACE && task.mapSubtitle && displaySub === (labels.place || 'Place')) {
+    displaySub = resolveLocalizedTaskCardSubLabel(task.mapSubtitle, labels) || labels.location;
+  }
+
+  const redirectUrl = resolveTaskUrl(task);
 
   return {
     cfg,
