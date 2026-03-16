@@ -6,6 +6,7 @@ export {
   extractVideoUrl,
   fetchMapMeta,
   fetchVideoMeta,
+  fetchSpotifyMeta,
   fetchLinkPreviewMeta,
   getDerivedTaskFields,
   normalizeCardType,
