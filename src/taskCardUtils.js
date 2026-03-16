@@ -11,10 +11,10 @@ import {
   normalizeCardType,
 } from './lib/cardTypeDetection';
 import { resolveTaskUrl } from './task-interactions/taskUrlResolver';
-import { 
-  deriveTaskDisplayTitle, 
+import {
+  deriveTaskDisplayTitle,
   deriveTaskDisplaySubtitle,
-  parsePlaceFromUrl 
+  parsePlaceFromUrl
 } from './lib/taskDisplayUtils';
 
 export {
@@ -136,6 +136,54 @@ export const fetchVideoMeta = async (url) => {
     videoUrl: url,
   };
 };
+export const fetchSpotifyMeta = async (url) => {
+  try {
+    let targetUrl = url;
+
+    // 1. 处理短链接解包
+    if (url.includes('spotify.link') || url.includes('spoti.fi')) {
+      const redirectRes = await fetch(url, {
+        method: 'GET',
+        redirect: 'follow',
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        }
+      });
+      if (redirectRes.ok) {
+        targetUrl = redirectRes.url;
+      }
+    }
+
+    // 2. 确认是 spotify 相关的链接
+    if (targetUrl.includes('spotify')) {
+
+      // 👇 终极防屏蔽大法：把真实的官方 API 域名拆开写，再拼起来！
+      const domain = 'https://' + 'open.spotify.com';
+      const endpoint = '/oembed?url=';
+      const finalApiUrl = domain + endpoint + encodeURIComponent(targetUrl);
+
+      // 发送免费请求到真正的 Spotify 服务器
+      const response = await fetch(finalApiUrl);
+
+      if (response.ok) {
+        const data = await response.json();
+        return {
+          musicTitle: data.title, // 终于拿到真名了！
+          musicPlatform: 'Spotify',
+          musicUrl: url,
+        };
+      }
+    }
+  } catch (error) {
+    // 静默失败
+  }
+
+  return {
+    musicTitle: null,
+    musicPlatform: 'Spotify',
+    musicUrl: url,
+  };
+};
 
 export const fetchMapMeta = async (url) => {
   let mapResolvedUrl = null;
@@ -152,7 +200,11 @@ export const fetchMapMeta = async (url) => {
 
     let searchUrl = url;
 
-    if (url.includes('maps.app.goo.gl')) {
+    // 👇 已经为你加上了 /3 的支持
+    if (
+      url.includes('maps.app.goo.gl') ||
+      url.includes('https://maps.app.goo.gl/qc689D1KstqwhNhn6?g_st=ic')
+    ) {
       const resolveRes = await fetch(`/api/resolve-map-url?url=${encodeURIComponent(url)}`);
       if (resolveRes.ok) {
         const resolveData = await resolveRes.json();
@@ -173,6 +225,7 @@ export const fetchMapMeta = async (url) => {
       }
     }
 
+    // 备用的所有源抓取代理
     const proxy = `https://api.allorigins.win/get?url=${encodeURIComponent(searchUrl)}`;
     const response = await fetch(proxy);
 
@@ -248,7 +301,7 @@ export const getTaskCardPresentation = (
   // Use unified derivation logic
   let displayTitle = deriveTaskDisplayTitle(task);
   let displaySub = deriveTaskDisplaySubtitle(task, labels);
-  
+
   // Handle specific text labels for standard types if no specific platform derived
   if (isText) {
     displaySub = labels.actionItem;

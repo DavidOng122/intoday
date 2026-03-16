@@ -8,7 +8,7 @@ import useSwipeDownToClose from '../hooks/useSwipeDownToClose';
 import { useSyncedTodos } from '../todoSync';
 import { supabase } from '../supabase';
 import { DAY_BOUNDARY_HOUR, getCurrentTimeBlock, getLogicalToday } from '../lib/dateHelpers';
-import { fetchMapMeta, fetchVideoMeta, fetchLinkPreviewMeta, getDerivedTaskFields, normalizeCardType } from '../lib/taskParsers';
+import { fetchMapMeta, fetchVideoMeta, fetchSpotifyMeta, fetchLinkPreviewMeta, getDerivedTaskFields, normalizeCardType } from '../lib/taskParsers';
 import { getTaskCardPresentation } from '../taskCardUtils';
 import { timeBlocks } from '../lib/timeBlocks';
 import { translations } from '../lib/translations';
@@ -1207,6 +1207,10 @@ function MobileApp({ session, platformInfo }) {
       fetchMapMeta(mapUrl).then(meta => {
         setTodos(prev => prev.map(t => t.id === newTodoId ? { ...t, ...meta } : t));
       });
+    } else if ((cardType === 'music' || cardType === 'podcast') && typeFields.primaryUrl) {
+      fetchSpotifyMeta(typeFields.primaryUrl).then(meta => {
+        setTasks(prev => prev.map(t => t.id === newTodoId ? { ...t, ...meta } : t));
+      });
     } else if (typeFields.primaryUrl && (!cardType || cardType === 'link' || cardType === 'text')) {
       fetchLinkPreviewMeta(typeFields.primaryUrl).then(meta => {
         if (meta && meta.linkTitle) {
@@ -1394,9 +1398,9 @@ function MobileApp({ session, platformInfo }) {
     wrappers.forEach((wrapper) => {
       const id = wrapper.getAttribute('data-swipe-wrapper-id');
       if (id && draggedTodoId !== null && Number(id) === draggedTodoId) {
-      wrapper.style.transition = 'none';
-      wrapper.style.transform = 'translate3d(0, 0, 0)';
-      return;
+        wrapper.style.transition = 'none';
+        wrapper.style.transform = 'translate3d(0, 0, 0)';
+        return;
       }
 
       const prevRect = prevRects.get(id);
@@ -2193,6 +2197,10 @@ function MobileApp({ session, platformInfo }) {
       fetchMapMeta(typeFields.mapUrl).then(meta => {
         setTodos(prev => prev.map(t => t.id === editingTodo.id ? normalizeTodoRecord({ ...t, ...meta }) : t));
       });
+    } else if ((typeFields.cardType === 'music' || typeFields.cardType === 'podcast') && typeFields.primaryUrl) {
+      fetchSpotifyMeta(typeFields.primaryUrl).then(meta => {
+        setTasks(prev => prev.map(t => t.id === editingTodo.id ? normalizeTodoRecord({ ...t, ...meta }) : t));
+      });
     } else if (typeFields.primaryUrl && (!typeFields.cardType || typeFields.cardType === 'link' || typeFields.cardType === 'text')) {
       fetchLinkPreviewMeta(typeFields.primaryUrl).then(meta => {
         if (meta && meta.linkTitle) {
@@ -2919,18 +2927,18 @@ function MobileApp({ session, platformInfo }) {
     : editModalViewport.visibleHeight || fallbackEditViewportHeight;
   const editModalViewportStyle = editVisibleViewportHeight
     ? {
-        '--edit-modal-visible-height': `${editVisibleViewportHeight}px`,
-        '--edit-modal-offset-top': `${editModalViewport.offsetTop}px`,
-      }
+      '--edit-modal-visible-height': `${editVisibleViewportHeight}px`,
+      '--edit-modal-offset-top': `${editModalViewport.offsetTop}px`,
+    }
     : undefined;
   const editModalBackdropStyle = isEditModalMobileLayout && editVisibleViewportHeight
     ? {
-        ...editModalViewportStyle,
-        top: `${editModalViewport.offsetTop}px`,
-        height: `${editVisibleViewportHeight}px`,
-        maxHeight: `${editVisibleViewportHeight}px`,
-        bottom: 'auto',
-      }
+      ...editModalViewportStyle,
+      top: `${editModalViewport.offsetTop}px`,
+      height: `${editVisibleViewportHeight}px`,
+      maxHeight: `${editVisibleViewportHeight}px`,
+      bottom: 'auto',
+    }
     : editModalViewportStyle;
   const handleEditTextareaFocus = () => {
     setIsEditTextareaFocused(true);
@@ -3330,7 +3338,7 @@ function MobileApp({ session, platformInfo }) {
           <div className={`backdrop modal-backdrop account-backdrop ${isClosingProfile ? 'fade-out' : ''}`} onClick={(e) => {
             if (e.target.classList.contains('backdrop')) closeProfile();
           }}>
-            <div 
+            <div
               className={`profile-modal ${isAndroid ? 'profile-modal-android' : 'profile-modal-ios'} ${isClosingProfile ? 'panel-exit' : 'panel-enter'}`}
               {...profileSwipeHandlers}
             >
@@ -3483,30 +3491,30 @@ function MobileApp({ session, platformInfo }) {
       </div>
       {dragOverlayTodo && dragOverlayRect && typeof document !== 'undefined'
         ? createPortal(
+          <div
+            style={{
+              position: 'fixed',
+              inset: 0,
+              pointerEvents: 'none',
+              zIndex: 99999,
+            }}
+            aria-hidden="true"
+          >
             <div
+              ref={handleDragOverlayRef}
+              className="task-card task-drag-overlay-card"
               style={{
-                position: 'fixed',
-                inset: 0,
-                pointerEvents: 'none',
-                zIndex: 99999,
+                width: `${dragOverlayRect.width}px`,
+                height: `${dragOverlayRect.height}px`,
+                left: `${dragOverlayRect.left}px`,
+                top: `${dragOverlayRect.top}px`,
               }}
-              aria-hidden="true"
             >
-              <div
-                ref={handleDragOverlayRef}
-                className="task-card task-drag-overlay-card"
-                style={{
-                  width: `${dragOverlayRect.width}px`,
-                  height: `${dragOverlayRect.height}px`,
-                  left: `${dragOverlayRect.left}px`,
-                  top: `${dragOverlayRect.top}px`,
-                }}
-              >
-                {renderTaskCardInner(dragOverlayTodo)}
-              </div>
-            </div>,
-            document.body,
-          )
+              {renderTaskCardInner(dragOverlayTodo)}
+            </div>
+          </div>,
+          document.body,
+        )
         : null}
     </>
   );

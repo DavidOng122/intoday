@@ -266,6 +266,7 @@ const getUrlPlatformLabel = (url, cardType) => {
     if (
       host.includes('maps.google.com') ||
       host === 'maps.app.goo.gl' ||
+      host === 'https://maps.app.goo.gl/qc689D1KstqwhNhn6?g_st=ic' || // 👉 新增这一行
       (host.includes('google.com') && path.startsWith('/maps'))
     ) {
       return 'Google Maps';
@@ -452,7 +453,12 @@ export const deriveTaskDisplayTitle = (task) => {
   if (derivedCardType === CARD_TYPES.VIDEO && isMeaningfulText(task.videoTitle)) {
     return cleanDisplayText(task.videoTitle);
   }
-
+  if (
+    (derivedCardType === CARD_TYPES.MUSIC || derivedCardType === CARD_TYPES.PODCAST) &&
+    isMeaningfulText(task.musicTitle)
+  ) {
+    return cleanDisplayText(task.musicTitle);
+  }
   if (derivedCardType === CARD_TYPES.MUSIC || derivedCardType === CARD_TYPES.PODCAST) {
     const slug = parseReadableSlugFromUrl(primaryUrl);
     if (isMeaningfulText(slug)) return slug;
@@ -474,7 +480,7 @@ export const deriveTaskDisplayTitle = (task) => {
 
   // Final fallback to the fetched linkTitle if one exists, even if we missed the types above
   if (isMeaningfulText(task.linkTitle)) {
-      return cleanDisplayText(task.linkTitle);
+    return cleanDisplayText(task.linkTitle);
   }
 
   return getTypeFallbackTitle(derivedCardType, primaryUrl);

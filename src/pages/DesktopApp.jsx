@@ -13,6 +13,7 @@ import { translations } from '../lib/translations';
 import {
   fetchMapMeta,
   fetchVideoMeta,
+  fetchSpotifyMeta,
   fetchLinkPreviewMeta,
   getDerivedTaskFields,
   getTaskCardPresentation,
@@ -710,58 +711,58 @@ const ScheduleSection = ({
   const timelineColumnMinHeight = (desktopRowCount * DESKTOP_SLOT_MIN_HEIGHT) + ((desktopRowCount - 1) * DESKTOP_SLOT_GAP);
 
   return (
-  <section style={{ borderBottom: '1px solid var(--desktop-divider)', background: 'var(--desktop-section-bg)' }}>
-    <div style={{ width: 'min(1008px, calc(100% - 72px))', margin: '0 auto', padding: '22px 0 24px' }}>
-      <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minWidth: 72, padding: '6px 14px', borderRadius: 999, fontFamily: 'DM Serif Display, serif', fontSize: 14, fontStyle: 'italic', ...pillStyle }}>{t[section.labelKey]}</span>
-      <div style={{ display: 'grid', gridTemplateColumns: '110px minmax(0, 1fr)', gap: 24, marginTop: 18, alignItems: 'stretch' }}>
-        <div style={{ position: 'relative', minHeight: timelineColumnMinHeight, height: '100%' }}>
-          <div style={{ color: 'var(--desktop-root-text)', fontSize: 15, fontWeight: 500 }}>{section.start}</div>
-          <div style={{ position: 'absolute', left: 5, top: DESKTOP_TIME_AXIS_LINE_TOP, bottom: DESKTOP_TIME_AXIS_LINE_BOTTOM, width: 1, background: 'var(--desktop-time-axis-line)' }} />
-          {markerStyle ? <div style={{ position: 'absolute', left: 2, width: DESKTOP_TIME_MARKER_SIZE, height: DESKTOP_TIME_MARKER_SIZE, borderRadius: '50%', background: 'var(--desktop-accent)', ...markerStyle }} /> : null}
-          <div style={{ position: 'absolute', left: 0, bottom: 0, color: 'var(--desktop-root-text)', fontSize: 15, fontWeight: 500 }}>{section.end}</div>
-        </div>
-        <div
-          data-desktop-block-id={section.mobileId}
-          className={`desktop-schedule-task-grid ${isDragOver ? 'is-drag-over' : ''}`}
-          style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(260px, 1fr))', gap: DESKTOP_SLOT_GAP, alignItems: 'stretch' }}
-        >
-          {renderSlots.map((item, slotIndex) => (
-            <div
-              key={`${section.mobileId}-${slotIndex}`}
-              data-desktop-slot-id={`${section.mobileId}-${slotIndex}`}
-              data-desktop-slot-section={section.mobileId}
-              data-desktop-slot-index={slotIndex}
-              className="desktop-schedule-slot"
-            >
-              {item.type === 'task' ? (
-                <div data-desktop-layout-id={`task-${item.task.id}`}>
-                  <TaskCard
-                    task={item.task}
-                    appearance={appearance}
-                    labels={labels}
-                    isDragging={draggedTaskId === item.task.id}
-                    onClick={() => onTaskClick(item.task)}
-                    onEdit={() => onTaskEdit(item.task)}
-                    onDelete={() => onTaskDelete(item.task)}
-                    onPointerDown={(event) => onTaskPointerDown(item.task, event)}
-                    onPointerMove={(event) => onTaskPointerMove(item.task, event)}
-                    onPointerUp={(event) => onTaskPointerUp(item.task, event)}
-                    onPointerCancel={(event) => onTaskPointerCancel(item.task, event)}
-                    editLabel={labels.edit}
-                    deleteLabel={labels.delete}
-                  />
-                </div>
-              ) : item.type === 'placeholder' ? (
-                <div data-desktop-layout-id="desktop-drag-placeholder" className="desktop-drag-placeholder" aria-hidden="true" />
-              ) : (
-                <div className="desktop-empty-slot" aria-hidden="true" />
-              )}
-            </div>
-          ))}
+    <section style={{ borderBottom: '1px solid var(--desktop-divider)', background: 'var(--desktop-section-bg)' }}>
+      <div style={{ width: 'min(1008px, calc(100% - 72px))', margin: '0 auto', padding: '22px 0 24px' }}>
+        <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minWidth: 72, padding: '6px 14px', borderRadius: 999, fontFamily: 'DM Serif Display, serif', fontSize: 14, fontStyle: 'italic', ...pillStyle }}>{t[section.labelKey]}</span>
+        <div style={{ display: 'grid', gridTemplateColumns: '110px minmax(0, 1fr)', gap: 24, marginTop: 18, alignItems: 'stretch' }}>
+          <div style={{ position: 'relative', minHeight: timelineColumnMinHeight, height: '100%' }}>
+            <div style={{ color: 'var(--desktop-root-text)', fontSize: 15, fontWeight: 500 }}>{section.start}</div>
+            <div style={{ position: 'absolute', left: 5, top: DESKTOP_TIME_AXIS_LINE_TOP, bottom: DESKTOP_TIME_AXIS_LINE_BOTTOM, width: 1, background: 'var(--desktop-time-axis-line)' }} />
+            {markerStyle ? <div style={{ position: 'absolute', left: 2, width: DESKTOP_TIME_MARKER_SIZE, height: DESKTOP_TIME_MARKER_SIZE, borderRadius: '50%', background: 'var(--desktop-accent)', ...markerStyle }} /> : null}
+            <div style={{ position: 'absolute', left: 0, bottom: 0, color: 'var(--desktop-root-text)', fontSize: 15, fontWeight: 500 }}>{section.end}</div>
+          </div>
+          <div
+            data-desktop-block-id={section.mobileId}
+            className={`desktop-schedule-task-grid ${isDragOver ? 'is-drag-over' : ''}`}
+            style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(260px, 1fr))', gap: DESKTOP_SLOT_GAP, alignItems: 'stretch' }}
+          >
+            {renderSlots.map((item, slotIndex) => (
+              <div
+                key={`${section.mobileId}-${slotIndex}`}
+                data-desktop-slot-id={`${section.mobileId}-${slotIndex}`}
+                data-desktop-slot-section={section.mobileId}
+                data-desktop-slot-index={slotIndex}
+                className="desktop-schedule-slot"
+              >
+                {item.type === 'task' ? (
+                  <div data-desktop-layout-id={`task-${item.task.id}`}>
+                    <TaskCard
+                      task={item.task}
+                      appearance={appearance}
+                      labels={labels}
+                      isDragging={draggedTaskId === item.task.id}
+                      onClick={() => onTaskClick(item.task)}
+                      onEdit={() => onTaskEdit(item.task)}
+                      onDelete={() => onTaskDelete(item.task)}
+                      onPointerDown={(event) => onTaskPointerDown(item.task, event)}
+                      onPointerMove={(event) => onTaskPointerMove(item.task, event)}
+                      onPointerUp={(event) => onTaskPointerUp(item.task, event)}
+                      onPointerCancel={(event) => onTaskPointerCancel(item.task, event)}
+                      editLabel={labels.edit}
+                      deleteLabel={labels.delete}
+                    />
+                  </div>
+                ) : item.type === 'placeholder' ? (
+                  <div data-desktop-layout-id="desktop-drag-placeholder" className="desktop-drag-placeholder" aria-hidden="true" />
+                ) : (
+                  <div className="desktop-empty-slot" aria-hidden="true" />
+                )}
+              </div>
+            ))}
+          </div>
         </div>
       </div>
-    </div>
-  </section>
+    </section>
   );
 };
 
@@ -1537,7 +1538,7 @@ function App() {
     setEditText(task.text);
     setPanelOpen(true);
   }, []);
-  
+
   const handleTaskDelete = useCallback((task) => {
     setTasks((prev) => prev.filter((t) => t.id !== task.id));
   }, [setTasks]);
@@ -1603,6 +1604,10 @@ function App() {
       });
     } else if (cardType === 'place' && mapUrl) {
       fetchMapMeta(mapUrl).then((meta) => {
+        setTasks((prev) => prev.map((task) => (task.id === taskId ? normalizeTask({ ...task, ...meta }) : task)));
+      });
+    } else if ((cardType === 'music' || cardType === 'podcast') && primaryUrl) {
+      fetchSpotifyMeta(primaryUrl).then((meta) => {
         setTasks((prev) => prev.map((task) => (task.id === taskId ? normalizeTask({ ...task, ...meta }) : task)));
       });
     } else if (primaryUrl && (!cardType || cardType === 'link' || cardType === 'text')) {
@@ -1742,14 +1747,14 @@ function App() {
                     markerStyle={getSectionMarkerStyle(section, currentTime, selectedDate)}
                     onTaskClick={handleTaskClick}
                     onTaskEdit={handleTaskEdit}
-                onTaskDelete={handleTaskDelete}
-                onTaskPointerDown={handleTaskPointerDown}
-                onTaskPointerMove={handleTaskPointerMove}
-                onTaskPointerUp={handleTaskPointerUp}
-                onTaskPointerCancel={handleTaskPointerCancel}
-                draggedTaskId={draggedTaskId}
-                isDragOver={dragOverSection === section.mobileId}
-              />
+                    onTaskDelete={handleTaskDelete}
+                    onTaskPointerDown={handleTaskPointerDown}
+                    onTaskPointerMove={handleTaskPointerMove}
+                    onTaskPointerUp={handleTaskPointerUp}
+                    onTaskPointerCancel={handleTaskPointerCancel}
+                    draggedTaskId={draggedTaskId}
+                    isDragOver={dragOverSection === section.mobileId}
+                  />
                 ))}
               </main>
             </div>
