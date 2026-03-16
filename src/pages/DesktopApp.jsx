@@ -88,6 +88,10 @@ const chips = [
 const DESKTOP_DRAG_START_DISTANCE = 4;
 const DESKTOP_DRAG_SCROLL_ZONE = 96;
 const DESKTOP_DRAG_MAX_SCROLL_SPEED = 1.35;
+const DESKTOP_DRAG_DAY_EDGE_HOLD_MS = 420;
+const DESKTOP_DRAG_DAY_FLIP_COOLDOWN_MS = 700;
+const DESKTOP_MAIN_CONTENT_MAX_WIDTH = 1008;
+const DESKTOP_MAIN_CONTENT_HORIZONTAL_PADDING = 72;
 const DESKTOP_DRAG_EDGE_OVERFLOW_TOP = 20;
 const DESKTOP_DRAG_EDGE_OVERFLOW_BOTTOM = 64;
 const DESKTOP_DRAG_EDGE_RESISTANCE = 0.22;
@@ -183,7 +187,8 @@ const reflowDesktopSectionSlots = (tasks, dateString, timeOfDay, orderedIds = nu
     targetTask.desktopSlot = index;
   });
 };
-const buildDesktopRenderSections = ({ selectedTasks, draggedTaskId, dragOverSection, dragOverSlot }) => {
+const buildDesktopRenderSections = ({ tasks, selectedDateKey, draggedTaskId, dragOverSection, dragOverSlot }) => {
+  const selectedTasks = tasks.filter((task) => task.dateString === selectedDateKey);
   const baseSections = Object.fromEntries(
     sections.map((section) => {
       const { slots } = resolveDesktopSectionSlots(
@@ -197,17 +202,18 @@ const buildDesktopRenderSections = ({ selectedTasks, draggedTaskId, dragOverSect
 
   if (!draggedTaskId) return baseSections;
 
-  const draggedTask = selectedTasks.find((task) => task.id === draggedTaskId);
+  const draggedTask = tasks.find((task) => task.id === draggedTaskId);
   if (!draggedTask) return baseSections;
 
-  let previewTasks = selectedTasks;
+  let previewTasks = tasks;
   if (dragOverSection && isValidDesktopSlot(dragOverSlot)) {
     previewTasks = applyDesktopTaskDrop({
-      tasks: selectedTasks,
+      tasks,
       draggedTaskId,
-      dateString: draggedTask.dateString,
+      sourceDateString: draggedTask.dateString,
       sourceSection: draggedTask.timeOfDay,
       sourceSlot: draggedTask.desktopSlot,
+      targetDateString: selectedDateKey,
       targetSection: dragOverSection,
       targetSlot: dragOverSlot,
     });
@@ -217,10 +223,12 @@ const buildDesktopRenderSections = ({ selectedTasks, draggedTaskId, dragOverSect
   const previewSections = Object.fromEntries(
     sections.map((section) => {
       const { slots } = resolveDesktopSectionSlots(
-        previewTasks.filter((task) => task.timeOfDay === section.mobileId),
+        previewTasks.filter((task) => task.dateString === selectedDateKey && task.timeOfDay === section.mobileId),
       );
       const renderSlots = slots.map((task, slotIndex) => {
         if (
+          previewDraggedTask.dateString === selectedDateKey
+          &&
           previewDraggedTask.timeOfDay === section.mobileId
           && previewDraggedTask.desktopSlot === slotIndex
         ) {
@@ -238,45 +246,73 @@ const buildDesktopRenderSections = ({ selectedTasks, draggedTaskId, dragOverSect
 
   return previewSections;
 };
-const applyDesktopTaskDrop = ({ tasks, draggedTaskId, dateString, sourceSection, sourceSlot, targetSection, targetSlot }) => {
+const applyDesktopTaskDrop = ({
+  tasks,
+  draggedTaskId,
+  sourceDateString,
+  sourceSection,
+  sourceSlot,
+  targetDateString,
+  targetSection,
+  targetSlot,
+}) => {
   if (!targetSection || !isValidDesktopSlot(targetSlot)) return tasks;
 
   const nextTasks = tasks.map((task) => ({ ...task }));
   const draggedTask = nextTasks.find((task) => task.id === draggedTaskId);
   if (!draggedTask) return tasks;
-
-  if (sourceSection === targetSection) {
-    if (!isValidDesktopSlot(sourceSlot) || sourceSlot === targetSlot) return tasks;
-
-    const sameSectionTasks = nextTasks.filter((task) => task.dateString === dateString && task.timeOfDay === targetSection);
-    const { slots } = resolveDesktopSectionSlots(sameSectionTasks);
-    const targetTaskId = slots[targetSlot]?.id;
-    const targetTask = targetTaskId ? nextTasks.find((task) => task.id === targetTaskId) : null;
-    if (!targetTask) return tasks;
-
-    draggedTask.desktopSlot = targetSlot;
-    if (targetTask) {
-      targetTask.desktopSlot = sourceSlot;
-    }
-    return nextTasks.map(normalizeTask);
-  }
-
-  draggedTask.timeOfDay = targetSection;
-  draggedTask.desktopSlot = null;
+  const resolvedSourceDateString = sourceDateString || draggedTask.dateString;
+  const resolvedTargetDateString = targetDateString || resolvedSourceDateString;
   const targetOrder = getDesktopSectionTaskOrder(
     nextTasks.filter((task) => task.id !== draggedTaskId),
-    dateString,
+    resolvedTargetDateString,
     targetSection,
   ).map((task) => task.id);
   const insertIndex = Math.max(0, Math.min(targetSlot, targetOrder.length));
   targetOrder.splice(insertIndex, 0, draggedTaskId);
-  reflowDesktopSectionSlots(nextTasks, dateString, sourceSection);
-  reflowDesktopSectionSlots(nextTasks, dateString, targetSection, targetOrder);
+
+  draggedTask.dateString = resolvedTargetDateString;
+  draggedTask.timeOfDay = targetSection;
+  draggedTask.desktopSlot = null;
+
+  if (resolvedSourceDateString !== resolvedTargetDateString || sourceSection !== targetSection) {
+    reflowDesktopSectionSlots(nextTasks, resolvedSourceDateString, sourceSection);
+  }
+  reflowDesktopSectionSlots(nextTasks, resolvedTargetDateString, targetSection, targetOrder);
   return nextTasks.map(normalizeTask);
 };
 
 const dateKey = (date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 const sameDay = (a, b) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+const shiftDateByDays = (date, dayOffset) => {
+  const nextDate = new Date(date);
+  nextDate.setDate(nextDate.getDate() + dayOffset);
+  return nextDate;
+};
+const getDesktopDayFlipZones = (viewportRect) => {
+  const wideScreenThreshold = DESKTOP_MAIN_CONTENT_MAX_WIDTH + DESKTOP_MAIN_CONTENT_HORIZONTAL_PADDING;
+
+  if (viewportRect.width > wideScreenThreshold) {
+    const contentLeft = viewportRect.left + ((viewportRect.width - DESKTOP_MAIN_CONTENT_MAX_WIDTH) / 2);
+    const contentRight = contentLeft + DESKTOP_MAIN_CONTENT_MAX_WIDTH;
+    return {
+      mode: 'gutter',
+      previousStart: viewportRect.left,
+      previousEnd: contentLeft,
+      nextStart: contentRight,
+      nextEnd: viewportRect.right,
+    };
+  }
+
+  const edgeZone = Math.min(120, Math.max(68, viewportRect.width * 0.12));
+  return {
+    mode: 'edge',
+    previousStart: viewportRect.left,
+    previousEnd: viewportRect.left + edgeZone,
+    nextStart: viewportRect.right - edgeZone,
+    nextEnd: viewportRect.right,
+  };
+};
 const getLocaleForLanguage = (language) => LANGUAGE_LOCALES[language] || LANGUAGE_LOCALES.EN;
 const getTranslationsForLanguage = (language) => translations[language] || translations.EN;
 const formatTemplate = (template, values) => Object.entries(values).reduce(
@@ -583,6 +619,34 @@ const DragOverlayCard = (props) => {
   );
 };
 
+const DragDayFeedbackOverlay = ({
+  direction,
+  previousLabel,
+  nextLabel,
+  zones,
+}) => (
+  <div className={`desktop-drag-day-feedback ${direction ? 'is-visible' : ''}`} aria-hidden="true">
+    <div
+      className={`desktop-drag-day-feedback-edge desktop-drag-day-feedback-edge-previous ${direction === 'previous' ? 'is-active' : ''}`}
+      style={zones ? { width: Math.max(0, zones.previousEnd - zones.previousStart) } : undefined}
+    >
+      <div className="desktop-drag-day-feedback-chip">
+        <span className="desktop-drag-day-feedback-arrow desktop-drag-day-feedback-arrow-previous">{'<'}</span>
+        <span className="desktop-drag-day-feedback-label">{previousLabel}</span>
+      </div>
+    </div>
+    <div
+      className={`desktop-drag-day-feedback-edge desktop-drag-day-feedback-edge-next ${direction === 'next' ? 'is-active' : ''}`}
+      style={zones ? { width: Math.max(0, zones.nextEnd - zones.nextStart) } : undefined}
+    >
+      <div className="desktop-drag-day-feedback-chip">
+        <span className="desktop-drag-day-feedback-label">{nextLabel}</span>
+        <span className="desktop-drag-day-feedback-arrow desktop-drag-day-feedback-arrow-next">{'>'}</span>
+      </div>
+    </div>
+  </div>
+);
+
 const ScheduleSection = ({
   section,
   appearance,
@@ -792,13 +856,18 @@ function App() {
   const [draggedTaskId, setDraggedTaskId] = useState(null);
   const [dragOverSection, setDragOverSection] = useState(null);
   const [dragOverSlot, setDragOverSlot] = useState(null);
+  const [desktopDragDayFeedback, setDesktopDragDayFeedback] = useState(null);
+  const [desktopDragDayZones, setDesktopDragDayZones] = useState(null);
   const [tasks, setTasks] = useSyncedTodos({
     userId: user?.id || null,
     normalizeTodo: normalizeTask,
   });
   const t = useMemo(() => getTranslationsForLanguage(language), [language]);
   const userProfile = useMemo(() => getUserProfile(user), [user]);
+  const selectedDateRef = useRef(selectedDate);
+  const tasksRef = useRef(tasks);
   const mainScrollRef = useRef(null);
+  const desktopDragViewportRef = useRef(null);
   const desktopDragStateRef = useRef({
     pointerId: null,
     taskId: null,
@@ -816,11 +885,22 @@ function App() {
   const lockedMainScrollTopRef = useRef(0);
   const desktopAutoScrollFrameRef = useRef(null);
   const desktopAutoScrollLastTsRef = useRef(null);
+  const desktopDayFlipTimerRef = useRef(null);
+  const desktopDayFlipDirectionRef = useRef(0);
+  const desktopDayFlipCooldownUntilRef = useRef(0);
+  const desktopDragDayFeedbackRef = useRef(null);
+  const desktopDragDayZonesRef = useRef(null);
   const suppressTaskClickRef = useRef(null);
   const suppressAllTaskClicksUntilRef = useRef(0);
   const suppressTaskClickTimeoutRef = useRef(null);
   const desktopLayoutRectsRef = useRef(new Map());
 
+  useEffect(() => {
+    selectedDateRef.current = selectedDate;
+  }, [selectedDate]);
+  useEffect(() => {
+    tasksRef.current = tasks;
+  }, [tasks]);
   useEffect(() => {
     const interval = setInterval(() => setCurrentTime(new Date()), 60000);
     return () => clearInterval(interval);
@@ -833,6 +913,10 @@ function App() {
     if (desktopAutoScrollFrameRef.current !== null) {
       window.cancelAnimationFrame(desktopAutoScrollFrameRef.current);
       desktopAutoScrollFrameRef.current = null;
+    }
+    if (desktopDayFlipTimerRef.current !== null) {
+      window.clearTimeout(desktopDayFlipTimerRef.current);
+      desktopDayFlipTimerRef.current = null;
     }
   }, []);
   useEffect(() => {
@@ -895,6 +979,18 @@ function App() {
     }, 250);
   }, []);
 
+  const clearDesktopDayFlipTimer = useCallback(() => {
+    if (desktopDayFlipTimerRef.current !== null) {
+      window.clearTimeout(desktopDayFlipTimerRef.current);
+      desktopDayFlipTimerRef.current = null;
+    }
+    desktopDayFlipDirectionRef.current = 0;
+    desktopDragDayFeedbackRef.current = null;
+    desktopDragDayZonesRef.current = null;
+    setDesktopDragDayFeedback(null);
+    setDesktopDragDayZones(null);
+  }, []);
+
   const getNearestDesktopDropTarget = useCallback((clientX, clientY) => {
     const slots = document.querySelectorAll('[data-desktop-slot-id]');
     let nearest = null;
@@ -949,6 +1045,91 @@ function App() {
     }
   }, [getNearestDesktopDropTarget]);
 
+  const moveDraggedTaskToDate = useCallback((taskId, nextDate) => {
+    if (!taskId || !nextDate) return;
+
+    const currentDate = selectedDateRef.current;
+    if (sameDay(currentDate, nextDate)) return;
+
+    const draggedTask = tasksRef.current.find((task) => task.id === taskId);
+    const preservedSection = dragOverSectionRef.current || draggedTask?.timeOfDay || 'Morning';
+    const nextDateKey = dateKey(nextDate);
+    const nextSlot = getDesktopSectionTaskOrder(
+      tasksRef.current.filter((task) => task.id !== taskId),
+      nextDateKey,
+      preservedSection,
+    ).length;
+
+    dragOverSectionRef.current = preservedSection;
+    dragOverSlotRef.current = nextSlot;
+    setDragOverSection(preservedSection);
+    setDragOverSlot(nextSlot);
+    selectedDateRef.current = nextDate;
+    setSelectedDate(nextDate);
+  }, []);
+
+  const updateDesktopDragDayAutoFlip = useCallback((clientX, taskId) => {
+    const viewport = desktopDragViewportRef.current || mainScrollRef.current;
+    if (!viewport || !taskId) return;
+
+    const rect = viewport.getBoundingClientRect();
+    const zones = getDesktopDayFlipZones(rect);
+    let direction = 0;
+    const nextFeedback = clientX <= zones.previousEnd
+      ? 'previous'
+      : clientX >= zones.nextStart
+        ? 'next'
+        : null;
+
+    if (clientX <= zones.previousEnd) {
+      direction = -1;
+    } else if (clientX >= zones.nextStart) {
+      direction = 1;
+    }
+
+    const currentZones = desktopDragDayZonesRef.current;
+    if (
+      !currentZones
+      || currentZones.previousStart !== zones.previousStart
+      || currentZones.previousEnd !== zones.previousEnd
+      || currentZones.nextStart !== zones.nextStart
+      || currentZones.nextEnd !== zones.nextEnd
+    ) {
+      desktopDragDayZonesRef.current = zones;
+      setDesktopDragDayZones(zones);
+    }
+
+    if (desktopDragDayFeedbackRef.current !== nextFeedback) {
+      desktopDragDayFeedbackRef.current = nextFeedback;
+      setDesktopDragDayFeedback(nextFeedback);
+    }
+
+    if (direction === 0) {
+      clearDesktopDayFlipTimer();
+      return;
+    }
+
+    if (Date.now() < desktopDayFlipCooldownUntilRef.current) {
+      return;
+    }
+
+    if (desktopDayFlipDirectionRef.current === direction && desktopDayFlipTimerRef.current !== null) {
+      return;
+    }
+
+    clearDesktopDayFlipTimer();
+    desktopDayFlipDirectionRef.current = direction;
+    desktopDayFlipTimerRef.current = window.setTimeout(() => {
+      desktopDayFlipTimerRef.current = null;
+      desktopDayFlipDirectionRef.current = 0;
+
+      if (!desktopDragModeRef.current || desktopDragStateRef.current.taskId !== taskId) return;
+
+      desktopDayFlipCooldownUntilRef.current = Date.now() + DESKTOP_DRAG_DAY_FLIP_COOLDOWN_MS;
+      moveDraggedTaskToDate(taskId, shiftDateByDays(selectedDateRef.current, direction));
+    }, DESKTOP_DRAG_DAY_EDGE_HOLD_MS);
+  }, [clearDesktopDayFlipTimer, moveDraggedTaskToDate]);
+
   const stopDesktopAutoScroll = useCallback(() => {
     desktopAutoScrollLastTsRef.current = null;
     if (desktopAutoScrollFrameRef.current !== null) {
@@ -972,6 +1153,11 @@ function App() {
     if (desktopAutoScrollLastTsRef.current === null) {
       desktopAutoScrollLastTsRef.current = timestamp;
     }
+
+    updateDesktopDragDayAutoFlip(
+      desktopDragPointerRef.current.x,
+      desktopDragStateRef.current.taskId,
+    );
 
     const elapsed = Math.min(timestamp - desktopAutoScrollLastTsRef.current, 32);
     desktopAutoScrollLastTsRef.current = timestamp;
@@ -1006,7 +1192,7 @@ function App() {
     }
 
     desktopAutoScrollFrameRef.current = window.requestAnimationFrame(runDesktopAutoScroll);
-  }, [stopDesktopAutoScroll, syncDesktopDraggedTaskPosition]);
+  }, [stopDesktopAutoScroll, syncDesktopDraggedTaskPosition, updateDesktopDragDayAutoFlip]);
 
   const startDesktopTaskDrag = useCallback((task) => {
     const taskId = task.id;
@@ -1052,6 +1238,7 @@ function App() {
 
   const finishDesktopTaskDrag = useCallback((task, pointerTarget, pointerId) => {
     stopDesktopAutoScroll();
+    clearDesktopDayFlipTimer();
 
     const wrapper = document.getElementById(`desktop-task-wrapper-${task.id}`);
     if (wrapper) {
@@ -1069,9 +1256,10 @@ function App() {
           setTasks((prev) => applyDesktopTaskDrop({
             tasks: prev,
             draggedTaskId: task.id,
-            dateString: task.dateString,
+            sourceDateString: task.dateString,
             sourceSection: task.timeOfDay,
             sourceSlot: task.desktopSlot,
+            targetDateString: dateKey(selectedDateRef.current),
             targetSection,
             targetSlot,
           }));
@@ -1084,6 +1272,7 @@ function App() {
     desktopDragOriginRectRef.current = null;
     desktopDragPointerOffsetRef.current = { x: 0, y: 0 };
     desktopDragOverlayRectRef.current = null;
+    desktopDayFlipCooldownUntilRef.current = 0;
     dragOverSectionRef.current = null;
     dragOverSlotRef.current = null;
     setDragOverSection(null);
@@ -1097,7 +1286,7 @@ function App() {
         // Pointer capture may already be released.
       }
     }
-  }, [setTasks, stopDesktopAutoScroll, suppressNextTaskClick]);
+  }, [clearDesktopDayFlipTimer, setTasks, stopDesktopAutoScroll, suppressNextTaskClick]);
 
   const handleTaskPointerDown = useCallback((task, event) => {
     if (!event.isPrimary || event.button !== 0) return;
@@ -1132,7 +1321,8 @@ function App() {
       nativeEvent.preventDefault();
     }
     syncDesktopDraggedTaskPosition(task.id, clientX, clientY);
-  }, [startDesktopTaskDrag, syncDesktopDraggedTaskPosition]);
+    updateDesktopDragDayAutoFlip(clientX, task.id);
+  }, [startDesktopTaskDrag, syncDesktopDraggedTaskPosition, updateDesktopDragDayAutoFlip]);
 
   const handleTaskPointerMove = useCallback((task, event) => {
     if (desktopDragStateRef.current.pointerId !== event.pointerId || desktopDragStateRef.current.taskId !== task.id) return;
@@ -1195,6 +1385,7 @@ function App() {
       } else {
         desktopDragStateRef.current = { pointerId: null, taskId: null, startX: 0, startY: 0 };
         desktopDragOriginRectRef.current = null;
+        clearDesktopDayFlipTimer();
       }
       activePointerTaskRef.current = null;
     };
@@ -1216,6 +1407,7 @@ function App() {
         finishDesktopTaskDrag(activeTask, null, null);
       } else {
         desktopDragStateRef.current = { pointerId: null, taskId: null, startX: 0, startY: 0 };
+        clearDesktopDayFlipTimer();
       }
       activePointerTaskRef.current = null;
     };
@@ -1233,16 +1425,38 @@ function App() {
       window.removeEventListener('mousemove', handleWindowMouseMove);
       window.removeEventListener('mouseup', handleWindowMouseUp);
     };
-  }, [finishDesktopTaskDrag, processDesktopDragMove]);
+  }, [clearDesktopDayFlipTimer, finishDesktopTaskDrag, processDesktopDragMove]);
 
   const selectedDateKey = dateKey(selectedDate);
-  const selectedTasks = tasks.filter((task) => task.dateString === selectedDateKey);
+  const desktopPreviousDayLabel = useMemo(
+    () => panelLabel(shiftDateByDays(selectedDate, -1), language),
+    [language, selectedDate],
+  );
+  const desktopNextDayLabel = useMemo(
+    () => panelLabel(shiftDateByDays(selectedDate, 1), language),
+    [language, selectedDate],
+  );
   const desktopSectionTasks = useMemo(() => buildDesktopRenderSections({
-    selectedTasks,
+    tasks,
+    selectedDateKey,
     draggedTaskId,
     dragOverSection,
     dragOverSlot,
-  }), [dragOverSection, dragOverSlot, draggedTaskId, selectedTasks]);
+  }), [dragOverSection, dragOverSlot, draggedTaskId, selectedDateKey, tasks]);
+
+  useEffect(() => {
+    if (!draggedTaskId || !desktopDragModeRef.current) return undefined;
+
+    const frameId = window.requestAnimationFrame(() => {
+      syncDesktopDraggedTaskPosition(
+        draggedTaskId,
+        desktopDragPointerRef.current.x,
+        desktopDragPointerRef.current.y,
+      );
+    });
+
+    return () => window.cancelAnimationFrame(frameId);
+  }, [draggedTaskId, selectedDateKey, syncDesktopDraggedTaskPosition]);
 
   useLayoutEffect(() => {
     const elements = Array.from(document.querySelectorAll('[data-desktop-layout-id]'));
@@ -1438,28 +1652,40 @@ function App() {
         </header>
 
         <div style={{ display: 'flex', height: 'calc(100vh - 74px)' }}>
-          <div style={{ flex: 1, minWidth: 0, minHeight: 0, display: 'flex', flexDirection: 'column', background: 'var(--desktop-main-gradient)' }}>
-            <WeekStrip selectedDate={selectedDate} logicalToday={logicalToday} language={language} onSelect={(date) => { setSelectedDate(date); setProfileOpen(false); }} />
-            <main ref={mainScrollRef} style={{ flex: 1, minHeight: 0, overflowY: 'auto', background: 'var(--desktop-root-bg)' }}>
-              {sections.map((section) => (
-                <ScheduleSection
-                  key={section.id}
-                  section={section}
-                  appearance={appearance}
-                  language={language}
-                  labels={t}
-                  renderSlots={desktopSectionTasks[section.mobileId]?.renderSlots || Array.from({ length: DESKTOP_BASE_SLOT_COUNT }, () => ({ type: 'empty' }))}
-                  markerStyle={getSectionMarkerStyle(section, currentTime, selectedDate)}
-                  onTaskClick={handleTaskClick}
-                  onTaskPointerDown={handleTaskPointerDown}
-                  onTaskPointerMove={handleTaskPointerMove}
-                  onTaskPointerUp={handleTaskPointerUp}
-                  onTaskPointerCancel={handleTaskPointerCancel}
-                  draggedTaskId={draggedTaskId}
-                  isDragOver={dragOverSection === section.mobileId}
-                />
-              ))}
-            </main>
+          <div
+            ref={desktopDragViewportRef}
+            className={`desktop-main-stage ${desktopDragDayFeedback ? `desktop-main-stage-feedback-${desktopDragDayFeedback}` : ''}`}
+            style={{ flex: 1, minWidth: 0, minHeight: 0, position: 'relative', overflow: 'hidden' }}
+          >
+            <div className="desktop-main-stage-inner" style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', background: 'var(--desktop-main-gradient)' }}>
+              <WeekStrip selectedDate={selectedDate} logicalToday={logicalToday} language={language} onSelect={(date) => { setSelectedDate(date); setProfileOpen(false); }} />
+              <main ref={mainScrollRef} style={{ flex: 1, minHeight: 0, overflowY: 'auto', background: 'var(--desktop-root-bg)' }}>
+                {sections.map((section) => (
+                  <ScheduleSection
+                    key={section.id}
+                    section={section}
+                    appearance={appearance}
+                    language={language}
+                    labels={t}
+                    renderSlots={desktopSectionTasks[section.mobileId]?.renderSlots || Array.from({ length: DESKTOP_BASE_SLOT_COUNT }, () => ({ type: 'empty' }))}
+                    markerStyle={getSectionMarkerStyle(section, currentTime, selectedDate)}
+                    onTaskClick={handleTaskClick}
+                    onTaskPointerDown={handleTaskPointerDown}
+                    onTaskPointerMove={handleTaskPointerMove}
+                    onTaskPointerUp={handleTaskPointerUp}
+                    onTaskPointerCancel={handleTaskPointerCancel}
+                    draggedTaskId={draggedTaskId}
+                    isDragOver={dragOverSection === section.mobileId}
+                  />
+                ))}
+              </main>
+            </div>
+            <DragDayFeedbackOverlay
+              direction={desktopDragDayFeedback}
+              previousLabel={desktopPreviousDayLabel}
+              nextLabel={desktopNextDayLabel}
+              zones={desktopDragDayZones}
+            />
           </div>
           <AddPanel open={panelOpen} language={language} selectedDate={selectedDate} chipsToShow={visibleChips} activeChip={activeChip} setActiveChip={setActiveChip} inputText={inputText} setInputText={setInputText} onClose={closePanel} onSubmit={saveTask} onSelectDate={setSelectedDate} />
         </div>
