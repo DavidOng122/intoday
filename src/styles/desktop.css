@@ -999,59 +999,60 @@
   transform: translateY(-1px) scale(0.985);
 }
 
-.desktop-task-edit-button {
+.desktop-task-actions {
   position: absolute;
   top: 14px;
   right: 18px;
-  z-index: 2;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  height: 30px;
-  padding: 0 10px;
-  border: 1px solid var(--desktop-task-border);
-  border-radius: 999px;
-  background: var(--desktop-task-bg);
-  color: var(--desktop-root-text);
-  box-shadow: 0 8px 18px rgba(28, 17, 8, 0.12);
-  cursor: pointer;
+  z-index: 10;
+  display: flex;
+  gap: 8px;
   opacity: 0;
   transform: translate3d(0, -4px, 0) scale(0.96);
   pointer-events: none;
   transition:
-    opacity 140ms ease,
-    transform 140ms ease,
-    background-color 140ms ease,
-    box-shadow 140ms ease;
+    opacity 160ms cubic-bezier(0.22, 1, 0.36, 1),
+    transform 160ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-.desktop-task-wrapper:hover .desktop-task-edit-button,
-.desktop-task-wrapper:focus-within .desktop-task-edit-button {
+.desktop-task-wrapper:hover .desktop-task-actions,
+.desktop-task-wrapper:focus-within .desktop-task-actions {
   opacity: 1;
   transform: translate3d(0, 0, 0) scale(1);
   pointer-events: auto;
 }
 
-.desktop-task-edit-button:hover {
+.desktop-task-action-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 1px solid var(--desktop-task-border);
+  background: var(--desktop-task-bg);
+  color: var(--desktop-muted-strong);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  cursor: pointer;
+  transition: all 140ms ease;
+  padding: 0;
+}
+
+.desktop-task-action-button:hover {
   background: var(--desktop-panel-close-bg);
-  box-shadow: 0 10px 22px rgba(28, 17, 8, 0.16);
+  color: var(--desktop-root-text);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
 }
 
-.desktop-task-edit-button:focus-visible {
-  opacity: 1;
-  transform: translate3d(0, 0, 0) scale(1);
-  pointer-events: auto;
-  outline: 2px solid var(--desktop-accent);
-  outline-offset: 2px;
+.desktop-task-action-button:active {
+  transform: translateY(0) scale(0.92);
 }
 
-.desktop-task-edit-button span {
-  font-size: 12px;
-  font-weight: 600;
-  line-height: 1;
+.desktop-task-delete-button:hover {
+  color: var(--desktop-accent);
 }
 
-.desktop-task-wrapper.is-dragging .desktop-task-edit-button {
+.desktop-task-wrapper.is-dragging .desktop-task-actions {
   opacity: 0;
   pointer-events: none;
 }

@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
+import { PenLine, Trash2 } from 'lucide-react';
 import { supabase } from '../supabase';
 import DesktopLogin from '../DesktopLogin';
 import { useSyncedTodos } from '../todoSync';
@@ -560,12 +561,14 @@ const TaskCard = (props) => {
     appearance,
     onClick,
     onEdit,
+    onDelete,
     onPointerDown,
     onPointerMove,
     onPointerUp,
     onPointerCancel,
     isDragging,
     editLabel,
+    deleteLabel,
   } = props;
   const taskCardLabels = props?.labels;
 
@@ -601,19 +604,32 @@ const TaskCard = (props) => {
       >
         <TaskCardContent task={task} appearance={appearance} labels={taskCardLabels} />
       </button>
-      <button
-        type="button"
-        className="desktop-task-edit-button"
-        aria-label={editLabel}
-        onPointerDown={(event) => event.stopPropagation()}
-        onClick={(event) => {
-          event.stopPropagation();
-          onEdit?.(task);
-        }}
-      >
-        <EditIcon />
-        <span>{editLabel}</span>
-      </button>
+      <div className="desktop-task-actions">
+        <button
+          type="button"
+          className="desktop-task-action-button desktop-task-edit-button"
+          aria-label={editLabel}
+          onPointerDown={(event) => event.stopPropagation()}
+          onClick={(event) => {
+            event.stopPropagation();
+            onEdit?.(task);
+          }}
+        >
+          <PenLine size={14} strokeWidth={2.2} />
+        </button>
+        <button
+          type="button"
+          className="desktop-task-action-button desktop-task-delete-button"
+          aria-label={deleteLabel}
+          onPointerDown={(event) => event.stopPropagation()}
+          onClick={(event) => {
+            event.stopPropagation();
+            onDelete?.(task);
+          }}
+        >
+          <Trash2 size={14} strokeWidth={2.2} />
+        </button>
+      </div>
     </div>
   );
 };
@@ -679,6 +695,7 @@ const ScheduleSection = ({
   markerStyle,
   onTaskClick,
   onTaskEdit,
+  onTaskDelete,
   onTaskPointerDown,
   onTaskPointerMove,
   onTaskPointerUp,
@@ -721,14 +738,16 @@ const ScheduleSection = ({
                     task={item.task}
                     appearance={appearance}
                     labels={labels}
-                    editLabel={labels.edit}
                     isDragging={draggedTaskId === item.task.id}
                     onClick={() => onTaskClick(item.task)}
                     onEdit={() => onTaskEdit(item.task)}
+                    onDelete={() => onTaskDelete(item.task)}
                     onPointerDown={(event) => onTaskPointerDown(item.task, event)}
                     onPointerMove={(event) => onTaskPointerMove(item.task, event)}
                     onPointerUp={(event) => onTaskPointerUp(item.task, event)}
                     onPointerCancel={(event) => onTaskPointerCancel(item.task, event)}
+                    editLabel={labels.edit}
+                    deleteLabel={labels.delete}
                   />
                 </div>
               ) : item.type === 'placeholder' ? (
@@ -1512,6 +1531,16 @@ function App() {
   }, [desktopSectionTasks]);
   const editingTask = editingTaskId ? tasks.find((task) => task.id === editingTaskId) || null : null;
   const canSaveEdit = editText.trim().length > 0;
+  const handleTaskEdit = useCallback((task) => {
+    setEditingTaskId(task.id);
+    setEditText(task.text);
+    setPanelOpen(true);
+  }, []);
+  
+  const handleTaskDelete = useCallback((task) => {
+    setTasks((prev) => prev.filter((t) => t.id !== task.id));
+  }, [setTasks]);
+
   const closeEditModal = useCallback(() => {
     setEditingTaskId(null);
     setEditText('');
@@ -1705,14 +1734,15 @@ function App() {
                     renderSlots={desktopSectionTasks[section.mobileId]?.renderSlots || Array.from({ length: DESKTOP_BASE_SLOT_COUNT }, () => ({ type: 'empty' }))}
                     markerStyle={getSectionMarkerStyle(section, currentTime, selectedDate)}
                     onTaskClick={handleTaskClick}
-                    onTaskEdit={handleTaskEditAction}
-                    onTaskPointerDown={handleTaskPointerDown}
-                    onTaskPointerMove={handleTaskPointerMove}
-                    onTaskPointerUp={handleTaskPointerUp}
-                    onTaskPointerCancel={handleTaskPointerCancel}
-                    draggedTaskId={draggedTaskId}
-                    isDragOver={dragOverSection === section.mobileId}
-                  />
+                    onTaskEdit={handleTaskEdit}
+                onTaskDelete={handleTaskDelete}
+                onTaskPointerDown={handleTaskPointerDown}
+                onTaskPointerMove={handleTaskPointerMove}
+                onTaskPointerUp={handleTaskPointerUp}
+                onTaskPointerCancel={handleTaskPointerCancel}
+                draggedTaskId={draggedTaskId}
+                isDragOver={dragOverSection === section.mobileId}
+              />
                 ))}
               </main>
             </div>
