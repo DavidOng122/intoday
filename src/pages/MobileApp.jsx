@@ -830,6 +830,7 @@ function MobileApp({ session, platformInfo }) {
     return window.matchMedia('(pointer: coarse)').matches;
   });
   const [daySwipeOffset, setDaySwipeOffset] = useState(0);
+  const [daySwipeSnapping, setDaySwipeSnapping] = useState(false);
   const [dayTransition, setDayTransition] = useState(null);
   const [directDayFlipDirection, setDirectDayFlipDirection] = useState(null);
   const stripRef = React.useRef(null);
@@ -856,6 +857,14 @@ function MobileApp({ session, platformInfo }) {
   });
   const transitionTimeoutRef = React.useRef(null);
   const directDayFlipTimeoutRef = React.useRef(null);
+
+  // Blank-area horizontal swipe state (for day navigation)
+  const blankSwipeTouchIdRef = React.useRef(null);
+  const blankSwipeStartXRef = React.useRef(0);
+  const blankSwipeStartYRef = React.useRef(0);
+  const blankSwipeLastXRef = React.useRef(0);
+  const blankSwipeLastTsRef = React.useRef(0);
+  const blankSwipeLockedRef = React.useRef(null); // null | 'horizontal' | 'vertical'
 
   useEffect(() => {
     if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return undefined;
@@ -2700,7 +2709,10 @@ function MobileApp({ session, platformInfo }) {
         key: format(selectedDate, 'yyyy-MM-dd'),
         date: selectedDate,
         className: `timeline-panel is-active ${directDayFlipDirection ? `timeline-panel-direct-flip timeline-panel-direct-flip-${directDayFlipDirection}` : ''}`,
-        style: { transform: `translate3d(${daySwipeOffset}px, 0, 0)` },
+        style: {
+          transform: `translate3d(${daySwipeOffset}px, 0, 0)`,
+          transition: daySwipeSnapping ? `transform ${DAY_SWIPE_CONFIG.SWIPE_ANIMATION_DURATION_MS}ms cubic-bezier(0.22, 1, 0.36, 1)` : undefined,
+        },
         isStatic: false,
         showDragPreview: true,
       };
@@ -2739,7 +2751,7 @@ function MobileApp({ session, platformInfo }) {
         isStatic: true,
       }
     ];
-  }, [daySwipeOffset, dayTransition, directDayFlipDirection, dragSourceDate, selectedDate]);
+  }, [daySwipeOffset, daySwipeSnapping, dayTransition, directDayFlipDirection, dragSourceDate, selectedDate]);
 
   const dayFeedbackDirection = dayTransition?.direction || directDayFlipDirection;
 
@@ -2767,20 +2779,124 @@ function MobileApp({ session, platformInfo }) {
     };
   }, [scheduleOverlayRefresh]);
 
-  const handleTimelineTouchStart = useCallback(() => {
+  const handleTimelineTouchStart = useCallback((e) => {
     timelineTouchActiveRef.current = true;
     activateTimelineLabels();
-  }, [activateTimelineLabels]);
 
-  const handleTimelineTouchMove = useCallback(() => {
+    // Blank-area swipe: only activate when the touch does not start on a task card or action button
+    if (isDragMode.current || dayTransition) return;
+    const touch = e.touches[0];
+    if (!touch) return;
+    const target = e.target;
+    if (
+      !(target instanceof Element) ||
+      target.closest('.swipe-card') ||
+      target.closest('.swipe-wrapper') ||
+      target.closest('.swipe-action') ||
+      target.closest('[data-no-day-swipe]')
+    ) return;
+
+    blankSwipeTouchIdRef.current = touch.identifier;
+    blankSwipeStartXRef.current = touch.clientX;
+    blankSwipeStartYRef.current = touch.clientY;
+    blankSwipeLastXRef.current = touch.clientX;
+    blankSwipeLastTsRef.current = Date.now();
+    blankSwipeLockedRef.current = null;
+  }, [activateTimelineLabels, dayTransition]);
+
+  const handleTimelineTouchMove = useCallback((e) => {
     timelineTouchActiveRef.current = true;
     activateTimelineLabels();
-  }, [activateTimelineLabels]);
 
-  const handleTimelineTouchEnd = useCallback(() => {
+    if (blankSwipeTouchIdRef.current === null || isDragMode.current || dayTransition) return;
+
+    let touch = null;
+    for (let i = 0; i < e.touches.length; i += 1) {
+      if (e.touches[i].identifier === blankSwipeTouchIdRef.current) {
+        touch = e.touches[i];
+        break;
+      }
+    }
+    if (!touch) return;
+
+    const dx = touch.clientX - blankSwipeStartXRef.current;
+    const dy = touch.clientY - blankSwipeStartYRef.current;
+
+    // Direction lock
+    if (blankSwipeLockedRef.current === null) {
+      const absDx = Math.abs(dx);
+      const absDy = Math.abs(dy);
+      if (absDx < DAY_SWIPE_CONFIG.INTENT_THRESHOLD_PX && absDy < DAY_SWIPE_CONFIG.INTENT_THRESHOLD_PX) return;
+      if (absDx >= absDy * DAY_SWIPE_CONFIG.HORIZONTAL_LOCK_RATIO) {
+        blankSwipeLockedRef.current = 'horizontal';
+      } else {
+        blankSwipeLockedRef.current = 'vertical';
+        blankSwipeTouchIdRef.current = null;
+        return;
+      }
+    }
+
+    if (blankSwipeLockedRef.current !== 'horizontal') return;
+
+    if (e.cancelable) e.preventDefault();
+
+    // Velocity tracking
+    const now = Date.now();
+    blankSwipeLastXRef.current = touch.clientX;
+    blankSwipeLastTsRef.current = now;
+
+    // Resistance at boundaries (can't go past today on the left for most cases)
+    const resistedOffset = dx * DAY_SWIPE_CONFIG.DRAG_RESISTANCE;
+    const clamped = Math.max(
+      -DAY_SWIPE_CONFIG.MAX_DRAG_OFFSET_PX,
+      Math.min(DAY_SWIPE_CONFIG.MAX_DRAG_OFFSET_PX, resistedOffset),
+    );
+    setDaySwipeOffset(clamped);
+  }, [activateTimelineLabels, dayTransition]);
+
+  const handleTimelineTouchEnd = useCallback((e) => {
     timelineTouchActiveRef.current = false;
     scheduleHideTimelineLabels(900);
-  }, [scheduleHideTimelineLabels]);
+
+    if (blankSwipeTouchIdRef.current === null) return;
+    const touchId = blankSwipeTouchIdRef.current;
+    blankSwipeTouchIdRef.current = null;
+
+    if (blankSwipeLockedRef.current !== 'horizontal') {
+      setDaySwipeOffset(0);
+      return;
+    }
+
+    // Find the ended touch to compute final velocity
+    let endTouch = null;
+    for (let i = 0; i < (e.changedTouches || []).length; i += 1) {
+      if (e.changedTouches[i].identifier === touchId) {
+        endTouch = e.changedTouches[i];
+        break;
+      }
+    }
+
+    const endX = endTouch ? endTouch.clientX : blankSwipeLastXRef.current;
+    const dx = endX - blankSwipeStartXRef.current;
+    const elapsed = Math.max(1, Date.now() - blankSwipeLastTsRef.current);
+    const velocity = (endX - blankSwipeLastXRef.current) / elapsed; // px/ms (approximate)
+
+    const didSwipeLeft = dx < -DAY_SWIPE_CONFIG.CHANGE_DAY_THRESHOLD_PX || velocity < -DAY_SWIPE_CONFIG.VELOCITY_THRESHOLD_PX_PER_MS;
+    const didSwipeRight = dx > DAY_SWIPE_CONFIG.CHANGE_DAY_THRESHOLD_PX || velocity > DAY_SWIPE_CONFIG.VELOCITY_THRESHOLD_PX_PER_MS;
+
+    if (didSwipeLeft) {
+      const nextDate = addDays(selectedDateRef.current, 1);
+      transitionToDate(nextDate, { durationMs: DAY_SWIPE_CONFIG.SWIPE_ANIMATION_DURATION_MS });
+    } else if (didSwipeRight) {
+      const prevDate = subDays(selectedDateRef.current, 1);
+      transitionToDate(prevDate, { durationMs: DAY_SWIPE_CONFIG.SWIPE_ANIMATION_DURATION_MS });
+    } else {
+      // Snap back with animation
+      setDaySwipeSnapping(true);
+      setDaySwipeOffset(0);
+      window.setTimeout(() => setDaySwipeSnapping(false), DAY_SWIPE_CONFIG.SWIPE_ANIMATION_DURATION_MS);
+    }
+  }, [scheduleHideTimelineLabels, transitionToDate]);
 
   const isEditModalMobileLayout = isCoarsePointer;
   const fallbackEditViewportHeight = editModalViewport.baseHeight
