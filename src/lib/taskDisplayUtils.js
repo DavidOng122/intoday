@@ -464,8 +464,17 @@ export const deriveTaskDisplayTitle = (task) => {
     derivedCardType === CARD_TYPES.FINANCIAL ||
     derivedCardType === CARD_TYPES.LINK
   ) {
+    // If we have a scraped link title on the task payload, use it instead of just the slug or fallback
+    if (isMeaningfulText(task.linkTitle)) {
+      return cleanDisplayText(task.linkTitle);
+    }
     const slug = parseReadableSlugFromUrl(primaryUrl);
     if (isMeaningfulText(slug)) return slug;
+  }
+
+  // Final fallback to the fetched linkTitle if one exists, even if we missed the types above
+  if (isMeaningfulText(task.linkTitle)) {
+      return cleanDisplayText(task.linkTitle);
   }
 
   return getTypeFallbackTitle(derivedCardType, primaryUrl);

@@ -6,6 +6,7 @@ export {
   extractVideoUrl,
   fetchMapMeta,
   fetchVideoMeta,
+  fetchLinkPreviewMeta,
   getDerivedTaskFields,
   normalizeCardType,
 } from '../taskCardUtils';

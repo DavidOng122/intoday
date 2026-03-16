@@ -138,6 +138,8 @@ export const fetchVideoMeta = async (url) => {
 };
 
 export const fetchMapMeta = async (url) => {
+  let mapResolvedUrl = null;
+
   try {
     const directName = parsePlaceFromUrl(url);
     if (directName) {
@@ -148,7 +150,30 @@ export const fetchMapMeta = async (url) => {
       };
     }
 
-    const proxy = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
+    let searchUrl = url;
+
+    if (url.includes('maps.app.goo.gl')) {
+      const resolveRes = await fetch(`/api/resolve-map-url?url=${encodeURIComponent(url)}`);
+      if (resolveRes.ok) {
+        const resolveData = await resolveRes.json();
+        if (resolveData.resolvedUrl) {
+          searchUrl = resolveData.resolvedUrl;
+          mapResolvedUrl = searchUrl;
+
+          const resolvedName = parsePlaceFromUrl(searchUrl);
+          if (resolvedName) {
+            return {
+              mapTitle: resolvedName,
+              mapSubtitle: 'Google Maps',
+              mapUrl: url,
+              mapResolvedUrl,
+            };
+          }
+        }
+      }
+    }
+
+    const proxy = `https://api.allorigins.win/get?url=${encodeURIComponent(searchUrl)}`;
     const response = await fetch(proxy);
 
     if (response.ok) {
@@ -161,6 +186,7 @@ export const fetchMapMeta = async (url) => {
           mapTitle: resolved,
           mapSubtitle: 'Google Maps',
           mapUrl: url,
+          ...(mapResolvedUrl ? { mapResolvedUrl } : {}),
         };
       }
 
@@ -176,6 +202,7 @@ export const fetchMapMeta = async (url) => {
             mapTitle: name,
             mapSubtitle: 'Google Maps',
             mapUrl: url,
+            ...(mapResolvedUrl ? { mapResolvedUrl } : {}),
           };
         }
       }
@@ -185,10 +212,28 @@ export const fetchMapMeta = async (url) => {
   }
 
   return {
-    mapTitle: null,
-    mapSubtitle: 'Google Maps',
+    mapTitle: 'Google Maps',
+    mapSubtitle: 'Place',
     mapUrl: url,
+    ...(mapResolvedUrl ? { mapResolvedUrl } : {}),
   };
+};
+
+export const fetchLinkPreviewMeta = async (url) => {
+  try {
+    const response = await fetch(`/api/link-preview?url=${encodeURIComponent(url)}`);
+    if (response.ok) {
+      const data = await response.json();
+      if (data && data.title) {
+        return {
+          linkTitle: data.title,
+        };
+      }
+    }
+  } catch {
+    // Ignore fetch failures
+  }
+  return { linkTitle: null };
 };
 
 export const getTaskCardPresentation = (

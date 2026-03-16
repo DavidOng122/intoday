@@ -8,7 +8,7 @@ import useSwipeDownToClose from '../hooks/useSwipeDownToClose';
 import { useSyncedTodos } from '../todoSync';
 import { supabase } from '../supabase';
 import { DAY_BOUNDARY_HOUR, getCurrentTimeBlock, getLogicalToday } from '../lib/dateHelpers';
-import { fetchMapMeta, fetchVideoMeta, getDerivedTaskFields, normalizeCardType } from '../lib/taskParsers';
+import { fetchMapMeta, fetchVideoMeta, fetchLinkPreviewMeta, getDerivedTaskFields, normalizeCardType } from '../lib/taskParsers';
 import { getTaskCardPresentation } from '../taskCardUtils';
 import { timeBlocks } from '../lib/timeBlocks';
 import { translations } from '../lib/translations';
@@ -1207,6 +1207,12 @@ function MobileApp({ session, platformInfo }) {
       fetchMapMeta(mapUrl).then(meta => {
         setTodos(prev => prev.map(t => t.id === newTodoId ? { ...t, ...meta } : t));
       });
+    } else if (typeFields.primaryUrl && (!cardType || cardType === 'link' || cardType === 'text')) {
+      fetchLinkPreviewMeta(typeFields.primaryUrl).then(meta => {
+        if (meta && meta.linkTitle) {
+          setTodos(prev => prev.map(t => t.id === newTodoId ? { ...t, linkTitle: meta.linkTitle } : t));
+        }
+      });
     }
   };
 
@@ -2186,6 +2192,12 @@ function MobileApp({ session, platformInfo }) {
     } else if (typeFields.cardType === 'place' && typeFields.mapUrl) {
       fetchMapMeta(typeFields.mapUrl).then(meta => {
         setTodos(prev => prev.map(t => t.id === editingTodo.id ? normalizeTodoRecord({ ...t, ...meta }) : t));
+      });
+    } else if (typeFields.primaryUrl && (!typeFields.cardType || typeFields.cardType === 'link' || typeFields.cardType === 'text')) {
+      fetchLinkPreviewMeta(typeFields.primaryUrl).then(meta => {
+        if (meta && meta.linkTitle) {
+          setTodos(prev => prev.map(t => t.id === editingTodo.id ? normalizeTodoRecord({ ...t, linkTitle: meta.linkTitle }) : t));
+        }
       });
     }
     closeEditModal();

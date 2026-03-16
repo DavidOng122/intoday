@@ -13,6 +13,7 @@ import { translations } from '../lib/translations';
 import {
   fetchMapMeta,
   fetchVideoMeta,
+  fetchLinkPreviewMeta,
   getDerivedTaskFields,
   getTaskCardPresentation,
   normalizeCardType,
@@ -1595,7 +1596,7 @@ function App() {
     setInputText('');
     setPanelOpen(false);
   };
-  const applyAsyncMetadata = (taskId, cardType, videoUrl, mapUrl) => {
+  const applyAsyncMetadata = (taskId, cardType, videoUrl, mapUrl, primaryUrl) => {
     if (cardType === 'video' && videoUrl) {
       fetchVideoMeta(videoUrl).then((meta) => {
         setTasks((prev) => prev.map((task) => (task.id === taskId ? normalizeTask({ ...task, ...meta }) : task)));
@@ -1603,6 +1604,12 @@ function App() {
     } else if (cardType === 'place' && mapUrl) {
       fetchMapMeta(mapUrl).then((meta) => {
         setTasks((prev) => prev.map((task) => (task.id === taskId ? normalizeTask({ ...task, ...meta }) : task)));
+      });
+    } else if (primaryUrl && (!cardType || cardType === 'link' || cardType === 'text')) {
+      fetchLinkPreviewMeta(primaryUrl).then((meta) => {
+        if (meta && meta.linkTitle) {
+          setTasks((prev) => prev.map((task) => (task.id === taskId ? normalizeTask({ ...task, linkTitle: meta.linkTitle }) : task)));
+        }
       });
     }
   };
@@ -1632,7 +1639,7 @@ function App() {
 
     setInputText('');
     setPanelOpen(false);
-    applyAsyncMetadata(taskId, cardType, videoUrl, mapUrl);
+    applyAsyncMetadata(taskId, cardType, videoUrl, mapUrl, typeFields.primaryUrl);
   };
   const handleEditSave = () => {
     const rawText = editText.trim();
@@ -1644,7 +1651,7 @@ function App() {
         ? normalizeTask({ ...task, text: rawText, ...typeFields })
         : task
     )));
-    applyAsyncMetadata(editingTask.id, typeFields.cardType, typeFields.videoUrl, typeFields.mapUrl);
+    applyAsyncMetadata(editingTask.id, typeFields.cardType, typeFields.videoUrl, typeFields.mapUrl, typeFields.primaryUrl);
     closeEditModal();
   };
   const handleTaskClick = (task) => {
