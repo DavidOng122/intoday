@@ -20,6 +20,7 @@ import {
   normalizeCardType,
 } from '../taskCardUtils';
 import { useTaskInteraction } from '../task-interactions/useTaskInteraction';
+import { trackUserEvent } from '../lib/analytics';
 
 const SHARED_SELECTED_DATE_KEY = 'shared_selected_date';
 const DESKTOP_LANGUAGE_KEY = 'desktop_profile_language';
@@ -889,6 +890,13 @@ const AddPanel = ({ open, language, selectedDate, chipsToShow, activeChip, setAc
 function App() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  
+  // Track retention on Desktop app wide open
+  useEffect(() => {
+    if (user?.id) {
+      trackUserEvent(user.id, 'app_opened', { platform: 'desktop' });
+    }
+  }, [user?.id]);
   const [selectedDate, setSelectedDate] = useState(() => {
     const savedDate = parseSharedSelectedDate(localStorage.getItem(SHARED_SELECTED_DATE_KEY));
     return savedDate || getLogicalToday();
@@ -1647,6 +1655,11 @@ function App() {
       return [...prev, normalizeTask({ ...nextTask, desktopSlot })];
     });
 
+    // Track analytics 
+    if (user?.id) {
+      trackUserEvent(user.id, 'task_added', { cardType, platform: 'desktop' });
+    }
+
     setInputText('');
     setPanelOpen(false);
     applyAsyncMetadata(taskId, cardType, videoUrl, mapUrl, typeFields.primaryUrl);
@@ -1674,6 +1687,11 @@ function App() {
     }
 
     const { redirectUrl, isPlain } = getTaskCardPresentation(task, t);
+
+    // Track analytics 
+    if (user?.id) {
+      trackUserEvent(user.id, 'task_clicked', { action: 'card_click', platform: 'desktop', isPlain, hasRedirect: !!redirectUrl });
+    }
 
     if (isPlain) {
       setTasks((prev) =>

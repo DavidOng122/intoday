@@ -13,6 +13,7 @@ import { getTaskCardPresentation } from '../taskCardUtils';
 import { timeBlocks } from '../lib/timeBlocks';
 import { translations } from '../lib/translations';
 import { useTaskInteraction } from '../task-interactions/useTaskInteraction';
+import { trackUserEvent } from '../lib/analytics';
 const SheetPebbleIcon = () => (
   <svg width="42" height="38" viewBox="0 0 42 38" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
     <ellipse cx="21" cy="27.125" rx="21" ry="10.5" fill="url(#sheet_pebble_0)" />
@@ -168,6 +169,13 @@ const reflowDesktopSlotsForBlock = (todos, dateString, timeOfDay, orderedIds = n
 
 function MobileApp({ session, platformInfo }) {
   const { platform, isNativePlatform, isIOS, isAndroid } = platformInfo;
+
+  // Track retention on Mobile app wide open
+  useEffect(() => {
+    if (session?.user?.id) {
+      trackUserEvent(session.user.id, 'app_opened', { platform: 'mobile', isNative: isNativePlatform });
+    }
+  }, [session?.user?.id, isNativePlatform]);
 
   const getLogicalBlockBounds = useCallback((block, logicalDate) => {
     const baseDate = new Date(logicalDate);
@@ -1195,6 +1203,12 @@ function MobileApp({ session, platformInfo }) {
       const desktopSlot = getFirstAvailableDesktopSlot(prev, newTodo.dateString, newTodo.timeOfDay);
       return [...prev, normalizeTodoRecord({ ...newTodo, desktopSlot })];
     });
+
+    // Track analytics 
+    if (session?.user?.id) {
+      trackUserEvent(session.user.id, 'task_added', { cardType, platform: 'mobile' });
+    }
+
     setInputText('');
     closeSheet();
 
@@ -2691,20 +2705,7 @@ function MobileApp({ session, platformInfo }) {
                     id={`swipe-card-${todo.id}`}
                     data-todo-id={todo.id}
                     className={`task-card ${draggedTodoId === todo.id ? `dragging ${dragOverlayTodo && dragOverlayRect ? 'drag-source-hidden' : ''}` : ''}`}
-                    onClick={() => {
-                      if (Date.now() < suppressAllCardClicksUntilRef.current) {
-                        return;
-                      }
-                      if (openSwipeTodoIdRef.current === todo.id) {
-                        closeSwipeActions(todo.id, { animate: true });
-                        return;
-                      }
-                      if (suppressCardClickRef.current === todo.id) {
-                        suppressCardClickRef.current = null;
-                        return;
-                      }
-                      handleTaskPrimaryAction(todo);
-                    }}
+                    onClick={(e) => handleCardClick(todo, e)}
                     draggable={canUseDesktopDrag}
                     onDragStart={canUseDesktopDrag ? (e) => handleDragStart(e, todo.id) : undefined}
                     onDragEnd={canUseDesktopDrag ? handleDragEnd : undefined}
