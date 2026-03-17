@@ -12,12 +12,30 @@ export default async function handler(req, res) {
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
         'Accept-Language': 'en-US,en;q=0.5',
       },
-      // Short timeout to avoid holding up the serverless function too long
-      signal: AbortSignal.timeout(5000) 
+      signal: AbortSignal.timeout(5000)
     });
 
+    const resolvedUrl = response.url || url;
+
     if (!response.ok) {
-      return res.status(response.status).json({ error: `Failed to fetch URL: ${response.statusText}`, title: null });
+      return res.status(response.status).json({ error: `Failed to fetch URL: ${response.statusText}`, title: null, resolvedUrl });
+    }
+
+    // Special handling for Google Maps: extract place name from ?q= parameter in the resolved URL
+    if (resolvedUrl.includes('google.com/maps') || resolvedUrl.includes('maps.app.goo.gl')) {
+      try {
+        const parsed = new URL(resolvedUrl);
+        const q = parsed.searchParams.get('q');
+        if (q) {
+          // Return just the first part (the place name) before the street address
+          const cleanPlace = decodeURIComponent(q).split(/[+,]/)[0].trim();
+          if (cleanPlace && cleanPlace.length > 2) {
+            return res.status(200).json({ title: null, mapTitle: cleanPlace, resolvedUrl });
+          }
+        }
+      } catch (e) {
+        // ignore parse errors, fall through to html parsing
+      }
     }
 
     const html = await response.text();
@@ -37,7 +55,7 @@ export default async function handler(req, res) {
       }
     }
 
-    // Clean up title (decode HTML entities basically, though we'll keep it simple and just trim)
+    // Clean up title
     if (title) {
         title = title.replace(/&#x27;/g, "'")
                      .replace(/&quot;/g, '"')
@@ -47,7 +65,7 @@ export default async function handler(req, res) {
                      .trim();
     }
 
-    return res.status(200).json({ title: title || null });
+    return res.status(200).json({ title: title || null, resolvedUrl });
 
   } catch (error) {
     console.error('Error fetching link preview:', error);

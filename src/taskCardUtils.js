@@ -229,6 +229,32 @@ export const fetchMapMeta = async (url) => {
       };
     }
 
+    // For short Google Maps links, try the link-preview API first
+    // as it follows the redirect server-side and extracts the ?q= place name
+    if (url.includes('maps.app.goo.gl') || url.includes('goo.gl/maps')) {
+      const previewData = await fetchLinkPreviewMeta(url);
+      if (previewData && previewData.mapTitle) {
+        return {
+          mapTitle: previewData.mapTitle,
+          mapSubtitle: 'Google Maps',
+          mapUrl: url,
+          ...(previewData.resolvedUrl ? { mapResolvedUrl: previewData.resolvedUrl } : {}),
+        };
+      }
+      // Also check if resolvedUrl can be parsed directly
+      if (previewData && previewData.resolvedUrl) {
+        const resolvedName = parsePlaceFromUrl(previewData.resolvedUrl);
+        if (resolvedName) {
+          return {
+            mapTitle: resolvedName,
+            mapSubtitle: 'Google Maps',
+            mapUrl: url,
+            mapResolvedUrl: previewData.resolvedUrl,
+          };
+        }
+      }
+    }
+
     let searchUrl = url;
 
     // 👇 已经为你加上了 /3 的支持
@@ -236,23 +262,52 @@ export const fetchMapMeta = async (url) => {
       url.includes('maps.app.goo.gl') ||
       url.includes('goo.gl/maps')
     ) {
-      const resolveRes = await fetch(`/api/resolve-map-url?url=${encodeURIComponent(url)}`);
-      if (resolveRes.ok) {
-        const resolveData = await resolveRes.json();
-        if (resolveData.resolvedUrl) {
-          searchUrl = resolveData.resolvedUrl;
-          mapResolvedUrl = searchUrl;
+      try {
+        const resolveRes = await fetch(`/api/resolve-map-url?url=${encodeURIComponent(url)}`);
+        if (resolveRes.ok) {
+          const resolveData = await resolveRes.json();
+          if (resolveData.resolvedUrl) {
+            searchUrl = resolveData.resolvedUrl;
+            mapResolvedUrl = searchUrl;
 
-          const resolvedName = parsePlaceFromUrl(searchUrl);
-          if (resolvedName) {
-            return {
-              mapTitle: resolvedName,
-              mapSubtitle: 'Google Maps',
-              mapUrl: url,
-              mapResolvedUrl,
-            };
+            const resolvedName = parsePlaceFromUrl(searchUrl);
+            if (resolvedName) {
+              return {
+                mapTitle: resolvedName,
+                mapSubtitle: 'Google Maps',
+                mapUrl: url,
+                mapResolvedUrl,
+              };
+            }
           }
         }
+      } catch (err) {
+        // Fetch to local /api failed, fallback to allorigins to follow redirect
+      }
+      
+      // Local dev fallback for short maps urls
+      if (searchUrl === url) {
+         try {
+           const proxyRedirectRes = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(url)}`);
+           if (proxyRedirectRes.ok) {
+             const proxyData = await proxyRedirectRes.json();
+             if (proxyData.status && proxyData.status.url) {
+               searchUrl = proxyData.status.url;
+               mapResolvedUrl = searchUrl;
+               const resolvedName = parsePlaceFromUrl(searchUrl);
+               if (resolvedName) {
+                 return {
+                    mapTitle: resolvedName,
+                    mapSubtitle: 'Google Maps',
+                    mapUrl: url,
+                    mapResolvedUrl,
+                 };
+               }
+             }
+           }
+         } catch (err) {
+           // Ignore
+         }
       }
     }
 
@@ -327,16 +382,18 @@ export const fetchLinkPreviewMeta = async (url) => {
     const response = await fetch(`/api/link-preview?url=${encodeURIComponent(url)}`);
     if (response.ok) {
       const data = await response.json();
-      if (data && data.title) {
+      if (data) {
         return {
-          linkTitle: data.title,
+          linkTitle: data.title || null,
+          mapTitle: data.mapTitle || null,
+          resolvedUrl: data.resolvedUrl || null,
         };
       }
     }
   } catch {
     // Ignore fetch failures
   }
-  return { linkTitle: null };
+  return { linkTitle: null, mapTitle: null, resolvedUrl: null };
 };
 
 export const getTaskCardPresentation = (
