@@ -85,6 +85,7 @@ function App() {
     return (
       <>
         <Analytics />
+        <InstallPrompt />
         {session ? <DesktopApp session={session} /> : <DesktopLoginPage />}
       </>
     );
