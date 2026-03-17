@@ -8,7 +8,7 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.ico', 'logoreal.png', 'pwa-icon-512.png'],
+      includeAssets: ['favicon.ico', 'logoreal.png', 'logo_192.png', 'logo_512.png'],
       manifest: {
         name: 'IntoDay',
         short_name: 'IntoDay',
@@ -21,16 +21,28 @@ export default defineConfig({
         start_url: '/',
         icons: [
           {
-            src: 'logoreal.png',
+            src: 'logo_192.png',
             sizes: '192x192',
             type: 'image/png',
-            purpose: 'any maskable'
+            purpose: 'any'
           },
           {
-            src: 'logoreal.png',
+            src: 'logo_512.png',
             sizes: '512x512',
             type: 'image/png',
-            purpose: 'any maskable'
+            purpose: 'any'
+          },
+          {
+            src: 'logo_192.png',
+            sizes: '192x192',
+            type: 'image/png',
+            purpose: 'maskable'
+          },
+          {
+            src: 'logo_512.png',
+            sizes: '512x512',
+            type: 'image/png',
+            purpose: 'maskable'
           }
         ]
       },

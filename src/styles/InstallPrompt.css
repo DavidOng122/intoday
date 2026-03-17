@@ -1,0 +1,188 @@
+/* ── Install Prompt Banner ────────────────────────────────── */
+
+.install-prompt {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 9999;
+  padding: 16px 20px;
+  animation: install-prompt-slide-up 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes install-prompt-slide-up {
+  from {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+/* ── Shared inner card ────────────────────────────────────── */
+
+.install-prompt--android,
+.install-prompt--ios {
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
+  box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.08);
+  border-radius: 20px 20px 0 0;
+}
+
+/* ── Close button ─────────────────────────────────────────── */
+
+.install-prompt__close {
+  position: absolute;
+  top: 12px;
+  right: 16px;
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: rgba(0, 0, 0, 0.06);
+  border-radius: 50%;
+  font-size: 18px;
+  line-height: 1;
+  color: #666;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s;
+}
+
+.install-prompt__close:hover {
+  background: rgba(0, 0, 0, 0.12);
+}
+
+/* ── Android banner ───────────────────────────────────────── */
+
+.install-prompt__content {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.install-prompt__icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  flex-shrink: 0;
+  object-fit: contain;
+}
+
+.install-prompt__text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
+.install-prompt__text strong {
+  font-size: 15px;
+  font-weight: 600;
+  color: #1a1a1a;
+}
+
+.install-prompt__text span {
+  font-size: 13px;
+  color: #888;
+}
+
+.install-prompt__btn {
+  flex-shrink: 0;
+  padding: 8px 20px;
+  border: none;
+  border-radius: 10px;
+  background: #1a1a1a;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s, transform 0.15s;
+}
+
+.install-prompt__btn:hover {
+  background: #333;
+}
+
+.install-prompt__btn:active {
+  transform: scale(0.96);
+}
+
+/* ── iOS hint ─────────────────────────────────────────────── */
+
+.install-prompt__ios-content {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding-right: 24px;
+}
+
+.install-prompt__ios-text {
+  font-size: 14px;
+  line-height: 1.55;
+  color: #444;
+  margin: 0;
+}
+
+.install-prompt__share-icon {
+  display: inline-flex;
+  align-items: center;
+  vertical-align: middle;
+  margin: 0 3px;
+  color: #007aff;
+}
+
+/* ── Safe-area padding for notched devices ────────────────── */
+
+@supports (padding-bottom: env(safe-area-inset-bottom)) {
+  .install-prompt {
+    padding-bottom: calc(16px + env(safe-area-inset-bottom));
+  }
+}
+
+/* ── Dark mode ────────────────────────────────────────────── */
+
+@media (prefers-color-scheme: dark) {
+  .install-prompt--android,
+  .install-prompt--ios {
+    background: rgba(30, 30, 30, 0.94);
+    border-top-color: rgba(255, 255, 255, 0.08);
+    box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.3);
+  }
+
+  .install-prompt__close {
+    background: rgba(255, 255, 255, 0.1);
+    color: #aaa;
+  }
+
+  .install-prompt__close:hover {
+    background: rgba(255, 255, 255, 0.18);
+  }
+
+  .install-prompt__text strong {
+    color: #f0f0f0;
+  }
+
+  .install-prompt__text span {
+    color: #888;
+  }
+
+  .install-prompt__btn {
+    background: #f0f0f0;
+    color: #1a1a1a;
+  }
+
+  .install-prompt__btn:hover {
+    background: #ddd;
+  }
+
+  .install-prompt__ios-text {
+    color: #ccc;
+  }
+}

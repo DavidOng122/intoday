@@ -5,6 +5,7 @@ import DesktopApp from './pages/DesktopApp';
 import DesktopLoginPage from './pages/DesktopLoginPage';
 import MobileApp from './pages/MobileApp';
 import MobileLoginPage from './pages/MobileLoginPage';
+import InstallPrompt from './components/InstallPrompt';
 
 const MobileAuthLoading = () => (
   <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#F2F2F0' }}>
@@ -85,7 +86,12 @@ function App() {
     );
   }
 
-  return <MobileApp session={session} platformInfo={platformInfo} />;
+  return (
+    <>
+      <InstallPrompt />
+      <MobileApp session={session} platformInfo={platformInfo} />
+    </>
+  );
 }
 
 export default App;
