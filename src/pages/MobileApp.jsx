@@ -2705,7 +2705,32 @@ function MobileApp({ session, platformInfo }) {
                     id={`swipe-card-${todo.id}`}
                     data-todo-id={todo.id}
                     className={`task-card ${draggedTodoId === todo.id ? `dragging ${dragOverlayTodo && dragOverlayRect ? 'drag-source-hidden' : ''}` : ''}`}
-                    onClick={(e) => handleCardClick(todo, e)}
+                    onClick={() => {
+                      if (Date.now() < suppressAllCardClicksUntilRef.current) {
+                        return;
+                      }
+                      if (openSwipeTodoIdRef.current === todo.id) {
+                        closeSwipeActions(todo.id, { animate: true });
+                        return;
+                      }
+                      if (suppressCardClickRef.current === todo.id) {
+                        suppressCardClickRef.current = null;
+                        return;
+                      }
+
+                      // Track analytics 
+                      if (session?.user?.id) {
+                        const { isPlain, redirectUrl } = getTaskCardPresentation(todo, translations[language]);
+                        trackUserEvent(session.user.id, 'task_clicked', { 
+                          action: 'card_click', 
+                          platform: 'mobile', 
+                          isPlain, 
+                          hasRedirect: !!redirectUrl 
+                        });
+                      }
+
+                      handleTaskPrimaryAction(todo);
+                    }}
                     draggable={canUseDesktopDrag}
                     onDragStart={canUseDesktopDrag ? (e) => handleDragStart(e, todo.id) : undefined}
                     onDragEnd={canUseDesktopDrag ? handleDragEnd : undefined}
