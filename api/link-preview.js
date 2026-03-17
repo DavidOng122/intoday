@@ -5,6 +5,25 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'Missing url parameter' });
   }
 
+  // --- YouTube: use oEmbed API server-side to bypass bot-detection ---
+  if (/youtube\.com|youtu\.be/i.test(url)) {
+    try {
+      const oembedUrl = `https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`;
+      const oembedRes = await fetch(oembedUrl, {
+        headers: { 'User-Agent': 'Mozilla/5.0' },
+        signal: AbortSignal.timeout(5000),
+      });
+      if (oembedRes.ok) {
+        const data = await oembedRes.json();
+        if (data && data.title) {
+          return res.status(200).json({ title: data.title, resolvedUrl: url });
+        }
+      }
+    } catch (_) {
+      // Fall through to generic scraping
+    }
+  }
+
   try {
     const response = await fetch(url, {
       headers: {
