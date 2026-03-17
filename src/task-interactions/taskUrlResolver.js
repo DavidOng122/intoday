@@ -17,6 +17,7 @@ const TASK_URL_FIELD_PRIORITY = Object.freeze({
   [CARD_TYPES.SHOPPING]: ['shoppingUrl', 'redirectUrl'],
   [CARD_TYPES.FINANCIAL]: ['financialUrl', 'redirectUrl'],
   [CARD_TYPES.LINK]: ['redirectUrl'],
+  [CARD_TYPES.AI_TOOL]: ['redirectUrl'],
 });
 
 const ABSOLUTE_URL_SCHEME_REGEX = /^[a-z][a-z\d+.-]*:/i;

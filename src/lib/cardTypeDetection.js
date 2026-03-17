@@ -10,6 +10,7 @@ export const CARD_TYPES = Object.freeze({
   SOCIAL: 'social',
   SHOPPING: 'shopping',
   FINANCIAL: 'financial',
+  AI_TOOL: 'ai_tool',
 });
 
 export const LEGACY_CARD_TYPE_ALIASES = Object.freeze({
@@ -34,6 +35,21 @@ const FILE_EXTENSION_RULES = [
 ];
 
 const URL_RULES = [
+  {
+    type: CARD_TYPES.AI_TOOL,
+    hosts: [
+      'chatgpt.com',
+      'openai.com',
+      'gemini.google.com',
+      'bard.google.com',
+      'claude.ai',
+      'perplexity.ai',
+      'deepseek.com',
+      'groq.com',
+      'mistral.ai',
+      'cohere.com',
+    ],
+  },
   {
     type: CARD_TYPES.MEETING,
     protocols: ['zoommtg'],
@@ -206,6 +222,7 @@ const URL_RULES = [
 ];
 
 const TYPE_PRIORITY = [
+  CARD_TYPES.AI_TOOL,
   CARD_TYPES.MEETING,
   CARD_TYPES.PLACE,
   CARD_TYPES.DOCUMENT,

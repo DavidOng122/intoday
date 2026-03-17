@@ -26,6 +26,7 @@ const OPEN_FIRST_CARD_TYPES = new Set([
   CARD_TYPES.SHOPPING,
   CARD_TYPES.FINANCIAL,
   CARD_TYPES.LINK,
+  CARD_TYPES.AI_TOOL,
 ]);
 
 export const isEditFirstTaskType = (cardType) => isTextCardType(normalizeCardType(cardType));

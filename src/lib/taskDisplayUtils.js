@@ -263,6 +263,11 @@ const getUrlPlatformLabel = (url, cardType) => {
     const host = parsed.hostname.toLowerCase();
     const path = parsed.pathname.toLowerCase();
 
+    if (host.includes('chatgpt.com') || host.includes('openai.com')) return 'ChatGPT';
+    if (host.includes('gemini.google.com') || host.includes('bard.google.com')) return 'Gemini';
+    if (host.includes('claude.ai')) return 'Claude';
+    if (host.includes('perplexity.ai')) return 'Perplexity';
+
     if (
       host.includes('maps.google.com') ||
       host === 'maps.app.goo.gl' ||
@@ -391,6 +396,8 @@ const getTypeFallbackTitle = (cardType, primaryUrl) => {
       return 'Shopping Item';
     case CARD_TYPES.FINANCIAL:
       return 'Financial Link';
+    case CARD_TYPES.AI_TOOL:
+      return 'AI Tool';
     case CARD_TYPES.LINK:
       return 'Link';
     default:
@@ -421,6 +428,7 @@ const labelsForType = (cardType, labels = {}) => {
       [CARD_TYPES.SHOPPING]: 'Shopping',
       [CARD_TYPES.FINANCIAL]: 'Financial',
       [CARD_TYPES.LINK]: 'Link',
+      [CARD_TYPES.AI_TOOL]: 'AI Tool',
     }[cardType] ||
     'Task'
   );

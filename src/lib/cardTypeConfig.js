@@ -12,6 +12,7 @@ export const cardTypeConfig = {
   [CARD_TYPES.SOCIAL]: { icon: '/social.svg', bg: '#F5DFEB', darkBg: '#2E607DB3', darkStroke: '#5D8DA8' },
   [CARD_TYPES.SHOPPING]: { icon: '/shopping.svg', bg: '#F3CFB8', darkBg: '#805A32B3', darkStroke: '#AD7A46' },
   [CARD_TYPES.FINANCIAL]: { icon: '/financial.svg', bg: '#B6C2D1', darkBg: '#316650B3', darkStroke: '#4D8A6C' },
+  [CARD_TYPES.AI_TOOL]: { icon: '/ai_tool.svg', bg: '#E1E5EE', darkBg: '#374151', darkStroke: '#4B5563' },
 };
 
 export const cardTypeLabels = {
@@ -26,4 +27,5 @@ export const cardTypeLabels = {
   [CARD_TYPES.SOCIAL]: 'Social',
   [CARD_TYPES.SHOPPING]: 'Shopping',
   [CARD_TYPES.FINANCIAL]: 'Financial',
+  [CARD_TYPES.AI_TOOL]: 'AI Tool',
 };
