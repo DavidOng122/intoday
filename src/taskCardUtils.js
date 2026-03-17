@@ -92,6 +92,37 @@ const resolveLocalizedTaskCardSubLabel = (value, labels) => {
 export const fetchVideoMeta = async (url) => {
   try {
     if (/youtube\.com|youtu\.be/i.test(url)) {
+      // 1. Try server-side link preview first since YouTube oEmbed blocks CORS in the browser
+      const preview = await fetchLinkPreviewMeta(url);
+      if (preview && preview.linkTitle) {
+        return {
+          videoTitle: preview.linkTitle.replace(/\s*(?:- YouTube|YouTube)$/i, '').trim(),
+          videoPlatform: 'Saved from YouTube',
+          videoUrl: url,
+        };
+      }
+
+      // 2. Fallback to allorigins public proxy (specifically helps local 'npm run dev' where /api isn't served by Vercel)
+      try {
+        const proxyResponse = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(`https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`)}`);
+        if (proxyResponse.ok) {
+          const proxyJson = await proxyResponse.json();
+          if (proxyJson.contents) {
+            const oembedData = JSON.parse(proxyJson.contents);
+            if (oembedData && oembedData.title) {
+              return {
+                videoTitle: oembedData.title,
+                videoPlatform: 'Saved from YouTube',
+                videoUrl: url,
+              };
+            }
+          }
+        }
+      } catch (proxyError) {
+        // Silently catch proxy errors and fallback to direct
+      }
+
+      // 3. Fallback to direct oembed
       const response = await fetch(
         `https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`
       );
