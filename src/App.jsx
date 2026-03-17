@@ -6,6 +6,8 @@ import DesktopLoginPage from './pages/DesktopLoginPage';
 import MobileApp from './pages/MobileApp';
 import MobileLoginPage from './pages/MobileLoginPage';
 import InstallPrompt from './components/InstallPrompt';
+import { Analytics } from '@vercel/analytics/react';
+
 
 const MobileAuthLoading = () => (
   <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#F2F2F0' }}>
@@ -71,16 +73,27 @@ function App() {
   }, []);
 
   if (loadingAuth) {
-    return isDesktop ? <DesktopAuthLoading /> : <MobileAuthLoading />;
+    return (
+      <>
+        <Analytics />
+        {isDesktop ? <DesktopAuthLoading /> : <MobileAuthLoading />}
+      </>
+    );
   }
 
   if (isDesktop) {
-    return session ? <DesktopApp session={session} /> : <DesktopLoginPage />;
+    return (
+      <>
+        <Analytics />
+        {session ? <DesktopApp session={session} /> : <DesktopLoginPage />}
+      </>
+    );
   }
 
   if (!session) {
     return (
       <div className={`app-container platform-${platform} ${isNativePlatform ? 'native-shell' : 'web-shell'}`}>
+        <Analytics />
         <MobileLoginPage platform={platform} />
       </div>
     );
@@ -88,6 +101,7 @@ function App() {
 
   return (
     <>
+      <Analytics />
       <InstallPrompt />
       <MobileApp session={session} platformInfo={platformInfo} />
     </>
