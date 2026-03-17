@@ -611,6 +611,7 @@ const TaskCard = (props) => {
           type="button"
           className="desktop-task-action-button desktop-task-edit-button"
           aria-label={editLabel}
+          onMouseDown={(event) => event.stopPropagation()}
           onPointerDown={(event) => event.stopPropagation()}
           onClick={(event) => {
             event.stopPropagation();
@@ -623,6 +624,7 @@ const TaskCard = (props) => {
           type="button"
           className="desktop-task-action-button desktop-task-delete-button"
           aria-label={deleteLabel}
+          onMouseDown={(event) => event.stopPropagation()}
           onPointerDown={(event) => event.stopPropagation()}
           onClick={(event) => {
             event.stopPropagation();
@@ -1536,11 +1538,14 @@ function App() {
   const handleTaskEdit = useCallback((task) => {
     setEditingTaskId(task.id);
     setEditText(task.text);
-    setPanelOpen(true);
   }, []);
 
   const handleTaskDelete = useCallback((task) => {
-    setTasks((prev) => prev.filter((t) => t.id !== task.id));
+    setTasks((prev) => {
+      const nextTasks = prev.filter((t) => t.id !== task.id);
+      reflowDesktopSectionSlots(nextTasks, task.dateString, task.timeOfDay);
+      return nextTasks;
+    });
   }, [setTasks]);
 
   const closeEditModal = useCallback(() => {
