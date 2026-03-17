@@ -1201,20 +1201,20 @@ function MobileApp({ session, platformInfo }) {
     // Fetch metadata asynchronously without blocking the UI
     if (cardType === 'video' && videoUrl) {
       fetchVideoMeta(videoUrl).then(meta => {
-        setTodos(prev => prev.map(t => t.id === newTodoId ? { ...t, ...meta } : t));
+        setTodos(prev => prev.map(t => t.id === newTodoId ? normalizeTodoRecord({ ...t, ...meta }) : t));
       });
     } else if (cardType === 'place' && mapUrl) {
       fetchMapMeta(mapUrl).then(meta => {
-        setTodos(prev => prev.map(t => t.id === newTodoId ? { ...t, ...meta } : t));
+        setTodos(prev => prev.map(t => t.id === newTodoId ? normalizeTodoRecord({ ...t, ...meta }) : t));
       });
     } else if ((cardType === 'music' || cardType === 'podcast') && typeFields.primaryUrl) {
       fetchSpotifyMeta(typeFields.primaryUrl).then(meta => {
-        setTasks(prev => prev.map(t => t.id === newTodoId ? { ...t, ...meta } : t));
+        setTodos(prev => prev.map(t => t.id === newTodoId ? normalizeTodoRecord({ ...t, ...meta }) : t));
       });
     } else if (typeFields.primaryUrl && (!cardType || cardType === 'link' || cardType === 'text')) {
       fetchLinkPreviewMeta(typeFields.primaryUrl).then(meta => {
-        if (meta && meta.linkTitle) {
-          setTodos(prev => prev.map(t => t.id === newTodoId ? { ...t, linkTitle: meta.linkTitle } : t));
+        if (meta) {
+          setTodos(prev => prev.map(t => t.id === newTodoId ? normalizeTodoRecord({ ...t, ...meta }) : t));
         }
       });
     }
@@ -2199,12 +2199,12 @@ function MobileApp({ session, platformInfo }) {
       });
     } else if ((typeFields.cardType === 'music' || typeFields.cardType === 'podcast') && typeFields.primaryUrl) {
       fetchSpotifyMeta(typeFields.primaryUrl).then(meta => {
-        setTasks(prev => prev.map(t => t.id === editingTodo.id ? normalizeTodoRecord({ ...t, ...meta }) : t));
+        setTodos(prev => prev.map(t => t.id === editingTodo.id ? normalizeTodoRecord({ ...t, ...meta }) : t));
       });
     } else if (typeFields.primaryUrl && (!typeFields.cardType || typeFields.cardType === 'link' || typeFields.cardType === 'text')) {
       fetchLinkPreviewMeta(typeFields.primaryUrl).then(meta => {
-        if (meta && meta.linkTitle) {
-          setTodos(prev => prev.map(t => t.id === editingTodo.id ? normalizeTodoRecord({ ...t, linkTitle: meta.linkTitle }) : t));
+        if (meta) {
+          setTodos(prev => prev.map(t => t.id === editingTodo.id ? normalizeTodoRecord({ ...t, ...meta }) : t));
         }
       });
     }
