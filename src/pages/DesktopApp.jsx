@@ -1667,7 +1667,19 @@ function App() {
       suppressTaskClickRef.current = null;
       return;
     }
-    handleTaskPrimaryAction(task);
+
+    const { redirectUrl, isPlain } = getTaskCardPresentation(task, t);
+
+    if (isPlain) {
+      setTasks((prev) =>
+        prev.map((t) => (t.id === task.id ? normalizeTask({ ...t, completed: !t.completed }) : t))
+      );
+      return;
+    }
+
+    if (redirectUrl) {
+      window.open(redirectUrl, '_blank', 'noopener,noreferrer');
+    }
   };
   const handleSignOut = async () => {
     try {

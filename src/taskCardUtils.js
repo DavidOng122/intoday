@@ -203,7 +203,7 @@ export const fetchMapMeta = async (url) => {
     // 👇 已经为你加上了 /3 的支持
     if (
       url.includes('maps.app.goo.gl') ||
-      url.includes('https://maps.app.goo.gl/qc689D1KstqwhNhn6?g_st=ic')
+      url.includes('goo.gl/maps')
     ) {
       const resolveRes = await fetch(`/api/resolve-map-url?url=${encodeURIComponent(url)}`);
       if (resolveRes.ok) {
@@ -258,6 +258,25 @@ export const fetchMapMeta = async (url) => {
             ...(mapResolvedUrl ? { mapResolvedUrl } : {}),
           };
         }
+      }
+    }
+
+    // NEW: Fallback to link preview API if everything else fails
+    const preview = await fetchLinkPreviewMeta(url);
+    if (preview && preview.linkTitle) {
+      let cleanedTitle = preview.linkTitle
+        .replace(/\s*[-·]\s*Google\s*Maps/i, '')
+        .replace(/\s*[-·]\s*Google\s*地图/i, '')
+        .replace(/Before you continue to Google Maps/i, '')
+        .trim();
+
+      if (cleanedTitle && !/^google\s*maps$/i.test(cleanedTitle) && !/^google\s*地图$/i.test(cleanedTitle)) {
+        return {
+          mapTitle: cleanedTitle,
+          mapSubtitle: 'Google Maps',
+          mapUrl: url,
+          ...(mapResolvedUrl ? { mapResolvedUrl } : {}),
+        };
       }
     }
   } catch {
