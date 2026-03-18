@@ -1969,6 +1969,7 @@ function App() {
           appearance={appearance}
           language={language}
           t={t}
+          onClose={() => setHistoryOpen(false)}
           onTaskClick={(task) => {
             if (!task.id) return;
             const { redirectUrl } = getTaskCardPresentation(task, t);

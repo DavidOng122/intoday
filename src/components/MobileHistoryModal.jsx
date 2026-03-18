@@ -170,7 +170,7 @@ const MobileHistoryModal = ({ open, tasks, appearance, language, t, onClose, onT
           </span>
           <input
             type="text"
-            placeholder="搜索聊天..."
+            placeholder={t.searchChat || "Search..."}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             style={{

@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { getLogicalToday } from '../lib/dateHelpers';
 import { getTaskCardPresentation, normalizeCardType } from '../taskCardUtils';
 
@@ -91,6 +91,13 @@ const HistoryTaskItem = ({ task, appearance, labels, onClick }) => {
 const DesktopHistoryModal = ({ open, tasks, appearance, language, t, onClose, onTaskClick }) => {
   const [searchQuery, setSearchQuery] = useState('');
 
+  useEffect(() => {
+    if (!open) return;
+    const handleKeyDown = (e) => { if (e.key === 'Escape') onClose?.(); };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [open, onClose]);
+
   const logicalToday = getLogicalToday();
   const logicalYesterday = shiftDateByDays(logicalToday, -1);
   const logicalTomorrow = shiftDateByDays(logicalToday, 1);
@@ -102,7 +109,7 @@ const DesktopHistoryModal = ({ open, tasks, appearance, language, t, onClose, on
   const filteredTasks = useMemo(() => {
     if (!tasks) return [];
     let list = [...tasks];
-    
+
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       list = list.filter(task => {
@@ -132,11 +139,11 @@ const DesktopHistoryModal = ({ open, tasks, appearance, language, t, onClose, on
     if (dateStr === todayKey) return t.today || 'Today';
     if (dateStr === yesterdayKey) return t.yesterday || 'Yesterday';
     if (dateStr === tomorrowKey) return t.tomorrow || 'Tomorrow';
-    
+
     // Parse dateStr (YYYY-MM-DD)
     const [year, month, day] = dateStr.split('-');
     const dateObj = new Date(Number(year), Number(month) - 1, Number(day));
-    
+
     if (isNaN(dateObj.getTime())) return dateStr;
 
     // Use current locale to format nicely if not today/yesterday/tomorrow
@@ -180,76 +187,76 @@ const DesktopHistoryModal = ({ open, tasks, appearance, language, t, onClose, on
           }}
           onClick={(e) => e.stopPropagation()}
         >
-        <div style={{ padding: '16px 16px 8px', display: 'flex', alignItems: 'center', gap: 12, borderBottom: `1px solid ${appearance === 'dark' ? '#333' : '#F0F0F0'}` }}>
-          <div style={{ flex: 1, position: 'relative', display: 'flex', alignItems: 'center' }}>
-            <span style={{ position: 'absolute', left: 12, color: 'var(--desktop-muted)', display: 'flex', alignItems: 'center' }}>
-              <SearchIcon />
-            </span>
-            <input
-              type="text"
-              placeholder="搜索聊天..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              style={{
-                width: '100%',
-                height: 38,
-                padding: '0 16px 0 38px',
-                borderRadius: 999,
-                border: 'none',
-                background: appearance === 'dark' ? '#2C2C2E' : '#F5F5F5',
-                color: 'var(--desktop-root-text)',
-                fontSize: 14,
-                outline: 'none',
-              }}
-            />
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            style={{
-              width: 32,
-              height: 32,
-              borderRadius: '50%',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              background: 'transparent',
-              border: 'none',
-              color: 'var(--desktop-muted)',
-              cursor: 'pointer',
-            }}
-          >
-            <CloseIcon />
-          </button>
-        </div>
-
-        <div className="desktop-history-scroll" style={{ flex: 1, overflowY: 'auto', padding: '0 8px 16px', minHeight: 0, paddingRight: 4 }}>
-          {groupKeys.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '32px 16px', color: 'var(--desktop-muted)', fontSize: 14 }}>
-              No tasks found
+          <div style={{ padding: '16px 16px 8px', display: 'flex', alignItems: 'center', gap: 12, borderBottom: `1px solid ${appearance === 'dark' ? '#333' : '#F0F0F0'}` }}>
+            <div style={{ flex: 1, position: 'relative', display: 'flex', alignItems: 'center' }}>
+              <span style={{ position: 'absolute', left: 12, color: 'var(--desktop-muted)', display: 'flex', alignItems: 'center' }}>
+                <SearchIcon />
+              </span>
+              <input
+                type="text"
+                placeholder={t.searchChat || "Search..."}
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                style={{
+                  width: '100%',
+                  height: 38,
+                  padding: '0 16px 0 38px',
+                  borderRadius: 999,
+                  border: 'none',
+                  background: appearance === 'dark' ? '#2C2C2E' : '#F5F5F5',
+                  color: 'var(--desktop-root-text)',
+                  fontSize: 14,
+                  outline: 'none',
+                }}
+              />
             </div>
-          ) : (
-            groupKeys.map(dateStr => (
-              <div key={dateStr}>
-                <GroupedDateLabel labelKey={getGroupLabel(dateStr)} t={t} />
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                  {groupedTasks[dateStr].map(task => (
-                    <HistoryTaskItem
-                      key={task.id}
-                      task={task}
-                      appearance={appearance}
-                      labels={t}
-                      onClick={(t) => {
-                        onTaskClick(t);
-                        onClose(); // Optional: close modal on click
-                      }}
-                    />
-                  ))}
-                </div>
+            <button
+              type="button"
+              onClick={onClose}
+              style={{
+                width: 32,
+                height: 32,
+                borderRadius: '50%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                background: 'transparent',
+                border: 'none',
+                color: 'var(--desktop-muted)',
+                cursor: 'pointer',
+              }}
+            >
+              <CloseIcon />
+            </button>
+          </div>
+
+          <div className="desktop-history-scroll" style={{ flex: 1, overflowY: 'auto', padding: '0 8px 16px', minHeight: 0, paddingRight: 4 }}>
+            {groupKeys.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '32px 16px', color: 'var(--desktop-muted)', fontSize: 14 }}>
+                No tasks found
               </div>
-            ))
-          )}
-        </div>
+            ) : (
+              groupKeys.map(dateStr => (
+                <div key={dateStr}>
+                  <GroupedDateLabel labelKey={getGroupLabel(dateStr)} t={t} />
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                    {groupedTasks[dateStr].map(task => (
+                      <HistoryTaskItem
+                        key={task.id}
+                        task={task}
+                        appearance={appearance}
+                        labels={t}
+                        onClick={(t) => {
+                          onTaskClick(t);
+                          onClose(); // Optional: close modal on click
+                        }}
+                      />
+                    ))}
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
         </div>
       </div>
     </>
