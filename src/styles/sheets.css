@@ -1003,7 +1003,7 @@
 
 .cal-picker-month-label {
   font-family: "LTC Bodoni 175", var(--font-serif);
-  font-size: 19px;
+  font-size: 24px;
   font-style: italic;
   font-weight: 600;
   color: #111;
@@ -1070,7 +1070,7 @@
 .cal-picker-day.today:not(.selected) {
   color: #ED1F1F;
   font-weight: 700;
-  border: 1px solid #ED1F1F;
+  border: 1.5px solid #ED1F1F;
 }
 
 .cal-picker-day.selected {

@@ -1,6 +1,13 @@
 import React, { useMemo, useState, useEffect, useRef, useCallback } from 'react';
 import { getLogicalToday } from '../lib/dateHelpers';
+
+const sameDay = (a, b) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
 import { getTaskCardPresentation, normalizeCardType } from '../taskCardUtils';
+
+const getCalendarWeekdayLabels = (language) => {
+  if (language === 'ZH') return ['日', '一', '二', '三', '四', '五', '六'];
+  return ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
+};
 
 const SearchIcon = () => (
   <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -117,7 +124,10 @@ const HistoryTaskItem = ({ task, appearance, labels, onClick, onLongPress, selec
       onClick={handleClick}
       onMouseDown={handleMouseDown}
       onMouseUp={handleMouseUp}
-      onMouseLeave={handleMouseLeave}
+      onMouseLeave={(e) => {
+        handleMouseLeave();
+        if (!isSelected) e.currentTarget.style.background = 'transparent';
+      }}
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
       style={{
@@ -137,9 +147,6 @@ const HistoryTaskItem = ({ task, appearance, labels, onClick, onLongPress, selec
       }}
       onMouseEnter={(e) => {
         if (!isSelected) e.currentTarget.style.background = hoverBg;
-      }}
-      onMouseOut={(e) => {
-        if (!isSelected) e.currentTarget.style.background = 'transparent';
       }}
     >
       {selectionMode && (
@@ -183,12 +190,116 @@ const HistoryTaskItem = ({ task, appearance, labels, onClick, onLongPress, selec
   );
 };
 
+const CalendarPopover = ({ open, anchorRef, language, onClose, onSelectDate, appearance }) => {
+  const [calendarOffset, setCalendarOffset] = useState(0);
+  
+  if (!open || !anchorRef.current) return null;
+
+  const logicalToday = getLogicalToday();
+  const maxDate = new Date(logicalToday);
+  maxDate.setDate(maxDate.getDate() + 30);
+  
+  const calendarMonth = new Date(logicalToday.getFullYear(), logicalToday.getMonth() + calendarOffset, 1);
+  const monthStart = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth(), 1);
+  const locale = language === 'ZH' ? 'zh-CN' : 'en-US';
+  const monthLabel = monthStart.toLocaleDateString(locale, { month: 'short', year: 'numeric' });
+  const startOffset = monthStart.getDay();
+  const daysInMonth = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 0).getDate();
+  const trailingCells = Math.max(0, 42 - startOffset - daysInMonth);
+  
+  const isAtMinMonth = monthStart.getFullYear() === logicalToday.getFullYear() && monthStart.getMonth() === logicalToday.getMonth();
+  const isAtMaxMonth = monthStart.getFullYear() === maxDate.getFullYear() && monthStart.getMonth() === maxDate.getMonth();
+  
+  const desktopCalendarCellSize = 30;
+  const desktopCalendarGap = 4;
+  const calendarWeekdayLabels = getCalendarWeekdayLabels(language);
+  const isDark = appearance === 'dark';
+
+  const anchorRect = anchorRef.current.getBoundingClientRect();
+  const popoverTop = anchorRect.bottom + 4;
+  const popoverRight = window.innerWidth - anchorRect.right;
+
+  return (
+    <>
+      <div style={{ position: 'fixed', inset: 0, zIndex: 900 }} onClick={onClose} />
+      <div style={{
+        position: 'fixed',
+        top: popoverTop,
+        right: popoverRight,
+        width: 260,
+        background: isDark ? '#2C2C2E' : '#FFF',
+        border: `1px solid ${isDark ? '#444' : '#E5E5E5'}`,
+        borderRadius: 12,
+        boxShadow: isDark ? '0 8px 32px rgba(0,0,0,0.5)' : '0 8px 32px rgba(0,0,0,0.1)',
+        zIndex: 1000,
+        padding: '16px 14px',
+        display: 'flex',
+        flexDirection: 'column',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+          <button type="button" disabled={isAtMinMonth} onClick={() => setCalendarOffset((prev) => prev - 1)} style={{ width: 26, height: 26, borderRadius: '50%', border: 'none', background: isDark ? '#3A3A3C' : '#F5F5F5', color: isAtMinMonth ? (isDark ? '#555' : '#CCC') : (isDark ? '#FFF' : '#111'), cursor: isAtMinMonth ? 'default' : 'pointer' }}>
+            {'<'}
+          </button>
+          <span style={{ fontSize: 15, fontWeight: 600, color: isDark ? '#FFF' : '#111' }}>{monthLabel}</span>
+          <button type="button" disabled={isAtMaxMonth} onClick={() => setCalendarOffset((prev) => prev + 1)} style={{ width: 26, height: 26, borderRadius: '50%', border: 'none', background: isDark ? '#3A3A3C' : '#F5F5F5', color: isAtMaxMonth ? (isDark ? '#555' : '#CCC') : (isDark ? '#FFF' : '#111'), cursor: isAtMaxMonth ? 'default' : 'pointer' }}>
+            {'>'}
+          </button>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: `repeat(7, ${desktopCalendarCellSize}px)`, gap: desktopCalendarGap, justifyContent: 'center' }}>
+          {calendarWeekdayLabels.map((label, index) => (
+            <div key={`${label}-${index}`} style={{ textTransform: 'uppercase', textAlign: 'center', fontSize: 11, fontWeight: 700, color: isDark ? '#777' : '#999', marginBottom: 4 }}>{label}</div>
+          ))}
+          {Array.from({ length: startOffset }).map((_, index) => <div key={`empty-${index}`} />)}
+          {Array.from({ length: daysInMonth }).map((_, index) => {
+            const day = index + 1;
+            const cellDate = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth(), day);
+            const inRange = cellDate >= logicalToday && cellDate <= maxDate;
+            const today = sameDay(cellDate, logicalToday);
+            return (
+              <button
+                key={day}
+                type="button"
+                disabled={!inRange}
+                onClick={() => {
+                  if (!inRange) return;
+                  onSelectDate(dateKey(cellDate));
+                }}
+                style={{
+                  width: desktopCalendarCellSize,
+                  height: desktopCalendarCellSize,
+                  borderRadius: '50%',
+                  border: today ? `1.5px solid ${isDark ? '#FF453A' : '#FF3B30'}` : 'none',
+                  background: 'transparent',
+                  color: inRange ? (isDark ? '#FFF' : '#111') : (isDark ? '#555' : '#CCC'),
+                  fontSize: 13,
+                  fontWeight: today ? 700 : 500,
+                  cursor: inRange ? 'pointer' : 'default',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: 0,
+                }}
+                onMouseEnter={(e) => { if (inRange) e.target.style.background = isDark ? '#3A3A3C' : '#F5F5F5'; }}
+                onMouseLeave={(e) => { if (inRange) e.target.style.background = 'transparent'; }}
+              >
+                {day}
+              </button>
+            );
+          })}
+          {Array.from({ length: trailingCells }).map((_, index) => <div key={`trail-${index}`} />)}
+        </div>
+      </div>
+    </>
+  );
+};
+
 const DesktopHistoryModal = ({ open, tasks, appearance, language, t, onClose, onTaskClick, onMoveSelected }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [movePanelOpen, setMovePanelOpen] = useState(false);
-  const dateInputRef = useRef(null);
+  const [calendarOpen, setCalendarOpen] = useState(false);
+  const moveButtonRef = useRef(null);
 
   useEffect(() => {
     if (!open) return;
@@ -213,6 +324,7 @@ const DesktopHistoryModal = ({ open, tasks, appearance, language, t, onClose, on
       setSelectedIds(new Set());
       setSearchQuery('');
       setMovePanelOpen(false);
+      setCalendarOpen(false);
     }
   }, [open]);
 
@@ -248,6 +360,7 @@ const DesktopHistoryModal = ({ open, tasks, appearance, language, t, onClose, on
     setSelectionMode(false);
     setSelectedIds(new Set());
     setMovePanelOpen(false);
+    setCalendarOpen(false);
   };
 
   const handleMoveToDate = (targetDateStr) => {
@@ -387,6 +500,7 @@ const DesktopHistoryModal = ({ open, tasks, appearance, language, t, onClose, on
                 </div>
                 <div style={{ position: 'relative' }}>
                   <button
+                    ref={moveButtonRef}
                     type="button"
                     onClick={() => setMovePanelOpen((prev) => !prev)}
                     disabled={selectedIds.size === 0}
@@ -462,7 +576,10 @@ const DesktopHistoryModal = ({ open, tasks, appearance, language, t, onClose, on
                           <button
                             type="button"
                             className="desktop-move-option"
-                            onClick={() => dateInputRef.current?.showPicker?.()}
+                            onClick={() => {
+                              setMovePanelOpen(false);
+                              setCalendarOpen(true);
+                            }}
                             style={{
                               width: '100%',
                               background: 'transparent', border: 'none', textAlign: 'left',
@@ -475,20 +592,19 @@ const DesktopHistoryModal = ({ open, tasks, appearance, language, t, onClose, on
                           >
                             <span>{t.pickDate || 'Pick a date...'}</span>
                           </button>
-                          <input
-                            ref={dateInputRef}
-                            type="date"
-                            style={{
-                              position: 'absolute', opacity: 0, width: 0, height: 0, bottom: 0, right: 0, pointerEvents: 'none'
-                            }}
-                            onChange={(e) => {
-                              if (e.target.value) handleMoveToDate(e.target.value);
-                            }}
-                          />
                         </div>
                       </div>
                     </>
                   )}
+                  
+                  <CalendarPopover
+                    open={calendarOpen}
+                    anchorRef={moveButtonRef}
+                    language={language}
+                    appearance={appearance}
+                    onClose={() => setCalendarOpen(false)}
+                    onSelectDate={handleMoveToDate}
+                  />
                 </div>
               </>
             ) : (

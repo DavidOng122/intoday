@@ -2590,8 +2590,9 @@ function MobileApp({ session, platformInfo }) {
     if (diffDays === 1) return t.tmr;
 
     const dayIndex = selectedDate.getDay();
-    const localizedDayName = t.dayNames[dayIndex];
-    return `${localizedDayName}, ${format(selectedDate, 'MMM d')}`;
+    const dayNames = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+    const shortDayName = dayNames[dayIndex];
+    return `${selectedDate.getFullYear()} ${shortDayName} ${format(selectedDate, 'MMM d')}`.toLowerCase();
   };
 
   const handleComposerChange = (e) => {
@@ -3262,7 +3263,20 @@ function MobileApp({ session, platformInfo }) {
                             <button className="cal-nav-btn" disabled={isAtMinMonth} onClick={e => { e.stopPropagation(); setCalPickerDate(d => { const n = new Date(d); n.setMonth(n.getMonth() - 1); return n; }); }}>
                               <svg width="7" height="12" viewBox="0 0 9 14" fill="none"><path fillRule="evenodd" clipRule="evenodd" d="M0.219809 7.45072C0.0790625 7.33113 0 7.16902 0 7C0 6.83098 0.0790625 6.66887 0.219809 6.54928L7.73599 0.171181C7.87847 0.0585185 8.06692 -0.00281603 8.26164 9.93682e-05C8.45636 0.00301477 8.64215 0.0699525 8.77986 0.18681C8.91757 0.303668 8.99645 0.461322 8.99988 0.626558C9.00332 0.791795 8.93104 0.951712 8.79827 1.07262L1.81324 7L8.79827 12.9274C8.93104 13.0483 9.00332 13.2082 8.99988 13.3734C8.99645 13.5387 8.91757 13.6963 8.77986 13.8132C8.64215 13.93 8.45636 13.997 8.26164 13.9999C8.06692 14.0028 7.87847 13.9415 7.73599 13.8288L0.219809 7.45072Z" fill="#111" /></svg>
                             </button>
-                            <span className="cal-picker-month-label">{format(calPickerDate, 'MMM yyyy')}</span>
+                            <span 
+                              className="cal-picker-month-label"
+                              style={{ 
+                                fontFamily: '"LTC Bodoni 175", var(--font-serif)',
+                                fontStyle: 'italic',
+                                fontSize: '24px',
+                                fontWeight: 400,
+                                color: appearance === 'dark' ? '#FFF' : '#000',
+                                letterSpacing: '-0.02em',
+                                textTransform: 'lowercase'
+                              }}
+                            >
+                              {format(calPickerDate, 'yyyy eee MMM').toLowerCase()}
+                            </span>
                             <button className="cal-nav-btn" disabled={isAtMaxMonth} onClick={e => { e.stopPropagation(); setCalPickerDate(d => { const n = new Date(d); n.setMonth(n.getMonth() + 1); return n; }); }}>
                               <svg width="7" height="12" viewBox="0 0 9 14" fill="none"><path fillRule="evenodd" clipRule="evenodd" d="M8.78019 6.54928C8.92094 6.66887 9 6.83098 9 7C9 7.16902 8.92094 7.33113 8.78019 7.45072L1.26401 13.8288C1.12153 13.9415 0.933079 14.0028 0.738359 13.9999C0.543638 13.997 0.357853 13.93 0.220144 13.8132C0.0824342 13.6963 0.00355271 13.5387 0.000117099 13.3734C-0.00331851 13.2082 0.06896 13.0483 0.201726 12.9274L7.18676 7L0.201726 1.07262C0.06896 0.951712 -0.00331851 0.791795 0.000117099 0.626558C0.00355271 0.461322 0.0824342 0.303668 0.220144 0.18681C0.357853 0.0699525 0.543638 0.00301477 0.738359 9.93682e-05C0.933079 -0.00281603 1.12153 0.0585185 1.26401 0.171181L8.78019 6.54928Z" fill="#111" /></svg>
                             </button>

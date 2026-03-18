@@ -1,6 +1,7 @@
 import React, { useMemo, useState, useEffect, useRef, useCallback } from 'react';
 import { getLogicalToday } from '../lib/dateHelpers';
 import { getTaskCardPresentation, normalizeCardType } from '../taskCardUtils';
+import { format, isSameDay, addDays } from 'date-fns';
 
 const SearchIcon = () => (
   <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -158,6 +159,8 @@ const MobileHistoryModal = ({ open, tasks, appearance, language, t, onClose, onT
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [moveSheetOpen, setMoveSheetOpen] = useState(false);
+  const [isPickingCustomDate, setIsPickingCustomDate] = useState(false);
+  const [calPickerDate, setCalPickerDate] = useState(() => getLogicalToday());
   const dateInputRef = useRef(null);
 
   // Prevent background scroll when modal is active
@@ -178,6 +181,7 @@ const MobileHistoryModal = ({ open, tasks, appearance, language, t, onClose, onT
       setSelectedIds(new Set());
       setSearchQuery('');
       setMoveSheetOpen(false);
+      setIsPickingCustomDate(false);
     }
   }, [open]);
 
@@ -461,50 +465,127 @@ const MobileHistoryModal = ({ open, tasks, appearance, language, t, onClose, onT
               </h3>
             </div>
             
-            <button
-              type="button"
-              onClick={() => handleMoveToDate(todayKey)}
-              style={{
-                background: isDark ? '#2C2C2E' : '#F5F5F7', border: 'none',
-                padding: '16px', borderRadius: 12, fontSize: 16, fontWeight: 500,
-                color: isDark ? '#FFF' : '#111', textAlign: 'center', cursor: 'pointer',
-              }}
-            >
-              {t.today || 'Today'}
-            </button>
-            <button
-              type="button"
-              onClick={() => handleMoveToDate(tomorrowKey)}
-              style={{
-                background: isDark ? '#2C2C2E' : '#F5F5F7', border: 'none',
-                padding: '16px', borderRadius: 12, fontSize: 16, fontWeight: 500,
-                color: isDark ? '#FFF' : '#111', textAlign: 'center', cursor: 'pointer',
-              }}
-            >
-              {t.tomorrow || 'Tomorrow'}
-            </button>
-            <div style={{ position: 'relative' }}>
-              <button
-                type="button"
-                onClick={() => dateInputRef.current?.showPicker?.()}
-                style={{
-                  width: '100%',
-                  background: isDark ? '#2C2C2E' : '#F5F5F7', border: 'none',
-                  padding: '16px', borderRadius: 12, fontSize: 16, fontWeight: 500,
-                  color: isDark ? '#FFF' : '#111', textAlign: 'center', cursor: 'pointer',
-                }}
-              >
-                {t.pickDate || 'Pick a date...'}
-              </button>
-              <input
-                ref={dateInputRef}
-                type="date"
-                style={{ position: 'absolute', opacity: 0, width: 0, height: 0, bottom: 0, right: 0, pointerEvents: 'none' }}
-                onChange={(e) => {
-                  if (e.target.value) handleMoveToDate(e.target.value);
-                }}
-              />
-            </div>
+            {!isPickingCustomDate ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() => handleMoveToDate(todayKey)}
+                  style={{
+                    background: isDark ? '#2C2C2E' : '#F5F5F7', border: 'none',
+                    padding: '16px', borderRadius: 12, fontSize: 16, fontWeight: 500,
+                    color: isDark ? '#FFF' : '#111', textAlign: 'center', cursor: 'pointer',
+                  }}
+                >
+                  {t.today || 'Today'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleMoveToDate(tomorrowKey)}
+                  style={{
+                    background: isDark ? '#2C2C2E' : '#F5F5F7', border: 'none',
+                    padding: '16px', borderRadius: 12, fontSize: 16, fontWeight: 500,
+                    color: isDark ? '#FFF' : '#111', textAlign: 'center', cursor: 'pointer',
+                  }}
+                >
+                  {t.tomorrow || 'Tomorrow'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsPickingCustomDate(true)}
+                  style={{
+                    width: '100%',
+                    background: isDark ? '#2C2C2E' : '#F5F5F7', border: 'none',
+                    padding: '16px', borderRadius: 12, fontSize: 16, fontWeight: 500,
+                    color: isDark ? '#FFF' : '#111', textAlign: 'center', cursor: 'pointer',
+                  }}
+                >
+                  {t.pickDate || 'Pick a date...'}
+                </button>
+              </>
+            ) : (
+              <div className="sheet-calendar-picker open" style={{ animation: 'fadeIn 0.2s ease-out' }}>
+                <div className="cal-picker-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                  <button 
+                    className="cal-nav-btn" 
+                    onClick={() => setCalPickerDate(d => { const n = new Date(d); n.setMonth(n.getMonth() - 1); return n; })}
+                    style={{ background: 'none', border: 'none', color: isDark ? '#FFF' : '#111', padding: 8 }}
+                  >
+                    <svg width="9" height="14" viewBox="0 0 9 14" fill="none"><path fillRule="evenodd" clipRule="evenodd" d="M0.219809 7.45072C0.0790625 7.33113 0 7.16902 0 7C0 6.83098 0.0790625 6.66887 0.219809 6.54928L7.73599 0.171181C7.87847 0.0585185 8.06692 -0.00281603 8.26164 9.93682e-05C8.45636 0.00301477 8.64215 0.0699525 8.77986 0.18681C8.91757 0.303668 8.99645 0.461322 8.99988 0.626558C9.00332 0.791795 8.93104 0.951712 8.79827 1.07262L1.81324 7L8.79827 12.9274C8.93104 13.0483 9.00332 13.2082 8.99988 13.3734C8.99645 13.5387 8.91757 13.6963 8.77986 13.8132C8.64215 13.93 8.45636 13.997 8.26164 13.9999C8.06692 14.0028 7.87847 13.9415 7.73599 13.8288L0.219809 7.45072Z" fill="currentColor" /></svg>
+                  </button>
+                  <span 
+                    className="cal-picker-month-label"
+                    style={{ 
+                      fontFamily: '"LTC Bodoni 175", var(--font-serif)',
+                      fontStyle: 'italic',
+                      fontSize: '24px',
+                      color: isDark ? '#FFF' : '#000',
+                      textTransform: 'lowercase'
+                    }}
+                  >
+                    {format(calPickerDate, 'yyyy eee MMM').toLowerCase()}
+                  </span>
+                  <button 
+                    className="cal-nav-btn" 
+                    onClick={() => setCalPickerDate(d => { const n = new Date(d); n.setMonth(n.getMonth() + 1); return n; })}
+                    style={{ background: 'none', border: 'none', color: isDark ? '#FFF' : '#111', padding: 8 }}
+                  >
+                    <svg width="9" height="14" viewBox="0 0 9 14" fill="none"><path fillRule="evenodd" clipRule="evenodd" d="M8.78019 6.54928C8.92094 6.66887 9 6.83098 9 7C9 7.16902 8.92094 7.33113 8.78019 7.45072L1.26401 13.8288C1.12153 13.9415 0.933079 14.0028 0.738359 13.9999C0.543638 13.997 0.357853 13.93 0.220144 13.8132C0.0824342 13.6963 0.00355271 13.5387 0.000117099 13.3734C-0.00331851 13.2082 0.06896 13.0483 0.201726 12.9274L7.18676 7L0.201726 1.07262C0.06896 0.951712 -0.00331851 0.791795 0.000117099 0.626558C0.00355271 0.461322 0.0824342 0.303668 0.220144 0.18681C0.357853 0.0699525 0.543638 0.00301477 0.738359 9.93682e-05C0.933079 -0.00281603 1.12153 0.0585185 1.26401 0.171181L8.78019 6.54928Z" fill="currentColor" /></svg>
+                  </button>
+                </div>
+                <div 
+                  className="cal-picker-grid" 
+                  style={{ 
+                    display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '4px', textAlign: 'center' 
+                  }}
+                >
+                  {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((d, i) => (
+                    <div key={i} className="cal-picker-dow" style={{ fontSize: 12, fontWeight: 600, color: mutedColor, padding: '4px 0' }}>{d}</div>
+                  ))}
+                  {Array.from({ length: new Date(calPickerDate.getFullYear(), calPickerDate.getMonth(), 1).getDay() }).map((_, i) => (
+                    <div key={`e${i}`} />
+                  ))}
+                  {(() => {
+                    const today = getLogicalToday();
+                    const year = calPickerDate.getFullYear();
+                    const month = calPickerDate.getMonth();
+                    const daysInMonth = new Date(year, month + 1, 0).getDate();
+                    return Array.from({ length: daysInMonth }).map((_, i) => {
+                      const day = i + 1;
+                      const cellDate = new Date(year, month, day);
+                      const isToday = isSameDay(cellDate, today);
+                      // In this context, we don't have a specific "selectedDate" for the picker yet,
+                      // but we can use today as a default or wait for a click.
+                      return (
+                        <button
+                          key={day}
+                          className="cal-picker-day"
+                          onClick={() => handleMoveToDate(dateKey(cellDate))}
+                          style={{
+                            aspectRatio: '1', borderRadius: '50%', border: 'none', background: 'transparent',
+                            fontSize: 15, fontWeight: isToday ? 700 : 500,
+                            color: isToday ? '#ED1F1F' : (isDark ? '#FFF' : '#111'),
+                            cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            border: isToday ? '1.5px solid #ED1F1F' : 'none'
+                          }}
+                        >
+                          {day}
+                        </button>
+                      );
+                    });
+                  })()}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsPickingCustomDate(false)}
+                  style={{
+                    width: '100%', marginTop: 12, background: 'none', border: 'none',
+                    color: accentColor, fontSize: 14, fontWeight: 600, cursor: 'pointer'
+                  }}
+                >
+                  {t.cancel || 'Cancel'}
+                </button>
+              </div>
+            )}
           </div>
         </>
       )}
