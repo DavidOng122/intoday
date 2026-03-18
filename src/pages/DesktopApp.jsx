@@ -1733,16 +1733,12 @@ function App() {
       trackUserEvent(user.id, 'task_clicked', { action: 'card_click', platform: 'desktop', isPlain, hasRedirect: !!redirectUrl });
     }
 
-    if (isPlain) {
-      setTasks((prev) =>
-        prev.map((t) => (t.id === task.id ? normalizeTask({ ...t, completed: !t.completed }) : t))
-      );
+    if (redirectUrl) {
+      window.open(redirectUrl, '_blank', 'noopener,noreferrer');
       return;
     }
 
-    if (redirectUrl) {
-      window.open(redirectUrl, '_blank', 'noopener,noreferrer');
-    }
+    openTaskEditor(task);
   };
   const handleSignOut = async () => {
     try {
