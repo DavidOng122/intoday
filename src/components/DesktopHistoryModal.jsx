@@ -187,6 +187,8 @@ const DesktopHistoryModal = ({ open, tasks, appearance, language, t, onClose, on
   const [searchQuery, setSearchQuery] = useState('');
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState(new Set());
+  const [movePanelOpen, setMovePanelOpen] = useState(false);
+  const dateInputRef = useRef(null);
 
   useEffect(() => {
     if (!open) return;
@@ -210,6 +212,7 @@ const DesktopHistoryModal = ({ open, tasks, appearance, language, t, onClose, on
       setSelectionMode(false);
       setSelectedIds(new Set());
       setSearchQuery('');
+      setMovePanelOpen(false);
     }
   }, [open]);
 
@@ -244,12 +247,14 @@ const DesktopHistoryModal = ({ open, tasks, appearance, language, t, onClose, on
   const handleCancel = () => {
     setSelectionMode(false);
     setSelectedIds(new Set());
+    setMovePanelOpen(false);
   };
 
-  const handleMove = () => {
+  const handleMoveToDate = (targetDateStr) => {
     if (onMoveSelected) {
-      onMoveSelected(selectedIds);
+      onMoveSelected(selectedIds, targetDateStr);
     }
+    handleCancel();
   };
 
   const logicalToday = getLogicalToday();
@@ -380,24 +385,111 @@ const DesktopHistoryModal = ({ open, tasks, appearance, language, t, onClose, on
                     ? (t.selectItems || 'Select items')
                     : `${selectedIds.size} ${t.selected || 'selected'}`}
                 </div>
-                <button
-                  type="button"
-                  onClick={handleMove}
-                  disabled={selectedIds.size === 0}
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    color: selectedIds.size === 0 ? 'var(--desktop-muted)' : accentColor,
-                    fontSize: 14,
-                    fontWeight: 600,
-                    cursor: selectedIds.size === 0 ? 'default' : 'pointer',
-                    padding: '4px 0',
-                    flexShrink: 0,
-                    transition: 'color 0.15s',
-                  }}
-                >
-                  {t.move || 'Move'}
-                </button>
+                <div style={{ position: 'relative' }}>
+                  <button
+                    type="button"
+                    onClick={() => setMovePanelOpen((prev) => !prev)}
+                    disabled={selectedIds.size === 0}
+                    style={{
+                      background: movePanelOpen ? (isDark ? '#333' : '#E8EEFF') : 'none',
+                      border: 'none',
+                      borderRadius: 6,
+                      color: selectedIds.size === 0 ? 'var(--desktop-muted)' : accentColor,
+                      fontSize: 14,
+                      fontWeight: 600,
+                      cursor: selectedIds.size === 0 ? 'default' : 'pointer',
+                      padding: '6px 10px',
+                      flexShrink: 0,
+                      transition: 'all 0.15s',
+                    }}
+                  >
+                    {t.move || 'Move'}
+                  </button>
+
+                  {movePanelOpen && (
+                    <>
+                      <div
+                        style={{ position: 'fixed', inset: 0, zIndex: 90 }}
+                        onClick={() => setMovePanelOpen(false)}
+                      />
+                      <div
+                        style={{
+                          position: 'absolute',
+                          top: 'calc(100% + 4px)',
+                          right: 0,
+                          width: 160,
+                          background: isDark ? '#2C2C2E' : '#FFF',
+                          border: `1px solid ${isDark ? '#444' : '#E5E5E5'}`,
+                          borderRadius: 12,
+                          boxShadow: isDark ? '0 4px 20px rgba(0,0,0,0.5)' : '0 4px 20px rgba(0,0,0,0.08)',
+                          zIndex: 100,
+                          display: 'flex',
+                          flexDirection: 'column',
+                          padding: 6,
+                        }}
+                      >
+                        <button
+                          type="button"
+                          className="desktop-move-option"
+                          onClick={() => handleMoveToDate(todayKey)}
+                          style={{
+                            background: 'transparent', border: 'none', textAlign: 'left',
+                            padding: '8px 12px', fontSize: 13, borderRadius: 6,
+                            color: 'var(--desktop-root-text)', cursor: 'pointer'
+                          }}
+                          onMouseEnter={(e) => e.target.style.background = isDark ? '#3A3A3C' : '#F5F5F5'}
+                          onMouseLeave={(e) => e.target.style.background = 'transparent'}
+                        >
+                          {t.today || 'Today'}
+                        </button>
+                        <button
+                          type="button"
+                          className="desktop-move-option"
+                          onClick={() => handleMoveToDate(tomorrowKey)}
+                          style={{
+                            background: 'transparent', border: 'none', textAlign: 'left',
+                            padding: '8px 12px', fontSize: 13, borderRadius: 6,
+                            color: 'var(--desktop-root-text)', cursor: 'pointer'
+                          }}
+                          onMouseEnter={(e) => e.target.style.background = isDark ? '#3A3A3C' : '#F5F5F5'}
+                          onMouseLeave={(e) => e.target.style.background = 'transparent'}
+                        >
+                          {t.tomorrow || 'Tomorrow'}
+                        </button>
+                        <div style={{ height: 1, background: isDark ? '#444' : '#F0F0F0', margin: '4px 8px' }} />
+                        
+                        <div style={{ position: 'relative' }}>
+                          <button
+                            type="button"
+                            className="desktop-move-option"
+                            onClick={() => dateInputRef.current?.showPicker?.()}
+                            style={{
+                              width: '100%',
+                              background: 'transparent', border: 'none', textAlign: 'left',
+                              padding: '8px 12px', fontSize: 13, borderRadius: 6,
+                              color: 'var(--desktop-root-text)', cursor: 'pointer',
+                              display: 'flex', alignItems: 'center', justifyContent: 'space-between'
+                            }}
+                            onMouseEnter={(e) => e.target.style.background = isDark ? '#3A3A3C' : '#F5F5F5'}
+                            onMouseLeave={(e) => e.target.style.background = 'transparent'}
+                          >
+                            <span>{t.pickDate || 'Pick a date...'}</span>
+                          </button>
+                          <input
+                            ref={dateInputRef}
+                            type="date"
+                            style={{
+                              position: 'absolute', opacity: 0, width: 0, height: 0, bottom: 0, right: 0, pointerEvents: 'none'
+                            }}
+                            onChange={(e) => {
+                              if (e.target.value) handleMoveToDate(e.target.value);
+                            }}
+                          />
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </div>
               </>
             ) : (
               /* Normal search bar */

@@ -157,6 +157,8 @@ const MobileHistoryModal = ({ open, tasks, appearance, language, t, onClose, onT
   const [searchQuery, setSearchQuery] = useState('');
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState(new Set());
+  const [moveSheetOpen, setMoveSheetOpen] = useState(false);
+  const dateInputRef = useRef(null);
 
   // Prevent background scroll when modal is active
   useEffect(() => {
@@ -175,6 +177,7 @@ const MobileHistoryModal = ({ open, tasks, appearance, language, t, onClose, onT
       setSelectionMode(false);
       setSelectedIds(new Set());
       setSearchQuery('');
+      setMoveSheetOpen(false);
     }
   }, [open]);
 
@@ -209,12 +212,14 @@ const MobileHistoryModal = ({ open, tasks, appearance, language, t, onClose, onT
   const handleCancel = () => {
     setSelectionMode(false);
     setSelectedIds(new Set());
+    setMoveSheetOpen(false);
   };
 
-  const handleMove = () => {
+  const handleMoveToDate = (targetDateStr) => {
     if (onMoveSelected) {
-      onMoveSelected(selectedIds);
+      onMoveSelected(selectedIds, targetDateStr);
     }
+    handleCancel();
   };
 
   const logicalToday = getLogicalToday();
@@ -332,18 +337,19 @@ const MobileHistoryModal = ({ open, tasks, appearance, language, t, onClose, onT
             </div>
             <button
               type="button"
-              onClick={handleMove}
+              onClick={() => setMoveSheetOpen(!moveSheetOpen)}
               disabled={selectedIds.size === 0}
               style={{
-                background: 'none',
+                background: moveSheetOpen ? (isDark ? '#333' : '#E8EEFF') : 'none',
                 border: 'none',
+                borderRadius: 8,
                 color: selectedIds.size === 0 ? mutedColor : accentColor,
                 fontSize: 16,
                 fontWeight: 600,
                 cursor: selectedIds.size === 0 ? 'default' : 'pointer',
-                padding: '4px 0',
+                padding: '6px 12px',
                 flexShrink: 0,
-                transition: 'color 0.15s',
+                transition: 'all 0.15s',
               }}
             >
               {t.move || 'Move'}
@@ -424,6 +430,84 @@ const MobileHistoryModal = ({ open, tasks, appearance, language, t, onClose, onT
           ))
         )}
       </div>
+
+      {/* Move Bottom Sheet */}
+      {selectionMode && moveSheetOpen && (
+        <>
+          <div
+            style={{
+              position: 'fixed', inset: 0, zIndex: 1001,
+              background: 'rgba(0,0,0,0.4)',
+              animation: 'fadeIn 0.2s ease-out',
+            }}
+            onClick={() => setMoveSheetOpen(false)}
+          />
+          <div
+            style={{
+              position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 1002,
+              background: isDark ? '#1C1C1E' : '#FFF',
+              borderTopLeftRadius: 24, borderTopRightRadius: 24,
+              padding: '24px 16px',
+              paddingBottom: 'max(24px, env(safe-area-inset-bottom, 24px))',
+              display: 'flex', flexDirection: 'column', gap: 8,
+              boxShadow: '0 -4px 24px rgba(0,0,0,0.1)',
+              animation: 'slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
+            }}
+          >
+            <div style={{ textAlign: 'center', marginBottom: 12 }}>
+              <div style={{ width: 40, height: 4, background: isDark ? '#444' : '#E0E0E0', borderRadius: 2, margin: '0 auto 16px' }} />
+              <h3 style={{ margin: 0, fontSize: 17, fontWeight: 600, color: isDark ? '#FFF' : '#111' }}>
+                {t.moveSelected || 'Move Selected Tasks'}
+              </h3>
+            </div>
+            
+            <button
+              type="button"
+              onClick={() => handleMoveToDate(todayKey)}
+              style={{
+                background: isDark ? '#2C2C2E' : '#F5F5F7', border: 'none',
+                padding: '16px', borderRadius: 12, fontSize: 16, fontWeight: 500,
+                color: isDark ? '#FFF' : '#111', textAlign: 'center', cursor: 'pointer',
+              }}
+            >
+              {t.today || 'Today'}
+            </button>
+            <button
+              type="button"
+              onClick={() => handleMoveToDate(tomorrowKey)}
+              style={{
+                background: isDark ? '#2C2C2E' : '#F5F5F7', border: 'none',
+                padding: '16px', borderRadius: 12, fontSize: 16, fontWeight: 500,
+                color: isDark ? '#FFF' : '#111', textAlign: 'center', cursor: 'pointer',
+              }}
+            >
+              {t.tomorrow || 'Tomorrow'}
+            </button>
+            <div style={{ position: 'relative' }}>
+              <button
+                type="button"
+                onClick={() => dateInputRef.current?.showPicker?.()}
+                style={{
+                  width: '100%',
+                  background: isDark ? '#2C2C2E' : '#F5F5F7', border: 'none',
+                  padding: '16px', borderRadius: 12, fontSize: 16, fontWeight: 500,
+                  color: isDark ? '#FFF' : '#111', textAlign: 'center', cursor: 'pointer',
+                }}
+              >
+                {t.pickDate || 'Pick a date...'}
+              </button>
+              <input
+                ref={dateInputRef}
+                type="date"
+                style={{ position: 'absolute', opacity: 0, width: 0, height: 0, bottom: 0, right: 0, pointerEvents: 'none' }}
+                onChange={(e) => {
+                  if (e.target.value) handleMoveToDate(e.target.value);
+                }}
+              />
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 };

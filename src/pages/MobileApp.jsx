@@ -294,6 +294,7 @@ function MobileApp({ session, platformInfo }) {
     setIsProfileOpenState(val);
   }, []);
   const [historyOpen, setHistoryOpenState] = useState(() => sessionStorage.getItem('shared_history_open') === 'true');
+  const [toastMessage, setToastMessage] = useState(null);
   const setHistoryOpen = useCallback((val) => {
     sessionStorage.setItem('shared_history_open', String(Boolean(val)));
     setHistoryOpenState(val);
@@ -3636,7 +3637,41 @@ function MobileApp({ session, platformInfo }) {
           }
           openEdit(todo);
         }}
+        onMoveSelected={(selectedTaskIds, targetDateStr) => {
+          setTodos(prev => prev.map(task => {
+            if (selectedTaskIds.has(task.id)) {
+              return { ...task, dateString: targetDateStr };
+            }
+            return task;
+          }));
+          const count = selectedTaskIds.size;
+          const label = targetDateStr === dateKey(getLogicalToday()) ? (translations[language].today || 'Today') :
+                        targetDateStr === dateKey(addDays(getLogicalToday(), 1)) ? (translations[language].tomorrow || 'Tomorrow') :
+                        targetDateStr;
+          setToastMessage(`Moved ${count} task${count > 1 ? 's' : ''} to ${label}`);
+          setTimeout(() => setToastMessage(null), 3000);
+        }}
       />
+        
+      {toastMessage && (
+        <div style={{
+          position: 'fixed',
+          bottom: 32,
+          left: '50%',
+          transform: 'translateX(-50%)',
+          background: appearance === 'dark' ? '#333' : '#333',
+          color: '#FFF',
+          padding: '10px 20px',
+          borderRadius: 999,
+          fontSize: 14,
+          fontWeight: 500,
+          zIndex: 99999,
+          boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+          animation: 'fadeInOut 3s forwards'
+        }}>
+          {toastMessage}
+        </div>
+      )}
     </>
   );
 }
