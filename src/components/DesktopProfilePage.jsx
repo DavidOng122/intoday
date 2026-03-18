@@ -109,29 +109,8 @@ function DesktopProfilePage({
     onClose();
   }, [onClose]);
   const handlePageClick = useCallback((event) => {
-    if (!(event.target instanceof Element)) {
-      return;
-    }
-
-    if (event.target.closest('.desktop-profile-content, .desktop-profile-page-close')) {
-      return;
-    }
-
-    const contentRect = contentRef.current?.getBoundingClientRect();
-    if (!contentRect) {
-      return;
-    }
-
-    const offsetX = contentRect.width * 0.5;
-    const offsetY = contentRect.height * 0.3;
-    const isBeyondContentBuffer = (
-      event.clientX < contentRect.left - offsetX
-      || event.clientX > contentRect.right + offsetX
-      || event.clientY < contentRect.top - offsetY
-      || event.clientY > contentRect.bottom + offsetY
-    );
-
-    if (isBeyondContentBuffer) {
+    // If the click is on the backdrop (.desktop-profile-page), close it
+    if (event.target.classList.contains('desktop-profile-page')) {
       handleClose();
     }
   }, [handleClose]);
@@ -160,11 +139,11 @@ function DesktopProfilePage({
       <div className="desktop-profile-page-orb desktop-profile-page-orb-left" aria-hidden="true" />
       <div className="desktop-profile-page-orb desktop-profile-page-orb-right" aria-hidden="true" />
 
-      <button type="button" className="desktop-profile-page-close" onClick={handleClose} aria-label={t.close}>
-        <CloseIcon />
-      </button>
+      <div className="desktop-profile-stage" onClick={(e) => e.stopPropagation()}>
+        <button type="button" className="desktop-profile-page-close" onClick={handleClose} aria-label={t.close}>
+          <CloseIcon />
+        </button>
 
-      <div className="desktop-profile-stage">
         <div className="desktop-profile-content" ref={contentRef}>
           <div className="desktop-profile-header-block">
             <div className="desktop-profile-avatar-frame">
