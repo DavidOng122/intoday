@@ -1973,8 +1973,16 @@ function App() {
           appearance={appearance}
           language={language}
           t={t}
-          onClose={() => setHistoryOpen(false)}
-          onTaskClick={openTaskEditor}
+          onTaskClick={(task) => {
+            if (!task.id) return;
+            const { redirectUrl } = getTaskCardPresentation(task, t);
+            if (redirectUrl) {
+              window.open(redirectUrl, '_blank', 'noopener,noreferrer');
+              return;
+            }
+            setHistoryOpen(false);
+            openTaskEditor(task);
+          }}
         />
         <DragOverlayCard task={draggedTask} rect={desktopDragOverlayRectRef.current} appearance={appearance} labels={t} />
       </div>

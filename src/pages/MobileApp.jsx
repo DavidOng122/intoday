@@ -2770,11 +2770,11 @@ function MobileApp({ session, platformInfo }) {
                       // Track analytics 
                       if (session?.user?.id) {
                         const { isPlain, redirectUrl } = getTaskCardPresentation(todo, translations[language]);
-                        trackUserEvent(session.user.id, 'task_clicked', { 
-                          action: 'card_click', 
-                          platform: 'mobile', 
-                          isPlain, 
-                          hasRedirect: !!redirectUrl 
+                        trackUserEvent(session.user.id, 'task_clicked', {
+                          action: 'card_click',
+                          platform: 'mobile',
+                          isPlain,
+                          hasRedirect: !!redirectUrl
                         });
                       }
 
@@ -3079,7 +3079,7 @@ function MobileApp({ session, platformInfo }) {
                 alignItems: 'center',
                 justifyContent: 'center',
                 cursor: 'pointer',
-                marginRight: 10,
+                marginRight: 6,
                 color: appearance === 'dark' ? '#E1E1E1' : '#1E1E1E',
                 flexShrink: 0,
                 padding: 0,
@@ -3088,7 +3088,7 @@ function MobileApp({ session, platformInfo }) {
               aria-label="History"
             >
               <svg width="19" height="19" viewBox="0 0 19 19" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M16.625 16.625L13.1812 13.1812M15.0417 8.70833C15.0417 12.2061 12.2061 15.0417 8.70833 15.0417C5.21053 15.0417 2.375 12.2061 2.375 8.70833C2.375 5.21053 5.21053 2.375 8.70833 2.375C12.2061 2.375 15.0417 5.21053 15.0417 8.70833Z" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
+                <path d="M16.625 16.625L13.1812 13.1812M15.0417 8.70833C15.0417 12.2061 12.2061 15.0417 8.70833 15.0417C5.21053 15.0417 2.375 12.2061 2.375 8.70833C2.375 5.21053 5.21053 2.375 8.70833 2.375C12.2061 2.375 15.0417 5.21053 15.0417 8.70833Z" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
             </button>
             <button
@@ -3623,10 +3623,18 @@ function MobileApp({ session, platformInfo }) {
         language={language}
         t={translations[language]}
         onClose={() => setHistoryOpen(false)}
-        onTaskClick={(t) => {
-          if (!t.id) return;
+        onTaskClick={(todo) => {
+          if (!todo.id) return;
+          const { redirectUrl } = getTaskCardPresentation(todo, translations[language]);
+          if (redirectUrl) {
+            window.open(redirectUrl, '_blank', 'noopener,noreferrer');
+            return;
+          }
           setHistoryOpen(false);
-          // Could expand logic to quickly focus the element on map.
+          if (todo.date || todo.dateString) {
+            transitionToDate(new Date(`${todo.date || todo.dateString}T00:00:00`));
+          }
+          openEdit(todo);
         }}
       />
     </>
