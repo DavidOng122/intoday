@@ -972,6 +972,11 @@
   z-index: 30;
 }
 
+.desktop-task-wrapper.is-past {
+  filter: grayscale(100%);
+  opacity: 0.7;
+}
+
 .desktop-task-card {
   position: relative;
   z-index: 1;

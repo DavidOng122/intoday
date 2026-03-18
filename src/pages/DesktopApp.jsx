@@ -593,8 +593,10 @@ const TaskCard = (props) => {
   } = props;
   const taskCardLabels = props?.labels;
 
+  const isPast = task.dateString < dateKey(getLogicalToday());
+
   return (
-    <div id={`desktop-task-wrapper-${task.id}`} className={`desktop-task-wrapper ${isDragging ? 'is-dragging' : ''}`}>
+    <div id={`desktop-task-wrapper-${task.id}`} className={`desktop-task-wrapper ${isDragging ? 'is-dragging' : ''} ${isPast ? 'is-past' : ''}`}>
       <button
         id={`desktop-task-card-${task.id}`}
         type="button"

@@ -600,6 +600,11 @@ body.is-dragging-global .time-block {
   touch-action: none;
 }
 
+.task-card.is-past {
+  filter: grayscale(100%);
+  opacity: 0.75;
+}
+
 .task-card:active {
   transform: scale(0.98);
 }

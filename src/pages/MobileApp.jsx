@@ -2707,6 +2707,9 @@ function MobileApp({ session, platformInfo }) {
               const { todo } = item;
               const canUseDesktopDrag = !options.isStatic && !isCoarsePointer;
 
+              const todayStr = format(getLogicalToday(currentTime), 'yyyy-MM-dd');
+              const isPast = todo.dateString < todayStr;
+
               return (
                 <div key={todo.id} id={`swipe-wrapper-${todo.id}`} data-swipe-wrapper-id={todo.id} className="swipe-wrapper">
                   <div className="swipe-actions">
@@ -2739,7 +2742,7 @@ function MobileApp({ session, platformInfo }) {
                   <div
                     id={`swipe-card-${todo.id}`}
                     data-todo-id={todo.id}
-                    className={`task-card ${draggedTodoId === todo.id ? `dragging ${dragOverlayTodo && dragOverlayRect ? 'drag-source-hidden' : ''}` : ''}`}
+                    className={`task-card ${draggedTodoId === todo.id ? `dragging ${dragOverlayTodo && dragOverlayRect ? 'drag-source-hidden' : ''}` : ''} ${isPast ? 'is-past' : ''}`}
                     onClick={() => {
                       if (Date.now() < suppressAllCardClicksUntilRef.current) {
                         return;
