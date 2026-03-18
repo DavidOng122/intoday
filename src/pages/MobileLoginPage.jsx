@@ -38,7 +38,7 @@ function MobileLoginPage({ onClose, platform = 'web' }) {
                 zIndex: 10
             }}>
                 <img
-                    src="/logoreal.png"
+                    src="/pwa-icon-192.png"
                     alt="InToday logo"
                     style={{ width: 32, height: 32, objectFit: 'contain' }}
                     onError={(e) => { e.target.style.display = 'none'; }}
