@@ -68,11 +68,23 @@
   --desktop-save-text: #ffffff;
   --desktop-save-disabled-text: #ffffff;
   --desktop-disabled-text: #d0d0d0;
-  --desktop-drag-feedback-glow: rgba(237, 31, 31, 0.12);
-  --desktop-drag-feedback-glow-strong: rgba(237, 31, 31, 0.2);
-  --desktop-drag-feedback-chip-bg: rgba(255, 253, 251, 0.9);
-  --desktop-drag-feedback-chip-border: rgba(166, 48, 36, 0.12);
-  --desktop-drag-feedback-chip-text: #7d2920;
+
+  /* Option 1: Warm Beige (F6E8D7) - Active */
+  --desktop-drag-feedback-glow-strong: rgba(246, 232, 215, 0.85);
+  --desktop-drag-feedback-glow: rgba(246, 232, 215, 0.5);
+  --desktop-drag-feedback-glow-transparent: rgba(246, 232, 215, 0);
+  --desktop-drag-feedback-chip-bg: rgba(255, 253, 251, 0.92);
+  --desktop-drag-feedback-chip-border: rgba(215, 195, 170, 0.3);
+  --desktop-drag-feedback-chip-text: #8b6d4c;
+
+  /* Option 2: Cool Blue (E8EDF4) - Uncomment to try
+  --desktop-drag-feedback-glow-strong: rgba(232, 237, 244, 0.85);
+  --desktop-drag-feedback-glow: rgba(232, 237, 244, 0.5);
+  --desktop-drag-feedback-glow-transparent: rgba(232, 237, 244, 0);
+  --desktop-drag-feedback-chip-bg: rgba(255, 253, 251, 0.92);
+  --desktop-drag-feedback-chip-border: rgba(180, 195, 215, 0.3);
+  --desktop-drag-feedback-chip-text: #4a6b8c;
+  */
 }
 
 .desktop-app-dark {
@@ -143,8 +155,9 @@
   --desktop-save-text: #111111;
   --desktop-save-disabled-text: #a0a0a0;
   --desktop-disabled-text: #4b4b53;
-  --desktop-drag-feedback-glow: rgba(232, 77, 61, 0.14);
-  --desktop-drag-feedback-glow-strong: rgba(232, 77, 61, 0.24);
+  --desktop-drag-feedback-glow: rgba(246, 232, 215, 0.22);
+  --desktop-drag-feedback-glow-strong: rgba(246, 232, 215, 0.38);
+  --desktop-drag-feedback-glow-transparent: rgba(246, 232, 215, 0);
   --desktop-drag-feedback-chip-bg: rgba(26, 26, 26, 0.82);
   --desktop-drag-feedback-chip-border: rgba(255, 255, 255, 0.08);
   --desktop-drag-feedback-chip-text: #ffffff;
@@ -781,7 +794,7 @@
   margin-top: 18px;
 }
 
-.desktop-profile-setting + .desktop-profile-setting {
+.desktop-profile-setting+.desktop-profile-setting {
   border-top: 1px solid var(--desktop-profile-border);
 }
 
@@ -920,7 +933,7 @@
   padding: 4px;
 }
 
-.desktop-schedule-slot > [data-desktop-layout-id] {
+.desktop-schedule-slot>[data-desktop-layout-id] {
   transform: translate3d(0, 0, 0);
   will-change: transform;
 }
@@ -949,6 +962,7 @@
     opacity: 0;
     transform: scaleY(0.76);
   }
+
   to {
     opacity: 1;
     transform: scaleY(1);
@@ -1140,7 +1154,7 @@
 
 .desktop-drag-day-feedback-edge-previous::before {
   left: 0;
-  background: linear-gradient(90deg, var(--desktop-drag-feedback-glow-strong) 0%, var(--desktop-drag-feedback-glow) 48%, rgba(237, 31, 31, 0) 100%);
+  background: linear-gradient(90deg, var(--desktop-drag-feedback-glow-strong) 0%, var(--desktop-drag-feedback-glow) 48%, var(--desktop-drag-feedback-glow-transparent) 100%);
 }
 
 .desktop-drag-day-feedback-edge-next {
@@ -1152,7 +1166,7 @@
 
 .desktop-drag-day-feedback-edge-next::before {
   right: 0;
-  background: linear-gradient(270deg, var(--desktop-drag-feedback-glow-strong) 0%, var(--desktop-drag-feedback-glow) 48%, rgba(237, 31, 31, 0) 100%);
+  background: linear-gradient(270deg, var(--desktop-drag-feedback-glow-strong) 0%, var(--desktop-drag-feedback-glow) 48%, var(--desktop-drag-feedback-glow-transparent) 100%);
 }
 
 .desktop-drag-day-feedback-edge.is-active {
@@ -1209,4 +1223,3 @@ body.desktop-task-dragging {
     padding-top: 36px;
   }
 }
-
