@@ -38,6 +38,7 @@ const SheetPebbleIcon = () => (
 
 const COMPOSER_MAX_LINES = 5;
 const SHARED_SELECTED_DATE_KEY = 'shared_selected_date';
+const DESKTOP_APPEARANCE_KEY = 'desktop_profile_appearance';
 const DESKTOP_SECTION_TO_MOBILE_BLOCK = {
   morning: 'Morning',
   afternoon: 'Afternoon',
@@ -224,8 +225,23 @@ function MobileApp({ session, platformInfo }) {
   const [inputText, setInputText] = useState('');
   const [language, setLanguage] = useState('EN');
   const [isLanguageDropdownOpen, setIsLanguageDropdownOpen] = useState(false);
-  const [appearance, setAppearance] = useState('light');
+  const [appearance, setAppearance] = useState(() => localStorage.getItem(DESKTOP_APPEARANCE_KEY) || 'light');
   const [isAppearanceDropdownOpen, setIsAppearanceDropdownOpen] = useState(false);
+
+  useEffect(() => {
+    localStorage.setItem(DESKTOP_APPEARANCE_KEY, appearance);
+  }, [appearance]);
+
+  useEffect(() => {
+    const handleStorageChange = (e) => {
+      if (e.key === DESKTOP_APPEARANCE_KEY && e.newValue) {
+        setAppearance(e.newValue);
+      }
+    };
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, []);
+
   const taskInputRef = useRef(null);
   const expandedTaskInputRef = useRef(null);
   const sheetLowerStackRef = useRef(null);
@@ -2596,7 +2612,26 @@ function MobileApp({ session, platformInfo }) {
             border: appearance === 'dark' ? `1px solid ${cfg.darkStroke}` : 'none'
           }}
         >
-          <img src={cfg.icon} alt={cType} className="task-card-icon" style={{ position: 'relative', zIndex: 10 }} />
+          {appearance === 'dark' && cfg.darkIconColor ? (
+            <div
+              className="task-card-icon"
+              style={{
+                position: 'relative',
+                zIndex: 10,
+                backgroundColor: cfg.darkIconColor,
+                maskImage: `url(${cfg.icon})`,
+                WebkitMaskImage: `url(${cfg.icon})`,
+                maskSize: 'contain',
+                WebkitMaskSize: 'contain',
+                maskRepeat: 'no-repeat',
+                WebkitMaskRepeat: 'no-repeat',
+                maskPosition: 'center',
+                WebkitMaskPosition: 'center',
+              }}
+            />
+          ) : (
+            <img src={cfg.icon} alt={cType} className="task-card-icon" style={{ position: 'relative', zIndex: 10 }} />
+          )}
         </div>
         <div className="task-content">
           <span className="task-title">{displayTitle}</span>

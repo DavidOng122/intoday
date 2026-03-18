@@ -246,6 +246,15 @@
   box-shadow: 0 10px 20px rgba(0, 0, 0, 0.12);
 }
 
+/* Scoped layout for app container simulation context */
+.app-container .header-add-btn {
+  display: none !important;
+}
+
+.app-container .mobile-fab {
+  display: flex !important;
+}
+
 @media (max-width: 767px) {
   .header {
     gap: 10px;
@@ -260,6 +269,7 @@
     display: block;
   }
 
+  /* Media queries handled explicitly above via scoped class wrapper to override desktop height simulator flips */
   .header-add-btn {
     display: none;
   }

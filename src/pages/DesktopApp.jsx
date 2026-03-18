@@ -544,7 +544,25 @@ const TaskCardContent = ({ task, appearance, labels }) => {
   return (
     <>
       <div style={{ width: 32, height: 32, borderRadius: 8, background: iconBackground, border: iconBorder, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-        <img src={cfg.icon} alt={normalizeCardType(task.cardType)} style={{ width: 18, height: 18, objectFit: 'contain' }} />
+        {appearance === 'dark' && cfg.darkIconColor ? (
+          <div
+            style={{
+              width: 18,
+              height: 18,
+              backgroundColor: cfg.darkIconColor,
+              maskImage: `url(${cfg.icon})`,
+              WebkitMaskImage: `url(${cfg.icon})`,
+              maskSize: 'contain',
+              WebkitMaskSize: 'contain',
+              maskRepeat: 'no-repeat',
+              WebkitMaskRepeat: 'no-repeat',
+              maskPosition: 'center',
+              WebkitMaskPosition: 'center',
+            }}
+          />
+        ) : (
+          <img src={cfg.icon} alt={normalizeCardType(task.cardType)} style={{ width: 18, height: 18, objectFit: 'contain' }} />
+        )}
       </div>
       <div style={{ minWidth: 0, flex: 1, display: 'flex', flexDirection: 'column', gap: 2 }}>
         <div style={{ display: '-webkit-box', WebkitBoxOrient: 'vertical', WebkitLineClamp: 2, overflow: 'hidden', wordBreak: 'break-word', color: 'var(--desktop-card-title)', fontSize: 13, fontWeight: 590, lineHeight: '20px' }}>
@@ -985,6 +1003,16 @@ function App() {
   useEffect(() => {
     localStorage.setItem(DESKTOP_APPEARANCE_KEY, appearance);
   }, [appearance]);
+
+  useEffect(() => {
+    const handleStorageChange = (e) => {
+      if (e.key === DESKTOP_APPEARANCE_KEY && e.newValue) {
+        setAppearance(e.newValue);
+      }
+    };
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, []);
   useEffect(() => {
     const timeout = setTimeout(() => setLoading(false), 5000);
     if (!supabase) {
