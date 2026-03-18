@@ -6,6 +6,7 @@ import DesktopLogin from '../DesktopLogin';
 import { useSyncedTodos } from '../todoSync';
 import { getUserProfile } from '../userProfile';
 import DesktopProfilePage from '../components/DesktopProfilePage';
+import DesktopHistoryModal from '../components/DesktopHistoryModal';
 import IntoDayLogo from '../components/IntoDayLogo';
 import { DAY_BOUNDARY_HOUR, getLogicalToday } from '../lib/dateHelpers';
 import { timeBlocks } from '../lib/timeBlocks';
@@ -935,6 +936,7 @@ function App() {
   const [dragOverSlot, setDragOverSlot] = useState(null);
   const [desktopDragDayFeedback, setDesktopDragDayFeedback] = useState(null);
   const [desktopDragDayZones, setDesktopDragDayZones] = useState(null);
+  const [historyOpen, setHistoryOpen] = useState(false);
   const [tasks, setTasks] = useSyncedTodos({
     userId: user?.id || null,
     normalizeTodo: normalizeTask,
@@ -1781,7 +1783,27 @@ function App() {
             ) : null}
             {todaySelected ? <Clock /> : null}
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, position: 'relative' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16, position: 'relative' }}>
+            <button
+              type="button"
+              onClick={() => setHistoryOpen(true)}
+              style={{
+                width: 34,
+                height: 34,
+                borderRadius: '50%',
+                border: '1px solid var(--desktop-avatar-border)',
+                background: 'var(--desktop-header-bg)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                padding: 0
+              }}
+            >
+              <svg width="19" height="19" viewBox="0 0 19 19" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M16.625 16.625L13.1812 13.1812M15.0417 8.70833C15.0417 12.2061 12.2061 15.0417 8.70833 15.0417C5.21053 15.0417 2.375 12.2061 2.375 8.70833C2.375 5.21053 5.21053 2.375 8.70833 2.375C12.2061 2.375 15.0417 5.21053 15.0417 8.70833Z" stroke={appearance === 'dark' ? '#E1E1E1' : '#1E1E1E'} strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </button>
             <button type="button" className="desktop-profile-trigger" onClick={() => setProfileOpen(true)} style={{ width: 34, height: 34, borderRadius: '50%', border: '1px solid var(--desktop-avatar-border)', background: 'var(--desktop-avatar-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: 0, overflow: 'hidden' }}>
               {userProfile.avatarUrl ? (
                 <img src={userProfile.avatarUrl} alt={userProfile.fullName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
@@ -1934,6 +1956,15 @@ function App() {
           appearance={appearance}
           setAppearance={setAppearance}
           onSignOut={handleSignOut}
+        />
+        <DesktopHistoryModal
+          open={historyOpen}
+          tasks={tasks}
+          appearance={appearance}
+          language={language}
+          t={t}
+          onClose={() => setHistoryOpen(false)}
+          onTaskClick={openTaskEditor}
         />
         <DragOverlayCard task={draggedTask} rect={desktopDragOverlayRectRef.current} appearance={appearance} labels={t} />
       </div>

@@ -1223,3 +1223,29 @@ body.desktop-task-dragging {
     padding-top: 36px;
   }
 }
+
+/* Custom scrollbar for desktop history modal */
+.desktop-history-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+
+.desktop-history-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.desktop-history-scroll::-webkit-scrollbar-thumb {
+  background: rgba(141, 134, 127, 0.25);
+  border-radius: 10px;
+}
+
+.desktop-history-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(141, 134, 127, 0.45);
+}
+
+.desktop-app-dark .desktop-history-scroll::-webkit-scrollbar-thumb {
+  background: rgba(160, 160, 160, 0.25);
+}
+
+.desktop-app-dark .desktop-history-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(160, 160, 160, 0.45);
+}
