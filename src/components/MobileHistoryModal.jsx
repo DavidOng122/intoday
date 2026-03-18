@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect, useRef, useCallback } from 'react';
 import { getLogicalToday } from '../lib/dateHelpers';
 import { getTaskCardPresentation, normalizeCardType } from '../taskCardUtils';
 
@@ -15,15 +15,39 @@ const CloseIcon = () => (
   </svg>
 );
 
+const CheckboxIcon = ({ checked, appearance }) => (
+  <div style={{
+    width: 20,
+    height: 20,
+    borderRadius: 6,
+    border: checked
+      ? 'none'
+      : `2px solid ${appearance === 'dark' ? '#555' : '#CCC'}`,
+    background: checked
+      ? (appearance === 'dark' ? '#5B8AF5' : '#4A7CF7')
+      : 'transparent',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+    transition: 'all 0.15s ease',
+  }}>
+    {checked && (
+      <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+        <path d="M2 6L5 9L10 3" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    )}
+  </div>
+);
+
 const dateKey = (date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-const sameDay = (a, b) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
 const shiftDateByDays = (date, dayOffset) => {
   const nextDate = new Date(date);
   nextDate.setDate(nextDate.getDate() + dayOffset);
   return nextDate;
 };
 
-const GroupedDateLabel = ({ labelKey, t }) => {
+const GroupedDateLabel = ({ labelKey }) => {
   return (
     <div style={{ fontSize: 13, color: 'var(--mobile-muted, #737373)', marginTop: 16, marginBottom: 8, paddingLeft: 12, fontWeight: 500 }}>
       {labelKey}
@@ -31,28 +55,66 @@ const GroupedDateLabel = ({ labelKey, t }) => {
   );
 };
 
-const HistoryTaskItem = ({ task, appearance, labels, onClick }) => {
+const LONG_PRESS_MS = 500;
+
+const HistoryTaskItem = ({ task, appearance, labels, onClick, onLongPress, selectionMode, isSelected }) => {
   const { cfg, displayTitle } = getTaskCardPresentation(task, labels);
   const iconBackground = appearance === 'dark' ? cfg.darkBg : cfg.bg;
   const iconBorder = appearance === 'dark' ? `1px solid ${cfg.darkStroke}` : 'none';
 
+  const longPressTimer = useRef(null);
+  const didLongPress = useRef(false);
+
+  const handleTouchStart = useCallback((e) => {
+    didLongPress.current = false;
+    longPressTimer.current = setTimeout(() => {
+      didLongPress.current = true;
+      onLongPress(task);
+    }, LONG_PRESS_MS);
+  }, [onLongPress, task]);
+
+  const handleTouchEnd = useCallback(() => {
+    if (longPressTimer.current) clearTimeout(longPressTimer.current);
+  }, []);
+
+  const handleTouchMove = useCallback(() => {
+    if (longPressTimer.current) clearTimeout(longPressTimer.current);
+  }, []);
+
+  const handleClick = useCallback(() => {
+    if (didLongPress.current) return; // swallow click after long-press
+    onClick(task);
+  }, [didLongPress, onClick, task]);
+
+  const selectedBg = appearance === 'dark' ? 'rgba(91,138,245,0.12)' : 'rgba(74,124,247,0.07)';
+
   return (
     <button
       type="button"
-      onClick={() => onClick(task)}
+      onClick={handleClick}
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
+      onTouchMove={handleTouchMove}
       style={{
         width: '100%',
         display: 'flex',
         alignItems: 'center',
         gap: 12,
         padding: '12px 12px',
-        background: 'transparent',
+        background: isSelected ? selectedBg : 'transparent',
         border: 'none',
         borderRadius: 8,
         cursor: 'pointer',
         textAlign: 'left',
+        transition: 'background 0.15s ease',
+        WebkitUserSelect: 'none',
+        userSelect: 'none',
+        WebkitTapHighlightColor: 'transparent',
       }}
     >
+      {selectionMode && (
+        <CheckboxIcon checked={isSelected} appearance={appearance} />
+      )}
       <div style={{ width: 24, height: 24, borderRadius: 6, background: iconBackground, border: iconBorder, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
         {appearance === 'dark' && cfg.darkIconColor ? (
           <div
@@ -74,15 +136,27 @@ const HistoryTaskItem = ({ task, appearance, labels, onClick }) => {
           <img src={cfg.icon} alt={normalizeCardType(task.cardType)} style={{ width: 14, height: 14, objectFit: 'contain' }} />
         )}
       </div>
-      <div style={{ flex: 1, minWidth: 0, color: appearance === 'dark' ? '#FFF' : '#111', fontSize: 15, fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+      <div style={{
+        flex: 1,
+        minWidth: 0,
+        color: appearance === 'dark' ? '#FFF' : '#111',
+        fontSize: 15,
+        fontWeight: isSelected ? 600 : 500,
+        whiteSpace: 'nowrap',
+        overflow: 'hidden',
+        textOverflow: 'ellipsis',
+        transition: 'font-weight 0.15s ease',
+      }}>
         {displayTitle}
       </div>
     </button>
   );
 };
 
-const MobileHistoryModal = ({ open, tasks, appearance, language, t, onClose, onTaskClick }) => {
+const MobileHistoryModal = ({ open, tasks, appearance, language, t, onClose, onTaskClick, onMoveSelected }) => {
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState(new Set());
 
   // Prevent background scroll when modal is active
   useEffect(() => {
@@ -94,6 +168,54 @@ const MobileHistoryModal = ({ open, tasks, appearance, language, t, onClose, onT
     }
     return undefined;
   }, [open]);
+
+  // Reset selection when modal closes
+  useEffect(() => {
+    if (!open) {
+      setSelectionMode(false);
+      setSelectedIds(new Set());
+      setSearchQuery('');
+    }
+  }, [open]);
+
+  const handleLongPress = useCallback((task) => {
+    if (!selectionMode) {
+      setSelectionMode(true);
+      setSelectedIds(new Set([task.id]));
+    }
+  }, [selectionMode]);
+
+  const handleToggleSelect = useCallback((task) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(task.id)) {
+        next.delete(task.id);
+      } else {
+        next.add(task.id);
+      }
+      return next;
+    });
+  }, []);
+
+  const handleTaskClick = useCallback((task) => {
+    if (selectionMode) {
+      handleToggleSelect(task);
+    } else {
+      onTaskClick(task);
+      onClose();
+    }
+  }, [selectionMode, handleToggleSelect, onTaskClick, onClose]);
+
+  const handleCancel = () => {
+    setSelectionMode(false);
+    setSelectedIds(new Set());
+  };
+
+  const handleMove = () => {
+    if (onMoveSelected) {
+      onMoveSelected(selectedIds);
+    }
+  };
 
   const logicalToday = getLogicalToday();
   const logicalYesterday = shiftDateByDays(logicalToday, -1);
@@ -149,6 +271,10 @@ const MobileHistoryModal = ({ open, tasks, appearance, language, t, onClose, onT
 
   if (!open) return null;
 
+  const isDark = appearance === 'dark';
+  const mutedColor = isDark ? '#777' : '#999';
+  const accentColor = isDark ? '#5B8AF5' : '#4A7CF7';
+
   return (
     <div
       role="dialog"
@@ -157,64 +283,129 @@ const MobileHistoryModal = ({ open, tasks, appearance, language, t, onClose, onT
         position: 'fixed',
         inset: 0,
         zIndex: 1000,
-        background: appearance === 'dark' ? '#121212' : '#FDFDFD',
+        background: isDark ? '#121212' : '#FDFDFD',
         display: 'flex',
         flexDirection: 'column',
         fontFamily: 'Inter, sans-serif'
       }}
     >
-      <div style={{ paddingTop: 'max(env(safe-area-inset-top, 48px), 24px)', paddingBottom: 8, paddingLeft: 16, paddingRight: 16, display: 'flex', alignItems: 'center', gap: 12, borderBottom: `1px solid ${appearance === 'dark' ? '#333' : '#F0F0F0'}` }}>
-        <div style={{ flex: 1, position: 'relative', display: 'flex', alignItems: 'center' }}>
-          <span style={{ position: 'absolute', left: 12, color: 'var(--mobile-muted, #999)', display: 'flex', alignItems: 'center' }}>
-            <SearchIcon />
-          </span>
-          <input
-            type="text"
-            placeholder={t.searchChat || "Search..."}
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            style={{
-              width: '100%',
-              height: 42,
-              padding: '0 16px 0 38px',
-              borderRadius: 999,
-              border: 'none',
-              background: appearance === 'dark' ? '#2C2C2E' : '#F0F0F0',
-              color: appearance === 'dark' ? '#FFF' : '#111',
-              fontSize: 16,
-              outline: 'none',
-            }}
-          />
-        </div>
-        <button
-          type="button"
-          onClick={onClose}
-          style={{
-            width: 36,
-            height: 36,
-            borderRadius: '50%',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            background: 'transparent',
-            border: 'none',
-            color: appearance === 'dark' ? '#CCC' : '#666',
-            cursor: 'pointer',
-          }}
-        >
-          <CloseIcon />
-        </button>
+      {/* Header */}
+      <div style={{
+        paddingTop: 'max(env(safe-area-inset-top, 48px), 24px)',
+        paddingBottom: 8,
+        paddingLeft: 16,
+        paddingRight: 16,
+        display: 'flex',
+        alignItems: 'center',
+        gap: 12,
+        borderBottom: `1px solid ${isDark ? '#333' : '#F0F0F0'}`,
+      }}>
+        {selectionMode ? (
+          /* Selection action bar */
+          <>
+            <button
+              type="button"
+              onClick={handleCancel}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: accentColor,
+                fontSize: 16,
+                fontWeight: 500,
+                cursor: 'pointer',
+                padding: '4px 0',
+                flexShrink: 0,
+              }}
+            >
+              {t.cancel || 'Cancel'}
+            </button>
+            <div style={{
+              flex: 1,
+              textAlign: 'center',
+              fontSize: 15,
+              fontWeight: 600,
+              color: isDark ? '#FFF' : '#111',
+            }}>
+              {selectedIds.size === 0
+                ? (t.selectItems || 'Select items')
+                : `${selectedIds.size} ${t.selected || 'selected'}`}
+            </div>
+            <button
+              type="button"
+              onClick={handleMove}
+              disabled={selectedIds.size === 0}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: selectedIds.size === 0 ? mutedColor : accentColor,
+                fontSize: 16,
+                fontWeight: 600,
+                cursor: selectedIds.size === 0 ? 'default' : 'pointer',
+                padding: '4px 0',
+                flexShrink: 0,
+                transition: 'color 0.15s',
+              }}
+            >
+              {t.move || 'Move'}
+            </button>
+          </>
+        ) : (
+          /* Normal search bar */
+          <>
+            <div style={{ flex: 1, position: 'relative', display: 'flex', alignItems: 'center' }}>
+              <span style={{ position: 'absolute', left: 12, color: mutedColor, display: 'flex', alignItems: 'center' }}>
+                <SearchIcon />
+              </span>
+              <input
+                type="text"
+                placeholder={t.searchChat || "Search..."}
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                style={{
+                  width: '100%',
+                  height: 42,
+                  padding: '0 16px 0 38px',
+                  borderRadius: 999,
+                  border: 'none',
+                  background: isDark ? '#2C2C2E' : '#F0F0F0',
+                  color: isDark ? '#FFF' : '#111',
+                  fontSize: 16,
+                  outline: 'none',
+                }}
+              />
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              style={{
+                width: 36,
+                height: 36,
+                borderRadius: '50%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                background: 'transparent',
+                border: 'none',
+                color: isDark ? '#CCC' : '#666',
+                cursor: 'pointer',
+              }}
+            >
+              <CloseIcon />
+            </button>
+          </>
+        )}
       </div>
 
+      {/* Task list */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '0 8px 16px', minHeight: 0 }}>
         {groupKeys.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '32px 16px', color: 'var(--mobile-muted, #888)', fontSize: 15 }}>
-             No tasks found
+          <div style={{ textAlign: 'center', padding: '32px 16px', color: mutedColor, fontSize: 15 }}>
+            No tasks found
           </div>
         ) : (
           groupKeys.map(dateStr => (
             <div key={dateStr}>
-              <GroupedDateLabel labelKey={getGroupLabel(dateStr)} t={t} />
+              <GroupedDateLabel labelKey={getGroupLabel(dateStr)} />
               <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                 {groupedTasks[dateStr].map(task => (
                   <HistoryTaskItem
@@ -222,10 +413,10 @@ const MobileHistoryModal = ({ open, tasks, appearance, language, t, onClose, onT
                     task={task}
                     appearance={appearance}
                     labels={t}
-                    onClick={(t) => {
-                      onTaskClick(t);
-                      onClose();
-                    }}
+                    onClick={handleTaskClick}
+                    onLongPress={handleLongPress}
+                    selectionMode={selectionMode}
+                    isSelected={selectedIds.has(task.id)}
                   />
                 ))}
               </div>
