@@ -14,6 +14,8 @@ import { timeBlocks } from '../lib/timeBlocks';
 import { translations } from '../lib/translations';
 import { useTaskInteraction } from '../task-interactions/useTaskInteraction';
 import { trackUserEvent } from '../lib/analytics';
+import MobileHistoryModal from '../components/MobileHistoryModal';
+
 const SheetPebbleIcon = () => (
   <svg width="42" height="38" viewBox="0 0 42 38" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
     <ellipse cx="21" cy="27.125" rx="21" ry="10.5" fill="url(#sheet_pebble_0)" />
@@ -286,7 +288,16 @@ function MobileApp({ session, platformInfo }) {
   const selectedDateRef = useRef(selectedDate);
 
   const [isSheetOpen, setIsSheetOpen] = useState(false);
-  const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [isProfileOpen, setIsProfileOpenState] = useState(() => sessionStorage.getItem('shared_profile_open') === 'true');
+  const setIsProfileOpen = useCallback((val) => {
+    sessionStorage.setItem('shared_profile_open', String(Boolean(val)));
+    setIsProfileOpenState(val);
+  }, []);
+  const [historyOpen, setHistoryOpenState] = useState(() => sessionStorage.getItem('shared_history_open') === 'true');
+  const setHistoryOpen = useCallback((val) => {
+    sessionStorage.setItem('shared_history_open', String(Boolean(val)));
+    setHistoryOpenState(val);
+  }, []);
   const [isClosingProfile, setIsClosingProfile] = useState(false);
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const [calPickerDate, setCalPickerDate] = useState(() => getLogicalToday());
@@ -3055,7 +3066,31 @@ function MobileApp({ session, platformInfo }) {
           </div>
 
           <div className="header-side header-side-right">
-            <div className="header-side-spacer" aria-hidden="true" />
+            <button
+              type="button"
+              onClick={() => setHistoryOpen(true)}
+              style={{
+                width: 32,
+                height: 32,
+                borderRadius: '50%',
+                border: '1px solid var(--desktop-avatar-border, rgba(0,0,0,0.1))',
+                background: 'transparent',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                marginRight: 10,
+                color: appearance === 'dark' ? '#E1E1E1' : '#1E1E1E',
+                flexShrink: 0,
+                padding: 0,
+                overflow: 'hidden',
+              }}
+              aria-label="History"
+            >
+              <svg width="19" height="19" viewBox="0 0 19 19" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M16.625 16.625L13.1812 13.1812M15.0417 8.70833C15.0417 12.2061 12.2061 15.0417 8.70833 15.0417C5.21053 15.0417 2.375 12.2061 2.375 8.70833C2.375 5.21053 5.21053 2.375 8.70833 2.375C12.2061 2.375 15.0417 5.21053 15.0417 8.70833Z" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </button>
             <button
               type="button"
               className={`add-btn header-add-btn ${isAndroid ? 'header-add-btn-android' : 'header-add-btn-ios'}`}
@@ -3579,7 +3614,21 @@ function MobileApp({ session, platformInfo }) {
           </div>,
           document.body,
         )
+
         : null}
+      <MobileHistoryModal
+        open={historyOpen}
+        tasks={todos}
+        appearance={appearance}
+        language={language}
+        t={translations[language]}
+        onClose={() => setHistoryOpen(false)}
+        onTaskClick={(t) => {
+          if (!t.id) return;
+          setHistoryOpen(false);
+          // Could expand logic to quickly focus the element on map.
+        }}
+      />
     </>
   );
 }

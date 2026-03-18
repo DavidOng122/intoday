@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { getLogicalToday } from '../lib/dateHelpers';
 import { getTaskCardPresentation, normalizeCardType } from '../taskCardUtils';
 
@@ -25,7 +25,7 @@ const shiftDateByDays = (date, dayOffset) => {
 
 const GroupedDateLabel = ({ labelKey, t }) => {
   return (
-    <div style={{ fontSize: 13, color: 'var(--desktop-muted)', marginTop: 16, marginBottom: 8, paddingLeft: 12, fontWeight: 500 }}>
+    <div style={{ fontSize: 13, color: 'var(--mobile-muted, #737373)', marginTop: 16, marginBottom: 8, paddingLeft: 12, fontWeight: 500 }}>
       {labelKey}
     </div>
   );
@@ -45,19 +45,12 @@ const HistoryTaskItem = ({ task, appearance, labels, onClick }) => {
         display: 'flex',
         alignItems: 'center',
         gap: 12,
-        padding: '10px 12px',
+        padding: '12px 12px',
         background: 'transparent',
         border: 'none',
         borderRadius: 8,
         cursor: 'pointer',
         textAlign: 'left',
-        transition: 'background 0.2s',
-      }}
-      onMouseEnter={(e) => {
-        e.currentTarget.style.background = appearance === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)';
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.background = 'transparent';
       }}
     >
       <div style={{ width: 24, height: 24, borderRadius: 6, background: iconBackground, border: iconBorder, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
@@ -81,15 +74,26 @@ const HistoryTaskItem = ({ task, appearance, labels, onClick }) => {
           <img src={cfg.icon} alt={normalizeCardType(task.cardType)} style={{ width: 14, height: 14, objectFit: 'contain' }} />
         )}
       </div>
-      <div style={{ flex: 1, minWidth: 0, color: 'var(--desktop-root-text)', fontSize: 14, fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+      <div style={{ flex: 1, minWidth: 0, color: appearance === 'dark' ? '#FFF' : '#111', fontSize: 15, fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
         {displayTitle}
       </div>
     </button>
   );
 };
 
-const DesktopHistoryModal = ({ open, tasks, appearance, language, t, onClose, onTaskClick }) => {
+const MobileHistoryModal = ({ open, tasks, appearance, language, t, onClose, onTaskClick }) => {
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Prevent background scroll when modal is active
+  useEffect(() => {
+    if (open) {
+      document.body.style.overflow = 'hidden';
+      return () => {
+        document.body.style.overflow = '';
+      };
+    }
+    return undefined;
+  }, [open]);
 
   const logicalToday = getLogicalToday();
   const logicalYesterday = shiftDateByDays(logicalToday, -1);
@@ -111,7 +115,6 @@ const DesktopHistoryModal = ({ open, tasks, appearance, language, t, onClose, on
       });
     }
 
-    // Sort by date descending
     list.sort((a, b) => b.dateString.localeCompare(a.dateString));
 
     return list;
@@ -133,13 +136,11 @@ const DesktopHistoryModal = ({ open, tasks, appearance, language, t, onClose, on
     if (dateStr === yesterdayKey) return t.yesterday || 'Yesterday';
     if (dateStr === tomorrowKey) return t.tomorrow || 'Tomorrow';
     
-    // Parse dateStr (YYYY-MM-DD)
     const [year, month, day] = dateStr.split('-');
     const dateObj = new Date(Number(year), Number(month) - 1, Number(day));
     
     if (isNaN(dateObj.getTime())) return dateStr;
 
-    // Use current locale to format nicely if not today/yesterday/tomorrow
     const locale = language === 'ZH' ? 'zh-CN' : 'en-US';
     return dateObj.toLocaleDateString(locale, { month: 'short', day: 'numeric', year: 'numeric' });
   };
@@ -149,111 +150,91 @@ const DesktopHistoryModal = ({ open, tasks, appearance, language, t, onClose, on
   if (!open) return null;
 
   return (
-    <>
-      <div
-        role="presentation"
-        onClick={onClose}
-        style={{
-          position: 'fixed',
-          inset: 0,
-          zIndex: 90,
-          background: 'var(--desktop-modal-backdrop)',
-          backdropFilter: 'blur(8px)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          padding: 28,
-        }}
-      >
-        <div
-          style={{
-            width: 'min(100%, 560px)',
-            height: 'min(640px, calc(100vh - 56px))',
-            background: appearance === 'dark' ? '#1C1C1E' : '#FFFFFF',
-            border: `1px solid ${appearance === 'dark' ? '#333' : '#E5E5E5'}`,
-            borderRadius: 24,
-            boxShadow: appearance === 'dark' ? '0 10px 40px rgba(0,0,0,0.5)' : '0 10px 40px rgba(0,0,0,0.1)',
-            display: 'flex',
-            flexDirection: 'column',
-            overflow: 'hidden',
-            fontFamily: 'Inter, sans-serif'
-          }}
-          onClick={(e) => e.stopPropagation()}
-        >
-        <div style={{ padding: '16px 16px 8px', display: 'flex', alignItems: 'center', gap: 12, borderBottom: `1px solid ${appearance === 'dark' ? '#333' : '#F0F0F0'}` }}>
-          <div style={{ flex: 1, position: 'relative', display: 'flex', alignItems: 'center' }}>
-            <span style={{ position: 'absolute', left: 12, color: 'var(--desktop-muted)', display: 'flex', alignItems: 'center' }}>
-              <SearchIcon />
-            </span>
-            <input
-              type="text"
-              placeholder="搜索聊天..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              style={{
-                width: '100%',
-                height: 38,
-                padding: '0 16px 0 38px',
-                borderRadius: 999,
-                border: 'none',
-                background: appearance === 'dark' ? '#2C2C2E' : '#F5F5F5',
-                color: 'var(--desktop-root-text)',
-                fontSize: 14,
-                outline: 'none',
-              }}
-            />
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
+    <div
+      role="dialog"
+      aria-modal="true"
+      style={{
+        position: 'fixed',
+        inset: 0,
+        zIndex: 1000,
+        background: appearance === 'dark' ? '#121212' : '#FDFDFD',
+        display: 'flex',
+        flexDirection: 'column',
+        fontFamily: 'Inter, sans-serif'
+      }}
+    >
+      <div style={{ paddingTop: 'max(env(safe-area-inset-top, 48px), 24px)', paddingBottom: 8, paddingLeft: 16, paddingRight: 16, display: 'flex', alignItems: 'center', gap: 12, borderBottom: `1px solid ${appearance === 'dark' ? '#333' : '#F0F0F0'}` }}>
+        <div style={{ flex: 1, position: 'relative', display: 'flex', alignItems: 'center' }}>
+          <span style={{ position: 'absolute', left: 12, color: 'var(--mobile-muted, #999)', display: 'flex', alignItems: 'center' }}>
+            <SearchIcon />
+          </span>
+          <input
+            type="text"
+            placeholder="搜索聊天..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
             style={{
-              width: 32,
-              height: 32,
-              borderRadius: '50%',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              background: 'transparent',
+              width: '100%',
+              height: 42,
+              padding: '0 16px 0 38px',
+              borderRadius: 999,
               border: 'none',
-              color: 'var(--desktop-muted)',
-              cursor: 'pointer',
+              background: appearance === 'dark' ? '#2C2C2E' : '#F0F0F0',
+              color: appearance === 'dark' ? '#FFF' : '#111',
+              fontSize: 16,
+              outline: 'none',
             }}
-          >
-            <CloseIcon />
-          </button>
+          />
         </div>
-
-        <div className="desktop-history-scroll" style={{ flex: 1, overflowY: 'auto', padding: '0 8px 16px', minHeight: 0, paddingRight: 4 }}>
-          {groupKeys.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '32px 16px', color: 'var(--desktop-muted)', fontSize: 14 }}>
-              No tasks found
-            </div>
-          ) : (
-            groupKeys.map(dateStr => (
-              <div key={dateStr}>
-                <GroupedDateLabel labelKey={getGroupLabel(dateStr)} t={t} />
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                  {groupedTasks[dateStr].map(task => (
-                    <HistoryTaskItem
-                      key={task.id}
-                      task={task}
-                      appearance={appearance}
-                      labels={t}
-                      onClick={(t) => {
-                        onTaskClick(t);
-                        onClose(); // Optional: close modal on click
-                      }}
-                    />
-                  ))}
-                </div>
-              </div>
-            ))
-          )}
-        </div>
-        </div>
+        <button
+          type="button"
+          onClick={onClose}
+          style={{
+            width: 36,
+            height: 36,
+            borderRadius: '50%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            background: 'transparent',
+            border: 'none',
+            color: appearance === 'dark' ? '#CCC' : '#666',
+            cursor: 'pointer',
+          }}
+        >
+          <CloseIcon />
+        </button>
       </div>
-    </>
+
+      <div style={{ flex: 1, overflowY: 'auto', padding: '0 8px 16px', minHeight: 0 }}>
+        {groupKeys.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '32px 16px', color: 'var(--mobile-muted, #888)', fontSize: 15 }}>
+             No tasks found
+          </div>
+        ) : (
+          groupKeys.map(dateStr => (
+            <div key={dateStr}>
+              <GroupedDateLabel labelKey={getGroupLabel(dateStr)} t={t} />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                {groupedTasks[dateStr].map(task => (
+                  <HistoryTaskItem
+                    key={task.id}
+                    task={task}
+                    appearance={appearance}
+                    labels={t}
+                    onClick={(t) => {
+                      onTaskClick(t);
+                      onClose();
+                    }}
+                  />
+                ))}
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
   );
 };
 
-export default DesktopHistoryModal;
+export default MobileHistoryModal;

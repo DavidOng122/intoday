@@ -925,7 +925,11 @@ function App() {
   const [language, setLanguage] = useState(() => localStorage.getItem(DESKTOP_LANGUAGE_KEY) || 'EN');
   const [appearance, setAppearance] = useState(() => localStorage.getItem(DESKTOP_APPEARANCE_KEY) || 'light');
   const [currentTime, setCurrentTime] = useState(new Date());
-  const [profileOpen, setProfileOpen] = useState(false);
+  const [profileOpen, setProfileOpenState] = useState(() => sessionStorage.getItem('shared_profile_open') === 'true');
+  const setProfileOpen = useCallback((val) => {
+    sessionStorage.setItem('shared_profile_open', String(Boolean(val)));
+    setProfileOpenState(val);
+  }, []);
   const [panelOpen, setPanelOpen] = useState(false);
   const [activeChip, setActiveChip] = useState('now');
   const [inputText, setInputText] = useState('');
@@ -936,7 +940,11 @@ function App() {
   const [dragOverSlot, setDragOverSlot] = useState(null);
   const [desktopDragDayFeedback, setDesktopDragDayFeedback] = useState(null);
   const [desktopDragDayZones, setDesktopDragDayZones] = useState(null);
-  const [historyOpen, setHistoryOpen] = useState(false);
+  const [historyOpen, setHistoryOpenState] = useState(() => sessionStorage.getItem('shared_history_open') === 'true');
+  const setHistoryOpen = useCallback((val) => {
+    sessionStorage.setItem('shared_history_open', String(Boolean(val)));
+    setHistoryOpenState(val);
+  }, []);
   const [tasks, setTasks] = useSyncedTodos({
     userId: user?.id || null,
     normalizeTodo: normalizeTask,
@@ -1797,7 +1805,9 @@ function App() {
                 alignItems: 'center',
                 justifyContent: 'center',
                 cursor: 'pointer',
-                padding: 0
+                padding: 0,
+                flexShrink: 0,
+                overflow: 'hidden'
               }}
             >
               <svg width="19" height="19" viewBox="0 0 19 19" fill="none" xmlns="http://www.w3.org/2000/svg">
