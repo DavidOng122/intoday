@@ -62,74 +62,34 @@ const GroupedDateLabel = ({ labelKey }) => {
   );
 };
 
-const LONG_PRESS_MS = 500;
 
-const HistoryTaskItem = ({ task, appearance, labels, onClick, onLongPress, selectionMode, isSelected }) => {
+
+const HistoryTaskItem = ({ task, appearance, labels, onClick, onToggleSelect, selectionMode, isSelected }) => {
   const { cfg, displayTitle } = getTaskCardPresentation(task, labels);
   const iconBackground = appearance === 'dark' ? cfg.darkBg : cfg.bg;
   const iconBorder = appearance === 'dark' ? `1px solid ${cfg.darkStroke}` : 'none';
 
-  const longPressTimer = useRef(null);
-  const didLongPress = useRef(false);
-  const isMouseDown = useRef(false);
-
-  const handleMouseDown = useCallback(() => {
-    didLongPress.current = false;
-    isMouseDown.current = true;
-    longPressTimer.current = setTimeout(() => {
-      if (isMouseDown.current) {
-        didLongPress.current = true;
-        onLongPress(task);
-      }
-    }, LONG_PRESS_MS);
-  }, [onLongPress, task]);
-
-  const handleMouseUp = useCallback(() => {
-    isMouseDown.current = false;
-    if (longPressTimer.current) clearTimeout(longPressTimer.current);
-  }, []);
-
-  const handleMouseLeave = useCallback(() => {
-    isMouseDown.current = false;
-    if (longPressTimer.current) clearTimeout(longPressTimer.current);
-  }, []);
-
   const handleClick = useCallback(() => {
-    if (didLongPress.current) {
-      didLongPress.current = false;
-      return;
-    }
     onClick(task);
   }, [onClick, task]);
 
-  // Touch support for desktop too (touchscreen laptops etc.)
-  const handleTouchStart = useCallback(() => {
-    didLongPress.current = false;
-    longPressTimer.current = setTimeout(() => {
-      didLongPress.current = true;
-      onLongPress(task);
-    }, LONG_PRESS_MS);
-  }, [onLongPress, task]);
-
-  const handleTouchEnd = useCallback(() => {
-    if (longPressTimer.current) clearTimeout(longPressTimer.current);
-  }, []);
-
   const selectedBg = appearance === 'dark' ? 'rgba(91,138,245,0.12)' : 'rgba(74,124,247,0.07)';
   const hoverBg = appearance === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)';
+
+  const [isHovered, setIsHovered] = useState(false);
 
   return (
     <button
       type="button"
       onClick={handleClick}
-      onMouseDown={handleMouseDown}
-      onMouseUp={handleMouseUp}
       onMouseLeave={(e) => {
-        handleMouseLeave();
+        setIsHovered(false);
         if (!isSelected) e.currentTarget.style.background = 'transparent';
       }}
-      onTouchStart={handleTouchStart}
-      onTouchEnd={handleTouchEnd}
+      onMouseEnter={(e) => {
+        setIsHovered(true);
+        if (!isSelected) e.currentTarget.style.background = hoverBg;
+      }}
       style={{
         width: '100%',
         display: 'flex',
@@ -145,12 +105,17 @@ const HistoryTaskItem = ({ task, appearance, labels, onClick, onLongPress, selec
         userSelect: 'none',
         WebkitUserSelect: 'none',
       }}
-      onMouseEnter={(e) => {
-        if (!isSelected) e.currentTarget.style.background = hoverBg;
-      }}
     >
-      {selectionMode && (
-        <CheckboxIcon checked={isSelected} appearance={appearance} />
+      {(selectionMode || isHovered) && (
+        <div
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggleSelect(task.id);
+          }}
+          style={{ display: 'flex', alignItems: 'center' }}
+        >
+          <CheckboxIcon checked={isSelected} appearance={appearance} />
+        </div>
       )}
       <div style={{ width: 24, height: 24, borderRadius: 6, background: iconBackground, border: iconBorder, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
         {appearance === 'dark' && cfg.darkIconColor ? (
@@ -192,13 +157,13 @@ const HistoryTaskItem = ({ task, appearance, labels, onClick, onLongPress, selec
 
 const CalendarPopover = ({ open, anchorRef, language, onClose, onSelectDate, appearance }) => {
   const [calendarOffset, setCalendarOffset] = useState(0);
-  
+
   if (!open || !anchorRef.current) return null;
 
   const logicalToday = getLogicalToday();
   const maxDate = new Date(logicalToday);
   maxDate.setDate(maxDate.getDate() + 30);
-  
+
   const calendarMonth = new Date(logicalToday.getFullYear(), logicalToday.getMonth() + calendarOffset, 1);
   const monthStart = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth(), 1);
   const locale = language === 'ZH' ? 'zh-CN' : 'en-US';
@@ -206,10 +171,10 @@ const CalendarPopover = ({ open, anchorRef, language, onClose, onSelectDate, app
   const startOffset = monthStart.getDay();
   const daysInMonth = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 0).getDate();
   const trailingCells = Math.max(0, 42 - startOffset - daysInMonth);
-  
+
   const isAtMinMonth = monthStart.getFullYear() === logicalToday.getFullYear() && monthStart.getMonth() === logicalToday.getMonth();
   const isAtMaxMonth = monthStart.getFullYear() === maxDate.getFullYear() && monthStart.getMonth() === maxDate.getMonth();
-  
+
   const desktopCalendarCellSize = 30;
   const desktopCalendarGap = 4;
   const calendarWeekdayLabels = getCalendarWeekdayLabels(language);
@@ -229,7 +194,7 @@ const CalendarPopover = ({ open, anchorRef, language, onClose, onSelectDate, app
         width: 260,
         background: isDark ? '#2C2C2E' : '#FFF',
         border: `1px solid ${isDark ? '#444' : '#E5E5E5'}`,
-        borderRadius: 12,
+        borderRadius: 11,
         boxShadow: isDark ? '0 8px 32px rgba(0,0,0,0.5)' : '0 8px 32px rgba(0,0,0,0.1)',
         zIndex: 1000,
         padding: '16px 14px',
@@ -288,35 +253,43 @@ const CalendarPopover = ({ open, anchorRef, language, onClose, onSelectDate, app
           })}
           {Array.from({ length: trailingCells }).map((_, index) => <div key={`trail-${index}`} />)}
         </div>
-      </div>
+      </div >
     </>
   );
 };
 
-const DesktopHistoryModal = ({ open, tasks, appearance, language, t, onClose, onTaskClick, onMoveSelected }) => {
+const DesktopHistoryModal = ({ open, tasks, appearance, language, t, onClose, onTaskClick, onMoveSelected, onDeleteSelected }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [movePanelOpen, setMovePanelOpen] = useState(false);
   const [calendarOpen, setCalendarOpen] = useState(false);
   const moveButtonRef = useRef(null);
+  const closeTopLayerOrModal = useCallback(() => {
+    if (calendarOpen) {
+      setCalendarOpen(false);
+      return;
+    }
 
+    if (movePanelOpen) {
+      setMovePanelOpen(false);
+      return;
+    }
+
+    onClose?.();
+  }, [calendarOpen, movePanelOpen, onClose]);
   useEffect(() => {
     if (!open) return;
+
     const handleKeyDown = (e) => {
       if (e.key === 'Escape') {
-        if (selectionMode) {
-          setSelectionMode(false);
-          setSelectedIds(new Set());
-        } else {
-          onClose?.();
-        }
+        closeTopLayerOrModal();
       }
     };
+
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [open, onClose, selectionMode]);
-
+  }, [open, closeTopLayerOrModal]);
   // Reset selection when modal closes
   useEffect(() => {
     if (!open) {
@@ -328,20 +301,28 @@ const DesktopHistoryModal = ({ open, tasks, appearance, language, t, onClose, on
     }
   }, [open]);
 
-  const handleLongPress = useCallback((task) => {
-    if (!selectionMode) {
-      setSelectionMode(true);
-      setSelectedIds(new Set([task.id]));
-    }
-  }, [selectionMode]);
+  const handleCancel = () => {
+    setSelectionMode(false);
+    setSelectedIds(new Set());
+    setMovePanelOpen(false);
+    setCalendarOpen(false);
+  };
 
-  const handleToggleSelect = useCallback((task) => {
+  const handleDeleteSelected = () => {
+    if (onDeleteSelected) {
+      onDeleteSelected(selectedIds);
+    }
+    handleCancel();
+  };
+
+  const handleToggleSelect = useCallback((taskId) => {
+    setSelectionMode(true);
     setSelectedIds(prev => {
       const next = new Set(prev);
-      if (next.has(task.id)) {
-        next.delete(task.id);
+      if (next.has(taskId)) {
+        next.delete(taskId);
       } else {
-        next.add(task.id);
+        next.add(taskId);
       }
       return next;
     });
@@ -349,19 +330,12 @@ const DesktopHistoryModal = ({ open, tasks, appearance, language, t, onClose, on
 
   const handleTaskClick = useCallback((task) => {
     if (selectionMode) {
-      handleToggleSelect(task);
+      handleToggleSelect(task.id);
     } else {
       onTaskClick(task);
       onClose();
     }
   }, [selectionMode, handleToggleSelect, onTaskClick, onClose]);
-
-  const handleCancel = () => {
-    setSelectionMode(false);
-    setSelectedIds(new Set());
-    setMovePanelOpen(false);
-    setCalendarOpen(false);
-  };
 
   const handleMoveToDate = (targetDateStr) => {
     if (onMoveSelected) {
@@ -432,13 +406,12 @@ const DesktopHistoryModal = ({ open, tasks, appearance, language, t, onClose, on
     <>
       <div
         role="presentation"
-        onClick={selectionMode ? undefined : onClose}
+        onClick={closeTopLayerOrModal}
         style={{
           position: 'fixed',
           inset: 0,
           zIndex: 90,
-          background: 'var(--desktop-modal-backdrop)',
-          backdropFilter: 'blur(8px)',
+          background: 'transparent',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
@@ -451,7 +424,7 @@ const DesktopHistoryModal = ({ open, tasks, appearance, language, t, onClose, on
             height: 'min(640px, calc(100vh - 56px))',
             background: isDark ? '#1C1C1E' : '#FFFFFF',
             border: `1px solid ${isDark ? '#333' : '#E5E5E5'}`,
-            borderRadius: 24,
+            borderRadius: 11,
             boxShadow: isDark ? '0 10px 40px rgba(0,0,0,0.5)' : '0 10px 40px rgba(0,0,0,0.1)',
             display: 'flex',
             flexDirection: 'column',
@@ -469,46 +442,49 @@ const DesktopHistoryModal = ({ open, tasks, appearance, language, t, onClose, on
             borderBottom: `1px solid ${isDark ? '#333' : '#F0F0F0'}`,
           }}>
             {selectionMode ? (
-              /* Selection action bar */
               <>
-                <button
-                  type="button"
-                  onClick={handleCancel}
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    color: accentColor,
-                    fontSize: 14,
-                    fontWeight: 500,
-                    cursor: 'pointer',
-                    padding: '4px 0',
-                    flexShrink: 0,
-                  }}
-                >
-                  {t.cancel || 'Cancel'}
-                </button>
                 <div style={{
-                  flex: 1,
-                  textAlign: 'center',
                   fontSize: 14,
                   fontWeight: 600,
                   color: isDark ? '#FFF' : '#111',
+                  flexShrink: 0,
                 }}>
                   {selectedIds.size === 0
                     ? (t.selectItems || 'Select items')
                     : `${selectedIds.size} ${t.selected || 'selected'}`}
                 </div>
-                <div style={{ position: 'relative' }}>
+
+                <div style={{ flex: 1 }} />
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4, position: 'relative' }}>
                   <button
-                    ref={moveButtonRef}
                     type="button"
-                    onClick={() => setMovePanelOpen((prev) => !prev)}
-                    disabled={selectedIds.size === 0}
+                    onClick={handleCancel}
                     style={{
-                      background: movePanelOpen ? (isDark ? '#333' : '#E8EEFF') : 'none',
+                      background: 'none',
                       border: 'none',
                       borderRadius: 6,
-                      color: selectedIds.size === 0 ? 'var(--desktop-muted)' : accentColor,
+                      color: accentColor,
+                      fontSize: 14,
+                      fontWeight: 500,
+                      cursor: 'pointer',
+                      padding: '6px 10px',
+                      flexShrink: 0,
+                      transition: 'all 0.15s',
+                    }}
+                  >
+                    {t.cancel || 'Cancel'}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleDeleteSelected}
+                    disabled={selectedIds.size === 0}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      borderRadius: 6,
+                      color: selectedIds.size === 0 ? 'var(--desktop-muted)' : '#FF3B30',
                       fontSize: 14,
                       fontWeight: 600,
                       cursor: selectedIds.size === 0 ? 'default' : 'pointer',
@@ -517,62 +493,95 @@ const DesktopHistoryModal = ({ open, tasks, appearance, language, t, onClose, on
                       transition: 'all 0.15s',
                     }}
                   >
-                    {t.move || 'Move'}
+                    {t.delete || 'Delete'}
                   </button>
 
-                  {movePanelOpen && (
-                    <>
-                      <div
-                        style={{ position: 'fixed', inset: 0, zIndex: 90 }}
-                        onClick={() => setMovePanelOpen(false)}
-                      />
-                      <div
-                        style={{
-                          position: 'absolute',
-                          top: 'calc(100% + 4px)',
-                          right: 0,
-                          width: 160,
-                          background: isDark ? '#2C2C2E' : '#FFF',
-                          border: `1px solid ${isDark ? '#444' : '#E5E5E5'}`,
-                          borderRadius: 12,
-                          boxShadow: isDark ? '0 4px 20px rgba(0,0,0,0.5)' : '0 4px 20px rgba(0,0,0,0.08)',
-                          zIndex: 100,
-                          display: 'flex',
-                          flexDirection: 'column',
-                          padding: 6,
-                        }}
-                      >
-                        <button
-                          type="button"
-                          className="desktop-move-option"
-                          onClick={() => handleMoveToDate(todayKey)}
+                  <div style={{ position: 'relative' }}>
+                    <button
+                      ref={moveButtonRef}
+                      type="button"
+                      onClick={() => setMovePanelOpen((prev) => !prev)}
+                      disabled={selectedIds.size === 0}
+                      style={{
+                        background: movePanelOpen ? (isDark ? '#333' : '#E8EEFF') : 'none',
+                        border: 'none',
+                        borderRadius: 6,
+                        color: selectedIds.size === 0 ? 'var(--desktop-muted)' : accentColor,
+                        fontSize: 14,
+                        fontWeight: 600,
+                        cursor: selectedIds.size === 0 ? 'default' : 'pointer',
+                        padding: '6px 10px',
+                        flexShrink: 0,
+                        transition: 'all 0.15s',
+                      }}
+                    >
+                      {t.move || 'Move'}
+                    </button>
+
+                    {movePanelOpen && (
+                      <>
+                        <div
+                          style={{ position: 'fixed', inset: 0, zIndex: 90 }}
+                          onClick={() => setMovePanelOpen(false)}
+                        />
+                        <div
                           style={{
-                            background: 'transparent', border: 'none', textAlign: 'left',
-                            padding: '8px 12px', fontSize: 13, borderRadius: 6,
-                            color: 'var(--desktop-root-text)', cursor: 'pointer'
+                            position: 'absolute',
+                            top: 'calc(100% + 4px)',
+                            right: 0,
+                            width: 160,
+                            background: isDark ? '#2C2C2E' : '#FFF',
+                            border: `1px solid ${isDark ? '#444' : '#E5E5E5'}`,
+                            borderRadius: 9,
+                            boxShadow: isDark ? '0 4px 20px rgba(0,0,0,0.5)' : '0 4px 20px rgba(0,0,0,0.08)',
+                            zIndex: 100,
+                            display: 'flex',
+                            flexDirection: 'column',
+                            padding: 6,
                           }}
-                          onMouseEnter={(e) => e.target.style.background = isDark ? '#3A3A3C' : '#F5F5F5'}
-                          onMouseLeave={(e) => e.target.style.background = 'transparent'}
                         >
-                          {t.today || 'Today'}
-                        </button>
-                        <button
-                          type="button"
-                          className="desktop-move-option"
-                          onClick={() => handleMoveToDate(tomorrowKey)}
-                          style={{
-                            background: 'transparent', border: 'none', textAlign: 'left',
-                            padding: '8px 12px', fontSize: 13, borderRadius: 6,
-                            color: 'var(--desktop-root-text)', cursor: 'pointer'
-                          }}
-                          onMouseEnter={(e) => e.target.style.background = isDark ? '#3A3A3C' : '#F5F5F5'}
-                          onMouseLeave={(e) => e.target.style.background = 'transparent'}
-                        >
-                          {t.tomorrow || 'Tomorrow'}
-                        </button>
-                        <div style={{ height: 1, background: isDark ? '#444' : '#F0F0F0', margin: '4px 8px' }} />
-                        
-                        <div style={{ position: 'relative' }}>
+                          <button
+                            type="button"
+                            className="desktop-move-option"
+                            onClick={() => handleMoveToDate(todayKey)}
+                            style={{
+                              background: 'transparent',
+                              border: 'none',
+                              textAlign: 'left',
+                              padding: '8px 12px',
+                              fontSize: 13,
+                              borderRadius: 6,
+                              color: 'var(--desktop-root-text)',
+                              cursor: 'pointer'
+                            }}
+                            onMouseEnter={(e) => e.target.style.background = isDark ? '#3A3A3C' : '#F5F5F5'}
+                            onMouseLeave={(e) => e.target.style.background = 'transparent'}
+                          >
+                            {t.today || 'Today'}
+                          </button>
+
+                          <button
+                            type="button"
+                            className="desktop-move-option"
+                            onClick={() => handleMoveToDate(tomorrowKey)}
+                            style={{
+                              background: 'transparent',
+                              border: 'none',
+                              textAlign: 'left',
+                              padding: '8px 12px',
+                              fontSize: 13,
+                              borderRadius: 6,
+                              color: 'var(--desktop-root-text)',
+                              cursor: 'pointer'
+                            }}
+                            onMouseEnter={(e) => e.target.style.background = isDark ? '#3A3A3C' : '#F5F5F5'}
+                            onMouseLeave={(e) => e.target.style.background = 'transparent'}
+                          >
+                            {t.tomorrow || 'Tomorrow'}
+                          </button>
+
+                          <div style={{ height: 1, background: isDark ? '#444' : '#F0F0F0', margin: '4px 8px' }} />
+
                           <button
                             type="button"
                             className="desktop-move-option"
@@ -582,10 +591,17 @@ const DesktopHistoryModal = ({ open, tasks, appearance, language, t, onClose, on
                             }}
                             style={{
                               width: '100%',
-                              background: 'transparent', border: 'none', textAlign: 'left',
-                              padding: '8px 12px', fontSize: 13, borderRadius: 6,
-                              color: 'var(--desktop-root-text)', cursor: 'pointer',
-                              display: 'flex', alignItems: 'center', justifyContent: 'space-between'
+                              background: 'transparent',
+                              border: 'none',
+                              textAlign: 'left',
+                              padding: '8px 12px',
+                              fontSize: 13,
+                              borderRadius: 6,
+                              color: 'var(--desktop-root-text)',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between'
                             }}
                             onMouseEnter={(e) => e.target.style.background = isDark ? '#3A3A3C' : '#F5F5F5'}
                             onMouseLeave={(e) => e.target.style.background = 'transparent'}
@@ -593,18 +609,18 @@ const DesktopHistoryModal = ({ open, tasks, appearance, language, t, onClose, on
                             <span>{t.pickDate || 'Pick a date...'}</span>
                           </button>
                         </div>
-                      </div>
-                    </>
-                  )}
-                  
-                  <CalendarPopover
-                    open={calendarOpen}
-                    anchorRef={moveButtonRef}
-                    language={language}
-                    appearance={appearance}
-                    onClose={() => setCalendarOpen(false)}
-                    onSelectDate={handleMoveToDate}
-                  />
+                      </>
+                    )}
+
+                    <CalendarPopover
+                      open={calendarOpen}
+                      anchorRef={moveButtonRef}
+                      language={language}
+                      appearance={appearance}
+                      onClose={() => setCalendarOpen(false)}
+                      onSelectDate={handleMoveToDate}
+                    />
+                  </div>
                 </div>
               </>
             ) : (
@@ -672,7 +688,7 @@ const DesktopHistoryModal = ({ open, tasks, appearance, language, t, onClose, on
                         appearance={appearance}
                         labels={t}
                         onClick={handleTaskClick}
-                        onLongPress={handleLongPress}
+                        onToggleSelect={handleToggleSelect}
                         selectionMode={selectionMode}
                         isSelected={selectedIds.has(task.id)}
                       />

@@ -1995,6 +1995,17 @@ function App() {
             setToastMessage(`Moved ${count} task${count > 1 ? 's' : ''} to ${label}`);
             setTimeout(() => setToastMessage(null), 3000);
           }}
+          onDeleteSelected={(selectedTaskIds) => {
+            setTasks(prev => {
+              const nextTasks = prev.filter(t => !selectedTaskIds.has(t.id));
+              // Optional: reflow all affected sections? History tasks might span multiple days.
+              // For simplicity, we just filter them out.
+              return nextTasks;
+            });
+            const count = selectedTaskIds.size;
+            setToastMessage(`Deleted ${count} task${count > 1 ? 's' : ''}`);
+            setTimeout(() => setToastMessage(null), 3000);
+          }}
         />
         <DragOverlayCard task={draggedTask} rect={desktopDragOverlayRectRef.current} appearance={appearance} labels={t} />
         
