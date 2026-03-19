@@ -309,7 +309,7 @@ const MobileHistoryModal = ({ open, tasks, appearance, language, t, onClose, onT
     >
       {/* Header */}
       <div style={{
-        paddingTop: 'max(env(safe-area-inset-top, 48px), 24px)',
+        paddingTop: 0,
         background: isDark ? '#121212' : '#FDFDFD',
         borderBottom: `1px solid ${isDark ? '#333' : '#F0F0F0'}`,
         zIndex: 10,
@@ -320,7 +320,7 @@ const MobileHistoryModal = ({ open, tasks, appearance, language, t, onClose, onT
             display: 'flex',
             alignItems: 'center',
             gap: 12,
-            padding: '12px 16px',
+            padding: 'calc(env(safe-area-inset-top, 0px) + 8px) 16px 8px',
           }}>
             <div style={{
               flex: 1,
@@ -361,7 +361,7 @@ const MobileHistoryModal = ({ open, tasks, appearance, language, t, onClose, onT
             display: 'flex',
             alignItems: 'center',
             gap: 10,
-            padding: '12px 16px',
+            padding: 'calc(env(safe-area-inset-top, 0px) + 8px) 16px 8px',
           }}>
             <div style={{ flex: 1, position: 'relative', display: 'flex', alignItems: 'center' }}>
               <span style={{ position: 'absolute', left: 12, color: mutedColor, display: 'flex', alignItems: 'center' }}>
