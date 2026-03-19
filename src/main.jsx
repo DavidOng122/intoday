@@ -1,6 +1,7 @@
 import { StrictMode, Component } from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App.jsx';
+import { CSPostHogProvider } from './providers';
 import { applyPlatformClass } from './hooks/usePlatform';
 import './styles/tokens.css';
 import './styles/index.css';
@@ -55,7 +56,9 @@ if ('virtualKeyboard' in navigator) {
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <ErrorBoundary>
-      <App />
+      <CSPostHogProvider>
+        <App />
+      </CSPostHogProvider>
     </ErrorBoundary>
   </StrictMode>,
 );

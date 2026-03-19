@@ -20,7 +20,7 @@ const SearchIcon = () => (
 );
 
 const CloseIcon = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" width="16" height="16">
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" width="15" height="15">
     <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
   </svg>
 );
@@ -439,49 +439,55 @@ const DesktopHistoryModal = ({ open, tasks, appearance, language, t, onClose, on
         >
           {/* Header */}
           <div style={{
-            padding: '16px 16px 8px',
+            padding: '8px 16px',
             display: 'flex',
             alignItems: 'center',
             gap: 12,
             borderBottom: `1px solid ${isDark ? '#333' : '#F0F0F0'}`,
           }}>
             {selectionMode ? (
-              <>
-                <div style={{
-                  fontSize: 14,
-                  fontWeight: 600,
-                  color: isDark ? '#FFF' : '#111',
-                  flexShrink: 0,
-                }}>
-                  {selectedIds.size === 0
-                    ? (t.selectTasks || 'Select tasks')
-                    : `${selectedIds.size} ${t.selected || 'selected'}`}
-                </div>
-
-                <div style={{ flex: 1 }} />
-
-                <div style={{ display: 'flex', alignItems: 'center', gap: 4, position: 'relative' }}>
-                  {selectedIds.size > 0 && (
-                    <>
+              <div style={{ display: 'flex', alignItems: 'center', width: '100%', position: 'relative' }}>
+                  {/* Left: Delete */}
+                  <div style={{ flex: 1, display: 'flex', justifyContent: 'flex-start' }}>
+                    {selectedIds.size > 0 && (
                       <button
                         type="button"
                         onClick={handleDeleteSelected}
                         style={{
                           background: 'none',
                           border: 'none',
-                          borderRadius: 6,
                           color: '#FF3B30',
                           fontSize: 14,
                           fontWeight: 600,
                           cursor: 'pointer',
-                          padding: '6px 10px',
+                          padding: '6px 0',
                           flexShrink: 0,
-                          transition: 'all 0.15s',
+                          transition: 'color 0.15s ease',
                         }}
                       >
                         {t.delete || 'Delete'}
                       </button>
+                    )}
+                  </div>
 
+                  {/* Center: Count */}
+                  <div style={{
+                    fontSize: 14,
+                    fontWeight: 600,
+                    color: isDark ? '#FFF' : '#111',
+                    position: 'absolute',
+                    left: '50%',
+                    transform: 'translateX(-50%)',
+                    whiteSpace: 'nowrap',
+                  }}>
+                    {selectedIds.size === 0
+                      ? (t.selectTasks || 'Select tasks')
+                      : `${selectedIds.size} ${t.selected || 'selected'}`}
+                  </div>
+
+                  {/* Right: Move & X */}
+                  <div style={{ flex: 1, display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 12 }}>
+                    {selectedIds.size > 0 && (
                       <div 
                         onMouseEnter={() => setMovePanelOpen(true)}
                         onMouseLeave={() => setMovePanelOpen(false)}
@@ -613,7 +619,7 @@ const DesktopHistoryModal = ({ open, tasks, appearance, language, t, onClose, on
                             </div>
                           </div>
                         )}
-
+                        
                         <CalendarPopover
                           open={calendarOpen}
                           anchorRef={moveButtonRef}
@@ -623,29 +629,32 @@ const DesktopHistoryModal = ({ open, tasks, appearance, language, t, onClose, on
                           onSelectDate={handleMoveToDate}
                         />
                       </div>
-                    </>
-                  )}
+                    )}
 
-                  <button
-                    type="button"
-                    onClick={handleCancel}
-                    style={{
-                      background: 'none',
-                      border: 'none',
-                      borderRadius: 6,
-                      color: accentColor,
-                      fontSize: 14,
-                      fontWeight: 500,
-                      cursor: 'pointer',
-                      padding: '6px 10px',
-                      flexShrink: 0,
-                      transition: 'all 0.15s',
-                    }}
-                  >
-                    {t.cancel || 'Cancel'}
-                  </button>
+                    <button
+                      type="button"
+                      onClick={handleCancel}
+                      style={{
+                        width: 28,
+                        height: 28,
+                        borderRadius: '50%',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        background: isDark ? '#2C2C2E' : 'rgba(255, 255, 255, 0.78)',
+                        border: isDark ? '1px solid #333' : '1px solid #E8E1D9',
+                        color: isDark ? '#FFF' : '#111',
+                        boxShadow: isDark ? 'none' : '0 8px 18px rgba(28, 23, 18, 0.05)',
+                        backdropFilter: isDark ? 'none' : 'blur(8px)',
+                        WebkitBackdropFilter: isDark ? 'none' : 'blur(8px)',
+                        cursor: 'pointer',
+                        padding: 0,
+                      }}
+                    >
+                      <CloseIcon />
+                    </button>
+                  </div>
                 </div>
-              </>
             ) : (
               /* Normal search bar */
               <>
@@ -695,16 +704,20 @@ const DesktopHistoryModal = ({ open, tasks, appearance, language, t, onClose, on
                   type="button"
                   onClick={onClose}
                   style={{
-                    width: 32,
-                    height: 32,
+                    width: 28,
+                    height: 28,
                     borderRadius: '50%',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    background: 'transparent',
-                    border: 'none',
-                    color: mutedColor,
+                    background: isDark ? '#2C2C2E' : 'rgba(255, 255, 255, 0.78)',
+                    border: isDark ? '1px solid #333' : '1px solid #E8E1D9',
+                    color: isDark ? '#FFF' : '#111',
+                    boxShadow: isDark ? 'none' : '0 8px 18px rgba(28, 23, 18, 0.05)',
+                    backdropFilter: isDark ? 'none' : 'blur(8px)',
+                    WebkitBackdropFilter: isDark ? 'none' : 'blur(8px)',
                     cursor: 'pointer',
+                    padding: 0,
                   }}
                 >
                   <CloseIcon />
