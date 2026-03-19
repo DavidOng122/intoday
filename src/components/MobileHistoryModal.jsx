@@ -154,7 +154,7 @@ const HistoryTaskItem = ({ task, appearance, labels, onClick, onLongPress, selec
   );
 };
 
-const MobileHistoryModal = ({ open, tasks, appearance, language, t, onClose, onTaskClick, onMoveSelected }) => {
+const MobileHistoryModal = ({ open, tasks, appearance, language, t, onClose, onTaskClick, onMoveSelected, onDeleteSelected }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState(new Set());
@@ -311,54 +311,80 @@ const MobileHistoryModal = ({ open, tasks, appearance, language, t, onClose, onT
       }}>
         {selectionMode ? (
           /* Selection action bar */
-          <>
-            <button
-              type="button"
-              onClick={handleCancel}
-              style={{
-                background: 'none',
-                border: 'none',
-                color: accentColor,
-                fontSize: 16,
-                fontWeight: 500,
-                cursor: 'pointer',
-                padding: '4px 0',
-                flexShrink: 0,
-              }}
-            >
-              {t.cancel || 'Cancel'}
-            </button>
-            <div style={{
-              flex: 1,
-              textAlign: 'center',
-              fontSize: 15,
-              fontWeight: 600,
-              color: isDark ? '#FFF' : '#111',
-            }}>
-              {selectedIds.size === 0
-                ? (t.selectItems || 'Select items')
-                : `${selectedIds.size} ${t.selected || 'selected'}`}
-            </div>
-            <button
-              type="button"
-              onClick={() => setMoveSheetOpen(!moveSheetOpen)}
-              disabled={selectedIds.size === 0}
-              style={{
-                background: moveSheetOpen ? (isDark ? '#333' : '#E8EEFF') : 'none',
-                border: 'none',
-                borderRadius: 8,
-                color: selectedIds.size === 0 ? mutedColor : accentColor,
+          selectedIds.size === 0 ? (
+            <>
+              <div style={{
+                flex: 1,
                 fontSize: 16,
                 fontWeight: 600,
-                cursor: selectedIds.size === 0 ? 'default' : 'pointer',
-                padding: '6px 12px',
-                flexShrink: 0,
-                transition: 'all 0.15s',
-              }}
-            >
-              {t.move || 'Move'}
-            </button>
-          </>
+                color: isDark ? '#FFF' : '#111',
+              }}>
+                {t.selectTasks || 'Select tasks'}
+              </div>
+              <button
+                type="button"
+                onClick={handleCancel}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: accentColor,
+                  fontSize: 16,
+                  fontWeight: 500,
+                  cursor: 'pointer',
+                  padding: '4px 0',
+                  flexShrink: 0,
+                }}
+              >
+                {t.cancel || 'Cancel'}
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                type="button"
+                onClick={handleCancel}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: accentColor,
+                  fontSize: 16,
+                  fontWeight: 500,
+                  cursor: 'pointer',
+                  padding: '4px 0',
+                  flexShrink: 0,
+                }}
+              >
+                {t.cancel || 'Cancel'}
+              </button>
+              <div style={{
+                flex: 1,
+                textAlign: 'center',
+                fontSize: 15,
+                fontWeight: 600,
+                color: isDark ? '#FFF' : '#111',
+              }}>
+                {`${selectedIds.size} ${t.selected || 'selected'}`}
+              </div>
+              <button
+                type="button"
+                onClick={() => setMoveSheetOpen(!moveSheetOpen)}
+                style={{
+                  background: moveSheetOpen ? (isDark ? '#333' : '#E8EEFF') : 'none',
+                  border: 'none',
+                  borderRadius: 8,
+                  color: accentColor,
+                  fontSize: 16,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  padding: '6px 12px',
+                  flexShrink: 0,
+                  transition: 'all 0.15s',
+                }}
+              >
+                {t.move || 'Move'}
+              </button>
+            </>
+          )
         ) : (
           /* Normal search bar */
           <>
@@ -384,6 +410,22 @@ const MobileHistoryModal = ({ open, tasks, appearance, language, t, onClose, onT
                 }}
               />
             </div>
+            <button
+              type="button"
+              onClick={() => setSelectionMode(true)}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: isDark ? '#CCC' : '#666',
+                fontSize: 15,
+                fontWeight: 500,
+                cursor: 'pointer',
+                padding: '4px 8px',
+                flexShrink: 0,
+              }}
+            >
+              {t.select || 'Select'}
+            </button>
             <button
               type="button"
               onClick={onClose}
@@ -434,6 +476,46 @@ const MobileHistoryModal = ({ open, tasks, appearance, language, t, onClose, onT
           ))
         )}
       </div>
+
+      {/* Delete Action Bar */}
+      {selectionMode && selectedIds.size > 0 && !moveSheetOpen && (
+        <div style={{
+          position: 'fixed',
+          bottom: 0, left: 0, right: 0,
+          background: isDark ? 'rgba(28,28,30,0.85)' : 'rgba(255,255,255,0.85)',
+          backdropFilter: 'blur(10px)',
+          WebkitBackdropFilter: 'blur(10px)',
+          borderTop: `1px solid ${isDark ? '#333' : '#E5E5E5'}`,
+          padding: '12px 16px',
+          paddingBottom: 'max(12px, env(safe-area-inset-bottom, 12px))',
+          display: 'flex',
+          justifyContent: 'center',
+          zIndex: 100,
+        }}>
+          <button
+            type="button"
+            onClick={() => {
+              if (onDeleteSelected) onDeleteSelected(selectedIds);
+              handleCancel();
+            }}
+            style={{
+              width: '100%',
+              maxWidth: 400,
+              background: isDark ? '#2C2C2E' : '#F5F5F7',
+              border: 'none',
+              padding: '16px',
+              borderRadius: 12,
+              fontSize: 16,
+              fontWeight: 600,
+              color: '#FF3B30',
+              textAlign: 'center',
+              cursor: 'pointer',
+            }}
+          >
+            {t.delete || 'Delete'}
+          </button>
+        </div>
+      )}
 
       {/* Move Bottom Sheet */}
       {selectionMode && moveSheetOpen && (

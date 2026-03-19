@@ -2207,6 +2207,10 @@ function MobileApp({ session, platformInfo }) {
     setTodos((prev) => prev.filter((todo) => todo.id !== id));
   }, [setTodos]);
 
+  const handleDeleteSelected = useCallback((idsSet) => {
+    setTodos((prev) => prev.filter((todo) => !idsSet.has(todo.id)));
+  }, [setTodos]);
+
 
 
   const openEdit = useCallback((todo) => {
@@ -3638,6 +3642,7 @@ function MobileApp({ session, platformInfo }) {
         language={language}
         t={translations[language]}
         onClose={() => setHistoryOpen(false)}
+        onDeleteSelected={handleDeleteSelected}
         onTaskClick={(todo) => {
           if (!todo.id) return;
           const { redirectUrl } = getTaskCardPresentation(todo, translations[language]);
