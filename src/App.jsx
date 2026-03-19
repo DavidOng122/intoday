@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { isSupabaseConfigured, supabase } from './supabase';
+import { usePostHog } from 'posthog-js/react';
 import usePlatform from './hooks/usePlatform';
 import DesktopApp from './pages/DesktopApp';
 import DesktopLoginPage from './pages/DesktopLoginPage';
@@ -28,6 +29,7 @@ function App() {
   const { isDesktop, platform, isNativePlatform } = platformInfo;
   const [session, setSession] = useState(null);
   const [loadingAuth, setLoadingAuth] = useState(true);
+  const posthog = usePostHog();
 
   useEffect(() => {
     const timeout = window.setTimeout(() => {
@@ -63,6 +65,14 @@ function App() {
       if (!isActive) return;
       setSession(nextSession);
       setLoadingAuth(false);
+
+      if (nextSession?.user) {
+        posthog.identify(nextSession.user.id, {
+          email: nextSession.user.email,
+        });
+      } else if (_event === 'SIGNED_OUT') {
+        posthog.reset();
+      }
     });
 
     return () => {
@@ -70,7 +80,7 @@ function App() {
       window.clearTimeout(timeout);
       subscription?.unsubscribe();
     };
-  }, []);
+  }, [posthog]);
 
   if (loadingAuth) {
     return (
