@@ -10,9 +10,16 @@ const SearchIcon = () => (
   </svg>
 );
 
-const CloseIcon = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" width="16" height="16">
-    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+const CloseIcon = ({ isDark }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="19" height="19" viewBox="0 0 22 22" fill="none">
+    <path fillRule="evenodd" clipRule="evenodd" d="M5.01417 5.01423C5.14308 4.88548 5.31782 4.81316 5.50001 4.81316C5.68219 4.81316 5.85693 4.88548 5.98584 5.01423L11 10.0284L16.0142 5.01423C16.0771 4.94668 16.153 4.8925 16.2373 4.85493C16.3217 4.81735 16.4127 4.79715 16.505 4.79552C16.5973 4.79389 16.689 4.81087 16.7746 4.84545C16.8602 4.88002 16.938 4.93149 17.0033 4.99677C17.0686 5.06206 17.12 5.13982 17.1546 5.22543C17.1892 5.31103 17.2062 5.40273 17.2045 5.49504C17.2029 5.58735 17.1827 5.67839 17.1451 5.76272C17.1076 5.84705 17.0534 5.92295 16.9858 5.98589L11.9717 11.0001L16.9858 16.0142C17.0534 16.0772 17.1076 16.1531 17.1451 16.2374C17.1827 16.3217 17.2029 16.4128 17.2045 16.5051C17.2062 16.5974 17.1892 16.6891 17.1546 16.7747C17.12 16.8603 17.0686 16.9381 17.0033 17.0033C16.938 17.0686 16.8602 17.1201 16.7746 17.1547C16.689 17.1892 16.5973 17.2062 16.505 17.2046C16.4127 17.203 16.3217 17.1828 16.2373 17.1452C16.153 17.1076 16.0771 17.0534 16.0142 16.9859L11 11.9717L5.98584 16.9859C5.85551 17.1073 5.68314 17.1734 5.50503 17.1703C5.32692 17.1672 5.15698 17.095 5.03102 16.969C4.90506 16.8431 4.8329 16.6731 4.8329 16.495C4.82662 16.3169 4.89273 16.1446 5.01417 16.0142L10.0283 11.0001L5.01417 5.98589C4.88543 5.85699 4.81311 5.68225 4.81311 5.50006C4.81311 5.31787 4.88543 5.14313 5.01417 5.01423Z" fill={isDark ? "white" : "black"} />
+  </svg>
+);
+
+const TrashIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <polyline points="3 6 5 6 21 6"></polyline>
+    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
   </svg>
 );
 
@@ -50,7 +57,7 @@ const shiftDateByDays = (date, dayOffset) => {
 
 const GroupedDateLabel = ({ labelKey }) => {
   return (
-    <div style={{ fontSize: 13, color: 'var(--mobile-muted, #737373)', marginTop: 16, marginBottom: 8, paddingLeft: 12, fontWeight: 500 }}>
+    <div style={{ fontSize: 13, color: 'var(--mobile-muted, #737373)', marginTop: 13.5, marginBottom: 8, paddingLeft: 12, fontWeight: 500 }}>
       {labelKey}
     </div>
   );
@@ -159,8 +166,10 @@ const MobileHistoryModal = ({ open, tasks, appearance, language, t, onClose, onT
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [moveSheetOpen, setMoveSheetOpen] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [isPickingCustomDate, setIsPickingCustomDate] = useState(false);
   const [calPickerDate, setCalPickerDate] = useState(() => getLogicalToday());
+  const [isTrashPressed, setIsTrashPressed] = useState(false);
   const dateInputRef = useRef(null);
 
   // Prevent background scroll when modal is active
@@ -301,93 +310,59 @@ const MobileHistoryModal = ({ open, tasks, appearance, language, t, onClose, onT
       {/* Header */}
       <div style={{
         paddingTop: 'max(env(safe-area-inset-top, 48px), 24px)',
-        paddingBottom: 8,
-        paddingLeft: 16,
-        paddingRight: 16,
-        display: 'flex',
-        alignItems: 'center',
-        gap: 12,
+        background: isDark ? '#121212' : '#FDFDFD',
         borderBottom: `1px solid ${isDark ? '#333' : '#F0F0F0'}`,
+        zIndex: 10,
       }}>
         {selectionMode ? (
-          /* Selection action bar */
-          selectedIds.size === 0 ? (
-            <>
-              <div style={{
-                flex: 1,
-                fontSize: 16,
-                fontWeight: 600,
+          /* Selection Action Bar - One row */
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 12,
+            padding: '12px 16px',
+          }}>
+            <div style={{
+              flex: 1,
+              fontSize: 16,
+              fontWeight: 600,
+              color: isDark ? '#FFF' : '#111',
+            }}>
+              {selectedIds.size === 0
+                ? (t.selectTasks || 'Select tasks')
+                : `${selectedIds.size} ${t.selected || 'selected'}`}
+            </div>
+            <button
+              type="button"
+              onClick={handleCancel}
+              style={{
+                width: 31,
+                height: 31,
+                borderRadius: '50%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                background: isDark ? '#2C2C2E' : 'rgba(255, 255, 255, 0.78)',
+                border: isDark ? '1px solid #333' : '1px solid #E8E1D9',
                 color: isDark ? '#FFF' : '#111',
-              }}>
-                {t.selectTasks || 'Select tasks'}
-              </div>
-              <button
-                type="button"
-                onClick={handleCancel}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  color: accentColor,
-                  fontSize: 16,
-                  fontWeight: 500,
-                  cursor: 'pointer',
-                  padding: '4px 0',
-                  flexShrink: 0,
-                }}
-              >
-                {t.cancel || 'Cancel'}
-              </button>
-            </>
-          ) : (
-            <>
-              <button
-                type="button"
-                onClick={handleCancel}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  color: accentColor,
-                  fontSize: 16,
-                  fontWeight: 500,
-                  cursor: 'pointer',
-                  padding: '4px 0',
-                  flexShrink: 0,
-                }}
-              >
-                {t.cancel || 'Cancel'}
-              </button>
-              <div style={{
-                flex: 1,
-                textAlign: 'center',
-                fontSize: 15,
-                fontWeight: 600,
-                color: isDark ? '#FFF' : '#111',
-              }}>
-                {`${selectedIds.size} ${t.selected || 'selected'}`}
-              </div>
-              <button
-                type="button"
-                onClick={() => setMoveSheetOpen(!moveSheetOpen)}
-                style={{
-                  background: moveSheetOpen ? (isDark ? '#333' : '#E8EEFF') : 'none',
-                  border: 'none',
-                  borderRadius: 8,
-                  color: accentColor,
-                  fontSize: 16,
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  padding: '6px 12px',
-                  flexShrink: 0,
-                  transition: 'all 0.15s',
-                }}
-              >
-                {t.move || 'Move'}
-              </button>
-            </>
-          )
+                boxShadow: isDark ? 'none' : '0 8px 18px rgba(28, 23, 18, 0.05)',
+                backdropFilter: isDark ? 'none' : 'blur(8px)',
+                WebkitBackdropFilter: isDark ? 'none' : 'blur(8px)',
+                cursor: 'pointer',
+                padding: 0,
+              }}
+            >
+              <CloseIcon isDark={isDark} />
+            </button>
+          </div>
         ) : (
-          /* Normal search bar */
-          <>
+          /* Normal Search Bar - Single Row */
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            padding: '12px 16px',
+          }}>
             <div style={{ flex: 1, position: 'relative', display: 'flex', alignItems: 'center' }}>
               <span style={{ position: 'absolute', left: 12, color: mutedColor, display: 'flex', alignItems: 'center' }}>
                 <SearchIcon />
@@ -412,44 +387,66 @@ const MobileHistoryModal = ({ open, tasks, appearance, language, t, onClose, onT
             </div>
             <button
               type="button"
-              onClick={() => setSelectionMode(true)}
-              style={{
-                background: 'none',
-                border: 'none',
-                color: isDark ? '#CCC' : '#666',
-                fontSize: 15,
-                fontWeight: 500,
-                cursor: 'pointer',
-                padding: '4px 8px',
-                flexShrink: 0,
-              }}
-            >
-              {t.select || 'Select'}
-            </button>
-            <button
-              type="button"
               onClick={onClose}
               style={{
-                width: 36,
-                height: 36,
+                width: 31,
+                height: 31,
                 borderRadius: '50%',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                background: 'transparent',
-                border: 'none',
-                color: isDark ? '#CCC' : '#666',
+                background: isDark ? '#2C2C2E' : 'rgba(255, 255, 255, 0.78)',
+                border: isDark ? '1px solid #333' : '1px solid #E8E1D9',
+                color: isDark ? '#FFF' : '#111',
+                boxShadow: isDark ? 'none' : '0 8px 18px rgba(28, 23, 18, 0.05)',
+                backdropFilter: isDark ? 'none' : 'blur(8px)',
+                WebkitBackdropFilter: isDark ? 'none' : 'blur(8px)',
                 cursor: 'pointer',
+                padding: 0,
               }}
             >
-              <CloseIcon />
+              <CloseIcon isDark={isDark} />
             </button>
-          </>
+          </div>
         )}
       </div>
 
       {/* Task list */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '0 8px 16px', minHeight: 0 }}>
+      <div style={{ flex: 1, overflowY: 'auto', padding: '0 8px 16px', minHeight: 0, position: 'relative' }}>
+        {!selectionMode && groupKeys.length > 0 && (
+          <div style={{
+            position: 'sticky',
+            top: 0,
+            zIndex: 10,
+            display: 'flex',
+            justifyContent: 'flex-end',
+            padding: '8.5px 16px',
+            pointerEvents: 'none',
+          }}>
+            <button
+              type="button"
+              onClick={() => setSelectionMode(true)}
+              style={{
+                background: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.05)',
+                border: 'none',
+                borderRadius: 25,
+                color: isDark ? '#CCC' : '#666',
+                fontSize: 17.5,
+                fontWeight: 500,
+                cursor: 'pointer',
+                padding: '7.5px 17.5px',
+                pointerEvents: 'auto',
+                transition: 'background-color 0.15s ease',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                WebkitTapHighlightColor: 'transparent',
+              }}
+            >
+              {t.select || 'Select'}
+            </button>
+          </div>
+        )}
         {groupKeys.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '32px 16px', color: mutedColor, fontSize: 15 }}>
             No tasks found
@@ -477,7 +474,7 @@ const MobileHistoryModal = ({ open, tasks, appearance, language, t, onClose, onT
         )}
       </div>
 
-      {/* Delete Action Bar */}
+      {/* Delete and Move Action Bar */}
       {selectionMode && selectedIds.size > 0 && !moveSheetOpen && (
         <div style={{
           position: 'fixed',
@@ -486,33 +483,55 @@ const MobileHistoryModal = ({ open, tasks, appearance, language, t, onClose, onT
           backdropFilter: 'blur(10px)',
           WebkitBackdropFilter: 'blur(10px)',
           borderTop: `1px solid ${isDark ? '#333' : '#E5E5E5'}`,
-          padding: '12px 16px',
+          padding: '12px 24px',
           paddingBottom: 'max(12px, env(safe-area-inset-bottom, 12px))',
           display: 'flex',
-          justifyContent: 'center',
+          alignItems: 'center',
+          justifyContent: 'space-between',
           zIndex: 100,
         }}>
           <button
             type="button"
-            onClick={() => {
-              if (onDeleteSelected) onDeleteSelected(selectedIds);
-              handleCancel();
-            }}
+            onClick={() => setMoveSheetOpen(true)}
             style={{
-              width: '100%',
-              maxWidth: 400,
-              background: isDark ? '#2C2C2E' : '#F5F5F7',
+              background: 'none',
               border: 'none',
-              padding: '16px',
-              borderRadius: 12,
-              fontSize: 16,
+              color: accentColor,
+              fontSize: '17.6px',
+              marginLeft: 3,
               fontWeight: 600,
-              color: '#FF3B30',
-              textAlign: 'center',
               cursor: 'pointer',
+              padding: '8px 4px',
             }}
           >
-            {t.delete || 'Delete'}
+            {t.move || 'Move'}
+          </button>
+          <button
+            type="button"
+            onPointerDown={() => setIsTrashPressed(true)}
+            onPointerUp={() => setIsTrashPressed(false)}
+            onPointerLeave={() => setIsTrashPressed(false)}
+            onClick={() => setDeleteConfirmOpen(true)}
+            style={{
+              width: 40,
+              height: 40,
+              borderRadius: '50%',
+              marginRight: 3,
+              background: isTrashPressed 
+                ? (isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)') 
+                : 'transparent',
+              border: isDark ? '1px solid rgba(255,255,255,0.10)' : '1px solid rgba(0,0,0,0.08)',
+              color: isDark ? 'rgba(255,255,255,0.72)' : 'rgba(0,0,0,0.65)',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: 0,
+              transition: 'background 0.15s ease',
+            }}
+            aria-label={t.delete || 'Delete'}
+          >
+            <TrashIcon />
           </button>
         </div>
       )}
@@ -635,8 +654,6 @@ const MobileHistoryModal = ({ open, tasks, appearance, language, t, onClose, onT
                       const day = i + 1;
                       const cellDate = new Date(year, month, day);
                       const isToday = isSameDay(cellDate, today);
-                      // In this context, we don't have a specific "selectedDate" for the picker yet,
-                      // but we can use today as a default or wait for a click.
                       return (
                         <button
                           key={day}
@@ -668,6 +685,91 @@ const MobileHistoryModal = ({ open, tasks, appearance, language, t, onClose, onT
                 </button>
               </div>
             )}
+          </div>
+        </>
+      )}
+
+      {/* Delete Confirmation Sheet */}
+      {selectionMode && deleteConfirmOpen && (
+        <>
+          <div
+            style={{
+              position: 'fixed', inset: 0, zIndex: 1001,
+              background: 'rgba(0,0,0,0.4)',
+              animation: 'fadeIn 0.2s ease-out',
+            }}
+            onClick={() => setDeleteConfirmOpen(false)}
+          />
+          <div
+            style={{
+              position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 1002,
+              background: isDark ? '#1C1C1E' : '#FFF',
+              borderTopLeftRadius: 24, borderTopRightRadius: 24,
+              padding: '24px 16px',
+              paddingBottom: 'max(24px, env(safe-area-inset-bottom, 24px))',
+              display: 'flex', flexDirection: 'column', gap: 20,
+              boxShadow: '0 -4px 24px rgba(0,0,0,0.1)',
+              animation: 'slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
+            }}
+          >
+            <div style={{ textAlign: 'center' }}>
+              <h2 style={{
+                margin: '0 0 4px 0',
+                fontSize: 19,
+                fontWeight: 600,
+                color: isDark ? '#FFF' : '#111'
+              }}>
+                {`Delete ${selectedIds.size} ${selectedIds.size === 1 ? 'item' : 'items'}?`}
+              </h2>
+              <p style={{
+                margin: 0,
+                fontSize: 14,
+                color: isDark ? '#A0A0A0' : '#666'
+              }}>
+                This will remove it from your list
+              </p>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <button
+                type="button"
+                onClick={() => {
+                  if (onDeleteSelected) onDeleteSelected(selectedIds);
+                  setDeleteConfirmOpen(false);
+                  handleCancel();
+                }}
+                style={{
+                  width: '100%',
+                  padding: '16px',
+                  borderRadius: 14,
+                  background: '#FF3B30',
+                  border: 'none',
+                  color: '#FFF',
+                  fontSize: 17,
+                  fontWeight: 600,
+                  cursor: 'pointer'
+                }}
+              >
+                Delete
+              </button>
+              <button
+                type="button"
+                onClick={() => setDeleteConfirmOpen(false)}
+                style={{
+                  width: '100%',
+                  padding: '16px',
+                  borderRadius: 14,
+                  background: isDark ? '#2C2C2E' : '#F2F2F7',
+                  border: 'none',
+                  color: isDark ? '#FFF' : '#111',
+                  fontSize: 17,
+                  fontWeight: 600,
+                  cursor: 'pointer'
+                }}
+              >
+                Cancel
+              </button>
+            </div>
           </div>
         </>
       )}
