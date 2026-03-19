@@ -429,12 +429,12 @@ const MobileHistoryModal = ({ open, tasks, appearance, language, t, onClose, onT
               style={{
                 background: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.05)',
                 border: 'none',
-                borderRadius: 25,
+                borderRadius: 21,
                 color: isDark ? '#CCC' : '#666',
-                fontSize: 17.5,
+                fontSize: 15,
                 fontWeight: 500,
                 cursor: 'pointer',
-                padding: '7.5px 17.5px',
+                padding: '6.5px 15px',
                 pointerEvents: 'auto',
                 transition: 'background-color 0.15s ease',
                 display: 'flex',
@@ -499,7 +499,7 @@ const MobileHistoryModal = ({ open, tasks, appearance, language, t, onClose, onT
               color: accentColor,
               fontSize: '17.6px',
               marginLeft: 3,
-              fontWeight: 600,
+              fontWeight: 400,
               cursor: 'pointer',
               padding: '8px 4px',
             }}
@@ -660,7 +660,7 @@ const MobileHistoryModal = ({ open, tasks, appearance, language, t, onClose, onT
                           className="cal-picker-day"
                           onClick={() => handleMoveToDate(dateKey(cellDate))}
                           style={{
-                            aspectRatio: '1', borderRadius: '50%', border: 'none', background: 'transparent',
+                            aspectRatio: '1', borderRadius: '50%', background: 'transparent',
                             fontSize: 15, fontWeight: isToday ? 700 : 500,
                             color: isToday ? '#ED1F1F' : (isDark ? '#FFF' : '#111'),
                             cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
