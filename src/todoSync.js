@@ -41,6 +41,7 @@ const toCloudRow = (userId, todo) => ({
   user_id: userId,
   todo_id: Number(todo.id),
   payload: todo,
+  is_deleted: false,
 });
 
 const loadCloudTodos = async (userId, normalizeTodo) => {
@@ -48,6 +49,7 @@ const loadCloudTodos = async (userId, normalizeTodo) => {
     .from(TODOS_TABLE)
     .select('todo_id, payload')
     .eq('user_id', userId)
+    .eq('is_deleted', false)
     .order('todo_id', { ascending: true });
 
   if (error) throw error;
@@ -66,23 +68,23 @@ const persistCloudTodos = async (userId, todos) => {
   }
 
   if (rows.length === 0) {
-    const { error: deleteAllError } = await supabase
+    const { error: softDeleteAllError } = await supabase
       .from(TODOS_TABLE)
-      .delete()
+      .update({ is_deleted: true })
       .eq('user_id', userId);
 
-    if (deleteAllError) throw deleteAllError;
+    if (softDeleteAllError) throw softDeleteAllError;
     return;
   }
 
   const ids = rows.map((row) => row.todo_id).join(',');
-  const { error: deleteMissingError } = await supabase
+  const { error: softDeleteMissingError } = await supabase
     .from(TODOS_TABLE)
-    .delete()
+    .update({ is_deleted: true })
     .eq('user_id', userId)
     .not('todo_id', 'in', `(${ids})`);
 
-  if (deleteMissingError) throw deleteMissingError;
+  if (softDeleteMissingError) throw softDeleteMissingError;
 };
 
 export const useSyncedTodos = ({ userId, normalizeTodo }) => {
