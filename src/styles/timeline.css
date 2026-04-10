@@ -1,0 +1,678 @@
+/* ========================================================
+   TIMELINE LIST AREA 
+   ======================================================== */
+.timeline-shell {
+  position: relative;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: #FFFFFF;
+  perspective: 1400px;
+}
+
+.timeline-area {
+  flex: 1;
+  overflow-y: auto;
+  padding-bottom: 0;
+  background: white;
+  overscroll-behavior-y: none;
+  -ms-overflow-style: none;
+  /* IE and Edge */
+  scrollbar-width: none;
+  /* Firefox */
+  position: relative;
+  overflow-x: hidden;
+  --timeline-axis-width: 52px;
+}
+
+.timeline-area::-webkit-scrollbar {
+  display: none;
+  /* Chrome, Safari and Opera */
+}
+
+.timeline-stage {
+  position: relative;
+  min-height: 100%;
+  overflow: hidden;
+  width: 100%;
+}
+
+.timeline-panel {
+  width: 100%;
+  min-height: 100%;
+  background: inherit;
+  backface-visibility: hidden;
+  transform: translateZ(0);
+}
+
+.timeline-panel-retained-drag-source {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+}
+
+.timeline-panel-current,
+.timeline-panel-incoming {
+  position: absolute;
+  inset: 0;
+}
+
+.timeline-panel-animating {
+  transition: transform 250ms cubic-bezier(0.22, 1, 0.36, 1), opacity 250ms ease, filter 250ms ease;
+}
+
+.timeline-swiping .timeline-panel {
+  will-change: transform;
+}
+
+.timeline-swiping .timeline-panel-current {
+  opacity: 0.94;
+  filter: saturate(0.97);
+  transform-origin: 34% 50%;
+}
+
+.timeline-swiping .timeline-panel-incoming {
+  opacity: 1;
+  filter: none;
+  transform-origin: 66% 50%;
+}
+
+.timeline-panel-direct-flip {
+  will-change: transform, opacity, filter;
+}
+
+.timeline-panel-direct-flip-next {
+  transform-origin: 66% 50%;
+  animation: mobileTimelineDirectFlipNext 300ms cubic-bezier(0.2, 0.92, 0.26, 1) both;
+}
+
+.timeline-panel-direct-flip-previous {
+  transform-origin: 34% 50%;
+  animation: mobileTimelineDirectFlipPrevious 300ms cubic-bezier(0.2, 0.92, 0.26, 1) both;
+}
+
+@keyframes mobileTimelineDirectFlipNext {
+  from {
+    opacity: 0.76;
+    filter: saturate(0.95);
+    transform: translate3d(28px, 0, 0) rotateY(-6deg) scale(0.992);
+  }
+  to {
+    opacity: 1;
+    filter: none;
+    transform: translate3d(0, 0, 0) rotateY(0deg) scale(1);
+  }
+}
+
+@keyframes mobileTimelineDirectFlipPrevious {
+  from {
+    opacity: 0.76;
+    filter: saturate(0.95);
+    transform: translate3d(-28px, 0, 0) rotateY(6deg) scale(0.992);
+  }
+  to {
+    opacity: 1;
+    filter: none;
+    transform: translate3d(0, 0, 0) rotateY(0deg) scale(1);
+  }
+}
+
+.task-drag-ghost {
+  position: fixed;
+  margin: 0;
+  pointer-events: none;
+  z-index: 2200;
+  box-shadow: 0 18px 38px rgba(15, 23, 42, 0.18);
+  transform-origin: center center;
+  transition: none !important;
+  will-change: transform;
+}
+
+.task-drag-overlay-card {
+  position: fixed;
+  margin: 0;
+  pointer-events: none;
+  z-index: 2200;
+  box-shadow: 0 18px 38px rgba(15, 23, 42, 0.18);
+  transition: none !important;
+  will-change: transform;
+}
+
+.task-card.drag-source-hidden {
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+.time-block {
+  --timeline-overlay-offset: 12px;
+  --timeline-overlay-label-height: 16px;
+  --timeline-overlay-label-gap: 10px;
+  --timeline-task-card-min-height: 64px;
+  --timeline-task-gap: 12px;
+  --timeline-task-bottom-padding: 24px;
+  --time-block-visible-task-count: 3;
+  --timeline-overlay-clearance: calc(
+    var(--timeline-overlay-offset) +
+    var(--timeline-overlay-label-height) +
+    var(--timeline-overlay-label-gap)
+  );
+  display: flex;
+  min-height: calc(
+    var(--timeline-overlay-clearance) +
+    var(--timeline-task-bottom-padding) +
+    (var(--timeline-task-card-min-height) * var(--time-block-visible-task-count)) +
+    (var(--timeline-task-gap) * (var(--time-block-visible-task-count) - 1))
+  );
+  border-bottom: 1px solid #EEE8DF;
+  position: relative;
+  z-index: 1; /* Base index */
+  background: #FFFFFF;
+}
+
+/* Must elevate the z-index of the block containing the dragging card 
+   so it renders ON TOP of sibling blocks that come after it (e.g. Morning over Night) */
+.time-block.is-dragging-parent {
+  z-index: 999;
+}
+
+.time-col {
+  --time-col-padding-top: 42px;
+  --time-col-padding-bottom: 14px;
+  --time-label-size: 11px;
+  --time-axis-color: #F7F1EA;
+  --time-axis-background: var(--time-axis-color);
+  --time-line-position: calc(var(--time-col-padding-top) + (var(--time-label-size) / 2));
+  width: var(--timeline-axis-width);
+  border-right: 1px solid #EEE8DF;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: space-between;
+  padding: var(--time-col-padding-top) 6px var(--time-col-padding-bottom) 8px;
+  position: relative;
+  flex-shrink: 0;
+  background: var(--time-axis-background);
+}
+
+.time-text {
+  font-family: "SF Pro", -apple-system, sans-serif;
+  font-size: 11px;
+  font-weight: 500;
+  color: #232323;
+  line-height: 1;
+  text-align: right;
+}
+
+.time-text.bottom {
+  margin-top: 20px;
+}
+
+/* Pin Image Time Indicator */
+.current-time-indicator-wrapper {
+  position: absolute;
+  right: -6px;
+  width: auto;
+  height: 8px;
+  object-fit: contain;
+  z-index: 2;
+  transform: translateY(-50%);
+  transition: top 1000ms linear;
+  pointer-events: none;
+}
+
+.tasks-col {
+  flex: 1;
+  padding: var(--timeline-overlay-clearance) 18px var(--timeline-task-bottom-padding);
+  display: flex;
+  flex-direction: column;
+  gap: var(--timeline-task-gap);
+  overflow-y: auto;
+  -ms-overflow-style: none;
+  /* IE and Edge */
+  scrollbar-width: none;
+  /* Firefox */
+  transition: background 0.2s;
+  background: #FFFFFF;
+}
+
+.timeline-overlay-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 16;
+}
+
+.timeline-overlay-label {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  min-width: 53px;
+  height: 16px;
+  padding: 0 10px;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: "LTC Bodoni 175", serif;
+  font-size: 9.6px;
+  font-style: italic;
+  font-weight: 700;
+  line-height: 16px;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 1;
+  opacity: 0;
+  transform: translate3d(-50%, -9999px, 0);
+  transition: opacity 0.36s cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: transform, opacity;
+  box-shadow: 0 1px 2px rgba(17, 24, 39, 0.04);
+}
+
+.timeline-overlay-label-secondary {
+  opacity: 0;
+}
+
+.tasks-col.drag-over {
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.03);
+}
+
+.tasks-col::-webkit-scrollbar {
+  display: none;
+  /* Chrome, Safari and Opera */
+}
+
+/* Allow cards to float freely over sibling task containers while keeping the
+   drag gesture under app control. */
+body.is-dragging-global .timeline-area.drag-scroll-locked {
+  overflow-y: auto !important;
+  overscroll-behavior: none;
+  touch-action: none;
+}
+
+body.is-dragging-global .tasks-col,
+body.is-dragging-global .time-col,
+body.is-dragging-global .time-block {
+  overflow: visible !important;
+}
+
+/* Hide bottom border for the last tasks col to avoid double borders, handled by flex layout visually but just in case */
+
+/* ========================================================
+   SWIPE ACTIONS
+   ======================================================== */
+.swipe-wrapper {
+  --swipe-action-progress: 0;
+  position: relative;
+  overflow: hidden;
+  border-radius: 11px;
+  background: transparent;
+  transform: translate3d(0, 0, 0);
+  will-change: transform;
+}
+
+.swipe-wrapper .task-card {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  box-sizing: border-box;
+  touch-action: pan-y;
+}
+
+.swipe-actions {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 0 12px;
+  pointer-events: none;
+}
+
+.swipe-wrapper.actions-visible .swipe-actions {
+  pointer-events: auto;
+}
+
+.swipe-action-button {
+  min-width: 32px;
+  height: 32px;
+  padding: 0;
+  border: none;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  color: #FFFFFF;
+  opacity: var(--swipe-action-progress);
+  transform:
+    translateX(calc(18px * (1 - var(--swipe-action-progress))))
+    scale(calc(0.84 + var(--swipe-action-progress) * 0.16));
+  transition:
+    opacity 0.18s ease,
+    transform 0.18s ease,
+    filter 0.18s ease;
+  box-shadow: 0 10px 24px rgba(38, 26, 14, 0.14);
+  pointer-events: auto;
+}
+
+.swipe-action-button span {
+  font-size: 11px;
+  font-weight: 650;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.swipe-action-button:active {
+  filter: brightness(0.94);
+}
+
+.swipe-action-edit {
+  background: linear-gradient(135deg, #232323 0%, #4A4A4A 100%);
+}
+
+.swipe-action-delete {
+  background: linear-gradient(135deg, #FF6A5F 0%, #E64237 100%);
+}
+
+/* Drag placeholder — shown at the original position during drag */
+.swipe-wrapper.is-dragging {
+  min-height: 0;
+  height: 0;
+  border-radius: 11px;
+  background: transparent;
+  /* Crucial: allow the card to be seen when dragged outside the wrapper bounds */
+  overflow: visible;
+}
+.swipe-wrapper.is-dragging .swipe-actions,
+.swipe-wrapper:has(.dragging) .swipe-actions {
+  pointer-events: none;
+  opacity: 0;
+  display: none !important;
+}
+
+.task-insert-placeholder {
+  border-radius: 14px;
+  background: linear-gradient(180deg, rgba(246, 241, 233, 0.82) 0%, rgba(251, 248, 243, 0.92) 100%);
+  box-shadow:
+    inset 0 0 0 1px rgba(198, 184, 167, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.72);
+  opacity: 0;
+  transform: scaleY(0.72);
+  transform-origin: center top;
+  animation: taskInsertPlaceholderIn 220ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+@keyframes taskInsertPlaceholderIn {
+  from {
+    opacity: 0;
+    transform: scaleY(0.72);
+  }
+  to {
+    opacity: 1;
+    transform: scaleY(1);
+  }
+}
+
+/* Edit Modal */
+.edit-modal-backdrop {
+  justify-content: center;
+  padding: 24px;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+.edit-modal-backdrop-desktop {
+  position: absolute;
+  inset: 0;
+}
+
+.edit-modal {
+  --edit-modal-surface: #FFFFFF;
+  --edit-modal-divider: rgba(17, 17, 17, 0.08);
+  position: relative;
+  width: min(100%, 382px);
+  max-width: 382px;
+  max-height: min(560px, calc(var(--edit-modal-visible-height, 100dvh) - 48px));
+  background: var(--edit-modal-surface);
+  border-radius: 32px;
+  padding: 24px;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.12);
+  z-index: 60;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: 16px;
+  overflow: hidden;
+  touch-action: pan-y;
+  animation: editModalEnter 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes editModalEnter {
+  from {
+    opacity: 0;
+    transform: translateY(28px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.edit-modal-backdrop-mobile {
+  position: fixed;
+  left: 0;
+  right: 0;
+  justify-content: flex-end;
+  padding:
+    calc(var(--app-safe-top) + 12px)
+    12px
+    max(12px, env(safe-area-inset-bottom, 0px));
+}
+
+.edit-modal-mobile {
+  width: min(100%, 430px);
+  max-width: 430px;
+  max-height: calc(
+    var(--edit-modal-visible-height, 100dvh)
+    - var(--app-safe-top)
+    - env(safe-area-inset-bottom, 0px)
+    - 24px
+  );
+  border-radius: 28px;
+  animation-duration: 0.28s;
+}
+
+.edit-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.edit-modal-title {
+  font-family: "LTC Bodoni 175", serif;
+  font-style: italic;
+  font-weight: 700;
+  font-size: 28px;
+  color: black;
+  margin: 0;
+  line-height: 1;
+}
+
+.edit-modal-close {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: #F4F4F4;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  transition: background 0.2s;
+}
+
+.edit-modal-close:active {
+  background: #EBEBEB;
+}
+
+.edit-modal-body {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  padding-right: 2px;
+}
+
+.edit-modal-textarea {
+  width: 100%;
+  min-height: 180px;
+  flex: 1 1 auto;
+  border: none;
+  background: #F4F4F4;
+  border-radius: 16px;
+  padding: 16px;
+  font-size: 16px;
+  line-height: 1.5;
+  color: #111;
+  resize: none;
+  outline: none;
+  font-family: inherit;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  scroll-margin-block: 16px;
+}
+
+.edit-modal-textarea:focus {
+  background: #EBEBEB;
+}
+
+.edit-modal-actions {
+  display: flex;
+  background: var(--edit-modal-surface);
+  box-shadow: inset 0 1px 0 var(--edit-modal-divider);
+  padding-top: 12px;
+}
+
+.edit-modal-save-btn {
+  width: 100%;
+  padding: 16px;
+  background: #111;
+  color: white;
+  border: none;
+  border-radius: 16px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.edit-modal-save-btn:active {
+  opacity: 0.8;
+}
+
+@media (pointer: coarse) {
+  .edit-modal-textarea {
+    min-height: clamp(140px, 28vh, 220px);
+  }
+}
+
+
+.task-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: var(--timeline-task-card-min-height);
+  padding: 14px 12px;
+  background: #FFFFFF;
+  border-radius: 14px;
+  box-shadow: 0 1px 3px rgba(17, 24, 39, 0.04);
+  border: 1px solid #ECE6DE;
+  transition: transform 0.2s, background-color 0.2s;
+  cursor: pointer;
+  position: relative;
+  z-index: 2;
+  touch-action: none;
+}
+
+.task-card.is-past {
+  filter: grayscale(100%);
+  opacity: 0.75;
+}
+
+.task-card:active {
+  transform: scale(0.98);
+}
+
+.task-card.completed {
+  opacity: 0.5;
+}
+
+.task-card.completed .task-title {
+  text-decoration: line-through;
+  color: var(--text-secondary);
+}
+
+.task-icon-placeholder {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.task-card-icon {
+  width: 19px;
+  height: 19px;
+  object-fit: contain;
+}
+
+.task-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.task-card.dragging {
+  transition: none !important;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.12);
+  border-color: #E2E2E2;
+  opacity: 0.95;
+  transform: scale(1.04);
+  will-change: transform;
+}
+
+.task-title {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  word-break: break-word;
+  color: #181818;
+  font-family: "SF Pro", -apple-system, sans-serif;
+  font-size: 14px;
+  font-style: normal;
+  font-weight: 600;
+  line-height: 18px;
+}
+
+.task-desc {
+  color: #5A5A5F;
+  font-family: "SF Pro", -apple-system, sans-serif;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 16px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
