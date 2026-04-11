@@ -68,6 +68,8 @@
   --desktop-save-text: #ffffff;
   --desktop-save-disabled-text: #ffffff;
   --desktop-disabled-text: #d0d0d0;
+  --desktop-accent-soft: rgba(237, 31, 31, 0.45);
+  --desktop-group-ready-bg: rgba(237, 31, 31, 0.05);
 
   /* Option 1: Warm Beige (F6E8D7) - Active */
   --desktop-drag-feedback-glow-strong: rgba(246, 232, 215, 0.85);
@@ -161,6 +163,8 @@
   --desktop-drag-feedback-chip-bg: rgba(26, 26, 26, 0.82);
   --desktop-drag-feedback-chip-border: rgba(255, 255, 255, 0.08);
   --desktop-drag-feedback-chip-text: #ffffff;
+  --desktop-accent-soft: rgba(237, 31, 31, 0.6);
+  --desktop-group-ready-bg: rgba(237, 31, 31, 0.12);
 }
 
 .desktop-login-page {
@@ -1241,6 +1245,19 @@
 
 .desktop-canvas-card-shell {
   position: relative;
+  transition: transform 180ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.desktop-canvas-card-shell--group-ready {
+  transform: scale(1.05);
+  z-index: 10;
+}
+
+.desktop-canvas-card-shell--group-ready .desktop-task-card,
+.desktop-canvas-card-shell--group-ready .desktop-task-group-card {
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.15), 0 0 0 2px var(--desktop-accent-soft) !important;
+  background-color: var(--desktop-group-ready-bg) !important;
+  border-color: var(--desktop-accent-soft) !important;
 }
 
 .desktop-canvas-selection-rect {
@@ -1617,11 +1634,16 @@
 .desktop-minimal-date-nav-wrap {
   display: flex;
   align-items: center;
-  gap: 16px;
+  justify-content: center;
   justify-self: center;
+  position: relative;
 }
 
 .desktop-minimal-today-button {
+  position: absolute;
+  right: calc(100% + 16px);
+  top: 50%;
+  transform: translateY(-50%);
   height: 34px;
   padding: 0 16px;
   border-radius: 999px;
@@ -1632,13 +1654,14 @@
   font-weight: 600;
   cursor: pointer;
   transition: all 140ms ease;
+  white-space: nowrap;
 }
 
 .desktop-minimal-today-button:hover {
   background: #FFF;
   border-color: rgba(17, 17, 17, 0.15);
   box-shadow: 0 4px 12px rgba(17, 17, 17, 0.06);
-  transform: translateY(-1px);
+  transform: translateY(-50%) translateY(-1px);
 }
 
 .desktop-app-dark .desktop-minimal-today-button {
@@ -1652,7 +1675,7 @@
 }
 
 .desktop-minimal-date-nav {
-  min-width: 188px;
+  width: 220px;
   height: 56px;
   padding: 0 8px;
   display: inline-flex;
@@ -1700,7 +1723,8 @@
 }
 
 .desktop-minimal-date-nav-label {
-  min-width: 88px;
+  flex: 1;
+  text-align: center;
   padding: 0 10px;
   font-size: 14px;
   font-weight: 600;
@@ -1966,6 +1990,19 @@
   font-weight: 700;
   letter-spacing: 0.01em;
   white-space: nowrap;
+}
+
+.desktop-drag-day-feedback.is-confirming .desktop-drag-day-feedback-chip {
+  transform: scale(1.1);
+  background: var(--desktop-drag-feedback-chip-bg);
+  border-color: rgba(11, 114, 231, 0.4);
+  box-shadow: 0 22px 48px rgba(0, 0, 0, 0.18);
+  transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.desktop-drag-day-feedback.is-confirming .desktop-drag-day-feedback-arrow {
+  transform: scale(1.2);
+  color: #0b72e7;
 }
 
 body.desktop-task-dragging {

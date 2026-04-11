@@ -115,6 +115,10 @@ const DESKTOP_DRAG_SCROLL_ZONE = 96;
 const DESKTOP_DRAG_MAX_SCROLL_SPEED = 1.35;
 const DESKTOP_DRAG_DAY_EDGE_HOLD_MS = 220;
 const DESKTOP_DRAG_DAY_FLIP_COOLDOWN_MS = 700;
+const DESKTOP_DRAG_DAY_FLIP_ZONE_PX = 20;
+const DESKTOP_DRAG_DAY_CONFIRM_DISTANCE_PX = 20;
+const DESKTOP_DRAG_DAY_CANCEL_DISTANCE_PX = 10;
+const DESKTOP_GROUP_OVERLAP_THRESHOLD = 0.5;
 const DESKTOP_MAIN_CONTENT_MAX_WIDTH = 1008;
 const DESKTOP_MAIN_CONTENT_HORIZONTAL_PADDING = 72;
 const DESKTOP_DRAG_EDGE_OVERFLOW_TOP = 20;
@@ -344,21 +348,7 @@ const shiftDateByDays = (date, dayOffset) => {
   return nextDate;
 };
 const getDesktopDayFlipZones = (viewportRect) => {
-  const wideScreenThreshold = DESKTOP_MAIN_CONTENT_MAX_WIDTH + DESKTOP_MAIN_CONTENT_HORIZONTAL_PADDING;
-
-  if (viewportRect.width > wideScreenThreshold) {
-    const contentLeft = viewportRect.left + ((viewportRect.width - DESKTOP_MAIN_CONTENT_MAX_WIDTH) / 2);
-    const contentRight = contentLeft + DESKTOP_MAIN_CONTENT_MAX_WIDTH;
-    return {
-      mode: 'gutter',
-      previousStart: viewportRect.left,
-      previousEnd: contentLeft,
-      nextStart: contentRight,
-      nextEnd: viewportRect.right,
-    };
-  }
-
-  const edgeZone = Math.min(120, Math.max(68, viewportRect.width * 0.12));
+  const edgeZone = DESKTOP_DRAG_DAY_FLIP_ZONE_PX;
   return {
     mode: 'edge',
     previousStart: viewportRect.left,
@@ -490,7 +480,7 @@ const getDesktopCanvasRectIntersectionArea = (first, second) => {
   const overlapHeight = Math.max(0, Math.min(first.y + first.height, second.y + second.height) - Math.max(first.y, second.y));
   return overlapWidth * overlapHeight;
 };
-const getDesktopCanvasOverlapEntry = (tasks, dateString, movingTaskIds, nextPosition) => {
+const getDesktopCanvasOverlapEntry = (tasks, dateString, movingTaskIds, nextPosition, threshold = DESKTOP_GROUP_OVERLAP_THRESHOLD) => {
   const movingTasks = tasks.filter((task) => movingTaskIds.has(task.id));
   if (movingTasks.length === 0) return null;
 
@@ -505,24 +495,33 @@ const getDesktopCanvasOverlapEntry = (tasks, dateString, movingTaskIds, nextPosi
   };
 
   let bestMatch = null;
-  let bestArea = 0;
+  let bestRatio = 0;
   resolveDesktopCanvasEntries(tasks, dateString).forEach((entry) => {
     const entryTaskIds = entry.type === 'group' ? entry.tasks.map((item) => item.id) : [entry.task.id];
     if (entryTaskIds.some((taskId) => movingTaskIds.has(taskId))) return;
 
+    const targetWidth = DESKTOP_CANVAS_CARD_WIDTH;
+    const targetHeight = getDesktopCanvasEntryHeight(entry);
+    const targetArea = targetWidth * targetHeight;
+    const movingArea = movingRect.width * movingRect.height;
+
     const overlapArea = getDesktopCanvasRectIntersectionArea(movingRect, {
       x: entry.x,
       y: entry.y,
-      width: DESKTOP_CANVAS_CARD_WIDTH,
-      height: getDesktopCanvasEntryHeight(entry),
+      width: targetWidth,
+      height: targetHeight,
     });
-    if (overlapArea > bestArea) {
-      bestArea = overlapArea;
+    
+    if (overlapArea <= 0) return;
+
+    const overlapRatio = overlapArea / Math.min(movingArea, targetArea);
+    if (overlapRatio >= threshold && overlapRatio > bestRatio) {
+      bestRatio = overlapRatio;
       bestMatch = entry;
     }
   });
 
-  return bestArea > 0 ? bestMatch : null;
+  return bestMatch ? { entry: bestMatch, ratio: bestRatio } : null;
 };
 const getDesktopCanvasResolvedPosition = (tasks, dateString, movingTaskIds, preferredPosition) => {
   const movingTasks = tasks.filter((task) => movingTaskIds.has(task.id));
@@ -540,8 +539,9 @@ const getDesktopCanvasResolvedPosition = (tasks, dateString, movingTaskIds, pref
       x: clampedX,
       y: Math.max(0, preferredPosition.y + (attempt * stepY)),
     };
-    const overlapEntry = getDesktopCanvasOverlapEntry(tasks, dateString, movingTaskIds, candidate);
-    if (!overlapEntry) return candidate;
+    const result = getDesktopCanvasOverlapEntry(tasks, dateString, movingTaskIds, candidate, 0.01);
+    if (!result) return candidate;
+    const overlapEntry = result.entry;
     preferredPosition = {
       x: overlapEntry.x,
       y: overlapEntry.y + getDesktopCanvasEntryHeight(overlapEntry) + DESKTOP_CANVAS_CARD_GAP,
@@ -1348,6 +1348,8 @@ const GroupedTaskCard = ({
   labels,
   isDragging,
   isSelected,
+  isGroupReady,
+  draggedTaskId,
   onOpenItem,
   onOpenFullView,
   onPointerDown,
@@ -1390,7 +1392,10 @@ const GroupedTaskCard = ({
             className="desktop-task-group-summary-button"
             aria-label="Open full view"
             onMouseDown={(event) => event.stopPropagation()}
-            onPointerDown={(event) => event.stopPropagation()}
+            onPointerDown={(event) => {
+              event.stopPropagation();
+              onPointerDown?.(groupTask, event);
+            }}
             onClick={(event) => {
               event.stopPropagation();
               onOpenFullView?.();
@@ -1430,37 +1435,40 @@ const GroupedTaskCard = ({
           </button>
           <div className="desktop-task-group-divider" />
         <div className="desktop-task-group-list">
-          {previewTasks.map((task) => (
-            <div id={`desktop-task-wrapper-${task.id}`} key={task.id} style={{ display: 'block', width: '100%' }}>
-              <button
-                id={`desktop-task-card-${task.id}`}
-                type="button"
-                className="desktop-task-group-row"
-                onMouseDown={(event) => event.stopPropagation()}
-                onPointerDown={(event) => {
-                  event.stopPropagation();
-                  onPointerDown?.(task, event);
-                }}
-                onPointerMove={(event) => {
-                  event.stopPropagation();
-                  onPointerMove?.(task, event);
-                }}
-                onPointerUp={(event) => {
-                  event.stopPropagation();
-                  onPointerUp?.(task, event);
-                }}
-                onPointerCancel={(event) => {
-                  onPointerCancel?.(task, event);
-                }}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  onOpenItem?.(task);
-                }}
-              >
-                <TaskCardContent task={task} appearance={appearance} labels={labels} />
-              </button>
-            </div>
-          ))}
+          {previewTasks.map((task) => {
+            const isTaskDragging = draggedTaskId === task.id;
+            return (
+              <div id={`desktop-task-wrapper-${task.id}`} key={task.id} style={{ display: 'block', width: '100%', visibility: isTaskDragging ? 'hidden' : 'visible' }}>
+                <button
+                  id={`desktop-task-card-${task.id}`}
+                  type="button"
+                  className="desktop-task-group-row"
+                  onMouseDown={(event) => event.stopPropagation()}
+                  onPointerDown={(event) => {
+                    event.stopPropagation();
+                    onPointerDown?.(task, event);
+                  }}
+                  onPointerMove={(event) => {
+                    event.stopPropagation();
+                    onPointerMove?.(task, event);
+                  }}
+                  onPointerUp={(event) => {
+                    event.stopPropagation();
+                    onPointerUp?.(task, event);
+                  }}
+                  onPointerCancel={(event) => {
+                    onPointerCancel?.(task, event);
+                  }}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onOpenItem?.(task);
+                  }}
+                >
+                  <TaskCardContent task={task} appearance={appearance} labels={labels} />
+                </button>
+              </div>
+            );
+          })}
         </div>
         {canExpandPreview ? (
           <div
@@ -2130,14 +2138,15 @@ const DragDayFeedbackOverlay = ({
   previousLabel,
   nextLabel,
   zones,
+  isConfirming,
 }) => (
-  <div className={`desktop-drag-day-feedback ${direction ? 'is-visible' : ''}`} aria-hidden="true">
+  <div className={`desktop-drag-day-feedback ${direction ? 'is-visible' : ''} ${isConfirming ? 'is-confirming' : ''}`} aria-hidden="true">
     <div
       className={`desktop-drag-day-feedback-edge desktop-drag-day-feedback-edge-previous ${direction === 'previous' ? 'is-active' : ''}`}
       style={zones ? { width: Math.max(0, zones.previousEnd - zones.previousStart) } : undefined}
     >
       <div className="desktop-drag-day-feedback-chip">
-        <span className="desktop-drag-day-feedback-arrow desktop-drag-day-feedback-arrow-previous">{'<'}</span>
+        <span className="desktop-drag-day-feedback-arrow desktop-drag-day-feedback-arrow-previous">{'←'}</span>
         <span className="desktop-drag-day-feedback-label">{previousLabel}</span>
       </div>
     </div>
@@ -2147,7 +2156,7 @@ const DragDayFeedbackOverlay = ({
     >
       <div className="desktop-drag-day-feedback-chip">
         <span className="desktop-drag-day-feedback-label">{nextLabel}</span>
-        <span className="desktop-drag-day-feedback-arrow desktop-drag-day-feedback-arrow-next">{'>'}</span>
+        <span className="desktop-drag-day-feedback-arrow desktop-drag-day-feedback-arrow-next">{'→'}</span>
       </div>
     </div>
   </div>
@@ -2247,6 +2256,7 @@ const DailyTaskList = ({
   draggedTaskId,
   selectedTaskIds,
   selectionRect,
+  dragOverlapTargetId,
   layoutWidth = DESKTOP_MAIN_CONTENT_MAX_WIDTH,
 }) => (
   <div style={{ width: layoutWidth, minHeight: canvasHeight, height: canvasHeight, margin: '0 auto', position: 'relative' }}>
@@ -2255,16 +2265,22 @@ const DailyTaskList = ({
         const dragTask = entry.type === 'group'
           ? { ...entry.task, groupTaskIds: entry.tasks.map((task) => task.id), groupSize: entry.tasks.length }
           : entry.task;
+        const isGroupReady = dragOverlapTargetId === dragTask.id;
+        const isDragging = entry.type === 'group'
+          ? (draggedTaskId === dragTask.id) // Only hide whole card if lead task (group drag) is active
+          : (draggedTaskId === entry.task.id);
         return (
         <div key={entry.type === 'group' ? `group-${entry.id}` : entry.task.id} data-desktop-layout-id={`task-${dragTask.id}`} className="desktop-canvas-card-node" style={{ left: entry.x, top: entry.y, width: DESKTOP_CANVAS_CARD_WIDTH }}>
-          <div className="desktop-canvas-card-shell">
+          <div className={`desktop-canvas-card-shell ${isGroupReady ? 'desktop-canvas-card-shell--group-ready' : ''} ${isDragging ? 'is-dragging' : ''}`}>
             {entry.type === 'group' ? (
                 <GroupedTaskCard
                   tasks={entry.tasks}
                   appearance={appearance}
                   labels={labels}
-                  isDragging={draggedTaskId === dragTask.id}
+                  isDragging={isDragging}
                   isSelected={entry.tasks.every((task) => selectedTaskIds.includes(task.id))}
+                  isGroupReady={isGroupReady}
+                  draggedTaskId={draggedTaskId}
                   onOpenItem={onTaskClick}
                 onOpenFullView={() => onGroupOpenFullView(entry.tasks)}
                 onPointerDown={onTaskPointerDown}
@@ -2277,8 +2293,10 @@ const DailyTaskList = ({
                   task={entry.task}
                   appearance={appearance}
                   labels={labels}
-                  isDragging={draggedTaskId === entry.task.id}
+                  isDragging={isDragging}
                   isSelected={selectedTaskIds.includes(entry.task.id)}
+                  isGroupReady={isGroupReady}
+                  draggedTaskId={draggedTaskId}
                   onClick={() => onTaskClick(entry.task)}
                 onEdit={() => onTaskEdit(entry.task)}
                 onDelete={() => onTaskDelete(entry.task)}
@@ -2299,8 +2317,8 @@ const DailyTaskList = ({
         style={{
           minHeight: 220,
           borderRadius: 28,
-          border: '1px dashed var(--desktop-divider)',
-          background: 'var(--desktop-section-bg)',
+          border: appearance === 'dark' ? 'none' : '1px dashed var(--desktop-divider)',
+          background: appearance === 'dark' ? 'transparent' : 'var(--desktop-section-bg)',
         }}
         />
       )}
@@ -2491,6 +2509,8 @@ function App() {
   const [isCanvasFileDragActive, setIsCanvasFileDragActive] = useState(false);
   const [desktopDragDayFeedback, setDesktopDragDayFeedback] = useState(null);
   const [desktopDragDayZones, setDesktopDragDayZones] = useState(null);
+  const [desktopDragDayConfirming, setDesktopDragDayConfirming] = useState(false);
+  const [desktopDragOverlapTargetId, setDesktopDragOverlapTargetId] = useState(null);
   const [historyOpen, setHistoryOpenState] = useState(false);
   const [toastMessage, setToastMessage] = useState(null);
   const [pendingGroupPrompt, setPendingGroupPrompt] = useState(null);
@@ -2536,8 +2556,11 @@ function App() {
   const desktopDayFlipTimerRef = useRef(null);
   const desktopDayFlipDirectionRef = useRef(0);
   const desktopDayFlipCooldownUntilRef = useRef(0);
+  const desktopDragDayEntryPointXRef = useRef(null);
+  const desktopDragDayIsReadyRef = useRef(false);
   const desktopDragDayFeedbackRef = useRef(null);
   const desktopDragDayZonesRef = useRef(null);
+  const desktopDragOverlapTargetIdRef = useRef(null);
   const suppressTaskClickRef = useRef(null);
   const suppressAllTaskClicksUntilRef = useRef(0);
   const suppressTaskClickTimeoutRef = useRef(null);
@@ -2706,6 +2729,68 @@ function App() {
     const fittedScale = clampDesktopCanvasScale(Number(Math.min(widthScale, heightScale, DESKTOP_CANVAS_DEFAULT_SCALE).toFixed(2)));
     setDesktopCanvasScale(fittedScale);
   }, [desktopCanvasBaseHeight]);
+
+  const getDesktopCanvasPositionFromPointer = useCallback((clientX, clientY) => {
+    const content = desktopCanvasContentRef.current;
+    const originRect = desktopDragOriginRectRef.current;
+    if (!content || !originRect) return null;
+
+    const pointerOffset = desktopDragPointerOffsetRef.current;
+    const contentRect = content.getBoundingClientRect();
+    const canvasScale = desktopCanvasScaleRef.current || 1;
+    const renderedScale = canvasScale * DESKTOP_UI_SCALE;
+    const logicalCardWidth = originRect.width / renderedScale;
+    const logicalOffsetX = pointerOffset.x / renderedScale;
+    const logicalOffsetY = pointerOffset.y / renderedScale;
+    return {
+      x: ((clientX - contentRect.left) / renderedScale) - logicalOffsetX,
+      y: ((clientY - contentRect.top) / renderedScale) - logicalOffsetY,
+    };
+  }, []);
+
+  const getDesktopCanvasDropPositionFromPointer = useCallback((clientX, clientY, width = DESKTOP_CANVAS_CARD_WIDTH, height = DESKTOP_CANVAS_CARD_HEIGHT) => {
+    const content = desktopCanvasContentRef.current;
+    if (!content) return null;
+
+    const contentRect = content.getBoundingClientRect();
+    const canvasScale = desktopCanvasScaleRef.current || 1;
+    const renderedScale = canvasScale * DESKTOP_UI_SCALE;
+    return {
+      x: ((clientX - contentRect.left) / renderedScale) - (width / 2),
+      y: ((clientY - contentRect.top) / renderedScale) - (height / 2),
+    };
+  }, []);
+
+  function getDesktopCanvasPointFromClient(clientX, clientY) {
+    const content = desktopCanvasContentRef.current;
+    if (!content) return null;
+
+    const contentRect = content.getBoundingClientRect();
+    const canvasScale = desktopCanvasScaleRef.current || 1;
+    const renderedScale = canvasScale * DESKTOP_UI_SCALE;
+
+    return {
+      x: (clientX - contentRect.left) / renderedScale,
+      y: (clientY - contentRect.top) / renderedScale,
+    };
+  }
+
+  const updateDesktopSelectionFromRect = useCallback((selectionRect) => {
+    const nextSelectedTaskIds = selectedDayEntriesRef.current.flatMap((entry) => {
+      const entryRect = {
+        x: entry.x,
+        y: entry.y,
+        width: DESKTOP_CANVAS_CARD_WIDTH,
+        height: getDesktopCanvasEntryHeight(entry),
+      };
+
+      return doDesktopRectsIntersect(selectionRect, entryRect)
+        ? getDesktopCanvasEntryTaskIds(entry)
+        : [];
+    });
+
+    setSelectedTaskIds([...new Set(nextSelectedTaskIds)]);
+  }, []);
 
   const updateDesktopCanvasScale = useCallback((nextScale, anchor = null) => {
     const viewport = mainScrollRef.current;
@@ -2888,17 +2973,70 @@ function App() {
     }, 250);
   }, []);
 
-  const clearDesktopDayFlipTimer = useCallback(() => {
+  const resetDesktopDragInteraction = useCallback(() => {
     if (desktopDayFlipTimerRef.current !== null) {
       window.clearTimeout(desktopDayFlipTimerRef.current);
       desktopDayFlipTimerRef.current = null;
     }
     desktopDayFlipDirectionRef.current = 0;
+    desktopDragDayEntryPointXRef.current = null;
+    desktopDragDayIsReadyRef.current = false;
     desktopDragDayFeedbackRef.current = null;
     desktopDragDayZonesRef.current = null;
     setDesktopDragDayFeedback(null);
     setDesktopDragDayZones(null);
+    setDesktopDragDayConfirming(false);
+
+    desktopDragOverlapTargetIdRef.current = null;
+    setDesktopDragOverlapTargetId(null);
   }, []);
+
+  const clearDesktopDayFlipTimer = useCallback(() => {
+    resetDesktopDragInteraction();
+  }, [resetDesktopDragInteraction]);
+
+  const updateDesktopDragOverlapTarget = useCallback((clientX, clientY, taskId) => {
+    const nextPosition = getDesktopCanvasPositionFromPointer(clientX, clientY);
+    if (!nextPosition) return;
+
+    const movingTaskIds = new Set(
+      desktopDragSelectedTaskIdsRef.current.size > 0
+        ? [...desktopDragSelectedTaskIdsRef.current]
+        : [taskId],
+    );
+
+    const overlapResult = getDesktopCanvasOverlapEntry(
+      tasksRef.current,
+      dateKey(selectedDateRef.current),
+      movingTaskIds,
+      nextPosition,
+    );
+
+    const nextTargetId = overlapResult?.entry?.id || null;
+    const currentTargetId = desktopDragOverlapTargetIdRef.current;
+
+    if (nextTargetId === currentTargetId) return;
+
+    // Stability / Anti-Flicker:
+    // If we have a current target and a new candidate, only switch if the new 
+    // candidate is meaningfully better (e.g. 10% higher ratio).
+    if (currentTargetId && nextTargetId) {
+      const currentOverlap = getDesktopCanvasOverlapEntry(
+        tasksRef.current,
+        dateKey(selectedDateRef.current),
+        movingTaskIds,
+        nextPosition,
+        0.01, // Use low threshold to get actual ratio even if below 0.6
+      );
+      // If current still has a decent overlap, don't switch unless next is much better
+      if (currentOverlap && currentOverlap.ratio * 1.1 > (overlapResult?.ratio || 0)) {
+        return;
+      }
+    }
+
+    desktopDragOverlapTargetIdRef.current = nextTargetId;
+    setDesktopDragOverlapTargetId(nextTargetId);
+  }, [getDesktopCanvasPositionFromPointer]);
 
   const getNearestDesktopDropTarget = useCallback((clientX, clientY) => {
     const slots = document.querySelectorAll('[data-desktop-slot-id]');
@@ -2924,69 +3062,6 @@ function App() {
     return nearest;
   }, []);
 
-  const getDesktopCanvasPositionFromPointer = useCallback((clientX, clientY) => {
-    const content = desktopCanvasContentRef.current;
-    const originRect = desktopDragOriginRectRef.current;
-    if (!content || !originRect) return null;
-
-    const pointerOffset = desktopDragPointerOffsetRef.current;
-    const contentRect = content.getBoundingClientRect();
-    const canvasScale = desktopCanvasScaleRef.current || 1;
-    const renderedScale = canvasScale * DESKTOP_UI_SCALE;
-    const logicalCardWidth = originRect.width / renderedScale;
-    const logicalOffsetX = pointerOffset.x / renderedScale;
-    const logicalOffsetY = pointerOffset.y / renderedScale;
-    const maxX = Math.max(0, DESKTOP_MAIN_CONTENT_MAX_WIDTH - logicalCardWidth);
-
-    return {
-      x: Math.max(0, Math.min(maxX, ((clientX - contentRect.left) / renderedScale) - logicalOffsetX)),
-      y: Math.max(0, ((clientY - contentRect.top) / renderedScale) - logicalOffsetY),
-    };
-  }, []);
-
-  const getDesktopCanvasDropPositionFromPointer = useCallback((clientX, clientY, width = DESKTOP_CANVAS_CARD_WIDTH, height = DESKTOP_CANVAS_CARD_HEIGHT) => {
-    const content = desktopCanvasContentRef.current;
-    if (!content) return null;
-
-    const contentRect = content.getBoundingClientRect();
-    const canvasScale = desktopCanvasScaleRef.current || 1;
-    const renderedScale = canvasScale * DESKTOP_UI_SCALE;
-    const maxX = Math.max(0, DESKTOP_MAIN_CONTENT_MAX_WIDTH - width);
-
-    return {
-      x: Math.max(0, Math.min(maxX, ((clientX - contentRect.left) / renderedScale) - (width / 2))),
-      y: Math.max(0, ((clientY - contentRect.top) / renderedScale) - (height / 2)),
-    };
-  }, []);
-  function getDesktopCanvasPointFromClient(clientX, clientY) {
-    const content = desktopCanvasContentRef.current;
-    if (!content) return null;
-
-    const contentRect = content.getBoundingClientRect();
-    const canvasScale = desktopCanvasScaleRef.current || 1;
-    const renderedScale = canvasScale * DESKTOP_UI_SCALE;
-
-    return {
-      x: Math.max(0, (clientX - contentRect.left) / renderedScale),
-      y: Math.max(0, (clientY - contentRect.top) / renderedScale),
-    };
-  }
-  function updateDesktopSelectionFromRect(selectionRect) {
-    const nextSelectedTaskIds = selectedDayEntriesRef.current.flatMap((entry) => {
-      const entryRect = {
-        x: entry.x,
-        y: entry.y,
-        width: DESKTOP_CANVAS_CARD_WIDTH,
-        height: getDesktopCanvasEntryHeight(entry),
-      };
-
-      return doDesktopRectsIntersect(selectionRect, entryRect)
-        ? getDesktopCanvasEntryTaskIds(entry)
-        : [];
-    });
-
-    setSelectedTaskIds([...new Set(nextSelectedTaskIds)]);
-  }
 
   const syncDesktopDraggedTaskPosition = useCallback((taskId, clientX, clientY) => {
     const overlay = document.getElementById('desktop-task-drag-overlay');
@@ -3035,19 +3110,15 @@ function App() {
 
     const rect = viewport.getBoundingClientRect();
     const zones = getDesktopDayFlipZones(rect);
-    let direction = 0;
-    const nextFeedback = clientX <= zones.previousEnd
-      ? 'previous'
-      : clientX >= zones.nextStart
-        ? 'next'
-        : null;
 
+    let direction = 0;
     if (clientX <= zones.previousEnd) {
       direction = -1;
     } else if (clientX >= zones.nextStart) {
       direction = 1;
     }
 
+    // Sync zone state for visual overlay
     const currentZones = desktopDragDayZonesRef.current;
     if (
       !currentZones
@@ -3060,11 +3131,13 @@ function App() {
       setDesktopDragDayZones(zones);
     }
 
+    const nextFeedback = direction === -1 ? 'previous' : direction === 1 ? 'next' : null;
     if (desktopDragDayFeedbackRef.current !== nextFeedback) {
       desktopDragDayFeedbackRef.current = nextFeedback;
       setDesktopDragDayFeedback(nextFeedback);
     }
 
+    // Pointer left edge zones — full reset
     if (direction === 0) {
       clearDesktopDayFlipTimer();
       return;
@@ -3074,21 +3147,44 @@ function App() {
       return;
     }
 
-    if (desktopDayFlipDirectionRef.current === direction && desktopDayFlipTimerRef.current !== null) {
+    // Entering the edge zone arms the preview
+    if (desktopDayFlipDirectionRef.current !== direction) {
+      // Don't call clearDesktopDayFlipTimer completely here to avoid flickering feedback
+      // but reset our tracking state for the new direction
+      desktopDayFlipDirectionRef.current = direction;
+      desktopDragDayEntryPointXRef.current = clientX;
+      desktopDragDayIsReadyRef.current = false;
       return;
     }
 
-    clearDesktopDayFlipTimer();
-    desktopDayFlipDirectionRef.current = direction;
-    desktopDayFlipTimerRef.current = window.setTimeout(() => {
-      desktopDayFlipTimerRef.current = null;
-      desktopDayFlipDirectionRef.current = 0;
+    const entryX = desktopDragDayEntryPointXRef.current;
+    if (entryX === null) return;
 
-      if (!desktopDragModeRef.current || desktopDragStateRef.current.taskId !== taskId) return;
+    const outwardDelta = (clientX - entryX) * direction;
 
+    // Phase 3: Cancel (Moving Inward)
+    if (outwardDelta <= -DESKTOP_DRAG_DAY_CANCEL_DISTANCE_PX) {
+      clearDesktopDayFlipTimer();
+      return;
+    }
+
+    // Visual indication: we consider it "ready" or "confirming" once pushing outward
+    const isReady = outwardDelta > 0;
+    if (desktopDragDayIsReadyRef.current !== isReady) {
+      desktopDragDayIsReadyRef.current = isReady;
+      setDesktopDragDayConfirming(isReady);
+    }
+
+    // Phase 2: Confirm (Pushing Outward)
+    if (outwardDelta >= DESKTOP_DRAG_DAY_CONFIRM_DISTANCE_PX) {
+      if (!desktopDragModeRef.current || desktopDragStateRef.current.taskId !== taskId) {
+        clearDesktopDayFlipTimer();
+        return;
+      }
       desktopDayFlipCooldownUntilRef.current = Date.now() + DESKTOP_DRAG_DAY_FLIP_COOLDOWN_MS;
       moveDraggedTaskToDate(taskId, shiftDateByDays(selectedDateRef.current, direction));
-    }, DESKTOP_DRAG_DAY_EDGE_HOLD_MS);
+      clearDesktopDayFlipTimer();
+    }
   }, [clearDesktopDayFlipTimer, moveDraggedTaskToDate]);
 
   const stopDesktopAutoScroll = useCallback(() => {
@@ -3283,9 +3379,10 @@ function App() {
                   : (isGroupDrag ? task.groupTaskIds : [task.id]),
               );
               const activeDateKey = selectedDateRef.current ? dateKey(selectedDateRef.current) : task.dateString;
-              const overlapEntry = searchDragSeparateRef.current
+              const overlapResult = searchDragSeparateRef.current
                 ? null
                 : getDesktopCanvasOverlapEntry(prev, activeDateKey, movingTaskIds, nextPosition);
+              const overlapEntry = overlapResult?.entry;
             const timestamp = Date.now();
 
             if (overlapEntry) {
@@ -3318,16 +3415,18 @@ function App() {
                 const deltaX = nextPosition.x - anchorStartPosition.x;
                 const deltaY = nextPosition.y - anchorStartPosition.y;
 
-                const resetGroupProps = !isGroupDrag ? {
-                desktopGroupId: null,
-                desktopGroupName: null,
-                desktopGroupIcon: null,
-                desktopGroupTags: [],
-                desktopGroupCover: null,
-                desktopGroupActiveDurationType: null,
-                desktopGroupActiveFrom: null,
-                desktopGroupActiveUntil: null,
-              } : {};
+                const isMultiDrag = desktopDragSelectedTaskIdsRef.current.size > 1;
+                const shouldResetGroup = !isGroupDrag && !isMultiDrag;
+                const resetGroupProps = shouldResetGroup ? {
+                  desktopGroupId: null,
+                  desktopGroupName: null,
+                  desktopGroupIcon: null,
+                  desktopGroupTags: [],
+                  desktopGroupCover: null,
+                  desktopGroupActiveDurationType: null,
+                  desktopGroupActiveFrom: null,
+                  desktopGroupActiveUntil: null,
+                } : {};
 
                 return normalizeTask({
                   ...item,
@@ -3412,7 +3511,8 @@ function App() {
     }
     syncDesktopDraggedTaskPosition(task.id, clientX, clientY);
     updateDesktopDragDayAutoFlip(clientX, task.id);
-  }, [startDesktopTaskDrag, syncDesktopDraggedTaskPosition, updateDesktopDragDayAutoFlip]);
+    updateDesktopDragOverlapTarget(clientX, clientY, task.id);
+  }, [startDesktopTaskDrag, syncDesktopDraggedTaskPosition, updateDesktopDragDayAutoFlip, updateDesktopDragOverlapTarget]);
 
   const handleTaskPointerMove = useCallback((task, event) => {
     if (desktopDragStateRef.current.pointerId !== event.pointerId || desktopDragStateRef.current.taskId !== task.id) return;
@@ -4188,6 +4288,7 @@ function App() {
                         draggedTaskId={draggedTaskId}
                         selectedTaskIds={selectedTaskIds}
                         selectionRect={desktopSelectionRect}
+                        dragOverlapTargetId={desktopDragOverlapTargetId}
                         layoutWidth={DESKTOP_MAIN_CONTENT_MAX_WIDTH}
                       />
                       {isCanvasFileDragActive ? (
@@ -4205,6 +4306,7 @@ function App() {
               previousLabel={desktopPreviousDayLabel}
               nextLabel={desktopNextDayLabel}
               zones={desktopDragDayZones}
+              isConfirming={desktopDragDayConfirming}
             />
           </div>
         </div>
