@@ -13,8 +13,16 @@ import { DAY_BOUNDARY_HOUR, getLogicalToday } from '../lib/dateHelpers';
 import { getInitialLanguage } from '../lib/language';
 import { createUpdatedTimestamp, getPackMetadataTextFromItems } from '../lib/packMetadata';
 import {
+  createPackActiveDurationFields,
+  getPackActiveBaseDateFromTasks,
+  getPackActiveDurationFromTasks,
+  getPackActiveLabel,
   getPackIconFromTasks,
+  isPackActiveOnDate,
+  PACK_ACTIVE_DURATION_OPTIONS,
   getPackTagsFromTasks,
+  normalizePackActiveDate,
+  normalizePackActiveDurationType,
   normalizePackCover,
   normalizePackIcon,
   normalizePackTags,
@@ -102,7 +110,7 @@ const sections = [
     darkPillBorder: MOBILE_BLOCK_STYLES.Night.strokeColor,
   },
 ];
-const DESKTOP_DRAG_START_DISTANCE = 4;
+const DESKTOP_DRAG_START_DISTANCE = 8;
 const DESKTOP_DRAG_SCROLL_ZONE = 96;
 const DESKTOP_DRAG_MAX_SCROLL_SPEED = 1.35;
 const DESKTOP_DRAG_DAY_EDGE_HOLD_MS = 220;
@@ -384,10 +392,36 @@ const getDesktopCanvasTaskHeight = (task) => (
     ? DESKTOP_PHOTO_CARD_HEIGHT
     : DESKTOP_CANVAS_CARD_HEIGHT
 );
+const getDesktopDragTaskIds = (task) => (
+  Array.isArray(task?.groupTaskIds) && task.groupTaskIds.length > 0
+    ? task.groupTaskIds
+    : task?.id !== undefined && task?.id !== null
+      ? [task.id]
+      : []
+);
 const getDesktopCanvasEntryHeight = (entry) => (
   entry?.type === 'group'
     ? getDesktopGroupCardHeight(entry.tasks.length)
     : getDesktopCanvasTaskHeight(entry?.task)
+);
+const getDesktopCanvasEntryTaskIds = (entry) => (
+  entry?.type === 'group'
+    ? entry.tasks.map((task) => task.id)
+    : entry?.task?.id !== undefined && entry?.task?.id !== null
+      ? [entry.task.id]
+      : []
+);
+const getDesktopSelectionRect = (start, end) => ({
+  x: Math.min(start.x, end.x),
+  y: Math.min(start.y, end.y),
+  width: Math.abs(end.x - start.x),
+  height: Math.abs(end.y - start.y),
+});
+const doDesktopRectsIntersect = (first, second) => !(
+  first.x + first.width < second.x
+  || second.x + second.width < first.x
+  || first.y + first.height < second.y
+  || second.y + second.height < first.y
 );
 const getDefaultDesktopCanvasPosition = (index) => {
   const column = index % 2;
@@ -399,7 +433,7 @@ const getDefaultDesktopCanvasPosition = (index) => {
 };
 const resolveDesktopCanvasEntries = (tasks, dateString) => {
   const selectedTasks = tasks
-    .filter((task) => task.dateString === dateString)
+    .filter((task) => isPackActiveOnDate(task, dateString))
     .sort((a, b) => {
       const layerA = Number.isFinite(a.desktopZ) ? a.desktopZ : 0;
       const layerB = Number.isFinite(b.desktopZ) ? b.desktopZ : 0;
@@ -565,6 +599,9 @@ const cleanupDesktopGroupMetadata = (tasks) => {
         desktopGroupIcon: null,
         desktopGroupCover: null,
         desktopGroupTags: [],
+        desktopGroupActiveDurationType: null,
+        desktopGroupActiveFrom: null,
+        desktopGroupActiveUntil: null,
       })
       : task
   ));
@@ -667,6 +704,9 @@ const normalizeTask = (task) => {
     desktopGroupIcon: normalizePackIcon(task.desktopGroupIcon),
     desktopGroupCover: normalizePackCover(task.desktopGroupCover),
     desktopGroupTags: normalizePackTags(task.desktopGroupTags),
+    desktopGroupActiveDurationType: normalizePackActiveDurationType(task.desktopGroupActiveDurationType),
+    desktopGroupActiveFrom: normalizePackActiveDate(task.desktopGroupActiveFrom),
+    desktopGroupActiveUntil: normalizePackActiveDate(task.desktopGroupActiveUntil),
     photoDataUrl: typeof task.photoDataUrl === 'string' && task.photoDataUrl.trim() ? task.photoDataUrl : null,
     photoFileName: typeof task.photoFileName === 'string' && task.photoFileName.trim() ? task.photoFileName : null,
     photoMimeType: typeof task.photoMimeType === 'string' && task.photoMimeType.trim() ? task.photoMimeType : null,
@@ -1225,18 +1265,19 @@ const TaskCard = (props) => {
     onPointerDown,
     onPointerMove,
     onPointerUp,
-    onPointerCancel,
-    isDragging,
-    editLabel,
-    deleteLabel,
-  } = props;
+      onPointerCancel,
+      isDragging,
+      isSelected,
+      editLabel,
+      deleteLabel,
+    } = props;
   const taskCardLabels = props?.labels;
 
   const isPast = task.dateString < dateKey(getLogicalToday());
   const isPhotoCard = normalizeCardType(task?.cardType) === CARD_TYPES.PHOTO;
 
   return (
-    <div id={`desktop-task-wrapper-${task.id}`} className={`desktop-task-wrapper ${isDragging ? 'is-dragging' : ''} ${isPast ? 'is-past' : ''}`}>
+      <div id={`desktop-task-wrapper-${task.id}`} className={`desktop-task-wrapper ${isDragging ? 'is-dragging' : ''} ${isSelected ? 'is-selected' : ''} ${isPast ? 'is-past' : ''}`}>
       <button
         id={`desktop-task-card-${task.id}`}
         type="button"
@@ -1306,6 +1347,7 @@ const GroupedTaskCard = ({
   appearance,
   labels,
   isDragging,
+  isSelected,
   onOpenItem,
   onOpenFullView,
   onPointerDown,
@@ -1332,59 +1374,61 @@ const GroupedTaskCard = ({
   };
 
   return (
-    <div id={`desktop-task-wrapper-${leadTask.id}`} className={`desktop-task-wrapper desktop-task-group-wrapper ${isDragging ? 'is-dragging' : ''}`}>
-      <div
-        id={`desktop-task-card-${leadTask.id}`}
-        className={`desktop-task-card desktop-task-group-card ${isDragging ? 'is-dragging' : ''}`}
-        onMouseLeave={() => setIsPreviewExpanded(false)}
-        onPointerDown={(event) => onPointerDown(groupTask, event)}
-        onPointerMove={(event) => onPointerMove(groupTask, event)}
-        onPointerUp={(event) => onPointerUp(groupTask, event)}
-        onPointerCancel={(event) => onPointerCancel(groupTask, event)}
-        style={{ width: '100%', minHeight: getDesktopGroupCardHeight(previewTasks.length) - 10, touchAction: 'none', userSelect: 'none' }}
-      >
-        <div className="desktop-task-group-header">
-          <div className="desktop-task-group-title-wrap">
-            {groupIcon ? (
-              <span className="desktop-task-group-title-icon">{groupIcon}</span>
-            ) : (
-              <span className="desktop-task-group-title-dot" />
-            )}
-            <div className="desktop-task-group-title-block">
-              <span className="desktop-task-group-title">
-                {groupTitle}
-              </span>
-              {groupMetadataText ? (
-                <span className="desktop-task-group-metadata">
-                  {groupMetadataText}
+      <div id={`desktop-task-wrapper-${leadTask.id}`} className={`desktop-task-wrapper desktop-task-group-wrapper ${isDragging ? 'is-dragging' : ''} ${isSelected ? 'is-selected' : ''}`}>
+        <div
+          id={`desktop-task-card-${leadTask.id}`}
+          className={`desktop-task-card desktop-task-group-card ${isDragging ? 'is-dragging' : ''}`}
+          onMouseLeave={() => setIsPreviewExpanded(false)}
+          onPointerDown={(event) => onPointerDown(groupTask, event)}
+          onPointerMove={(event) => onPointerMove(groupTask, event)}
+          onPointerUp={(event) => onPointerUp(groupTask, event)}
+          onPointerCancel={(event) => onPointerCancel(groupTask, event)}
+          style={{ width: '100%', minHeight: getDesktopGroupCardHeight(previewTasks.length) - 10, touchAction: 'none', userSelect: 'none' }}
+        >
+          <button
+            type="button"
+            className="desktop-task-group-summary-button"
+            aria-label="Open full view"
+            onMouseDown={(event) => event.stopPropagation()}
+            onPointerDown={(event) => event.stopPropagation()}
+            onClick={(event) => {
+              event.stopPropagation();
+              onOpenFullView?.();
+            }}
+          >
+            <div className="desktop-task-group-header">
+              <div className="desktop-task-group-title-wrap">
+                {groupIcon ? (
+                  <span className="desktop-task-group-title-icon">{groupIcon}</span>
+                ) : (
+                  <span className="desktop-task-group-title-dot" />
+                )}
+                <div className="desktop-task-group-title-block">
+                  <span className="desktop-task-group-title">
+                    {groupTitle}
+                  </span>
+                  {groupMetadataText ? (
+                    <span className="desktop-task-group-metadata">
+                      {groupMetadataText}
+                    </span>
+                  ) : null}
+                </div>
+              </div>
+              <div className="desktop-task-group-header-actions">
+                <span className="desktop-task-group-open-icon" aria-hidden="true">
+                  <OpenFullViewIcon />
                 </span>
-              ) : null}
+              </div>
             </div>
-          </div>
-          <div className="desktop-task-group-header-actions">
-            <button
-              type="button"
-              aria-label="Open full view"
-              onMouseDown={(event) => event.stopPropagation()}
-              onPointerDown={(event) => event.stopPropagation()}
-              onClick={(event) => {
-                event.stopPropagation();
-                onOpenFullView?.();
-              }}
-              className="desktop-task-group-open-icon"
-            >
-              <OpenFullViewIcon />
-            </button>
-          </div>
-        </div>
-        {groupChips.length > 0 ? (
-          <div className="desktop-task-group-chip-row">
-            {groupChips.map((chip) => (
-              <span key={chip} className="desktop-task-group-chip">{chip}</span>
-            ))}
-          </div>
-        ) : null}
-        <div className="desktop-task-group-divider" />
+            {groupChips.length > 0 ? (
+              <div className="desktop-task-group-chip-row">
+                {groupChips.map((chip) => (
+                  <span key={chip} className="desktop-task-group-chip">{chip}</span>
+                ))}
+              </div>
+            ) : null}
+          </button>
+          <div className="desktop-task-group-divider" />
         <div className="desktop-task-group-list">
           {previewTasks.map((task) => (
             <div id={`desktop-task-wrapper-${task.id}`} key={task.id} style={{ display: 'block', width: '100%' }}>
@@ -1438,10 +1482,14 @@ const DesktopPackPageHeader = ({
   tasks,
   onUpdateGroup,
   appearance,
+  language,
 }) => {
   const groupTitle = getDesktopGroupDisplayName(tasks);
   const groupIcon = getDesktopGroupIcon(tasks);
   const groupTags = getDesktopGroupDisplayTags(tasks);
+  const packActiveDuration = getPackActiveDurationFromTasks(tasks);
+  const activeDurationLabel = getPackActiveLabel(packActiveDuration);
+  const activeDurationBaseDate = getPackActiveBaseDateFromTasks(tasks);
   const updatedLabel = getPackMetadataTextFromItems(tasks);
   const metadataParts = [
     `${tasks.length} ${tasks.length === 1 ? 'item' : 'items'}`,
@@ -1451,7 +1499,13 @@ const DesktopPackPageHeader = ({
   const [draftTitle, setDraftTitle] = useState('');
   const [isIconPickerOpen, setIsIconPickerOpen] = useState(false);
   const [isTagInputOpen, setIsTagInputOpen] = useState(false);
+  const [isDurationMenuOpen, setIsDurationMenuOpen] = useState(false);
+  const [draftCustomUntil, setDraftCustomUntil] = useState(packActiveDuration.activeUntil || activeDurationBaseDate);
   const [draftTag, setDraftTag] = useState('');
+
+  useEffect(() => {
+    setDraftCustomUntil(packActiveDuration.activeUntil || activeDurationBaseDate);
+  }, [activeDurationBaseDate, packActiveDuration.activeUntil]);
 
   const commitTitle = useCallback(() => {
     const nextTitle = draftTitle.trim();
@@ -1484,6 +1538,14 @@ const DesktopPackPageHeader = ({
     setDraftTag('');
     setIsTagInputOpen(false);
   }, [draftTag, groupTags, onUpdateGroup]);
+
+  const applyDuration = useCallback((nextType, customUntil = null) => {
+    onUpdateGroup(createPackActiveDurationFields(nextType, {
+      activeFrom: activeDurationBaseDate,
+      activeUntil: customUntil,
+    }));
+    setIsDurationMenuOpen(false);
+  }, [activeDurationBaseDate, onUpdateGroup]);
 
   return (
     <div className="desktop-pack-page-header">
@@ -1626,6 +1688,58 @@ const DesktopPackPageHeader = ({
               Add tag
             </button>
           )}
+          <span className="desktop-pack-page-property-divider" aria-hidden="true" />
+          <div className="desktop-pack-page-property-control">
+            <button
+              type="button"
+              className={`desktop-pack-page-inline-action is-inline desktop-pack-page-duration-trigger ${packActiveDuration.activeDurationType ? 'has-value' : ''}`}
+              onClick={() => setIsDurationMenuOpen((current) => !current)}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <circle cx="12" cy="12" r="8.5" stroke="currentColor" strokeWidth="1.7" />
+                <path d="M12 7.8v4.6l3.2 1.9" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+              <span>{activeDurationLabel}</span>
+              <svg width="12" height="12" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                <path d="M5 7.5 10 12.5 15 7.5" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </button>
+            {isDurationMenuOpen ? (
+              <div className="desktop-pack-page-duration-menu">
+                {PACK_ACTIVE_DURATION_OPTIONS.map((option) => (
+                  <button
+                    key={option.value}
+                    type="button"
+                    className={`desktop-pack-page-duration-option ${packActiveDuration.activeDurationType === option.value ? 'is-active' : ''}`}
+                    onClick={() => {
+                      if (option.value === 'custom') {
+                        return;
+                      }
+                      applyDuration(option.value);
+                    }}
+                  >
+                    <span>{option.label}</span>
+                  </button>
+                ))}
+                <div className="desktop-pack-page-duration-custom-row">
+                  <input
+                    type="date"
+                    value={draftCustomUntil || activeDurationBaseDate}
+                    min={activeDurationBaseDate}
+                    className="desktop-pack-page-duration-date-input"
+                    onChange={(event) => setDraftCustomUntil(event.target.value)}
+                  />
+                  <button
+                    type="button"
+                    className="desktop-pack-page-duration-apply"
+                    onClick={() => applyDuration('custom', draftCustomUntil || activeDurationBaseDate)}
+                  >
+                    Apply
+                  </button>
+                </div>
+              </div>
+            ) : null}
+          </div>
         </div>
       </div>
     </div>
@@ -1637,6 +1751,7 @@ const DesktopGroupFullViewModal = ({
   view,
   appearance,
   labels,
+  language,
   onClose,
   onTaskOpen,
   onTaskEdit,
@@ -1797,7 +1912,7 @@ const DesktopGroupFullViewModal = ({
           </button>
         </div>
 
-        <DesktopPackPageHeader tasks={tasks} onUpdateGroup={onUpdateGroup} appearance={appearance} />
+        <DesktopPackPageHeader tasks={tasks} onUpdateGroup={onUpdateGroup} appearance={appearance} language={language} />
 
         <div className="desktop-pack-page-content">
           <div className="desktop-pack-page-controls">
@@ -2130,6 +2245,8 @@ const DailyTaskList = ({
   onTaskPointerUp,
   onTaskPointerCancel,
   draggedTaskId,
+  selectedTaskIds,
+  selectionRect,
   layoutWidth = DESKTOP_MAIN_CONTENT_MAX_WIDTH,
 }) => (
   <div style={{ width: layoutWidth, minHeight: canvasHeight, height: canvasHeight, margin: '0 auto', position: 'relative' }}>
@@ -2142,12 +2259,13 @@ const DailyTaskList = ({
         <div key={entry.type === 'group' ? `group-${entry.id}` : entry.task.id} data-desktop-layout-id={`task-${dragTask.id}`} className="desktop-canvas-card-node" style={{ left: entry.x, top: entry.y, width: DESKTOP_CANVAS_CARD_WIDTH }}>
           <div className="desktop-canvas-card-shell">
             {entry.type === 'group' ? (
-              <GroupedTaskCard
-                tasks={entry.tasks}
-                appearance={appearance}
-                labels={labels}
-                isDragging={draggedTaskId === dragTask.id}
-                onOpenItem={onTaskClick}
+                <GroupedTaskCard
+                  tasks={entry.tasks}
+                  appearance={appearance}
+                  labels={labels}
+                  isDragging={draggedTaskId === dragTask.id}
+                  isSelected={entry.tasks.every((task) => selectedTaskIds.includes(task.id))}
+                  onOpenItem={onTaskClick}
                 onOpenFullView={() => onGroupOpenFullView(entry.tasks)}
                 onPointerDown={onTaskPointerDown}
                 onPointerMove={onTaskPointerMove}
@@ -2155,12 +2273,13 @@ const DailyTaskList = ({
                 onPointerCancel={onTaskPointerCancel}
               />
             ) : (
-              <TaskCard
-                task={entry.task}
-                appearance={appearance}
-                labels={labels}
-                isDragging={draggedTaskId === entry.task.id}
-                onClick={() => onTaskClick(entry.task)}
+                <TaskCard
+                  task={entry.task}
+                  appearance={appearance}
+                  labels={labels}
+                  isDragging={draggedTaskId === entry.task.id}
+                  isSelected={selectedTaskIds.includes(entry.task.id)}
+                  onClick={() => onTaskClick(entry.task)}
                 onEdit={() => onTaskEdit(entry.task)}
                 onDelete={() => onTaskDelete(entry.task)}
                 onPointerDown={(event) => onTaskPointerDown(entry.task, event)}
@@ -2183,33 +2302,124 @@ const DailyTaskList = ({
           border: '1px dashed var(--desktop-divider)',
           background: 'var(--desktop-section-bg)',
         }}
-      />
-    )}
-  </div>
-);
+        />
+      )}
+      {selectionRect ? (
+        <div
+          className="desktop-canvas-selection-rect"
+          aria-hidden="true"
+          style={{
+            left: selectionRect.x,
+            top: selectionRect.y,
+            width: selectionRect.width,
+            height: selectionRect.height,
+          }}
+        />
+      ) : null}
+    </div>
+  );
 
-const AddPanel = ({ open, language, selectedDate, inputText, setInputText, onClose, onSubmit, onSelectDate }) => {
-  const [isCalendarOpen, setIsCalendarOpen] = useState(false);
+const InlineMiniCalendar = ({
+  language,
+  selectedDate,
+  minDate,
+  maxDate,
+  onSelectDate,
+}) => {
   const [calendarOffset, setCalendarOffset] = useState(0);
-  const t = getTranslationsForLanguage(language);
   const locale = getLocaleForLanguage(language);
-
-  if (!open) return null;
-
-  const logicalToday = getLogicalToday();
-  const maxDate = new Date(logicalToday);
-  maxDate.setDate(maxDate.getDate() + 30);
   const calendarMonth = new Date(selectedDate.getFullYear(), selectedDate.getMonth() + calendarOffset, 1);
   const monthStart = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth(), 1);
   const monthLabel = monthStart.toLocaleDateString(locale, { month: 'short', year: 'numeric' });
   const startOffset = monthStart.getDay();
   const daysInMonth = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 0).getDate();
   const trailingCells = Math.max(0, 42 - startOffset - daysInMonth);
-  const isAtMinMonth = monthStart.getFullYear() === logicalToday.getFullYear() && monthStart.getMonth() === logicalToday.getMonth();
-  const isAtMaxMonth = monthStart.getFullYear() === maxDate.getFullYear() && monthStart.getMonth() === maxDate.getMonth();
   const desktopCalendarCellSize = 32;
   const desktopCalendarGap = 6;
   const calendarWeekdayLabels = getCalendarWeekdayLabels(language);
+  const normalizedMinDate = minDate ? new Date(minDate.getFullYear(), minDate.getMonth(), minDate.getDate()) : null;
+  const normalizedMaxDate = maxDate ? new Date(maxDate.getFullYear(), maxDate.getMonth(), maxDate.getDate()) : null;
+  const isAtMinMonth = normalizedMinDate
+    ? monthStart.getFullYear() === normalizedMinDate.getFullYear() && monthStart.getMonth() === normalizedMinDate.getMonth()
+    : false;
+  const isAtMaxMonth = normalizedMaxDate
+    ? monthStart.getFullYear() === normalizedMaxDate.getFullYear() && monthStart.getMonth() === normalizedMaxDate.getMonth()
+    : false;
+
+  return (
+    <div style={{ width: 'fit-content', maxWidth: '100%', marginBottom: 16, padding: '4px 0 8px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+        <button
+          type="button"
+          disabled={isAtMinMonth}
+          onClick={() => setCalendarOffset((prev) => prev - 1)}
+          style={{ width: 28, height: 28, borderRadius: '50%', border: 'none', background: 'var(--desktop-panel-close-bg)', color: isAtMinMonth ? 'var(--desktop-muted-subtle)' : 'var(--desktop-root-text)', cursor: isAtMinMonth ? 'default' : 'pointer', fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+        >
+          {'<'}
+        </button>
+        <span style={{ fontFamily: 'DM Serif Display, serif', fontSize: 18, fontStyle: 'italic' }}>{monthLabel}</span>
+        <button
+          type="button"
+          disabled={isAtMaxMonth}
+          onClick={() => setCalendarOffset((prev) => prev + 1)}
+          style={{ width: 28, height: 28, borderRadius: '50%', border: 'none', background: 'var(--desktop-panel-close-bg)', color: isAtMaxMonth ? 'var(--desktop-muted-subtle)' : 'var(--desktop-root-text)', cursor: isAtMaxMonth ? 'default' : 'pointer', fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+        >
+          {'>'}
+        </button>
+      </div>
+      <div style={{ display: 'grid', width: 'fit-content', maxWidth: '100%', gridTemplateColumns: `repeat(7, ${desktopCalendarCellSize}px)`, gap: desktopCalendarGap }}>
+        {calendarWeekdayLabels.map((label, index) => (
+          <div key={`${label}-${index}`} style={{ textAlign: 'center', fontSize: 13, fontWeight: 600, color: 'var(--desktop-muted-subtle)' }}>{label}</div>
+        ))}
+        {Array.from({ length: startOffset }).map((_, index) => <div key={`empty-${index}`} />)}
+        {Array.from({ length: daysInMonth }).map((_, index) => {
+          const day = index + 1;
+          const cellDate = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth(), day);
+          const inRange = (!normalizedMinDate || cellDate >= normalizedMinDate) && (!normalizedMaxDate || cellDate <= normalizedMaxDate);
+          const currentSelectedDate = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate());
+          const selected = sameDay(cellDate, currentSelectedDate);
+          const today = sameDay(cellDate, getLogicalToday());
+
+          return (
+            <button
+              key={day}
+              type="button"
+              disabled={!inRange}
+              onClick={() => {
+                if (!inRange) return;
+                onSelectDate(cellDate);
+              }}
+              style={{
+                width: desktopCalendarCellSize,
+                aspectRatio: '1 / 1',
+                borderRadius: '50%',
+                border: today && !selected ? '1px solid var(--desktop-accent)' : 'none',
+                background: selected ? 'var(--desktop-active-date-bg)' : 'transparent',
+                color: selected ? '#fff' : today ? 'var(--desktop-accent)' : inRange ? 'var(--desktop-root-text)' : 'var(--desktop-disabled-text)',
+                fontSize: 14,
+                fontWeight: selected || today ? 700 : 500,
+                cursor: inRange ? 'pointer' : 'default',
+              }}
+            >
+              {day}
+            </button>
+          );
+        })}
+        {Array.from({ length: trailingCells }).map((_, index) => <div key={`trail-${index}`} />)}
+      </div>
+    </div>
+  );
+};
+
+const AddPanel = ({ open, language, selectedDate, inputText, setInputText, onClose, onSubmit, onSelectDate }) => {
+  const [isCalendarOpen, setIsCalendarOpen] = useState(false);
+  const t = getTranslationsForLanguage(language);
+
+  if (!open) return null;
+
+  const logicalToday = getLogicalToday();
+  const maxDate = new Date(logicalToday);
+  maxDate.setDate(maxDate.getDate() + 30);
   return (
     <div role="dialog" style={{ position: 'fixed', right: 42, bottom: 94, width: 440, minHeight: 520, maxHeight: 'calc(100vh - 120px)', borderRadius: 24, border: '1px solid var(--desktop-divider)', background: 'var(--desktop-section-bg)', display: 'flex', flexDirection: 'column', boxShadow: '0 16px 48px rgba(0,0,0,0.12)', zIndex: 30, overflow: 'hidden' }}>
       <div style={{ padding: '24px 28px 12px', display: 'flex', justifyContent: 'flex-end', flexShrink: 0 }}>
@@ -2217,63 +2427,22 @@ const AddPanel = ({ open, language, selectedDate, inputText, setInputText, onClo
       </div>
       <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', padding: '0 28px 28px', overflowY: 'auto' }}>
         <button type="button" onClick={() => {
-          if (!isCalendarOpen) setCalendarOffset(0);
           setIsCalendarOpen((prev) => !prev);
         }} style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '6px 0 20px', padding: 0, border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--desktop-root-text)', flexShrink: 0 }}>
           <h2 style={{ margin: 0, fontFamily: 'DM Serif Display, serif', fontSize: 26, fontStyle: 'italic', lineHeight: 1 }}>{panelLabel(selectedDate, language)}</h2>
           <svg xmlns="http://www.w3.org/2000/svg" width="8" height="13" viewBox="0 0 9 14" fill="none" style={{ transform: isCalendarOpen ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.24s cubic-bezier(0.16, 1, 0.3, 1)', opacity: 0.6 }}><path fillRule="evenodd" clipRule="evenodd" d="M8.78019 6.54928C8.92094 6.66887 9 6.83098 9 7C9 7.16902 8.92094 7.33113 8.78019 7.45072L1.26401 13.8288C1.12153 13.9415 0.933079 14.0028 0.738359 13.9999C0.543638 13.997 0.357853 13.93 0.220144 13.8132C0.0824342 13.6963 0.00355271 13.5387 0.000117099 13.3734C-0.00331851 13.2082 0.06896 13.0483 0.201726 12.9274L7.18676 7L0.201726 1.07262C0.06896 0.951712 -0.00331851 0.791795 0.000117099 0.626558C0.00355271 0.461322 0.0824342 0.303668 0.220144 0.18681C0.357853 0.0699525 0.543638 0.00301477 0.738359 9.93682e-05C0.933079 -0.00281603 1.12153 0.0585185 1.26401 0.171181L8.78019 6.54928Z" fill="currentColor" /></svg>
         </button>
         {isCalendarOpen ? (
-          <div style={{ width: 'fit-content', maxWidth: '100%', marginBottom: 16, padding: '4px 0 8px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-              <button type="button" disabled={isAtMinMonth} onClick={() => setCalendarOffset((prev) => prev - 1)} style={{ width: 28, height: 28, borderRadius: '50%', border: 'none', background: 'var(--desktop-panel-close-bg)', color: isAtMinMonth ? 'var(--desktop-muted-subtle)' : 'var(--desktop-root-text)', cursor: isAtMinMonth ? 'default' : 'pointer', fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                {'<'}
-              </button>
-              <span style={{ fontFamily: 'DM Serif Display, serif', fontSize: 18, fontStyle: 'italic' }}>{monthLabel}</span>
-              <button type="button" disabled={isAtMaxMonth} onClick={() => setCalendarOffset((prev) => prev + 1)} style={{ width: 28, height: 28, borderRadius: '50%', border: 'none', background: 'var(--desktop-panel-close-bg)', color: isAtMaxMonth ? 'var(--desktop-muted-subtle)' : 'var(--desktop-root-text)', cursor: isAtMaxMonth ? 'default' : 'pointer', fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                {'>'}
-              </button>
-            </div>
-            <div style={{ display: 'grid', width: 'fit-content', maxWidth: '100%', gridTemplateColumns: `repeat(7, ${desktopCalendarCellSize}px)`, gap: desktopCalendarGap }}>
-              {calendarWeekdayLabels.map((label, index) => (
-                <div key={`${label}-${index}`} style={{ textAlign: 'center', fontSize: 13, fontWeight: 600, color: 'var(--desktop-muted-subtle)' }}>{label}</div>
-              ))}
-              {Array.from({ length: startOffset }).map((_, index) => <div key={`empty-${index}`} />)}
-              {Array.from({ length: daysInMonth }).map((_, index) => {
-                const day = index + 1;
-                const cellDate = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth(), day);
-                const inRange = cellDate >= logicalToday && cellDate <= maxDate;
-                const selected = sameDay(cellDate, selectedDate);
-                const today = sameDay(cellDate, logicalToday);
-                return (
-                  <button
-                    key={day}
-                    type="button"
-                    disabled={!inRange}
-                    onClick={() => {
-                      if (!inRange) return;
-                      onSelectDate(cellDate);
-                      setIsCalendarOpen(false);
-                    }}
-                    style={{
-                      width: desktopCalendarCellSize,
-                      aspectRatio: '1 / 1',
-                      borderRadius: '50%',
-                      border: today && !selected ? '1px solid var(--desktop-accent)' : 'none',
-                      background: selected ? 'var(--desktop-active-date-bg)' : 'transparent',
-                      color: selected ? '#fff' : today ? 'var(--desktop-accent)' : inRange ? 'var(--desktop-root-text)' : 'var(--desktop-disabled-text)',
-                      fontSize: 14,
-                      fontWeight: selected || today ? 700 : 500,
-                      cursor: inRange ? 'pointer' : 'default',
-                    }}
-                  >
-                    {day}
-                  </button>
-                );
-              })}
-              {Array.from({ length: trailingCells }).map((_, index) => <div key={`trail-${index}`} />)}
-            </div>
-          </div>
+          <InlineMiniCalendar
+            language={language}
+            selectedDate={selectedDate}
+            minDate={logicalToday}
+            maxDate={maxDate}
+            onSelectDate={(cellDate) => {
+              onSelectDate(cellDate);
+              setIsCalendarOpen(false);
+            }}
+          />
         ) : null}
         <div style={{ flex: 1 }} />
         <div style={{ position: 'relative', marginTop: 12 }}>
@@ -2315,6 +2484,8 @@ function App() {
   const [editText, setEditText] = useState('');
   const [editCopied, setEditCopied] = useState(false);
   const [draggedTaskId, setDraggedTaskId] = useState(null);
+  const [selectedTaskIds, setSelectedTaskIds] = useState([]);
+  const [desktopSelectionRect, setDesktopSelectionRect] = useState(null);
   const [dragOverSection, setDragOverSection] = useState(null);
   const [dragOverSlot, setDragOverSlot] = useState(null);
   const [isCanvasFileDragActive, setIsCanvasFileDragActive] = useState(false);
@@ -2351,6 +2522,12 @@ function App() {
   const desktopDragPointerOffsetRef = useRef({ x: 0, y: 0 });
   const desktopDragOverlayRectRef = useRef(null);
   const desktopDragModeRef = useRef(false);
+  const desktopDragSelectedTaskIdsRef = useRef(new Set());
+  const desktopDragSelectionPositionsRef = useRef(new Map());
+  const desktopDragAnchorStartPositionRef = useRef(null);
+  const selectedTaskIdsRef = useRef(new Set());
+  const selectedDayEntriesRef = useRef([]);
+  const desktopSelectionStateRef = useRef({ pointerId: null, origin: null });
   const dragOverSectionRef = useRef(null);
   const dragOverSlotRef = useRef(null);
   const lockedMainScrollTopRef = useRef(0);
@@ -2394,6 +2571,13 @@ function App() {
   useEffect(() => {
     tasksRef.current = tasks;
   }, [tasks]);
+  useEffect(() => {
+    const existingIds = new Set(tasks.map((task) => task.id));
+    setSelectedTaskIds((current) => current.filter((taskId) => existingIds.has(taskId)));
+  }, [tasks]);
+  useEffect(() => {
+    selectedTaskIdsRef.current = new Set(selectedTaskIds);
+  }, [selectedTaskIds]);
   useEffect(() => {
     desktopCanvasScaleRef.current = desktopCanvasScale;
   }, [desktopCanvasScale]);
@@ -2554,23 +2738,54 @@ function App() {
   }, [updateDesktopCanvasScale]);
 
   const handleDesktopCanvasPointerDown = useCallback((event) => {
-    if (!desktopCanvasPanReady || event.button !== 0 || isEditableElement(event.target)) return;
+    if (event.button !== 0 || isEditableElement(event.target)) return;
+
+    if (desktopCanvasPanReady) {
+      event.preventDefault();
+      event.stopPropagation();
+
+      desktopCanvasPanStateRef.current = {
+        pointerId: event.pointerId,
+        startX: event.clientX,
+        startY: event.clientY,
+        scrollLeft: mainScrollRef.current?.scrollLeft || 0,
+        scrollTop: mainScrollRef.current?.scrollTop || 0,
+      };
+
+      event.currentTarget.setPointerCapture?.(event.pointerId);
+      setDesktopCanvasPanActive(true);
+      return;
+    }
+
+    if (event.target instanceof HTMLElement && event.target.closest('.desktop-task-card, .desktop-task-group-row, .desktop-task-actions, .desktop-task-action-button')) {
+      return;
+    }
+
+    const origin = getDesktopCanvasPointFromClient(event.clientX, event.clientY);
+    if (!origin) return;
+
     event.preventDefault();
     event.stopPropagation();
-
-    desktopCanvasPanStateRef.current = {
-      pointerId: event.pointerId,
-      startX: event.clientX,
-      startY: event.clientY,
-      scrollLeft: mainScrollRef.current?.scrollLeft || 0,
-      scrollTop: mainScrollRef.current?.scrollTop || 0,
-    };
-
     event.currentTarget.setPointerCapture?.(event.pointerId);
-    setDesktopCanvasPanActive(true);
-  }, [desktopCanvasPanReady]);
+    desktopSelectionStateRef.current = {
+      pointerId: event.pointerId,
+      origin,
+    };
+    setDesktopSelectionRect({ x: origin.x, y: origin.y, width: 0, height: 0 });
+    setSelectedTaskIds([]);
+  }, [desktopCanvasPanReady, getDesktopCanvasPointFromClient]);
 
   const handleDesktopCanvasPointerMove = useCallback((event) => {
+    if (desktopSelectionStateRef.current.pointerId === event.pointerId) {
+      const nextPoint = getDesktopCanvasPointFromClient(event.clientX, event.clientY);
+      if (!nextPoint || !desktopSelectionStateRef.current.origin) return;
+
+      const nextRect = getDesktopSelectionRect(desktopSelectionStateRef.current.origin, nextPoint);
+      setDesktopSelectionRect(nextRect);
+      updateDesktopSelectionFromRect(nextRect);
+      return;
+    }
+
     if (!desktopCanvasPanActive || desktopCanvasPanStateRef.current.pointerId !== event.pointerId) return;
     const viewport = mainScrollRef.current;
     if (!viewport) return;
@@ -2579,9 +2794,16 @@ function App() {
     const deltaY = event.clientY - desktopCanvasPanStateRef.current.startY;
     viewport.scrollLeft = desktopCanvasPanStateRef.current.scrollLeft - deltaX;
     viewport.scrollTop = desktopCanvasPanStateRef.current.scrollTop - deltaY;
-  }, [desktopCanvasPanActive]);
+  }, [desktopCanvasPanActive, getDesktopCanvasPointFromClient, updateDesktopSelectionFromRect]);
 
   const handleDesktopCanvasPointerEnd = useCallback((event) => {
+    if (desktopSelectionStateRef.current.pointerId === event.pointerId) {
+      event.currentTarget.releasePointerCapture?.(event.pointerId);
+      desktopSelectionStateRef.current = { pointerId: null, origin: null };
+      setDesktopSelectionRect(null);
+      return;
+    }
+
     if (desktopCanvasPanStateRef.current.pointerId !== event.pointerId) return;
     event.currentTarget.releasePointerCapture?.(event.pointerId);
     desktopCanvasPanStateRef.current.pointerId = null;
@@ -2736,6 +2958,35 @@ function App() {
       y: Math.max(0, ((clientY - contentRect.top) / renderedScale) - (height / 2)),
     };
   }, []);
+  function getDesktopCanvasPointFromClient(clientX, clientY) {
+    const content = desktopCanvasContentRef.current;
+    if (!content) return null;
+
+    const contentRect = content.getBoundingClientRect();
+    const canvasScale = desktopCanvasScaleRef.current || 1;
+    const renderedScale = canvasScale * DESKTOP_UI_SCALE;
+
+    return {
+      x: Math.max(0, (clientX - contentRect.left) / renderedScale),
+      y: Math.max(0, (clientY - contentRect.top) / renderedScale),
+    };
+  }
+  function updateDesktopSelectionFromRect(selectionRect) {
+    const nextSelectedTaskIds = selectedDayEntriesRef.current.flatMap((entry) => {
+      const entryRect = {
+        x: entry.x,
+        y: entry.y,
+        width: DESKTOP_CANVAS_CARD_WIDTH,
+        height: getDesktopCanvasEntryHeight(entry),
+      };
+
+      return doDesktopRectsIntersect(selectionRect, entryRect)
+        ? getDesktopCanvasEntryTaskIds(entry)
+        : [];
+    });
+
+    setSelectedTaskIds([...new Set(nextSelectedTaskIds)]);
+  }
 
   const syncDesktopDraggedTaskPosition = useCallback((taskId, clientX, clientY) => {
     const overlay = document.getElementById('desktop-task-drag-overlay');
@@ -2918,16 +3169,37 @@ function App() {
   }, [stopDesktopAutoScroll, syncDesktopDraggedTaskPosition]);
 
   const startDesktopTaskDrag = useCallback((task) => {
-    setHistoryOpen(false); // Ensure modal closes when drag starts
+      setHistoryOpen(false); // Ensure modal closes when drag starts
+  
+      const taskId = task.id;
+      const movingTaskIds = desktopDragSelectedTaskIdsRef.current.size > 0
+        ? [...desktopDragSelectedTaskIdsRef.current]
+        : getDesktopDragTaskIds(task);
+      const entryPositionMap = new Map();
+      selectedDayEntriesRef.current.forEach((entry) => {
+        const taskIds = getDesktopCanvasEntryTaskIds(entry);
+        taskIds.forEach((entryTaskId) => {
+          entryPositionMap.set(entryTaskId, { x: entry.x, y: entry.y });
+        });
+      });
+      const anchorPosition = entryPositionMap.get(taskId) || { x: 0, y: 0 };
+      const nextPositions = new Map();
+      movingTaskIds.forEach((movingTaskId) => {
+        const movingPosition = entryPositionMap.get(movingTaskId) || anchorPosition;
+        nextPositions.set(movingTaskId, movingPosition);
+      });
+      desktopDragSelectionPositionsRef.current = nextPositions;
+      desktopDragAnchorStartPositionRef.current = anchorPosition;
+      desktopDragModeRef.current = true;
+      lockedMainScrollTopRef.current = mainScrollRef.current?.scrollTop || 0;
+      document.body.classList.add('desktop-task-dragging');
 
-    const taskId = task.id;
-    desktopDragModeRef.current = true;
-    lockedMainScrollTopRef.current = mainScrollRef.current?.scrollTop || 0;
-    document.body.classList.add('desktop-task-dragging');
+    movingTaskIds.forEach((movingTaskId) => {
+      const movingWrapper = document.getElementById(`desktop-task-wrapper-${movingTaskId}`);
+      if (movingWrapper) movingWrapper.classList.add('is-dragging');
+    });
 
     const card = document.getElementById(`desktop-task-card-${taskId}`);
-    const wrapper = document.getElementById(`desktop-task-wrapper-${taskId}`);
-    if (wrapper) wrapper.classList.add('is-dragging');
     if (card) {
       const originRect = card.getBoundingClientRect();
       desktopDragOriginRectRef.current = originRect;
@@ -2982,10 +3254,16 @@ function App() {
     stopDesktopAutoScroll();
     clearDesktopDayFlipTimer();
 
-    const wrapper = document.getElementById(`desktop-task-wrapper-${task.id}`);
-    if (wrapper) {
-      wrapper.classList.remove('is-dragging');
-    }
+    const movingTaskIds = desktopDragSelectedTaskIdsRef.current.size > 0
+      ? [...desktopDragSelectedTaskIdsRef.current]
+      : getDesktopDragTaskIds(task);
+
+    movingTaskIds.forEach((movingTaskId) => {
+      const wrapper = document.getElementById(`desktop-task-wrapper-${movingTaskId}`);
+      if (wrapper) {
+        wrapper.classList.remove('is-dragging');
+      }
+    });
 
     document.body.classList.remove('desktop-task-dragging');
 
@@ -2996,14 +3274,18 @@ function App() {
         desktopDragPointerRef.current.y,
       );
       if (nextPosition) {
-        flushSync(() => {
-          setTasks((prev) => {
-            const isGroupDrag = Array.isArray(task.groupTaskIds) && task.groupTaskIds.length > 0;
-            const movingTaskIds = new Set(isGroupDrag ? task.groupTaskIds : [task.id]);
-            const activeDateKey = selectedDateRef.current ? dateKey(selectedDateRef.current) : task.dateString;
-            const overlapEntry = searchDragSeparateRef.current
-              ? null
-              : getDesktopCanvasOverlapEntry(prev, activeDateKey, movingTaskIds, nextPosition);
+          flushSync(() => {
+            setTasks((prev) => {
+              const isGroupDrag = Array.isArray(task.groupTaskIds) && task.groupTaskIds.length > 0;
+              const movingTaskIds = new Set(
+                desktopDragSelectedTaskIdsRef.current.size > 0
+                  ? [...desktopDragSelectedTaskIdsRef.current]
+                  : (isGroupDrag ? task.groupTaskIds : [task.id]),
+              );
+              const activeDateKey = selectedDateRef.current ? dateKey(selectedDateRef.current) : task.dateString;
+              const overlapEntry = searchDragSeparateRef.current
+                ? null
+                : getDesktopCanvasOverlapEntry(prev, activeDateKey, movingTaskIds, nextPosition);
             const timestamp = Date.now();
 
             if (overlapEntry) {
@@ -3028,45 +3310,55 @@ function App() {
               return prev;
             }
 
-            setPendingGroupPrompt(null);
-            return prev.map((item) => {
-              if (!movingTaskIds.has(item.id)) return item;
+              setPendingGroupPrompt(null);
+              return prev.map((item) => {
+                if (!movingTaskIds.has(item.id)) return item;
+                const anchorStartPosition = desktopDragAnchorStartPositionRef.current || { x: nextPosition.x, y: nextPosition.y };
+                const itemStartPosition = desktopDragSelectionPositionsRef.current.get(item.id) || anchorStartPosition;
+                const deltaX = nextPosition.x - anchorStartPosition.x;
+                const deltaY = nextPosition.y - anchorStartPosition.y;
 
-              const resetGroupProps = !isGroupDrag ? {
+                const resetGroupProps = !isGroupDrag ? {
                 desktopGroupId: null,
                 desktopGroupName: null,
                 desktopGroupIcon: null,
                 desktopGroupTags: [],
                 desktopGroupCover: null,
+                desktopGroupActiveDurationType: null,
+                desktopGroupActiveFrom: null,
+                desktopGroupActiveUntil: null,
               } : {};
 
-              return normalizeTask({
-                ...item,
-                ...resetGroupProps,
-                dateString: activeDateKey,
-                desktopSlot: null,
-                desktopCanvasX: Number(nextPosition.x.toFixed(1)),
-                desktopCanvasY: Number(nextPosition.y.toFixed(1)),
-                desktopZ: timestamp,
+                return normalizeTask({
+                  ...item,
+                  ...resetGroupProps,
+                  dateString: activeDateKey,
+                  desktopSlot: null,
+                  desktopCanvasX: Number((itemStartPosition.x + deltaX).toFixed(1)),
+                  desktopCanvasY: Number((itemStartPosition.y + deltaY).toFixed(1)),
+                  desktopZ: timestamp,
+                });
               });
             });
           });
-        });
       }
     }
 
     desktopDragModeRef.current = false;
-    desktopDragStateRef.current = { pointerId: null, taskId: null, startX: 0, startY: 0 };
-    desktopDragOriginRectRef.current = null;
-    desktopDragPointerOffsetRef.current = { x: 0, y: 0 };
-    desktopDragOverlayRectRef.current = null;
-    desktopDayFlipCooldownUntilRef.current = 0;
-    dragOverSectionRef.current = null;
-    dragOverSlotRef.current = null;
-    searchDragSeparateRef.current = false;
-    setDragOverSection(null);
-    setDragOverSlot(null);
-    setDraggedTaskId(null);
+      desktopDragStateRef.current = { pointerId: null, taskId: null, startX: 0, startY: 0 };
+      desktopDragOriginRectRef.current = null;
+      desktopDragPointerOffsetRef.current = { x: 0, y: 0 };
+      desktopDragOverlayRectRef.current = null;
+      desktopDragSelectionPositionsRef.current = new Map();
+      desktopDragAnchorStartPositionRef.current = null;
+        desktopDayFlipCooldownUntilRef.current = 0;
+        dragOverSectionRef.current = null;
+        dragOverSlotRef.current = null;
+      desktopDragSelectedTaskIdsRef.current = new Set();
+      searchDragSeparateRef.current = false;
+      setDragOverSection(null);
+      setDragOverSlot(null);
+      setDraggedTaskId(null);
 
     if (pointerTarget?.hasPointerCapture?.(pointerId)) {
       try {
@@ -3080,6 +3372,15 @@ function App() {
   const handleTaskPointerDown = useCallback((task, event) => {
     if (!event.isPrimary || event.button !== 0) return;
 
+    const taskSelectionIds = getDesktopDragTaskIds(task);
+    const isWithinCurrentSelection = taskSelectionIds.some((taskId) => selectedTaskIdsRef.current.has(taskId));
+    const dragTaskIds = isWithinCurrentSelection && selectedTaskIdsRef.current.size > 0
+      ? [...selectedTaskIdsRef.current]
+      : taskSelectionIds;
+
+    desktopDragSelectedTaskIdsRef.current = new Set(dragTaskIds);
+    setDesktopSelectionRect(null);
+    desktopSelectionStateRef.current = { pointerId: null, origin: null };
     activePointerTaskRef.current = task;
     desktopDragModeRef.current = false;
     desktopDragStateRef.current = {
@@ -3229,6 +3530,9 @@ function App() {
     () => resolveDesktopCanvasEntries(tasks, selectedDateKey),
     [selectedDateKey, tasks],
   );
+  useEffect(() => {
+    selectedDayEntriesRef.current = selectedDayEntries;
+  }, [selectedDayEntries]);
   const selectedDayCanvasHeight = useMemo(
     () => getDesktopCanvasHeight(selectedDayEntries),
     [selectedDayEntries],
@@ -3364,6 +3668,15 @@ function App() {
     }
     if (Object.prototype.hasOwnProperty.call(changes, 'desktopGroupTags')) {
       nextFields.desktopGroupTags = normalizePackTags(changes.desktopGroupTags);
+    }
+    if (Object.prototype.hasOwnProperty.call(changes, 'desktopGroupActiveDurationType')) {
+      nextFields.desktopGroupActiveDurationType = normalizePackActiveDurationType(changes.desktopGroupActiveDurationType);
+    }
+    if (Object.prototype.hasOwnProperty.call(changes, 'desktopGroupActiveFrom')) {
+      nextFields.desktopGroupActiveFrom = normalizePackActiveDate(changes.desktopGroupActiveFrom);
+    }
+    if (Object.prototype.hasOwnProperty.call(changes, 'desktopGroupActiveUntil')) {
+      nextFields.desktopGroupActiveUntil = normalizePackActiveDate(changes.desktopGroupActiveUntil);
     }
     if (!Object.keys(nextFields).length) return;
 
@@ -3873,6 +4186,8 @@ function App() {
                         onTaskPointerUp={handleTaskPointerUp}
                         onTaskPointerCancel={handleTaskPointerCancel}
                         draggedTaskId={draggedTaskId}
+                        selectedTaskIds={selectedTaskIds}
+                        selectionRect={desktopSelectionRect}
                         layoutWidth={DESKTOP_MAIN_CONTENT_MAX_WIDTH}
                       />
                       {isCanvasFileDragActive ? (
@@ -4111,6 +4426,7 @@ function App() {
           view={activeGroupView}
           appearance={appearance}
           labels={t}
+          language={language}
           onClose={closeActiveGroupView}
           onTaskEdit={(task) => {
             closeActiveGroupView();
