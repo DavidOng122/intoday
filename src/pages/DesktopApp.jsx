@@ -370,11 +370,12 @@ const isEditableElement = (target) => (
 );
 const isFiniteCanvasCoordinate = (value) => Number.isFinite(value) && value >= 0;
 const getDesktopGroupCardHeight = (itemCount) => {
-  const visibleCount = Math.max(1, Math.min(DESKTOP_GROUP_CARD_VISIBLE_ITEMS, itemCount));
-  const extraFooterHeight = itemCount > visibleCount ? 28 : 12;
+  const visibleCount = Math.max(1, Math.min(4, itemCount)); // Show up to 4 items before scrolling
+  const hasExtra = itemCount > 4;
+  const padding = hasExtra ? 20 : 12;
   return Math.max(
     DESKTOP_GROUP_CARD_MIN_HEIGHT,
-    70 + (visibleCount * DESKTOP_GROUP_CARD_ITEM_HEIGHT) + extraFooterHeight,
+    70 + (visibleCount * DESKTOP_GROUP_CARD_ITEM_HEIGHT) + padding,
   );
 };
 const getDesktopCanvasTaskHeight = (task) => (
@@ -498,7 +499,11 @@ const getDesktopCanvasOverlapEntry = (tasks, dateString, movingTaskIds, nextPosi
   let bestRatio = 0;
   resolveDesktopCanvasEntries(tasks, dateString).forEach((entry) => {
     const entryTaskIds = entry.type === 'group' ? entry.tasks.map((item) => item.id) : [entry.task.id];
-    if (entryTaskIds.some((taskId) => movingTaskIds.has(taskId))) return;
+    
+    // Ignore this entry ONLY if we are moving the exact same set of tasks (all of them).
+    // This allows pulling 1 task out of a group and then "putting it back" (overlapping with the group).
+    const isMovingExactSameItems = entryTaskIds.length === movingTaskIds.size && entryTaskIds.every(id => movingTaskIds.has(id));
+    if (isMovingExactSameItems) return;
 
     const targetWidth = DESKTOP_CANVAS_CARD_WIDTH;
     const targetHeight = getDesktopCanvasEntryHeight(entry);
@@ -1308,7 +1313,12 @@ const TaskCard = (props) => {
           userSelect: 'none',
         }}
       >
-        <TaskCardContent task={task} appearance={appearance} labels={taskCardLabels} />
+        <TaskCardContent
+          task={task}
+          appearance={appearance}
+          labels={taskCardLabels}
+          onDragStart={(e) => e.preventDefault()}
+        />
       </button>
       <div className="desktop-task-actions">
         <button
@@ -1347,6 +1357,7 @@ const GroupedTaskCard = ({
   appearance,
   labels,
   isDragging,
+  isGroupDragActive,
   isSelected,
   isGroupReady,
   draggedTaskId,
@@ -1358,11 +1369,6 @@ const GroupedTaskCard = ({
   onPointerCancel,
 }) => {
   const leadTask = tasks[0];
-  const [isPreviewExpanded, setIsPreviewExpanded] = useState(false);
-  const visibleTasks = tasks.slice(0, DESKTOP_GROUP_CARD_VISIBLE_ITEMS);
-  const hiddenCount = Math.max(0, tasks.length - visibleTasks.length);
-  const canExpandPreview = hiddenCount > 0;
-  const previewTasks = isPreviewExpanded ? tasks : visibleTasks;
   const groupTitle = getDesktopGroupDisplayName(tasks);
   const groupMetadataText = getPackMetadataTextFromItems(tasks);
   const groupChips = getDesktopGroupDisplayTags(tasks);
@@ -1373,19 +1379,23 @@ const GroupedTaskCard = ({
     groupSize: tasks.length,
     desktopGroupName: groupTitle,
     updatedAt: leadTask.updatedAt,
+    isGroupInitiator: true,
   };
+
+  // If we are dragging a single item out of this group, hide it from the group preview
+  const isDraggingGroup = isDragging && isGroupDragActive;
+  const filteredTasks = tasks.filter((t) => isDraggingGroup || t.id !== draggedTaskId);
 
   return (
       <div id={`desktop-task-wrapper-${leadTask.id}`} className={`desktop-task-wrapper desktop-task-group-wrapper ${isDragging ? 'is-dragging' : ''} ${isSelected ? 'is-selected' : ''}`}>
         <div
-          id={`desktop-task-card-${leadTask.id}`}
+          id={`desktop-group-card-${leadTask.id}`}
           className={`desktop-task-card desktop-task-group-card ${isDragging ? 'is-dragging' : ''}`}
-          onMouseLeave={() => setIsPreviewExpanded(false)}
           onPointerDown={(event) => onPointerDown(groupTask, event)}
           onPointerMove={(event) => onPointerMove(groupTask, event)}
           onPointerUp={(event) => onPointerUp(groupTask, event)}
           onPointerCancel={(event) => onPointerCancel(groupTask, event)}
-          style={{ width: '100%', minHeight: getDesktopGroupCardHeight(previewTasks.length) - 10, touchAction: 'none', userSelect: 'none' }}
+          style={{ width: '100%', minHeight: getDesktopGroupCardHeight(filteredTasks.length) - 10, touchAction: 'none', userSelect: 'none' }}
         >
           <button
             type="button"
@@ -1409,11 +1419,18 @@ const GroupedTaskCard = ({
                   <span className="desktop-task-group-title-dot" />
                 )}
                 <div className="desktop-task-group-title-block">
-                  <span className="desktop-task-group-title">
+                  <span
+                    className="desktop-task-group-title"
+                    onDragStart={(e) => e.preventDefault()}
+                    style={{ userSelect: 'none', WebkitUserSelect: 'none' }}
+                  >
                     {groupTitle}
                   </span>
                   {groupMetadataText ? (
-                    <span className="desktop-task-group-metadata">
+                    <span
+                      className="desktop-task-group-metadata"
+                      style={{ userSelect: 'none', WebkitUserSelect: 'none' }}
+                    >
                       {groupMetadataText}
                     </span>
                   ) : null}
@@ -1434,9 +1451,32 @@ const GroupedTaskCard = ({
             ) : null}
           </button>
           <div className="desktop-task-group-divider" />
-        <div className="desktop-task-group-list">
-          {previewTasks.map((task) => {
-            const isTaskDragging = draggedTaskId === task.id;
+        <div
+          className="desktop-task-group-list"
+          onPointerDown={(event) => {
+            // Only trigger if clicking the list container itself (empty space)
+            if (event.target === event.currentTarget) {
+              onPointerDown?.(groupTask, event);
+            }
+          }}
+          onPointerMove={(event) => {
+            if (event.target === event.currentTarget) {
+              onPointerMove?.(groupTask, event);
+            }
+          }}
+          onPointerUp={(event) => {
+            if (event.target === event.currentTarget) {
+              onPointerUp?.(groupTask, event);
+            }
+          }}
+          onPointerCancel={(event) => {
+            if (event.target === event.currentTarget) {
+              onPointerCancel?.(groupTask, event);
+            }
+          }}
+        >
+          {filteredTasks.map((task) => {
+            const isTaskDragging = draggedTaskId === task.id && !isDraggingGroup;
             return (
               <div id={`desktop-task-wrapper-${task.id}`} key={task.id} style={{ display: 'block', width: '100%', visibility: isTaskDragging ? 'hidden' : 'visible' }}>
                 <button
@@ -1470,17 +1510,11 @@ const GroupedTaskCard = ({
             );
           })}
         </div>
-        {canExpandPreview ? (
-          <div
-            className={`desktop-task-group-footer ${isPreviewExpanded ? 'is-expanded' : ''}`}
-            onMouseEnter={() => setIsPreviewExpanded(true)}
-            onFocus={() => setIsPreviewExpanded(true)}
-            onMouseDown={(event) => event.stopPropagation()}
-            onPointerDown={(event) => event.stopPropagation()}
-          >
-            <span>{isPreviewExpanded ? 'Show less' : `+ ${hiddenCount} more`}</span>
+        {filteredTasks.length > 4 && (
+          <div className="desktop-task-group-more-label">
+            {filteredTasks.length} tasks
           </div>
-        ) : null}
+        )}
       </div>
     </div>
   );
@@ -2024,11 +2058,72 @@ const DesktopGroupFullViewModal = ({
   );
 };
 
+const GroupDragPreview = ({ tasks, appearance, labels }) => {
+  const groupTitle = getDesktopGroupDisplayName(tasks);
+  const groupIcon = getDesktopGroupIcon(tasks);
+  const metadataText = getPackMetadataTextFromItems(tasks);
+  const groupChips = getDesktopGroupDisplayTags(tasks);
+  const displayTasks = tasks.slice(0, 4); // Display up to 4 items matching the card
+
+  return (
+    <div className="desktop-task-card desktop-task-group-card is-drag-preview" style={{ width: '100%', height: '100%', transform: 'none', padding: '14px 0 0 0' }}>
+      <div className="desktop-task-group-header" style={{ marginBottom: 10, padding: '0 14px' }}>
+        <div className="desktop-task-group-title-wrap">
+          {groupIcon ? (
+            <span className="desktop-task-group-title-icon">{groupIcon}</span>
+          ) : (
+            <span className="desktop-task-group-title-dot" />
+          )}
+          <div className="desktop-task-group-title-block">
+            <span className="desktop-task-group-title">{groupTitle}</span>
+            {metadataText && <span className="desktop-task-group-metadata">{metadataText}</span>}
+          </div>
+        </div>
+      </div>
+
+      {groupChips.length > 0 && (
+        <div className="desktop-task-group-chip-row" style={{ padding: '0 14px', marginBottom: 10 }}>
+          {groupChips.map((chip, idx) => (
+            <div key={idx} className="desktop-task-group-chip">
+              {chip}
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="desktop-task-group-list" style={{ padding: 0 }}>
+        {displayTasks.map((task) => (
+          <div key={task.id} className="desktop-task-group-row" style={{ minHeight: 40, padding: '4px 8px' }}>
+            <TaskCardContent task={task} appearance={appearance} labels={labels} />
+          </div>
+        ))}
+        {tasks.length > 4 && (
+          <div className="desktop-task-group-more-label">
+            {tasks.length} tasks
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
 const DragOverlayCard = (props) => {
-  const { task, rect, appearance } = props;
+  const { task, rect, appearance, tasks } = props;
   const taskCardLabels = props?.labels;
 
   if (!task || !rect) return null;
+
+  // Reliability Fix: 
+  // Get all members of the group this task belongs to, regardless of whether
+  // the task object currently being dragged has groupTaskIds (which may be virtual).
+  const groupTasks = task.desktopGroupId 
+    ? tasks.filter(t => t.desktopGroupId === task.desktopGroupId) 
+    : [];
+
+  // It's a group drag if we expressly initiated it from the group header/container
+  const isGroupDrag = !!task.isGroupInitiator;
+
+  const displayGroupTasks = isGroupDrag ? groupTasks : [];
 
   return (
     <div
@@ -2039,12 +2134,16 @@ const DragOverlayCard = (props) => {
         top: 0,
         transform: `translate3d(${rect.left / DESKTOP_UI_SCALE}px, ${rect.top / DESKTOP_UI_SCALE}px, 0)`,
         width: rect.width / DESKTOP_UI_SCALE,
-        height: rect.height / DESKTOP_UI_SCALE,
+        height: (isGroupDrag ? getDesktopGroupCardHeight(Math.min(displayGroupTasks.length, 3)) : rect.height) / DESKTOP_UI_SCALE,
         willChange: 'transform',
       }}
     >
-      <div className="desktop-task-drag-overlay-card" style={{ opacity: 1 }}>
-        <TaskCardContent task={task} appearance={appearance} labels={taskCardLabels} />
+      <div className="desktop-task-drag-overlay-card" style={{ opacity: 1, height: '100%' }}>
+        {isGroupDrag ? (
+          <GroupDragPreview tasks={displayGroupTasks} appearance={appearance} labels={taskCardLabels} />
+        ) : (
+          <TaskCardContent task={task} appearance={appearance} labels={taskCardLabels} />
+        )}
       </div>
     </div>
   );
@@ -2254,6 +2353,7 @@ const DailyTaskList = ({
   onTaskPointerUp,
   onTaskPointerCancel,
   draggedTaskId,
+  isGroupDragActive,
   selectedTaskIds,
   selectionRect,
   dragOverlapTargetId,
@@ -2267,8 +2367,8 @@ const DailyTaskList = ({
           : entry.task;
         const isGroupReady = dragOverlapTargetId === dragTask.id;
         const isDragging = entry.type === 'group'
-          ? (draggedTaskId === dragTask.id) // Only hide whole card if lead task (group drag) is active
-          : (draggedTaskId === entry.task.id);
+          ? (draggedTaskId === dragTask.id && isGroupDragActive) // Only hide whole card if lead task (group drag) is active
+          : (draggedTaskId === entry.task.id && !isGroupDragActive);
         return (
         <div key={entry.type === 'group' ? `group-${entry.id}` : entry.task.id} data-desktop-layout-id={`task-${dragTask.id}`} className="desktop-canvas-card-node" style={{ left: entry.x, top: entry.y, width: DESKTOP_CANVAS_CARD_WIDTH }}>
           <div className={`desktop-canvas-card-shell ${isGroupReady ? 'desktop-canvas-card-shell--group-ready' : ''} ${isDragging ? 'is-dragging' : ''}`}>
@@ -2278,6 +2378,7 @@ const DailyTaskList = ({
                   appearance={appearance}
                   labels={labels}
                   isDragging={isDragging}
+                  isGroupDragActive={isGroupDragActive}
                   isSelected={entry.tasks.every((task) => selectedTaskIds.includes(task.id))}
                   isGroupReady={isGroupReady}
                   draggedTaskId={draggedTaskId}
@@ -2502,6 +2603,7 @@ function App() {
   const [editText, setEditText] = useState('');
   const [editCopied, setEditCopied] = useState(false);
   const [draggedTaskId, setDraggedTaskId] = useState(null);
+  const [isGroupDragActive, setIsGroupDragActive] = useState(false);
   const [selectedTaskIds, setSelectedTaskIds] = useState([]);
   const [desktopSelectionRect, setDesktopSelectionRect] = useState(null);
   const [dragOverSection, setDragOverSection] = useState(null);
@@ -3295,7 +3397,7 @@ function App() {
       if (movingWrapper) movingWrapper.classList.add('is-dragging');
     });
 
-    const card = document.getElementById(`desktop-task-card-${taskId}`);
+    const card = document.getElementById(`desktop-task-card-${taskId}`) || document.getElementById(`desktop-group-card-${taskId}`);
     if (card) {
       const originRect = card.getBoundingClientRect();
       desktopDragOriginRectRef.current = originRect;
@@ -3333,6 +3435,7 @@ function App() {
     }
 
     setDraggedTaskId(taskId);
+    setIsGroupDragActive(!!task.isGroupInitiator);
 
     window.requestAnimationFrame(() => {
       syncDesktopDraggedTaskPosition(
@@ -3372,7 +3475,7 @@ function App() {
       if (nextPosition) {
           flushSync(() => {
             setTasks((prev) => {
-              const isGroupDrag = Array.isArray(task.groupTaskIds) && task.groupTaskIds.length > 0;
+              const isGroupDrag = !!task.isGroupInitiator;
               const movingTaskIds = new Set(
                 desktopDragSelectedTaskIdsRef.current.size > 0
                   ? [...desktopDragSelectedTaskIdsRef.current]
@@ -3387,6 +3490,23 @@ function App() {
 
             if (overlapEntry) {
               const movingTasks = prev.filter((item) => movingTaskIds.has(item.id));
+              
+              // Put Back Logic: If the target group is the group this task is already in, merge instantly
+              const isPutBack = overlapEntry.type === 'group' && movingTasks.every(t => t.desktopGroupId === overlapEntry.id);
+              
+              if (isPutBack) {
+                return prev.map((item) => {
+                  if (!movingTaskIds.has(item.id)) return item;
+                  return normalizeTask({
+                    ...item,
+                    dateString: activeDateKey,
+                    desktopCanvasX: overlapEntry.x,
+                    desktopCanvasY: overlapEntry.y,
+                    desktopZ: timestamp,
+                  });
+                });
+              }
+
               setPendingGroupPrompt({
                 movingTaskIds: [...movingTaskIds],
                 targetTaskIds: overlapEntry.type === 'group' ? overlapEntry.tasks.map((item) => item.id) : [overlapEntry.task.id],
@@ -3458,6 +3578,7 @@ function App() {
       setDragOverSection(null);
       setDragOverSlot(null);
       setDraggedTaskId(null);
+      setIsGroupDragActive(false);
 
     if (pointerTarget?.hasPointerCapture?.(pointerId)) {
       try {
@@ -3836,7 +3957,11 @@ function App() {
     );
   }
   if (!user) return <DesktopLogin />;
-  const draggedTask = draggedTaskId ? tasks.find((task) => task.id === draggedTaskId) || null : null;
+  const draggedTask = draggedTaskId 
+    ? (tasks.find((task) => task.id === draggedTaskId) 
+        ? { ...tasks.find((task) => task.id === draggedTaskId), isGroupInitiator: isGroupDragActive } 
+        : null)
+    : null;
   const closePanel = () => {
     setInputText('');
     setPanelOpen(false);
@@ -4516,7 +4641,7 @@ function App() {
           onTaskPointerDown={handleTaskPointerDown}
           onTaskLongPress={handleHistorySearchLongPress}
         />
-        <DragOverlayCard task={draggedTask} rect={desktopDragOverlayRectRef.current} appearance={appearance} labels={t} />
+        <DragOverlayCard task={draggedTask} tasks={tasks} rect={desktopDragOverlayRectRef.current} appearance={appearance} labels={t} />
         <DesktopGroupPrompt
           prompt={pendingGroupPrompt}
           groupName={pendingGroupName}
