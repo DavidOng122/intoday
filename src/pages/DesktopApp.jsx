@@ -51,6 +51,18 @@ import { trackUserEvent } from '../lib/analytics';
 const SHARED_SELECTED_DATE_KEY = 'shared_selected_date';
 const DESKTOP_LANGUAGE_KEY = 'desktop_profile_language';
 const DESKTOP_APPEARANCE_KEY = 'desktop_profile_appearance';
+const DESKTOP_WORKSPACES_KEY = 'desktop_workspace_items';
+const DESKTOP_ACTIVE_WORKSPACE_KEY = 'desktop_active_workspace';
+const DEFAULT_DESKTOP_WORKSPACE_ID = 'workspace-untitled';
+const MAX_DESKTOP_WORKSPACES = 3;
+const LEGACY_SAMPLE_WORKSPACE_IDS = new Set(['workspace-personal-projects', 'workspace-work-setup']);
+const DEFAULT_DESKTOP_WORKSPACES = [
+  {
+    id: DEFAULT_DESKTOP_WORKSPACE_ID,
+    name: 'Untitled',
+    iconType: 'dot',
+  },
+];
 const LANGUAGE_LOCALES = {
   EN: 'en-US',
   ZH: 'zh-CN',
@@ -369,9 +381,9 @@ const isEditableElement = (target) => (
   && Boolean(target.closest('input, textarea, button, select, [contenteditable="true"], [role="dialog"]'))
 );
 const isFiniteCanvasCoordinate = (value) => Number.isFinite(value) && value >= 0;
-const getDesktopGroupCardHeight = (itemCount) => {
-  const visibleCount = Math.max(1, Math.min(4, itemCount)); // Show up to 4 items before scrolling
-  const hasExtra = itemCount > 4;
+const getDesktopGroupCardHeight = (itemCount, visibleItemCount = itemCount) => {
+  const visibleCount = Math.max(1, Math.min(visibleItemCount, itemCount));
+  const hasExtra = itemCount > visibleCount;
   const padding = hasExtra ? 20 : 12;
   return Math.max(
     DESKTOP_GROUP_CARD_MIN_HEIGHT,
@@ -408,6 +420,86 @@ const getDesktopSelectionRect = (start, end) => ({
   width: Math.abs(end.x - start.x),
   height: Math.abs(end.y - start.y),
 });
+const getDefaultDesktopWorkspaces = () => DEFAULT_DESKTOP_WORKSPACES.map((workspace) => ({ ...workspace }));
+const getUntitledWorkspaceName = (index) => (index <= 1 ? 'Untitled' : `Untitled ${index}`);
+const getTaskWorkspaceId = (task) => (
+  typeof task?.desktopWorkspaceId === 'string' && task.desktopWorkspaceId.trim()
+    ? task.desktopWorkspaceId
+    : DEFAULT_DESKTOP_WORKSPACE_ID
+);
+const taskBelongsToWorkspace = (task, workspaceId) => getTaskWorkspaceId(task) === workspaceId;
+const normalizeDesktopWorkspaces = (value) => {
+  if (!Array.isArray(value) || !value.length) return getDefaultDesktopWorkspaces();
+  const normalized = value
+    .filter((workspace) => workspace && !LEGACY_SAMPLE_WORKSPACE_IDS.has(workspace.id))
+    .filter((workspace) => workspace && typeof workspace.id === 'string' && typeof workspace.name === 'string')
+    .map((workspace, index) => ({
+      id: workspace.id,
+      name: workspace.name.trim() || getUntitledWorkspaceName(index + 1),
+      iconType: workspace.iconType === 'letter' ? 'letter' : 'dot',
+      iconLetter: typeof workspace.iconLetter === 'string' ? workspace.iconLetter.slice(0, 1).toUpperCase() : null,
+      iconBackground: typeof workspace.iconBackground === 'string' ? workspace.iconBackground : null,
+      iconColor: typeof workspace.iconColor === 'string' ? workspace.iconColor : null,
+    }));
+  return normalized.length ? normalized : getDefaultDesktopWorkspaces();
+};
+const areTaskIdSelectionsEqual = (currentIds, nextIds) => (
+  currentIds.length === nextIds.length && nextIds.every((taskId) => currentIds.includes(taskId))
+);
+const getCanvasDeletionSummary = (tasks, selectedTaskIds) => {
+  const selectedTaskIdSet = new Set(selectedTaskIds);
+  const selectedTasks = tasks.filter((task) => selectedTaskIdSet.has(task.id));
+  if (!selectedTasks.length) return null;
+
+  const groupMembership = tasks.reduce((map, task) => {
+    if (!task.desktopGroupId) return map;
+    map.set(task.desktopGroupId, (map.get(task.desktopGroupId) || 0) + 1);
+    return map;
+  }, new Map());
+  const selectedGroupCounts = selectedTasks.reduce((map, task) => {
+    if (!task.desktopGroupId) return map;
+    map.set(task.desktopGroupId, (map.get(task.desktopGroupId) || 0) + 1);
+    return map;
+  }, new Map());
+
+  let packCount = 0;
+  let looseItemCount = 0;
+  selectedTasks.forEach((task) => {
+    if (!task.desktopGroupId) {
+      looseItemCount += 1;
+      return;
+    }
+    if (selectedGroupCounts.get(task.desktopGroupId) === groupMembership.get(task.desktopGroupId)) {
+      if (task.id === selectedTasks.find((item) => item.desktopGroupId === task.desktopGroupId)?.id) {
+        packCount += 1;
+      }
+      return;
+    }
+    looseItemCount += 1;
+  });
+
+  let title = 'Delete selected objects?';
+  if (packCount === 0) {
+    title = looseItemCount === 1
+      ? 'Delete this item?'
+      : `Delete ${looseItemCount} selected items?`;
+  } else if (looseItemCount === 0) {
+    title = packCount === 1
+      ? 'Delete this pack and its contents?'
+      : `Delete ${packCount} selected packs and their contents?`;
+  } else {
+    const itemLabel = `${looseItemCount} ${looseItemCount === 1 ? 'item' : 'items'}`;
+    const packLabel = `${packCount} ${packCount === 1 ? 'pack' : 'packs'}`;
+    title = `Delete ${itemLabel} and ${packLabel}?`;
+  }
+
+  return {
+    title,
+    packCount,
+    looseItemCount,
+    taskIds: selectedTasks.map((task) => task.id),
+  };
+};
 const doDesktopRectsIntersect = (first, second) => !(
   first.x + first.width < second.x
   || second.x + second.width < first.x
@@ -704,6 +796,7 @@ const normalizeTask = (task) => {
     desktopCanvasX: isFiniteCanvasCoordinate(task.desktopCanvasX) ? task.desktopCanvasX : null,
     desktopCanvasY: isFiniteCanvasCoordinate(task.desktopCanvasY) ? task.desktopCanvasY : null,
     desktopZ: Number.isFinite(task.desktopZ) ? task.desktopZ : null,
+    desktopWorkspaceId: getTaskWorkspaceId(task),
     desktopGroupId: typeof task.desktopGroupId === 'string' && task.desktopGroupId.trim() ? task.desktopGroupId : null,
     desktopGroupName: typeof task.desktopGroupName === 'string' && task.desktopGroupName.trim() ? task.desktopGroupName : null,
     desktopGroupIcon: normalizePackIcon(task.desktopGroupIcon),
@@ -1289,13 +1382,13 @@ const TaskCard = (props) => {
         className={`desktop-task-card ${isDragging ? 'is-dragging' : ''}`}
         onClick={onClick}
         onPointerDown={onPointerDown}
-          onPointerMove={onPointerMove}
-          onPointerUp={onPointerUp}
-          onPointerCancel={onPointerCancel}
-          onDragStart={(event) => event.preventDefault()}
-          style={{
-            width: '100%',
-            minHeight: isPhotoCard ? DESKTOP_PHOTO_CARD_HEIGHT : 76,
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        onPointerCancel={onPointerCancel}
+        onDragStart={(event) => event.preventDefault()}
+        style={{
+          width: '100%',
+          minHeight: isPhotoCard ? DESKTOP_PHOTO_CARD_HEIGHT : 76,
           borderRadius: 11,
           border: '2px solid var(--desktop-task-border)',
           background: 'var(--desktop-task-bg)',
@@ -1369,6 +1462,7 @@ const GroupedTaskCard = ({
   onPointerCancel,
 }) => {
   const leadTask = tasks[0];
+  const [isExpanded, setIsExpanded] = useState(false);
   const groupTitle = getDesktopGroupDisplayName(tasks);
   const groupMetadataText = getPackMetadataTextFromItems(tasks);
   const groupChips = getDesktopGroupDisplayTags(tasks);
@@ -1385,6 +1479,11 @@ const GroupedTaskCard = ({
   // If we are dragging a single item out of this group, hide it from the group preview
   const isDraggingGroup = isDragging && isGroupDragActive;
   const filteredTasks = tasks.filter((t) => isDraggingGroup || t.id !== draggedTaskId);
+  const collapsedVisibleCount = Math.min(filteredTasks.length, DESKTOP_GROUP_CARD_VISIBLE_ITEMS);
+  const visibleItemCount = isExpanded ? filteredTasks.length : collapsedVisibleCount;
+  const hiddenTaskCount = Math.max(0, filteredTasks.length - collapsedVisibleCount);
+  const groupCardMinHeight = getDesktopGroupCardHeight(filteredTasks.length, visibleItemCount) - 10;
+  const groupListMaxHeight = (visibleItemCount * DESKTOP_GROUP_CARD_ITEM_HEIGHT) + (Math.max(0, visibleItemCount - 1) * 6) + 16;
 
   return (
       <div id={`desktop-task-wrapper-${leadTask.id}`} className={`desktop-task-wrapper desktop-task-group-wrapper ${isDragging ? 'is-dragging' : ''} ${isSelected ? 'is-selected' : ''}`}>
@@ -1395,7 +1494,8 @@ const GroupedTaskCard = ({
           onPointerMove={(event) => onPointerMove(groupTask, event)}
           onPointerUp={(event) => onPointerUp(groupTask, event)}
           onPointerCancel={(event) => onPointerCancel(groupTask, event)}
-          style={{ width: '100%', minHeight: getDesktopGroupCardHeight(filteredTasks.length) - 10, touchAction: 'none', userSelect: 'none' }}
+          onMouseLeave={() => setIsExpanded(false)}
+          style={{ width: '100%', minHeight: groupCardMinHeight, touchAction: 'none', userSelect: 'none' }}
         >
           <button
             type="button"
@@ -1408,7 +1508,7 @@ const GroupedTaskCard = ({
             }}
             onClick={(event) => {
               event.stopPropagation();
-              onOpenFullView?.();
+              onOpenFullView?.(event);
             }}
           >
             <div className="desktop-task-group-header">
@@ -1453,6 +1553,7 @@ const GroupedTaskCard = ({
           <div className="desktop-task-group-divider" />
         <div
           className="desktop-task-group-list"
+          style={{ maxHeight: groupListMaxHeight }}
           onPointerDown={(event) => {
             // Only trigger if clicking the list container itself (empty space)
             if (event.target === event.currentTarget) {
@@ -1510,10 +1611,19 @@ const GroupedTaskCard = ({
             );
           })}
         </div>
-        {filteredTasks.length > 4 && (
-          <div className="desktop-task-group-more-label">
-            {filteredTasks.length} tasks
-          </div>
+        {hiddenTaskCount > 0 && (
+          <button
+            type="button"
+            className="desktop-task-group-more-label"
+            onMouseEnter={() => setIsExpanded(true)}
+            onFocus={() => setIsExpanded(true)}
+            onBlur={() => setIsExpanded(false)}
+            onMouseDown={(event) => event.stopPropagation()}
+            onPointerDown={(event) => event.stopPropagation()}
+            onClick={(event) => event.preventDefault()}
+          >
+            + {hiddenTaskCount} more
+          </button>
         )}
       </div>
     </div>
@@ -1525,6 +1635,11 @@ const DesktopPackPageHeader = ({
   onUpdateGroup,
   appearance,
   language,
+  isSelectMode = false,
+  selectedCount = 0,
+  onEnterSelectMode,
+  onExitSelectMode,
+  onDeleteSelected,
 }) => {
   const groupTitle = getDesktopGroupDisplayName(tasks);
   const groupIcon = getDesktopGroupIcon(tasks);
@@ -1784,6 +1899,28 @@ const DesktopPackPageHeader = ({
           </div>
         </div>
       </div>
+      {isSelectMode ? (
+        <div className="desktop-pack-page-selection-bar">
+          <button
+            type="button"
+            className="desktop-pack-page-selection-action"
+            onClick={onExitSelectMode}
+          >
+            Cancel
+          </button>
+          <div className="desktop-pack-page-selection-count">
+            {selectedCount} selected
+          </div>
+          <button
+            type="button"
+            className="desktop-pack-page-selection-delete"
+            onClick={onDeleteSelected}
+            disabled={selectedCount === 0}
+          >
+            Delete selected
+          </button>
+        </div>
+      ) : null}
     </div>
   );
 };
@@ -1797,13 +1934,16 @@ const DesktopGroupFullViewModal = ({
   onClose,
   onTaskOpen,
   onTaskEdit,
-  onTaskDelete,
+  onDeleteTasks,
   onUpdateGroup,
 }) => {
   const [itemSearchQuery, setItemSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState('All');
   const [isSearchVisible, setIsSearchVisible] = useState(false);
   const [highlightedTaskId, setHighlightedTaskId] = useState(null);
+  const [isSelectMode, setIsSelectMode] = useState(false);
+  const [selectedItemIds, setSelectedItemIds] = useState([]);
+  const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
   
   const tasks = view?.tasks || [];
   const open = Boolean(view);
@@ -1814,8 +1954,16 @@ const DesktopGroupFullViewModal = ({
       setActiveFilter('All');
       setIsSearchVisible(false);
       setHighlightedTaskId(null);
+      setIsSelectMode(false);
+      setSelectedItemIds([]);
+      setIsDeleteConfirmOpen(false);
     }
   }, [open]);
+
+  useEffect(() => {
+    const existingIds = new Set(tasks.map((task) => task.id));
+    setSelectedItemIds((current) => current.filter((taskId) => existingIds.has(taskId)));
+  }, [tasks]);
 
   useEffect(() => {
     if (!open || !view?.focusTaskId) return undefined;
@@ -1929,6 +2077,38 @@ const DesktopGroupFullViewModal = ({
 
   const filters = ['All', 'Context', 'Code', 'Notes', 'Reference'];
   const isDark = appearance === 'dark';
+  const selectedCount = selectedItemIds.length;
+  const toggleSelectItem = (taskId) => {
+    setSelectedItemIds((current) => (
+      current.includes(taskId)
+        ? current.filter((id) => id !== taskId)
+        : [...current, taskId]
+    ));
+  };
+  const enterSelectMode = () => {
+    setIsSelectMode(true);
+    setSelectedItemIds([]);
+    setIsDeleteConfirmOpen(false);
+  };
+  const exitSelectMode = () => {
+    setIsSelectMode(false);
+    setSelectedItemIds([]);
+    setIsDeleteConfirmOpen(false);
+  };
+  const handleDeleteSelected = () => {
+    if (selectedCount === 0) return;
+    setIsDeleteConfirmOpen(true);
+  };
+  const confirmDeleteSelected = () => {
+    if (selectedCount === 0) {
+      setIsDeleteConfirmOpen(false);
+      return;
+    }
+    onDeleteTasks?.(selectedItemIds);
+    setIsDeleteConfirmOpen(false);
+    setSelectedItemIds([]);
+    setIsSelectMode(false);
+  };
 
   return (
     <div
@@ -1954,7 +2134,17 @@ const DesktopGroupFullViewModal = ({
           </button>
         </div>
 
-        <DesktopPackPageHeader tasks={tasks} onUpdateGroup={onUpdateGroup} appearance={appearance} language={language} />
+        <DesktopPackPageHeader
+          tasks={tasks}
+          onUpdateGroup={onUpdateGroup}
+          appearance={appearance}
+          language={language}
+          isSelectMode={isSelectMode}
+          selectedCount={selectedCount}
+          onEnterSelectMode={enterSelectMode}
+          onExitSelectMode={exitSelectMode}
+          onDeleteSelected={handleDeleteSelected}
+        />
 
         <div className="desktop-pack-page-content">
           <div className="desktop-pack-page-controls">
@@ -1974,15 +2164,26 @@ const DesktopGroupFullViewModal = ({
                   </button>
                 ))}
               </div>
-              <button
-                type="button"
-                className={`desktop-pack-page-search-toggle ${isSearchVisible ? 'is-active' : ''}`}
-                onClick={() => setIsSearchVisible((current) => !current)}
-                aria-label="Search items"
-                aria-expanded={isSearchVisible}
-              >
-                <SearchIcon />
-              </button>
+              <div className="desktop-pack-page-control-actions">
+                {!isSelectMode ? (
+                  <button
+                    type="button"
+                    className="desktop-pack-page-inline-action is-inline"
+                    onClick={enterSelectMode}
+                  >
+                    Select
+                  </button>
+                ) : null}
+                <button
+                  type="button"
+                  className={`desktop-pack-page-search-toggle ${isSearchVisible ? 'is-active' : ''}`}
+                  onClick={() => setIsSearchVisible((current) => !current)}
+                  aria-label="Search items"
+                  aria-expanded={isSearchVisible}
+                >
+                  <SearchIcon />
+                </button>
+              </div>
             </div>
             {isSearchVisible && (
               <div className="desktop-pack-page-search-wrapper is-revealed">
@@ -2009,15 +2210,34 @@ const DesktopGroupFullViewModal = ({
                   id={`desktop-pack-page-item-${task.id}`}
                   className={`desktop-pack-page-item ${highlightedTaskId === task.id ? 'is-highlighted' : ''}`}
                 >
+                  {isSelectMode ? (
+                    <button
+                      type="button"
+                      className={`desktop-pack-page-item-checkbox ${selectedItemIds.includes(task.id) ? 'is-selected' : ''}`}
+                      aria-pressed={selectedItemIds.includes(task.id)}
+                      aria-label={`${selectedItemIds.includes(task.id) ? 'Deselect' : 'Select'} ${task.text || 'item'}`}
+                      onClick={() => toggleSelectItem(task.id)}
+                    >
+                      <span className="desktop-pack-page-item-checkbox-mark" aria-hidden="true">
+                        {selectedItemIds.includes(task.id) ? '✓' : ''}
+                      </span>
+                    </button>
+                  ) : null}
                   {(() => {
-                    const { key, label, domain } = getPackItemSourceMeta(task, labels);
+                    const { label } = getPackItemSourceMeta(task, labels);
                     const { displayTitle } = getTaskCardPresentation(task, labels);
                     return (
                       <>
                         <PackItemSourceIcon task={task} appearance={appearance} labels={labels} />
                         <button
                           type="button"
-                          onClick={() => onTaskOpen(task)}
+                          onClick={() => {
+                            if (isSelectMode) {
+                              toggleSelectItem(task.id);
+                              return;
+                            }
+                            onTaskOpen(task);
+                          }}
                           className="desktop-pack-page-item-main"
                         >
                           <div className="desktop-pack-page-item-title">
@@ -2030,29 +2250,29 @@ const DesktopGroupFullViewModal = ({
                       </>
                     );
                   })()}
-                  <div className="desktop-pack-page-item-actions">
-                    <button
-                      type="button"
-                      className="desktop-pack-page-item-action"
-                      aria-label={`Edit ${task.text || 'item'}`}
-                      onClick={() => onTaskEdit?.(task)}
-                    >
-                      <EditIcon />
-                    </button>
-                    <button
-                      type="button"
-                      className="desktop-pack-page-item-action"
-                      aria-label={`Delete ${task.text || 'item'}`}
-                      onClick={() => onTaskDelete?.(task)}
-                    >
-                      <Trash2 size={14} strokeWidth={2.2} />
-                    </button>
-                  </div>
+                  {!isSelectMode ? (
+                    <div className="desktop-pack-page-item-actions">
+                      <button
+                        type="button"
+                        className="desktop-pack-page-item-action"
+                        aria-label={`Edit ${task.text || 'item'}`}
+                        onClick={() => onTaskEdit?.(task)}
+                      >
+                        <EditIcon />
+                      </button>
+                    </div>
+                  ) : null}
                 </div>
               ))
             )}
           </div>
         </div>
+        <DesktopDeleteConfirmModal
+          open={isDeleteConfirmOpen}
+          title={`Delete ${selectedCount} ${selectedCount === 1 ? 'item' : 'items'} from this pack?`}
+          onCancel={() => setIsDeleteConfirmOpen(false)}
+          onConfirm={confirmDeleteSelected}
+        />
       </div>
     </div>
   );
@@ -2309,14 +2529,14 @@ const ScheduleSection = ({
               >
                 {item.type === 'task' ? (
                   <div data-desktop-layout-id={`task-${item.task.id}`}>
-                    <TaskCard
-                      task={item.task}
-                      appearance={appearance}
-                      labels={labels}
-                      isDragging={draggedTaskId === item.task.id}
-                      onClick={() => onTaskClick(item.task)}
-                      onEdit={() => onTaskEdit(item.task)}
-                      onDelete={() => onTaskDelete(item.task)}
+                <TaskCard
+                  task={item.task}
+                  appearance={appearance}
+                  labels={labels}
+                  isDragging={draggedTaskId === item.task.id}
+                      onClick={(event) => onTaskClick(item.task, event)}
+                  onEdit={() => onTaskEdit(item.task)}
+                  onDelete={() => onTaskDelete(item.task)}
                       onPointerDown={(event) => onTaskPointerDown(item.task, event)}
                       onPointerMove={(event) => onTaskPointerMove(item.task, event)}
                       onPointerUp={(event) => onTaskPointerUp(item.task, event)}
@@ -2383,7 +2603,7 @@ const DailyTaskList = ({
                   isGroupReady={isGroupReady}
                   draggedTaskId={draggedTaskId}
                   onOpenItem={onTaskClick}
-                onOpenFullView={() => onGroupOpenFullView(entry.tasks)}
+                onOpenFullView={(event) => onGroupOpenFullView(entry.tasks, event)}
                 onPointerDown={onTaskPointerDown}
                 onPointerMove={onTaskPointerMove}
                 onPointerUp={onTaskPointerUp}
@@ -2398,16 +2618,16 @@ const DailyTaskList = ({
                   isSelected={selectedTaskIds.includes(entry.task.id)}
                   isGroupReady={isGroupReady}
                   draggedTaskId={draggedTaskId}
-                  onClick={() => onTaskClick(entry.task)}
-                onEdit={() => onTaskEdit(entry.task)}
-                onDelete={() => onTaskDelete(entry.task)}
-                onPointerDown={(event) => onTaskPointerDown(entry.task, event)}
-                onPointerMove={(event) => onTaskPointerMove(entry.task, event)}
-                onPointerUp={(event) => onTaskPointerUp(entry.task, event)}
-                onPointerCancel={(event) => onTaskPointerCancel(entry.task, event)}
-                editLabel={labels.edit}
-                deleteLabel={labels.delete}
-              />
+                  onClick={(event) => onTaskClick(entry.task, event)}
+                  onEdit={() => onTaskEdit(entry.task)}
+                  onDelete={() => onTaskDelete(entry.task)}
+                  onPointerDown={(event) => onTaskPointerDown(entry.task, event)}
+                  onPointerMove={(event) => onTaskPointerMove(entry.task, event)}
+                  onPointerUp={(event) => onTaskPointerUp(entry.task, event)}
+                  onPointerCancel={(event) => onTaskPointerCancel(entry.task, event)}
+                  editLabel={labels.edit}
+                  deleteLabel={labels.delete}
+                />
             )}
           </div>
         </div>
@@ -2573,6 +2793,83 @@ const AddPanel = ({ open, language, selectedDate, inputText, setInputText, onClo
   );
 };
 
+const DesktopDeleteConfirmModal = ({
+  open,
+  title,
+  description = null,
+  cancelLabel = 'Cancel',
+  confirmLabel = 'Delete',
+  onCancel,
+  onConfirm,
+}) => {
+  if (!open) return null;
+
+  return (
+    <div
+      role="presentation"
+      onClick={onCancel}
+      className="desktop-delete-confirm-backdrop"
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="desktop-delete-confirm-title"
+        onClick={(event) => event.stopPropagation()}
+        className="desktop-delete-confirm-dialog"
+      >
+        <div className="desktop-delete-confirm-copy">
+          <h2 id="desktop-delete-confirm-title" className="desktop-delete-confirm-title">{title}</h2>
+          {description ? (
+            <p className="desktop-delete-confirm-description">{description}</p>
+          ) : null}
+        </div>
+        <div className="desktop-delete-confirm-actions">
+          <button
+            type="button"
+            className="desktop-delete-confirm-button desktop-delete-confirm-button-secondary"
+            onClick={onCancel}
+          >
+            {cancelLabel}
+          </button>
+          <button
+            type="button"
+            className="desktop-delete-confirm-button desktop-delete-confirm-button-primary"
+            onClick={onConfirm}
+          >
+            {confirmLabel}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const WorkspaceChevronIcon = ({ open = false }) => (
+  <svg width="14" height="14" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+    <path
+      d={open ? 'M5 12.5 10 7.5 15 12.5' : 'M5 7.5 10 12.5 15 7.5'}
+      stroke="currentColor"
+      strokeWidth="1.7"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </svg>
+);
+
+const WorkspaceMoreIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+    <circle cx="5" cy="10" r="1.2" fill="currentColor" />
+    <circle cx="10" cy="10" r="1.2" fill="currentColor" />
+    <circle cx="15" cy="10" r="1.2" fill="currentColor" />
+  </svg>
+);
+
+const WorkspacePlusIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+    <path d="M10 4.5v11M4.5 10h11" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+
 function App() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -2589,6 +2886,17 @@ function App() {
   });
   const [language, setLanguage] = useState(getInitialLanguage);
   const [appearance, setAppearance] = useState(() => localStorage.getItem(DESKTOP_APPEARANCE_KEY) || 'light');
+  const [workspaces, setWorkspaces] = useState(() => {
+    try {
+      return normalizeDesktopWorkspaces(JSON.parse(localStorage.getItem(DESKTOP_WORKSPACES_KEY) || 'null'));
+    } catch (_) {
+      return getDefaultDesktopWorkspaces();
+    }
+  });
+  const [activeWorkspaceId, setActiveWorkspaceId] = useState(() => localStorage.getItem(DESKTOP_ACTIVE_WORKSPACE_KEY) || DEFAULT_DESKTOP_WORKSPACE_ID);
+  const [workspaceMenuOpen, setWorkspaceMenuOpen] = useState(false);
+  const [isWorkspaceNameEditing, setIsWorkspaceNameEditing] = useState(false);
+  const [workspaceNameDraft, setWorkspaceNameDraft] = useState('');
   const [currentTime, setCurrentTime] = useState(new Date());
   const [profileOpen, setProfileOpenState] = useState(false);
   const setProfileOpen = useCallback((val) => {
@@ -2618,6 +2926,11 @@ function App() {
   const [pendingGroupPrompt, setPendingGroupPrompt] = useState(null);
   const [pendingGroupName, setPendingGroupName] = useState('');
   const [activeGroupView, setActiveGroupView] = useState(null);
+  const [pendingCanvasDeletion, setPendingCanvasDeletion] = useState(null);
+  const [workspaceActionMenuId, setWorkspaceActionMenuId] = useState(null);
+  const [pendingWorkspaceDeletion, setPendingWorkspaceDeletion] = useState(null);
+  const workspaceMenuRef = useRef(null);
+  const workspaceNameInputRef = useRef(null);
   const setHistoryOpen = useCallback((val) => {
     sessionStorage.setItem('shared_history_open', String(Boolean(val)));
     setHistoryOpenState(val);
@@ -2628,8 +2941,12 @@ function App() {
   });
   const t = useMemo(() => getTranslationsForLanguage(language), [language]);
   const userProfile = useMemo(() => getUserProfile(user), [user]);
+  const currentWorkspaceTasks = useMemo(
+    () => tasks.filter((task) => taskBelongsToWorkspace(task, activeWorkspaceId)),
+    [activeWorkspaceId, tasks],
+  );
   const selectedDateRef = useRef(selectedDate);
-  const tasksRef = useRef(tasks);
+  const tasksRef = useRef(currentWorkspaceTasks);
   const mainScrollRef = useRef(null);
   const desktopDragViewportRef = useRef(null);
   const desktopDragStateRef = useRef({
@@ -2694,12 +3011,47 @@ function App() {
     sessionStorage.setItem('shared_history_open', 'false');
   }, []);
   useEffect(() => {
-    tasksRef.current = tasks;
-  }, [tasks]);
+    tasksRef.current = currentWorkspaceTasks;
+  }, [currentWorkspaceTasks]);
   useEffect(() => {
-    const existingIds = new Set(tasks.map((task) => task.id));
+    const existingIds = new Set(currentWorkspaceTasks.map((task) => task.id));
     setSelectedTaskIds((current) => current.filter((taskId) => existingIds.has(taskId)));
-  }, [tasks]);
+  }, [currentWorkspaceTasks]);
+  useEffect(() => {
+    if (!workspaceMenuOpen) return undefined;
+
+    const handlePointerDown = (event) => {
+      if (workspaceMenuRef.current && !workspaceMenuRef.current.contains(event.target)) {
+        setWorkspaceMenuOpen(false);
+      }
+    };
+
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') {
+        setWorkspaceMenuOpen(false);
+      }
+    };
+
+    window.addEventListener('pointerdown', handlePointerDown);
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('pointerdown', handlePointerDown);
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [workspaceMenuOpen]);
+  useEffect(() => {
+    if (!workspaceMenuOpen) {
+      setWorkspaceActionMenuId(null);
+    }
+  }, [workspaceMenuOpen]);
+  useEffect(() => {
+    if (!isWorkspaceNameEditing) return undefined;
+    const frameId = window.requestAnimationFrame(() => {
+      workspaceNameInputRef.current?.focus();
+      workspaceNameInputRef.current?.select();
+    });
+    return () => window.cancelAnimationFrame(frameId);
+  }, [isWorkspaceNameEditing]);
   useEffect(() => {
     selectedTaskIdsRef.current = new Set(selectedTaskIds);
   }, [selectedTaskIds]);
@@ -2759,6 +3111,19 @@ function App() {
   useEffect(() => {
     localStorage.setItem(DESKTOP_APPEARANCE_KEY, appearance);
   }, [appearance]);
+  useEffect(() => {
+    localStorage.setItem(DESKTOP_WORKSPACES_KEY, JSON.stringify(workspaces));
+  }, [workspaces]);
+  useEffect(() => {
+    const hasActiveWorkspace = workspaces.some((workspace) => workspace.id === activeWorkspaceId);
+    if (hasActiveWorkspace) {
+      localStorage.setItem(DESKTOP_ACTIVE_WORKSPACE_KEY, activeWorkspaceId);
+      return;
+    }
+    const fallbackWorkspaceId = workspaces[0]?.id || DEFAULT_DESKTOP_WORKSPACE_ID;
+    setActiveWorkspaceId(fallbackWorkspaceId);
+    localStorage.setItem(DESKTOP_ACTIVE_WORKSPACE_KEY, fallbackWorkspaceId);
+  }, [activeWorkspaceId, workspaces]);
   useLayoutEffect(() => {
     const content = desktopCanvasContentRef.current;
     if (!content) return undefined;
@@ -3011,6 +3376,17 @@ function App() {
         return;
       }
 
+      if ((event.key === 'Delete' || event.key === 'Backspace') && !activeGroupView && !editingTaskId && !panelOpen) {
+        if (selectedTaskIdsRef.current.size > 0) {
+          event.preventDefault();
+          const summary = getCanvasDeletionSummary(tasksRef.current, [...selectedTaskIdsRef.current]);
+          if (summary) {
+            setPendingCanvasDeletion(summary);
+          }
+        }
+        return;
+      }
+
       if (event.metaKey || event.ctrlKey || event.altKey) return;
 
       if (event.key === '+' || event.key === '=') {
@@ -3047,7 +3423,7 @@ function App() {
       window.removeEventListener('keyup', handleKeyUp);
       window.removeEventListener('blur', handleWindowBlur);
     };
-  }, [fitDesktopCanvas]);
+  }, [activeGroupView, editingTaskId, fitDesktopCanvas, panelOpen]);
   const handleDesktopZoomPresetSelect = useCallback((preset) => {
     if (preset === 'in') {
       updateDesktopCanvasScale(desktopCanvasScaleRef.current + DESKTOP_CANVAS_SCALE_STEP);
@@ -3748,8 +4124,8 @@ function App() {
     [language, selectedDate],
   );
   const selectedDayEntries = useMemo(
-    () => resolveDesktopCanvasEntries(tasks, selectedDateKey),
-    [selectedDateKey, tasks],
+    () => resolveDesktopCanvasEntries(currentWorkspaceTasks, selectedDateKey),
+    [currentWorkspaceTasks, selectedDateKey],
   );
   useEffect(() => {
     selectedDayEntriesRef.current = selectedDayEntries;
@@ -3779,19 +4155,44 @@ function App() {
     setEditText(task.text);
   }, []);
 
-  const handleTaskDelete = useCallback((task) => {
+  const deleteTasksByIds = useCallback((taskIds) => {
+    if (!Array.isArray(taskIds) || taskIds.length === 0) return;
+    const taskIdSet = new Set(taskIds);
     setTasks((prev) => {
+      const affectedGroupIds = new Set(
+        prev
+          .filter((item) => taskIdSet.has(item.id) && item.desktopGroupId)
+          .map((item) => item.desktopGroupId),
+      );
       const nextUpdatedAt = createUpdatedTimestamp();
       const remainingTasks = prev
-        .filter((item) => item.id !== task.id)
+        .filter((item) => !taskIdSet.has(item.id))
         .map((item) => (
-          task.desktopGroupId && item.desktopGroupId === task.desktopGroupId
+          item.desktopGroupId && affectedGroupIds.has(item.desktopGroupId)
             ? normalizeTask({ ...item, updatedAt: nextUpdatedAt })
             : item
         ));
       return cleanupDesktopGroupMetadata(remainingTasks);
     });
+    setSelectedTaskIds((current) => current.filter((taskId) => !taskIdSet.has(taskId)));
   }, [setTasks]);
+
+  const handleTaskDelete = useCallback((task) => {
+    deleteTasksByIds([task.id]);
+  }, [deleteTasksByIds]);
+
+  const confirmCanvasDeletion = useCallback(() => {
+    if (!pendingCanvasDeletion?.taskIds?.length) {
+      setPendingCanvasDeletion(null);
+      return;
+    }
+    deleteTasksByIds(pendingCanvasDeletion.taskIds);
+    setPendingCanvasDeletion(null);
+  }, [deleteTasksByIds, pendingCanvasDeletion]);
+
+  const cancelCanvasDeletion = useCallback(() => {
+    setPendingCanvasDeletion(null);
+  }, []);
 
   const closeEditModal = useCallback(() => {
     setEditingTaskId(null);
@@ -3929,7 +4330,7 @@ function App() {
     const activeGroupId = activeGroupView?.groupId;
     if (!activeGroupId) return;
 
-    const nextGroupTasks = tasks
+    const nextGroupTasks = currentWorkspaceTasks
       .filter((task) => task.desktopGroupId === activeGroupId)
       .map((task) => normalizeTask(task));
 
@@ -3946,7 +4347,7 @@ function App() {
         tasks: nextGroupTasks,
       };
     });
-  }, [activeGroupView?.groupId, tasks]);
+  }, [activeGroupView?.groupId, currentWorkspaceTasks]);
 
   if (loading) {
     return (
@@ -4024,6 +4425,7 @@ function App() {
           text: title,
           title,
           completed: false,
+          desktopWorkspaceId: activeWorkspaceId,
           timeOfDay: 'Morning',
           dateString: droppedDateKey,
           updatedAt: createUpdatedTimestamp(),
@@ -4042,14 +4444,15 @@ function App() {
       setTasks((prev) => {
         let nextTasks = [...prev];
         imageTasks.forEach((task, index) => {
+          const workspaceTasks = nextTasks.filter((item) => taskBelongsToWorkspace(item, activeWorkspaceId));
           const preferredPosition = dropBasePosition
             ? {
               x: dropBasePosition.x,
               y: dropBasePosition.y + (index * (DESKTOP_CANVAS_CARD_GAP + 12)),
             }
-            : getNextDesktopCanvasPosition(nextTasks, droppedDateKey);
+            : getNextDesktopCanvasPosition(workspaceTasks, droppedDateKey);
           const nextPosition = getDesktopCanvasResolvedPosition(
-            nextTasks,
+            workspaceTasks,
             droppedDateKey,
             new Set([task.id]),
             preferredPosition,
@@ -4107,6 +4510,7 @@ function App() {
       id: taskId,
       text: rawText,
       completed: false,
+      desktopWorkspaceId: activeWorkspaceId,
       timeOfDay: resolvedTimeOfDay,
       dateString: selectedDateKey,
       updatedAt: operationUpdatedAt,
@@ -4116,8 +4520,9 @@ function App() {
     });
 
     setTasks((prev) => {
-      const nextPosition = getNextDesktopCanvasPosition(prev, selectedDateKey);
-      const desktopSlot = getFirstAvailableDesktopSlot(prev, selectedDateKey, nextTask.timeOfDay);
+      const workspaceTasks = prev.filter((task) => taskBelongsToWorkspace(task, activeWorkspaceId));
+      const nextPosition = getNextDesktopCanvasPosition(workspaceTasks, selectedDateKey);
+      const desktopSlot = getFirstAvailableDesktopSlot(workspaceTasks, selectedDateKey, nextTask.timeOfDay);
       return [...prev, normalizeTask({
         ...nextTask,
         desktopSlot,
@@ -4149,32 +4554,67 @@ function App() {
     applyAsyncMetadata(editingTask.id, typeFields.cardType, typeFields.videoUrl, typeFields.mapUrl, typeFields.primaryUrl, operationUpdatedAt);
     closeEditModal();
   };
-  const handleTaskClick = (task) => {
-    if (Date.now() < suppressAllTaskClicksUntilRef.current) {
+  const updateCanvasSelection = (taskIds, event, openAction) => {
+    const normalizedTaskIds = [...new Set(taskIds)];
+    if (!normalizedTaskIds.length) return;
+
+    if (event?.metaKey || event?.ctrlKey) {
+      event.preventDefault?.();
+      event.stopPropagation?.();
+      setSelectedTaskIds((current) => {
+        const currentSet = new Set(current);
+        const isFullySelected = normalizedTaskIds.every((taskId) => currentSet.has(taskId));
+        normalizedTaskIds.forEach((taskId) => {
+          if (isFullySelected) currentSet.delete(taskId);
+          else currentSet.add(taskId);
+        });
+        return [...currentSet];
+      });
       return;
     }
-    if (suppressTaskClickRef.current === task.id) {
-      suppressTaskClickRef.current = null;
+
+    if (areTaskIdSelectionsEqual(selectedTaskIdsRef.current, normalizedTaskIds)) {
+      openAction?.();
       return;
     }
 
-    const { redirectUrl, isPlain } = getTaskCardPresentation(task, t);
+    setSelectedTaskIds(normalizedTaskIds);
+  };
 
-    // Track analytics 
-    if (user?.id) {
-      trackUserEvent(user.id, 'task_clicked', { action: 'card_click', platform: 'desktop', isPlain, hasRedirect: !!redirectUrl });
-    }
-
-    if (redirectUrl) {
-      if (normalizeCardType(task.cardType) === CARD_TYPES.PHOTO) {
-        setFullscreenImage(task.photoUrl || task.photoDataUrl || redirectUrl);
+  const handleTaskClick = (task, event) => {
+    const openTaskFromCanvas = () => {
+      if (Date.now() < suppressAllTaskClicksUntilRef.current) {
         return;
       }
-      window.open(redirectUrl, '_blank', 'noopener,noreferrer');
+      if (suppressTaskClickRef.current === task.id) {
+        suppressTaskClickRef.current = null;
+        return;
+      }
+
+      const { redirectUrl, isPlain } = getTaskCardPresentation(task, t);
+
+      if (user?.id) {
+        trackUserEvent(user.id, 'task_clicked', { action: 'card_click', platform: 'desktop', isPlain, hasRedirect: !!redirectUrl });
+      }
+
+      if (redirectUrl) {
+        if (normalizeCardType(task.cardType) === CARD_TYPES.PHOTO) {
+          setFullscreenImage(task.photoUrl || task.photoDataUrl || redirectUrl);
+          return;
+        }
+        window.open(redirectUrl, '_blank', 'noopener,noreferrer');
+        return;
+      }
+
+      openTaskEditor(task);
+    };
+
+    if (!event) {
+      openTaskFromCanvas();
       return;
     }
 
-    openTaskEditor(task);
+    updateCanvasSelection([task.id], event, openTaskFromCanvas);
   };
   const handleSignOut = async () => {
     try {
@@ -4202,7 +4642,12 @@ function App() {
       setActiveGroupView(nextView);
     });
   };
-  const handleGroupCardOpen = (groupTasks) => {
+  const handleGroupCardOpen = (groupTasks, event = null) => {
+    if (event?.metaKey || event?.ctrlKey) {
+      const groupTaskIds = groupTasks.map((task) => task.id);
+      updateCanvasSelection(groupTaskIds, event, null);
+      return;
+    }
     if (Date.now() < suppressAllTaskClicksUntilRef.current) return;
     openActiveGroupView(groupTasks);
   };
@@ -4231,6 +4676,100 @@ function App() {
   const handleHistorySearchLongPress = (task) => {
     searchDragSeparateRef.current = true;
     startDesktopTaskDrag(task);
+  };
+  const activeWorkspace = workspaces.find((workspace) => workspace.id === activeWorkspaceId) || workspaces[0] || getDefaultDesktopWorkspaces()[0];
+  const canAddWorkspace = workspaces.length < MAX_DESKTOP_WORKSPACES;
+  const handleSelectWorkspace = (workspaceId) => {
+    setActiveWorkspaceId(workspaceId);
+    setWorkspaceMenuOpen(false);
+    setWorkspaceActionMenuId(null);
+    setIsWorkspaceNameEditing(false);
+    setSelectedTaskIds([]);
+    setPendingCanvasDeletion(null);
+    setActiveGroupView(null);
+    setHistoryOpen(false);
+  };
+  const handleStartWorkspaceRename = () => {
+    setWorkspaceMenuOpen(false);
+    setWorkspaceActionMenuId(null);
+    setWorkspaceNameDraft(activeWorkspace?.name || 'Untitled');
+    setIsWorkspaceNameEditing(true);
+  };
+  const handleCommitWorkspaceRename = () => {
+    const nextName = workspaceNameDraft.trim() || 'Untitled';
+    setWorkspaces((current) => current.map((workspace) => (
+      workspace.id === activeWorkspace?.id
+        ? { ...workspace, name: nextName }
+        : workspace
+    )));
+    setIsWorkspaceNameEditing(false);
+  };
+  const handleCancelWorkspaceRename = () => {
+    setWorkspaceNameDraft(activeWorkspace?.name || 'Untitled');
+    setIsWorkspaceNameEditing(false);
+  };
+  const handleAddWorkspace = () => {
+    if (!canAddWorkspace) return;
+    setWorkspaces((current) => {
+      const nextWorkspace = {
+        id: `workspace-${Date.now()}`,
+        name: getUntitledWorkspaceName(current.length + 1),
+        iconType: 'dot',
+      };
+      setActiveWorkspaceId(nextWorkspace.id);
+      setWorkspaceNameDraft(nextWorkspace.name);
+      setIsWorkspaceNameEditing(true);
+      return [...current, nextWorkspace];
+    });
+    setWorkspaceMenuOpen(false);
+    setWorkspaceActionMenuId(null);
+    setSelectedTaskIds([]);
+    setPendingCanvasDeletion(null);
+    setActiveGroupView(null);
+    setHistoryOpen(false);
+  };
+  const handleWorkspaceActionsToggle = (workspaceId, event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setWorkspaceActionMenuId((current) => (current === workspaceId ? null : workspaceId));
+  };
+  const handleWorkspaceDeleteRequest = (workspace, event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (workspaces.length <= 1) return;
+    setWorkspaceActionMenuId(null);
+    setPendingWorkspaceDeletion({
+      workspaceId: workspace.id,
+      workspaceName: workspace.name || 'Untitled',
+      title: `Delete workspace "${workspace.name || 'Untitled'}"?`,
+      description: 'This will remove this page and its items.',
+    });
+  };
+  const cancelWorkspaceDeletion = () => {
+    setPendingWorkspaceDeletion(null);
+  };
+  const confirmWorkspaceDeletion = () => {
+    if (!pendingWorkspaceDeletion?.workspaceId || workspaces.length <= 1) {
+      setPendingWorkspaceDeletion(null);
+      return;
+    }
+
+    const deletedWorkspaceId = pendingWorkspaceDeletion.workspaceId;
+    const remainingWorkspaces = workspaces.filter((workspace) => workspace.id !== deletedWorkspaceId);
+    const fallbackWorkspaceId = remainingWorkspaces[0]?.id || DEFAULT_DESKTOP_WORKSPACE_ID;
+
+    setWorkspaces(remainingWorkspaces);
+    setTasks((prev) => prev.filter((task) => !taskBelongsToWorkspace(task, deletedWorkspaceId)));
+    if (activeWorkspaceId === deletedWorkspaceId) {
+      setActiveWorkspaceId(fallbackWorkspaceId);
+    }
+    setWorkspaceMenuOpen(false);
+    setWorkspaceActionMenuId(null);
+    setPendingWorkspaceDeletion(null);
+    setSelectedTaskIds([]);
+    setPendingCanvasDeletion(null);
+    setActiveGroupView(null);
+    setHistoryOpen(false);
   };
   const handleConfirmGroupPrompt = () => {
     if (!pendingGroupPrompt) return;
@@ -4287,8 +4826,113 @@ function App() {
         >
       <div className={`desktop-app ${appearance === 'dark' ? 'desktop-app-dark dark-theme' : 'desktop-app-light'}`} style={{ width: '100%', height: '100%', overflow: 'hidden', background: 'var(--desktop-root-bg)', color: 'var(--desktop-root-text)', fontFamily: 'Inter, sans-serif', display: 'flex', flexDirection: 'column' }}>
         <header className="desktop-minimal-header">
-          <div className="desktop-minimal-brand">
-            <span className="desktop-minimal-brand-label">IntoDay</span>
+          <div className="desktop-minimal-brand" ref={workspaceMenuRef}>
+            <div className={`desktop-workspace-shell ${workspaceMenuOpen ? 'is-open' : ''} ${isWorkspaceNameEditing ? 'is-editing' : ''}`}>
+              {isWorkspaceNameEditing ? (
+                <input
+                  ref={workspaceNameInputRef}
+                  type="text"
+                  value={workspaceNameDraft}
+                  onChange={(event) => setWorkspaceNameDraft(event.target.value)}
+                  onBlur={handleCommitWorkspaceRename}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') {
+                      event.preventDefault();
+                      handleCommitWorkspaceRename();
+                    }
+                    if (event.key === 'Escape') {
+                      event.preventDefault();
+                      handleCancelWorkspaceRename();
+                    }
+                  }}
+                  className="desktop-workspace-name-input"
+                  aria-label="Workspace name"
+                />
+              ) : (
+                <button
+                  type="button"
+                  className="desktop-workspace-name-button"
+                  onClick={handleStartWorkspaceRename}
+                >
+                  <span className="desktop-workspace-trigger-label">{activeWorkspace?.name || 'Untitled'}</span>
+                </button>
+              )}
+              <button
+                type="button"
+                className="desktop-workspace-menu-button"
+                onClick={() => {
+                  if (isWorkspaceNameEditing) {
+                    handleCommitWorkspaceRename();
+                  }
+                  setWorkspaceMenuOpen((current) => !current);
+                }}
+                aria-haspopup="menu"
+                aria-expanded={workspaceMenuOpen}
+              >
+                <span className="desktop-workspace-trigger-chevron">
+                  <WorkspaceChevronIcon open={workspaceMenuOpen} />
+                </span>
+              </button>
+            </div>
+            {workspaceMenuOpen ? (
+              <div className="desktop-workspace-menu" role="menu" aria-label="Workspace menu">
+                <div className="desktop-workspace-menu-header">Switch Workspace</div>
+                <div className="desktop-workspace-menu-list">
+                  {workspaces.map((workspace) => {
+                    const isActive = workspace.id === activeWorkspace?.id;
+                    const isActionsOpen = workspaceActionMenuId === workspace.id;
+                    return (
+                      <div
+                        key={workspace.id}
+                        className={`desktop-workspace-menu-row ${isActive ? 'is-active' : ''} ${isActionsOpen ? 'is-actions-open' : ''}`}
+                      >
+                        <button
+                          type="button"
+                          className="desktop-workspace-menu-item"
+                          onClick={() => handleSelectWorkspace(workspace.id)}
+                          role="menuitemradio"
+                          aria-checked={isActive}
+                        >
+                          <span className="desktop-workspace-menu-item-label">{workspace.name}</span>
+                        </button>
+                        <div className="desktop-workspace-menu-item-actions">
+                          <button
+                            type="button"
+                            className="desktop-workspace-menu-item-more"
+                            onClick={(event) => handleWorkspaceActionsToggle(workspace.id, event)}
+                            aria-label={`Workspace actions for ${workspace.name}`}
+                            aria-expanded={isActionsOpen}
+                          >
+                            <WorkspaceMoreIcon />
+                          </button>
+                          {isActionsOpen ? (
+                            <div className="desktop-workspace-menu-item-popover" role="menu" aria-label="Workspace actions">
+                              <button
+                                type="button"
+                                className="desktop-workspace-menu-item-delete"
+                                onClick={(event) => handleWorkspaceDeleteRequest(workspace, event)}
+                                disabled={workspaces.length <= 1}
+                              >
+                                Delete workspace
+                              </button>
+                            </div>
+                          ) : null}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                <button
+                  type="button"
+                  className="desktop-workspace-menu-add"
+                  onClick={handleAddWorkspace}
+                  disabled={!canAddWorkspace}
+                >
+                  <WorkspacePlusIcon />
+                  <span>Add workspace</span>
+                </button>
+              </div>
+            ) : null}
           </div>
           <div className="desktop-minimal-date-nav-wrap">
             {!todaySelected && (
@@ -4397,18 +5041,18 @@ function App() {
                         transform: `scale(${desktopCanvasScale})`,
                       }}
                     >
-                      <DailyTaskList
-                        entries={selectedDayEntries}
-                        canvasHeight={selectedDayCanvasHeight}
-                        appearance={appearance}
-                        labels={t}
-                        onTaskClick={handleTaskClick}
-                        onGroupOpenFullView={handleGroupCardOpen}
-                        onTaskEdit={handleTaskEdit}
-                        onTaskDelete={handleTaskDelete}
-                        onTaskPointerDown={handleTaskPointerDown}
-                        onTaskPointerMove={handleTaskPointerMove}
-                        onTaskPointerUp={handleTaskPointerUp}
+                        <DailyTaskList
+                          entries={selectedDayEntries}
+                          canvasHeight={selectedDayCanvasHeight}
+                          appearance={appearance}
+                          labels={t}
+                          onTaskClick={handleTaskClick}
+                          onGroupOpenFullView={handleGroupCardOpen}
+                          onTaskEdit={handleTaskEdit}
+                          onTaskDelete={handleTaskDelete}
+                          onTaskPointerDown={handleTaskPointerDown}
+                          onTaskPointerMove={handleTaskPointerMove}
+                          onTaskPointerUp={handleTaskPointerUp}
                         onTaskPointerCancel={handleTaskPointerCancel}
                         draggedTaskId={draggedTaskId}
                         selectedTaskIds={selectedTaskIds}
@@ -4617,7 +5261,7 @@ function App() {
         />
         <DesktopHistoryModal
           open={historyOpen}
-          tasks={tasks}
+          tasks={currentWorkspaceTasks}
           appearance={appearance}
           language={language}
           t={t}
@@ -4641,7 +5285,7 @@ function App() {
           onTaskPointerDown={handleTaskPointerDown}
           onTaskLongPress={handleHistorySearchLongPress}
         />
-        <DragOverlayCard task={draggedTask} tasks={tasks} rect={desktopDragOverlayRectRef.current} appearance={appearance} labels={t} />
+        <DragOverlayCard task={draggedTask} tasks={currentWorkspaceTasks} rect={desktopDragOverlayRectRef.current} appearance={appearance} labels={t} />
         <DesktopGroupPrompt
           prompt={pendingGroupPrompt}
           groupName={pendingGroupName}
@@ -4659,15 +5303,25 @@ function App() {
             closeActiveGroupView();
             handleTaskEdit(task);
           }}
-          onTaskDelete={(task) => {
-            closeActiveGroupView();
-            handleTaskDelete(task);
-          }}
+          onDeleteTasks={deleteTasksByIds}
           onUpdateGroup={updateActiveGroupMetadata}
           onTaskOpen={(task) => {
             closeActiveGroupView();
             handleTaskClick(task);
           }}
+        />
+        <DesktopDeleteConfirmModal
+          open={Boolean(pendingCanvasDeletion)}
+          title={pendingCanvasDeletion?.title || 'Delete selected objects?'}
+          onCancel={cancelCanvasDeletion}
+          onConfirm={confirmCanvasDeletion}
+        />
+        <DesktopDeleteConfirmModal
+          open={Boolean(pendingWorkspaceDeletion)}
+          title={pendingWorkspaceDeletion?.title || 'Delete workspace?'}
+          description={pendingWorkspaceDeletion?.description || null}
+          onCancel={cancelWorkspaceDeletion}
+          onConfirm={confirmWorkspaceDeletion}
         />
         
         {toastMessage && (

@@ -1295,22 +1295,42 @@ body.desktop-task-dragging * {
     background-color 160ms ease,
     border-color 160ms ease,
     box-shadow 160ms ease,
-    transform 160ms ease;
+    transform 160ms ease,
+    min-height 180ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .desktop-task-group-more-label {
-  position: absolute;
-  bottom: 10px;
-  right: 14px;
-  font-size: 11px;
+  width: 100%;
+  min-height: 38px;
+  margin-top: 10px;
+  border: none;
+  border-top: 1px solid rgba(17, 17, 17, 0.08);
+  background: transparent;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 10px 16px 12px;
+  font-size: 12px;
   font-weight: 700;
   color: var(--desktop-muted-subtle);
-  background: var(--desktop-task-bg);
-  padding: 2px 6px;
-  border-radius: 6px;
-  pointer-events: none;
-  z-index: 10;
-  box-shadow: 0 0 10px 4px var(--desktop-task-bg);
+  cursor: default;
+  transition: color 160ms ease, background-color 160ms ease;
+}
+
+.desktop-task-group-more-label:hover,
+.desktop-task-group-more-label:focus-visible {
+  color: var(--desktop-root-text);
+  background: rgba(17, 17, 17, 0.02);
+  outline: none;
+}
+
+.desktop-app-dark .desktop-task-group-more-label {
+  border-top-color: rgba(255, 255, 255, 0.08);
+}
+
+.desktop-app-dark .desktop-task-group-more-label:hover,
+.desktop-app-dark .desktop-task-group-more-label:focus-visible {
+  background: rgba(255, 255, 255, 0.04);
 }
 
 .desktop-task-group-header {
@@ -1463,15 +1483,8 @@ body.desktop-task-dragging * {
   display: grid;
   gap: 6px;
   padding: 10px 0 0;
-  max-height: 198px; /* Roughly 4 items @ 48px + gaps */
-  overflow-y: auto;
-  scrollbar-width: thin;
-  scrollbar-color: transparent transparent;
-  transition: scrollbar-color 0.2s ease;
-}
-
-.desktop-task-group-list:hover {
-  scrollbar-color: rgba(0, 0, 0, 0.15) transparent;
+  overflow: hidden;
+  transition: max-height 180ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .desktop-task-group-list::-webkit-scrollbar {
@@ -1487,38 +1500,14 @@ body.desktop-task-dragging * {
   border-radius: 10px;
 }
 
-.desktop-task-group-list:hover::-webkit-scrollbar-thumb {
-  background: rgba(0, 0, 0, 0.08);
-}
-
-.desktop-task-group-list::-webkit-scrollbar-thumb:hover {
-  background: rgba(0, 0, 0, 0.15);
-}
-
 .desktop-task-group-list::-webkit-scrollbar-button {
   display: none;
   width: 0;
   height: 0;
 }
 
-.desktop-app-dark .desktop-task-group-list {
-  scrollbar-color: transparent transparent;
-}
-
-.desktop-app-dark .desktop-task-group-list:hover {
-  scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
-}
-
 .desktop-app-dark .desktop-task-group-list::-webkit-scrollbar-thumb {
   background: transparent;
-}
-
-.desktop-app-dark .desktop-task-group-list:hover::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.12);
-}
-
-.desktop-app-dark .desktop-task-group-list::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.2);
 }
 
 .desktop-task-group-row {
@@ -1683,6 +1672,7 @@ body.desktop-task-dragging * {
   align-items: center;
   min-width: 0;
   justify-self: start;
+  position: relative;
 }
 
 .desktop-minimal-brand-label {
@@ -1691,6 +1681,406 @@ body.desktop-task-dragging * {
   line-height: 1;
   color: var(--desktop-root-text);
   letter-spacing: -0.02em;
+}
+
+.desktop-workspace-shell {
+  min-width: 0;
+  max-width: 260px;
+  height: 40px;
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  background: #ffffff;
+  box-shadow: none;
+  overflow: hidden;
+  transition: background-color 140ms ease, border-color 140ms ease, box-shadow 140ms ease;
+}
+
+.desktop-workspace-name-button,
+.desktop-workspace-menu-button,
+.desktop-workspace-name-input {
+  border: none;
+  background: transparent;
+  color: var(--desktop-root-text);
+}
+
+.desktop-workspace-name-button {
+  min-width: 0;
+  max-width: 220px;
+  height: 100%;
+  padding: 0 12px 0 10px;
+  display: inline-flex;
+  align-items: center;
+  cursor: text;
+  flex: 1 1 auto;
+}
+
+.desktop-workspace-name-input {
+  width: 220px;
+  height: 100%;
+  padding: 0 10px;
+  outline: none;
+  font-family: "DM Serif Display", serif;
+  font-size: 29px;
+  line-height: 1;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  flex: 1 1 auto;
+}
+
+.desktop-workspace-menu-button {
+  width: 38px;
+  height: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex: 0 0 auto;
+  border-left: 1px solid transparent;
+}
+
+.desktop-workspace-trigger-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: "DM Serif Display", serif;
+  font-size: 29px;
+  line-height: 1;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+}
+
+.desktop-workspace-trigger-chevron {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--desktop-muted-subtle);
+  flex: 0 0 auto;
+}
+
+.desktop-workspace-shell:hover {
+  background: #f1f1f3;
+}
+
+.desktop-workspace-name-button:hover,
+.desktop-workspace-menu-button:hover {
+  background: transparent;
+}
+
+.desktop-workspace-shell.is-editing {
+  background: #ffffff;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.18);
+}
+
+.desktop-workspace-icon {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  border: 2px solid #2b3444;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  background: #ffffff;
+  color: #2b3444;
+}
+
+.desktop-workspace-icon-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: currentColor;
+}
+
+.desktop-workspace-icon.is-letter {
+  border: none;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.desktop-workspace-menu {
+  position: absolute;
+  top: calc(100% + 14px);
+  left: 0;
+  width: 308px;
+  border-radius: 22px;
+  border: 1px solid rgba(17, 17, 17, 0.08);
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 20px 50px rgba(17, 17, 17, 0.1);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  overflow: hidden;
+  z-index: 40;
+}
+
+.desktop-workspace-menu-header {
+  padding: 18px 18px 14px;
+  color: #97a1b3;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.desktop-workspace-menu-list {
+  display: flex;
+  flex-direction: column;
+  padding: 0 8px 10px;
+}
+
+.desktop-workspace-menu-row {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  min-height: 54px;
+  padding: 0 8px;
+  border-radius: 14px;
+}
+
+.desktop-workspace-menu-item {
+  width: 100%;
+  min-height: 100%;
+  padding: 0 10px;
+  border: none;
+  border-radius: 14px;
+  background: transparent;
+  display: flex;
+  align-items: center;
+  color: var(--desktop-root-text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.desktop-workspace-menu-row.is-active,
+.desktop-workspace-menu-row:hover,
+.desktop-workspace-menu-row:focus-within {
+  background: rgba(17, 17, 17, 0.04);
+}
+
+.desktop-workspace-menu-item:focus-visible {
+  outline: none;
+}
+
+.desktop-workspace-menu-item-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: "DM Serif Display", serif;
+  font-size: 18px;
+  line-height: 1.1;
+  font-weight: 400;
+  letter-spacing: 0.05em;
+}
+
+.desktop-workspace-menu-item-actions {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  flex: 0 0 auto;
+}
+
+.desktop-workspace-menu-item-more {
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 9px;
+  background: transparent;
+  color: #8b93a3;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  opacity: 0;
+  transition: background-color 140ms ease, color 140ms ease, opacity 140ms ease;
+}
+
+.desktop-workspace-menu-row:hover .desktop-workspace-menu-item-more,
+.desktop-workspace-menu-row.is-actions-open .desktop-workspace-menu-item-more,
+.desktop-workspace-menu-row.is-active .desktop-workspace-menu-item-more {
+  opacity: 0.88;
+}
+
+.desktop-workspace-menu-row.is-actions-open .desktop-workspace-menu-item-more {
+  opacity: 1;
+}
+
+.desktop-workspace-menu-item-more:hover,
+.desktop-workspace-menu-item-more:focus-visible {
+  background: rgba(17, 17, 17, 0.06);
+  color: #5f6778;
+  outline: none;
+}
+
+.desktop-workspace-menu-item-popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  min-width: 148px;
+  padding: 6px;
+  border-radius: 14px;
+  border: 1px solid rgba(17, 17, 17, 0.08);
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 16px 30px rgba(17, 17, 17, 0.12);
+  z-index: 4;
+}
+
+.desktop-workspace-menu-item-delete {
+  width: 100%;
+  min-height: 36px;
+  padding: 0 10px;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: #d34b4b;
+  text-align: left;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.desktop-workspace-menu-item-delete:hover,
+.desktop-workspace-menu-item-delete:focus-visible {
+  background: rgba(211, 75, 75, 0.08);
+  outline: none;
+}
+
+.desktop-workspace-menu-item-delete:disabled {
+  opacity: 0.42;
+  cursor: default;
+}
+
+.desktop-workspace-menu-item-delete:disabled:hover,
+.desktop-workspace-menu-item-delete:disabled:focus-visible {
+  background: transparent;
+}
+
+.desktop-workspace-menu-add {
+  width: 100%;
+  min-height: 58px;
+  padding: 0 18px;
+  border: none;
+  border-top: 1px solid rgba(17, 17, 17, 0.06);
+  background: transparent;
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+  color: #6f7889;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.desktop-workspace-menu-add:hover,
+.desktop-workspace-menu-add:focus-visible {
+  background: rgba(17, 17, 17, 0.03);
+  outline: none;
+}
+
+.desktop-workspace-menu-add:disabled {
+  opacity: 0.42;
+  cursor: default;
+}
+
+.desktop-workspace-menu-add:disabled:hover,
+.desktop-workspace-menu-add:disabled:focus-visible {
+  background: transparent;
+}
+
+.desktop-app-dark .desktop-workspace-icon {
+  border-color: rgba(255, 255, 255, 0.74);
+  background: transparent;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.desktop-app-dark .desktop-workspace-name-button,
+.desktop-app-dark .desktop-workspace-menu-button {
+  color: #ffffff;
+}
+
+.desktop-app-dark .desktop-workspace-shell {
+  background: rgba(255, 255, 255, 0.03);
+  border-color: transparent;
+  box-shadow: none;
+}
+
+.desktop-app-dark .desktop-workspace-name-input {
+  background: transparent;
+  color: #ffffff;
+}
+
+.desktop-app-dark .desktop-workspace-menu-button {
+  border-left-color: transparent;
+}
+
+.desktop-app-dark .desktop-workspace-shell:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.desktop-app-dark .desktop-workspace-name-button:hover,
+.desktop-app-dark .desktop-workspace-menu-button:hover {
+  background: transparent;
+}
+
+.desktop-app-dark .desktop-workspace-shell.is-editing {
+  background: #171717;
+  border-color: #60a5fa;
+  box-shadow: 0 0 0 2px rgba(96, 165, 250, 0.22);
+}
+
+.desktop-app-dark .desktop-workspace-menu {
+  border-color: rgba(255, 255, 255, 0.08);
+  background: rgba(24, 24, 28, 0.96);
+  box-shadow: 0 24px 54px rgba(0, 0, 0, 0.34);
+}
+
+.desktop-app-dark .desktop-workspace-menu-row.is-active,
+.desktop-app-dark .desktop-workspace-menu-row:hover,
+.desktop-app-dark .desktop-workspace-menu-row:focus-within,
+.desktop-app-dark .desktop-workspace-menu-add:hover,
+.desktop-app-dark .desktop-workspace-menu-add:focus-visible {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.desktop-app-dark .desktop-workspace-menu-item-more {
+  color: rgba(255, 255, 255, 0.64);
+}
+
+.desktop-app-dark .desktop-workspace-menu-item-more:hover,
+.desktop-app-dark .desktop-workspace-menu-item-more:focus-visible {
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.desktop-app-dark .desktop-workspace-menu-add {
+  border-top-color: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.desktop-app-dark .desktop-workspace-menu-item-popover {
+  border-color: rgba(255, 255, 255, 0.08);
+  background: rgba(24, 24, 28, 0.98);
+  box-shadow: 0 18px 34px rgba(0, 0, 0, 0.36);
+}
+
+.desktop-app-dark .desktop-workspace-menu-item-delete {
+  color: #ff8f8f;
+}
+
+.desktop-app-dark .desktop-workspace-menu-item-delete:hover,
+.desktop-app-dark .desktop-workspace-menu-item-delete:focus-visible {
+  background: rgba(255, 143, 143, 0.12);
+}
+
+.desktop-app-dark .desktop-workspace-menu-add:disabled:hover,
+.desktop-app-dark .desktop-workspace-menu-add:disabled:focus-visible {
+  background: transparent;
 }
 
 .desktop-minimal-date-nav-wrap {
@@ -2133,6 +2523,47 @@ body.desktop-task-dragging {
   border-bottom: 1px solid var(--desktop-task-border);
 }
 
+.desktop-pack-page-selection-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px 0;
+}
+
+.desktop-pack-page-selection-action,
+.desktop-pack-page-selection-delete {
+  min-height: 34px;
+  padding: 0 14px;
+  border: none;
+  border-radius: 999px;
+  background: #f3f3f3;
+  color: #4b5563;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.desktop-pack-page-selection-delete {
+  background: #17120d;
+  color: #ffffff;
+}
+
+.desktop-pack-page-selection-delete:disabled {
+  background: #d2cbc3;
+  color: rgba(255, 255, 255, 0.72);
+  cursor: not-allowed;
+}
+
+.desktop-pack-page-selection-count {
+  min-width: 0;
+  color: var(--desktop-muted-subtle);
+  font-size: 12px;
+  font-weight: 700;
+  text-align: center;
+  flex: 1;
+}
+
 .desktop-pack-page-header-body {
   display: flex;
   flex-direction: column;
@@ -2524,6 +2955,13 @@ body.desktop-task-dragging {
   gap: 22px;
 }
 
+.desktop-pack-page-control-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  flex: 0 0 auto;
+}
+
 .desktop-pack-page-filters {
   display: flex;
   align-items: center;
@@ -2701,6 +3139,32 @@ body.desktop-task-dragging {
     border-color 140ms ease;
 }
 
+.desktop-pack-page-item-checkbox {
+  width: 22px;
+  height: 22px;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid rgba(17, 17, 17, 0.12);
+  border-radius: 999px;
+  background: #ffffff;
+  color: #ffffff;
+  cursor: pointer;
+}
+
+.desktop-pack-page-item-checkbox.is-selected {
+  background: #17120d;
+  border-color: #17120d;
+}
+
+.desktop-pack-page-item-checkbox-mark {
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+}
+
 /* Leading source/type icon in pack detail view */
 .desktop-pack-page-item-leading {
   width: 36px;
@@ -2753,6 +3217,17 @@ body.desktop-task-dragging {
 .desktop-app-dark .desktop-pack-page-item-leading-text     { background: rgba(255,165,0,0.16); color: #ffb347; }
 .desktop-app-dark .desktop-pack-page-item-leading-document { background: rgba(140,100,220,0.18); color: #b49eff; }
 .desktop-app-dark .desktop-pack-page-item-leading-link     { background: rgba(100,130,240,0.16); color: #8cacff; }
+
+.desktop-app-dark .desktop-pack-page-item-checkbox {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.14);
+}
+
+.desktop-app-dark .desktop-pack-page-item-checkbox.is-selected {
+  background: #ffffff;
+  border-color: #ffffff;
+  color: #17120d;
+}
 
 .desktop-pack-page-item:hover {
   transform: translateY(-1px);
@@ -2827,6 +3302,90 @@ body.desktop-task-dragging {
 
 .desktop-app-dark .desktop-pack-page-item:hover {
   border-color: rgba(255, 255, 255, 0.08);
+}
+
+.desktop-app-dark .desktop-pack-page-selection-action {
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.desktop-app-dark .desktop-pack-page-selection-delete {
+  background: #ffffff;
+  color: #17120d;
+}
+
+.desktop-delete-confirm-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 420;
+  background: var(--desktop-modal-backdrop);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.desktop-delete-confirm-dialog {
+  width: min(100%, 380px);
+  border-radius: 22px;
+  border: 1px solid var(--desktop-edit-border);
+  background: var(--desktop-edit-bg);
+  box-shadow: var(--desktop-edit-shadow);
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.desktop-delete-confirm-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.desktop-delete-confirm-title {
+  margin: 0;
+  color: var(--desktop-root-text);
+  font-family: 'DM Serif Display', serif;
+  font-size: 28px;
+  line-height: 1.05;
+}
+
+.desktop-delete-confirm-description {
+  margin: 0;
+  color: var(--desktop-muted-subtle);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.desktop-delete-confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.desktop-delete-confirm-button {
+  min-width: 96px;
+  height: 42px;
+  padding: 0 18px;
+  border: none;
+  border-radius: 14px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.desktop-delete-confirm-button-secondary {
+  background: var(--desktop-cancel-bg);
+  color: var(--desktop-cancel-text);
+  border: 1px solid var(--desktop-cancel-border);
+}
+
+.desktop-delete-confirm-button-primary {
+  background: var(--desktop-save-bg);
+  color: var(--desktop-save-text);
 }
 
 .desktop-pack-page-item-title {
@@ -2924,6 +3483,26 @@ body.desktop-task-dragging {
 
   .desktop-minimal-brand-label {
     font-size: 22px;
+  }
+
+  .desktop-workspace-shell {
+    max-width: 200px;
+  }
+
+  .desktop-workspace-name-button {
+    max-width: 170px;
+  }
+
+  .desktop-workspace-name-input {
+    width: min(220px, calc(100vw - 120px));
+  }
+
+  .desktop-workspace-trigger-label {
+    font-size: 22px;
+  }
+
+  .desktop-workspace-menu {
+    width: min(280px, calc(100vw - 24px));
   }
 
   .desktop-minimal-date-nav {
