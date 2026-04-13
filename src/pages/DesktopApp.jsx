@@ -125,11 +125,12 @@ const sections = [
 const DESKTOP_DRAG_START_DISTANCE = 8;
 const DESKTOP_DRAG_SCROLL_ZONE = 96;
 const DESKTOP_DRAG_MAX_SCROLL_SPEED = 1.35;
-const DESKTOP_DRAG_DAY_EDGE_HOLD_MS = 220;
+const DESKTOP_DRAG_DAY_EDGE_HOLD_MS = 380;
 const DESKTOP_DRAG_DAY_FLIP_COOLDOWN_MS = 700;
-const DESKTOP_DRAG_DAY_FLIP_ZONE_PX = 20;
-const DESKTOP_DRAG_DAY_CONFIRM_DISTANCE_PX = 20;
-const DESKTOP_DRAG_DAY_CANCEL_DISTANCE_PX = 10;
+const DESKTOP_DRAG_DAY_FLIP_ZONE_PX = 56;
+const DESKTOP_DRAG_DAY_ARM_DISTANCE_PX = 10;
+const DESKTOP_DRAG_DAY_CONFIRM_DISTANCE_PX = 28;
+const DESKTOP_DRAG_DAY_CANCEL_DISTANCE_PX = 16;
 const DESKTOP_GROUP_OVERLAP_THRESHOLD = 0.5;
 const DESKTOP_MAIN_CONTENT_MAX_WIDTH = 1008;
 const DESKTOP_MAIN_CONTENT_HORIZONTAL_PADDING = 72;
@@ -155,7 +156,7 @@ const DESKTOP_IMAGE_DROP_MAX_EDGE = 1600;
 const DESKTOP_IMAGE_DROP_QUALITY = 0.88;
 const DESKTOP_CANVAS_MIN_HEIGHT = 560;
 const DESKTOP_GROUP_CARD_MIN_HEIGHT = 176;
-const DESKTOP_GROUP_CARD_ITEM_HEIGHT = 42;
+const DESKTOP_GROUP_CARD_ITEM_HEIGHT = 60;
 const DESKTOP_GROUP_CARD_VISIBLE_ITEMS = 3;
 const DESKTOP_UI_SCALE = 0.8;
 const getDesktopSectionPillStyle = (section, appearance) => (
@@ -921,6 +922,19 @@ const SearchIcon = () => (
     <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
   </svg>
 );
+const PackSelectIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M4.5 12.5 8.5 16.5 19.5 6.5" />
+    <path d="M9.5 12.5 13.5 16.5" opacity="0.42" />
+  </svg>
+);
+const PackExportIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M12 4.75v10" />
+    <path d="M8.25 8.75 12 5l3.75 3.75" />
+    <path d="M5.5 13.75v3.5a1.25 1.25 0 0 0 1.25 1.25h10.5a1.25 1.25 0 0 0 1.25-1.25v-3.5" />
+  </svg>
+);
 const CloseIcon = () => (
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" style={{ width: 18, height: 18 }}>
     <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
@@ -1075,6 +1089,311 @@ const getPackItemSourceMeta = (task, labels) => {
     default:
       return { key: 'link', label: subtitle, domain: null };
   }
+};
+const PACK_EXPORT_SECTION_ORDER = [
+  { role: 'Context', heading: 'Context' },
+  { role: 'Code', heading: 'Code' },
+  { role: 'Notes', heading: 'Notes' },
+  { role: 'Reference', heading: 'Reference' },
+];
+
+const getPackTaskRoles = (task, labels) => {
+  const q = (task?.text || '').toLowerCase();
+  const title = (deriveTaskDisplayTitle(task) || '').toLowerCase();
+  const source = getPackItemSourceMeta(task, labels).key.toLowerCase();
+  const tags = Array.isArray(task?.tags) ? task.tags.map((tag) => String(tag).toLowerCase()) : [];
+  const cardType = normalizeCardType(task?.cardType);
+  const roles = [];
+
+  if (
+    ['gpt'].includes(source)
+    || q.includes('chat.openai.com')
+    || q.includes('chatgpt.com')
+    || q.includes('gemini.google.com')
+    || q.includes('claude.ai')
+    || q.includes('perplexity.ai')
+    || tags.some((tag) => ['context', 'prompt', 'ai'].includes(tag))
+    || ['context', 'background', 'summary', 'description', 'prompt'].some((keyword) => q.includes(keyword) || title.includes(keyword))
+  ) {
+    roles.push('Context');
+  }
+
+  if (
+    ['github'].includes(source)
+    || q.includes('```')
+    || tags.some((tag) => ['code', 'dev', 'api', 'technical'].includes(tag))
+    || ['code', 'dev', 'api', 'implementation', 'technical'].some((keyword) => q.includes(keyword) || title.includes(keyword))
+  ) {
+    roles.push('Code');
+  }
+
+  if (
+    cardType === CARD_TYPES.TEXT
+    || tags.some((tag) => ['note', 'memo', 'reminder', 'thoughts'].includes(tag))
+  ) {
+    if (!roles.includes('Code') && !roles.includes('Context')) {
+      roles.push('Notes');
+    }
+  }
+
+  if (['link', 'video', 'shopping', 'social', 'financial', 'location', 'document', 'meeting', 'music', 'podcast', 'photo'].includes(cardType)) {
+    if (!roles.includes('Code') && !roles.includes('Context')) {
+      roles.push('Reference');
+    }
+  }
+
+  if (roles.length === 0) {
+    if (cardType === CARD_TYPES.LINK) roles.push('Reference');
+    else roles.push('Notes');
+  }
+
+  return roles;
+};
+
+const getPrimaryPackTaskRole = (task, labels) => {
+  const roles = getPackTaskRoles(task, labels);
+  return PACK_EXPORT_SECTION_ORDER.find(({ role }) => roles.includes(role))?.role || null;
+};
+
+const getPackTasksByRole = (tasks, labels, role) => (
+  tasks.filter((task) => getPrimaryPackTaskRole(task, labels) === role)
+);
+
+const sanitizePackFilename = (value) => {
+  const normalized = String(value || '')
+    .replace(/[\\/:*?"<>|]+/g, ' ')
+    .trim()
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '')
+    .toLowerCase();
+  return normalized || 'untitled-pack';
+};
+
+const getPackExportBodyText = (task) => {
+  const title = deriveTaskDisplayTitle(task).trim();
+  const primaryUrl = getPackItemPrimaryUrl(task).trim();
+  const candidates = [
+    task?.content,
+    task?.body,
+    task?.previewText,
+    task?.preview,
+    task?.description,
+    task?.summary,
+    task?.note,
+    task?.text,
+  ];
+
+  for (const candidate of candidates) {
+    if (typeof candidate !== 'string') continue;
+    const trimmed = candidate.trim();
+    if (!trimmed) continue;
+    if (title && trimmed === title) continue;
+    if (primaryUrl && trimmed === primaryUrl) continue;
+    return trimmed;
+  }
+
+  return '';
+};
+
+const isCodeLikeContent = (value) => {
+  const text = String(value || '').trim();
+  if (!text) return false;
+  if (text.includes('```')) return false;
+  if (/[{};]/.test(text) && /\b(const|let|var|function|return|import|export|class|if|else|await|async)\b/.test(text)) return true;
+  if (/<[A-Za-z][\s\S]*>/.test(text)) return true;
+  if (/^\s{2,}\S/m.test(text)) return true;
+  if (/=>/.test(text)) return true;
+  return false;
+};
+
+const buildPackExportItemMarkdown = (task, labels, role) => {
+  const title = deriveTaskDisplayTitle(task).trim() || task?.text?.trim() || 'Untitled item';
+  const sourceMeta = getPackItemSourceMeta(task, labels);
+  const primaryUrl = getPackItemPrimaryUrl(task).trim();
+  const bodyText = getPackExportBodyText(task);
+  const cardType = normalizeCardType(task?.cardType);
+  const imageReference = task?.photoUrl || task?.photoFileName || '';
+  const lines = [`### ${title}`];
+
+  if (sourceMeta?.label) {
+    lines.push('');
+    lines.push(`Source: ${sourceMeta.label}`);
+  }
+
+  if (primaryUrl && (role === 'Reference' || sourceMeta?.key === 'gpt')) {
+    lines.push(`URL: ${primaryUrl}`);
+  }
+
+  if (cardType === CARD_TYPES.PHOTO && imageReference) {
+    lines.push(`Image: ${imageReference}`);
+  }
+
+  if (bodyText) {
+    lines.push('');
+    if (role === 'Code' && isCodeLikeContent(bodyText)) {
+      lines.push('```');
+      lines.push(bodyText);
+      lines.push('```');
+    } else {
+      lines.push(bodyText);
+    }
+  }
+
+  return lines.join('\n');
+};
+
+const buildPackSectionMarkdown = (tasks, labels, role, heading) => {
+  const sectionTasks = getPackTasksByRole(tasks, labels, role);
+  if (!sectionTasks.length) return '';
+
+  const lines = [`## ${heading}`, ''];
+  sectionTasks.forEach((task, index) => {
+    lines.push(buildPackExportItemMarkdown(task, labels, role));
+    if (index < sectionTasks.length - 1) {
+      lines.push('');
+    }
+    lines.push('');
+  });
+
+  return `${lines.join('\n').trim()}\n`;
+};
+
+const buildPackExportHeaderLines = (tasks, title) => {
+  const updatedLabel = getPackMetadataTextFromItems(tasks);
+  const tags = getDesktopGroupDisplayTags(tasks);
+  const activeDuration = getPackActiveDurationFromTasks(tasks);
+  const activeDurationLabel = getPackActiveLabel(activeDuration);
+  const lines = [`# ${title}`, ''];
+
+  lines.push(`- Updated: ${updatedLabel || 'Not available'}`);
+  if (tags.length) {
+    lines.push(`- Tags: ${tags.join(', ')}`);
+  }
+  if (activeDuration?.activeDurationType) {
+    lines.push(`- Active duration: ${activeDurationLabel}`);
+  }
+
+  return lines;
+};
+
+const buildRoleMarkdown = (tasks, labels, role) => {
+  const roleConfig = PACK_EXPORT_SECTION_ORDER.find((entry) => entry.role === role);
+  if (!roleConfig) return '';
+
+  const sectionTasks = getPackTasksByRole(tasks, labels, role);
+  if (!sectionTasks.length) return '';
+
+  const packTitle = getDesktopGroupDisplayName(tasks) || 'Untitled pack';
+  const lines = buildPackExportHeaderLines(tasks, `${packTitle} — ${roleConfig.heading}`);
+  lines.push('');
+  lines.push(`## ${roleConfig.heading}`);
+  lines.push('');
+
+  sectionTasks.forEach((task, index) => {
+    lines.push(buildPackExportItemMarkdown(task, labels, role));
+    if (index < sectionTasks.length - 1) {
+      lines.push('');
+    }
+    lines.push('');
+  });
+
+  return `${lines.join('\n').trim()}\n`;
+};
+
+const buildCopyForAIText = (tasks, labels, exportType) => {
+  const packTitle = getDesktopGroupDisplayName(tasks) || 'Untitled pack';
+
+  if (exportType === 'all') {
+    const sectionBlocks = PACK_EXPORT_SECTION_ORDER
+      .map(({ role, heading }) => buildPackSectionMarkdown(tasks, labels, role, heading))
+      .filter(Boolean);
+
+    if (!sectionBlocks.length) return '';
+
+    return [
+      'Here is the context for my current task.',
+      '',
+      `# ${packTitle}`,
+      '',
+      sectionBlocks.join('\n'),
+      '',
+      'Please use the information above to help me with the next step.',
+    ].join('\n').trim();
+  }
+
+  const roleMap = {
+    context: 'Context',
+    code: 'Code',
+    notes: 'Notes',
+    reference: 'Reference',
+  };
+  const role = roleMap[exportType];
+  const heading = PACK_EXPORT_SECTION_ORDER.find((entry) => entry.role === role)?.heading;
+  if (!role || !heading) return '';
+
+  const sectionBlock = buildPackSectionMarkdown(tasks, labels, role, heading);
+  if (!sectionBlock) return '';
+
+  return [
+    `Here is the ${heading.toLowerCase()} for my current task.`,
+    '',
+    `# ${packTitle} — ${heading}`,
+    '',
+    sectionBlock.trim(),
+    '',
+    'Please use the information above to help me.',
+  ].join('\n').trim();
+};
+
+const buildWholePackMarkdown = (tasks, labels) => {
+  const packTitle = getDesktopGroupDisplayName(tasks) || 'Untitled pack';
+  const sectionMap = new Map(PACK_EXPORT_SECTION_ORDER.map(({ role }) => [role, []]));
+
+  tasks.forEach((task) => {
+    const role = getPrimaryPackTaskRole(task, labels);
+    if (!role || !sectionMap.has(role)) return;
+    sectionMap.get(role).push(task);
+  });
+
+  const lines = buildPackExportHeaderLines(tasks, packTitle);
+
+  PACK_EXPORT_SECTION_ORDER.forEach(({ role, heading }) => {
+    const sectionTasks = sectionMap.get(role) || [];
+    if (!sectionTasks.length) return;
+    lines.push('');
+    lines.push(`## ${heading}`);
+    lines.push('');
+    sectionTasks.forEach((task, index) => {
+      lines.push(buildPackExportItemMarkdown(task, labels, role));
+      if (index < sectionTasks.length - 1) {
+        lines.push('');
+      }
+      lines.push('');
+    });
+    while (lines[lines.length - 1] === '') {
+      if (lines[lines.length - 2]?.startsWith('## ')) break;
+      lines.pop();
+    }
+  });
+
+  return `${lines.join('\n').trim()}\n`;
+};
+
+const downloadMarkdown = (filename, markdown) => {
+  const blob = new Blob([markdown], { type: 'text/markdown;charset=utf-8' });
+  const objectUrl = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = objectUrl;
+  anchor.download = filename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  document.body.removeChild(anchor);
+  window.setTimeout(() => URL.revokeObjectURL(objectUrl), 0);
+};
+
+const copyTextToClipboard = async (text) => {
+  await navigator.clipboard.writeText(text);
 };
 
 const FALLBACK_TYPE_ICONS = {
@@ -1482,8 +1801,8 @@ const GroupedTaskCard = ({
   const collapsedVisibleCount = Math.min(filteredTasks.length, DESKTOP_GROUP_CARD_VISIBLE_ITEMS);
   const visibleItemCount = isExpanded ? filteredTasks.length : collapsedVisibleCount;
   const hiddenTaskCount = Math.max(0, filteredTasks.length - collapsedVisibleCount);
-  const groupCardMinHeight = getDesktopGroupCardHeight(filteredTasks.length, visibleItemCount) - 10;
-  const groupListMaxHeight = (visibleItemCount * DESKTOP_GROUP_CARD_ITEM_HEIGHT) + (Math.max(0, visibleItemCount - 1) * 6) + 16;
+  const groupCardMinHeight = getDesktopGroupCardHeight(filteredTasks.length, visibleItemCount);
+  const groupListMaxHeight = (visibleItemCount * DESKTOP_GROUP_CARD_ITEM_HEIGHT) + (Math.max(0, visibleItemCount - 1) * 6);
 
   return (
       <div id={`desktop-task-wrapper-${leadTask.id}`} className={`desktop-task-wrapper desktop-task-group-wrapper ${isDragging ? 'is-dragging' : ''} ${isSelected ? 'is-selected' : ''}`}>
@@ -1936,14 +2255,26 @@ const DesktopGroupFullViewModal = ({
   onTaskEdit,
   onDeleteTasks,
   onUpdateGroup,
+  onToast,
 }) => {
   const [itemSearchQuery, setItemSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState('All');
   const [isSearchVisible, setIsSearchVisible] = useState(false);
+  const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
   const [highlightedTaskId, setHighlightedTaskId] = useState(null);
   const [isSelectMode, setIsSelectMode] = useState(false);
   const [selectedItemIds, setSelectedItemIds] = useState([]);
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
+  const [isBackdropVisible, setIsBackdropVisible] = useState(false);
+  const [isContentVisible, setIsContentVisible] = useState(false);
+  const [isClosing, setIsClosing] = useState(false);
+  const [isAtSourcePosition, setIsAtSourcePosition] = useState(false);
+  const [flipSnapshot, setFlipSnapshot] = useState(null);
+  const [hasOriginTransition, setHasOriginTransition] = useState(false);
+  const exportMenuRef = useRef(null);
+  const shellRef = useRef(null);
+  const openContentTimerRef = useRef(null);
+  const closeTimerRef = useRef(null);
   
   const tasks = view?.tasks || [];
   const open = Boolean(view);
@@ -1953,17 +2284,97 @@ const DesktopGroupFullViewModal = ({
       setItemSearchQuery('');
       setActiveFilter('All');
       setIsSearchVisible(false);
+      setIsExportMenuOpen(false);
       setHighlightedTaskId(null);
       setIsSelectMode(false);
       setSelectedItemIds([]);
       setIsDeleteConfirmOpen(false);
+      setIsBackdropVisible(false);
+      setIsContentVisible(false);
+      setIsClosing(false);
+      setIsAtSourcePosition(false);
+      setFlipSnapshot(null);
+      setHasOriginTransition(false);
     }
   }, [open]);
+
+  useEffect(() => () => {
+    if (openContentTimerRef.current) window.clearTimeout(openContentTimerRef.current);
+    if (closeTimerRef.current) window.clearTimeout(closeTimerRef.current);
+  }, []);
+
+  useLayoutEffect(() => {
+    if (!open || !view?.groupId || !shellRef.current) return;
+
+    if (openContentTimerRef.current) window.clearTimeout(openContentTimerRef.current);
+    if (closeTimerRef.current) window.clearTimeout(closeTimerRef.current);
+
+    const finalRect = shellRef.current.getBoundingClientRect();
+    const originRect = view.originRect;
+
+    setIsClosing(false);
+
+    if (!originRect || !finalRect.width || !finalRect.height) {
+      setFlipSnapshot(null);
+      setHasOriginTransition(false);
+      setIsAtSourcePosition(false);
+      setIsBackdropVisible(true);
+      setIsContentVisible(true);
+      return;
+    }
+
+    const scaleX = Math.max(0.36, originRect.width / finalRect.width);
+    const scaleY = Math.max(0.22, originRect.height / finalRect.height);
+    const translateX = (originRect.left + (originRect.width / 2)) - (finalRect.left + (finalRect.width / 2));
+    const translateY = (originRect.top + (originRect.height / 2)) - (finalRect.top + (finalRect.height / 2));
+
+    setFlipSnapshot({
+      translateX,
+      translateY,
+      scaleX,
+      scaleY,
+    });
+    setHasOriginTransition(true);
+    setIsAtSourcePosition(true);
+    setIsBackdropVisible(false);
+    setIsContentVisible(false);
+
+    window.requestAnimationFrame(() => {
+      setIsBackdropVisible(true);
+      setIsAtSourcePosition(false);
+      openContentTimerRef.current = window.setTimeout(() => {
+        setIsContentVisible(true);
+      }, 110);
+    });
+  }, [open, view?.groupId]);
 
   useEffect(() => {
     const existingIds = new Set(tasks.map((task) => task.id));
     setSelectedItemIds((current) => current.filter((taskId) => existingIds.has(taskId)));
   }, [tasks]);
+
+  useEffect(() => {
+    if (!open || !isExportMenuOpen) return undefined;
+
+    const handlePointerDown = (event) => {
+      if (exportMenuRef.current && !exportMenuRef.current.contains(event.target)) {
+        setIsExportMenuOpen(false);
+      }
+    };
+
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') {
+        setIsExportMenuOpen(false);
+      }
+    };
+
+    window.addEventListener('pointerdown', handlePointerDown);
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('pointerdown', handlePointerDown);
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isExportMenuOpen, open]);
 
   useEffect(() => {
     if (!open || !view?.focusTaskId) return undefined;
@@ -1986,70 +2397,11 @@ const DesktopGroupFullViewModal = ({
   
   const filteredTasks = useMemo(() => {
     let list = [...tasks];
-    
-    // Usage roles heuristics
-    const getTaskRole = (task) => {
-      const q = (task.text || '').toLowerCase();
-      const title = (task.displayTitle || '').toLowerCase();
-      const source = getPackItemSourceMeta(task, labels).key.toLowerCase();
-      const tags = (task.tags || []).map(t => t.toLowerCase());
-      
-      const roles = [];
-      
-      // Context: background, task description, summaries, ai context
-      if (
-        ['chatgpt', 'claude', 'perplexity', 'gemini'].includes(source) ||
-        q.includes('chat.openai.com') || q.includes('chatgpt.com') ||
-        q.includes('gemini.google.com') || q.includes('claude.ai') ||
-        q.includes('perplexity.ai') ||
-        tags.some(t => ['context', 'prompt', 'ai'].includes(t)) ||
-        ['context', 'background', 'summary', 'description', 'prompt'].some(k => q.includes(k) || title.includes(k))
-      ) {
-        roles.push('Context');
-      }
-      
-      // Code: snippets, technical details, API
-      if (
-        ['github', 'stackoverflow', 'npm', 'terminal'].includes(source) ||
-        q.includes('```') ||
-        tags.some(t => ['code', 'dev', 'api', 'technical'].includes(t)) ||
-        ['code', 'dev', 'api', 'implementation', 'technical'].some(k => q.includes(k) || title.includes(k))
-      ) {
-        roles.push('Code');
-      }
-      
-      // Notes: personal notes, quick thoughts, memos
-      if (
-        (task.cardType === 'note' || task.cardType === 'text') ||
-        tags.some(t => ['note', 'memo', 'reminder', 'thoughts'].includes(t))
-      ) {
-        if (!roles.includes('Code') && !roles.includes('Context')) {
-          roles.push('Notes');
-        }
-      }
-      
-      // Reference: external links, articles, videos
-      if (
-        ['link', 'video', 'shopping', 'social', 'financial', 'location'].includes(task.cardType)
-      ) {
-        if (!roles.includes('Code') && !roles.includes('Context')) {
-          roles.push('Reference');
-        }
-      }
-      
-      // Fallback
-      if (roles.length === 0) {
-        if (task.cardType === 'link') roles.push('Reference');
-        else roles.push('Notes');
-      }
-      
-      return roles;
-    };
 
     // Filter by role
     if (activeFilter !== 'All') {
       list = list.filter(task => {
-        const roles = getTaskRole(task);
+        const roles = getPackTaskRoles(task, labels);
         return roles.includes(activeFilter);
       });
     }
@@ -2086,6 +2438,8 @@ const DesktopGroupFullViewModal = ({
     ));
   };
   const enterSelectMode = () => {
+    setIsSearchVisible(false);
+    setIsExportMenuOpen(false);
     setIsSelectMode(true);
     setSelectedItemIds([]);
     setIsDeleteConfirmOpen(false);
@@ -2109,24 +2463,173 @@ const DesktopGroupFullViewModal = ({
     setSelectedItemIds([]);
     setIsSelectMode(false);
   };
+  const handleExportWholePack = () => {
+    const markdown = buildWholePackMarkdown(tasks, labels);
+    const filename = `${sanitizePackFilename(getDesktopGroupDisplayName(tasks))}.md`;
+    downloadMarkdown(filename, markdown);
+    setIsExportMenuOpen(false);
+  };
+  const handleCopyWholePackForAi = async () => {
+    const text = buildCopyForAIText(tasks, labels, 'all');
+    if (!text) {
+      onToast?.('No pack content to copy');
+      setIsExportMenuOpen(false);
+      return;
+    }
+    try {
+      await copyTextToClipboard(text);
+      onToast?.('Copied whole pack for AI');
+    } catch (_) {
+      onToast?.('Unable to copy whole pack');
+    }
+    setIsExportMenuOpen(false);
+  };
+  const handleCopyRoleForAi = async (role, exportType) => {
+    const text = buildCopyForAIText(tasks, labels, exportType);
+    if (!text) {
+      onToast?.(`No ${role} items to copy`);
+      setIsExportMenuOpen(false);
+      return;
+    }
+    try {
+      await copyTextToClipboard(text);
+      onToast?.(`Copied ${role} for AI`);
+    } catch (_) {
+      onToast?.(`Unable to copy ${role}`);
+    }
+    setIsExportMenuOpen(false);
+  };
+  const handleExportByRole = (role) => {
+    const markdown = buildRoleMarkdown(tasks, labels, role);
+    const roleSlug = role.toLowerCase();
+    if (!markdown) {
+      onToast?.(`No ${role} items to export`);
+      setIsExportMenuOpen(false);
+      return;
+    }
+    const filename = `${sanitizePackFilename(getDesktopGroupDisplayName(tasks))}-${roleSlug}.md`;
+    downloadMarkdown(filename, markdown);
+    setIsExportMenuOpen(false);
+  };
+  const handleExportMenuAction = (action) => {
+    if (action === 'copy-for-ai') {
+      handleCopyWholePackForAi();
+      return;
+    }
+    if (action === 'copy-context') {
+      handleCopyRoleForAi('Context', 'context');
+      return;
+    }
+    if (action === 'copy-code') {
+      handleCopyRoleForAi('Code', 'code');
+      return;
+    }
+    if (action === 'copy-notes') {
+      handleCopyRoleForAi('Notes', 'notes');
+      return;
+    }
+    if (action === 'copy-reference') {
+      handleCopyRoleForAi('Reference', 'reference');
+      return;
+    }
+    if (action === 'whole-pack') {
+      handleExportWholePack();
+      return;
+    }
+    if (action === 'context') {
+      handleExportByRole('Context');
+      return;
+    }
+    if (action === 'code') {
+      handleExportByRole('Code');
+      return;
+    }
+    if (action === 'notes') {
+      handleExportByRole('Notes');
+      return;
+    }
+    if (action === 'reference') {
+      handleExportByRole('Reference');
+      return;
+    }
+    setIsExportMenuOpen(false);
+  };
+  const exportMenuOptions = (() => {
+    switch (activeFilter) {
+      case 'Context':
+        return [
+          { id: 'copy-context', label: 'Copy for AI' },
+          { id: 'context', label: 'Export Context' },
+        ];
+      case 'Code':
+        return [
+          { id: 'copy-code', label: 'Copy for AI' },
+          { id: 'code', label: 'Export Code' },
+        ];
+      case 'Notes':
+        return [
+          { id: 'copy-notes', label: 'Copy for AI' },
+          { id: 'notes', label: 'Export Notes' },
+        ];
+      case 'Reference':
+        return [
+          { id: 'copy-reference', label: 'Copy for AI' },
+          { id: 'reference', label: 'Export Reference' },
+        ];
+      case 'All':
+      default:
+        return [
+          { id: 'copy-for-ai', label: 'Copy for AI' },
+          { id: 'whole-pack', label: 'Export whole pack' },
+        ];
+    }
+  })();
+
+  const handleRequestClose = () => {
+    if (isClosing) return;
+
+    if (openContentTimerRef.current) window.clearTimeout(openContentTimerRef.current);
+    if (closeTimerRef.current) window.clearTimeout(closeTimerRef.current);
+
+    setIsExportMenuOpen(false);
+    setIsDeleteConfirmOpen(false);
+    setIsContentVisible(false);
+    setIsBackdropVisible(false);
+    setIsClosing(true);
+
+    closeTimerRef.current = window.setTimeout(() => {
+      onClose?.();
+    }, view?.originRect ? 260 : 180);
+  };
+
+  const shellMotionStyle = flipSnapshot ? {
+    '--desktop-pack-flip-x': `${flipSnapshot.translateX}px`,
+    '--desktop-pack-flip-y': `${flipSnapshot.translateY}px`,
+    '--desktop-pack-flip-scale-x': `${flipSnapshot.scaleX}`,
+    '--desktop-pack-flip-scale-y': `${flipSnapshot.scaleY}`,
+  } : undefined;
 
   return (
     <div
       role="presentation"
-      onClick={onClose}
+      onClick={handleRequestClose}
       className="desktop-pack-page-modal"
     >
+      <div className={`desktop-pack-page-backdrop ${isBackdropVisible ? 'is-visible' : ''}`} />
       <div
+        ref={shellRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby="desktop-group-full-view-title"
         onClick={(event) => event.stopPropagation()}
-        className={`desktop-pack-page-shell ${isDark ? 'is-dark' : ''}`}
+        className={`desktop-pack-page-shell ${isDark ? 'is-dark' : ''} ${hasOriginTransition ? 'has-origin-transition' : ''} ${isAtSourcePosition ? 'is-from-card' : ''} ${isClosing ? 'is-closing' : ''}`}
+        style={shellMotionStyle}
       >
+        <div className={`desktop-pack-page-shell-inner ${isContentVisible ? 'is-visible' : ''}`}>
         <div className="desktop-pack-page-topbar">
           <button
             type="button"
-            onClick={onClose}
+            onClick={handleRequestClose}
             aria-label={labels.close}
             className="desktop-pack-page-close"
           >
@@ -2158,31 +2661,75 @@ const DesktopGroupFullViewModal = ({
                     onClick={() => {
                       setActiveFilter(filter);
                       setIsSearchVisible(false);
+                      setIsExportMenuOpen(false);
                     }}
                   >
                     {filter}
                   </button>
                 ))}
               </div>
-              <div className="desktop-pack-page-control-actions">
-                {!isSelectMode ? (
+              <div className={`desktop-pack-page-control-actions ${isSelectMode ? 'is-select-mode' : ''}`}>
+                {isSelectMode ? (
                   <button
                     type="button"
-                    className="desktop-pack-page-inline-action is-inline"
-                    onClick={enterSelectMode}
+                    className="desktop-pack-page-toolbar-action desktop-pack-page-toolbar-text-action is-active"
+                    onClick={exitSelectMode}
                   >
-                    Select
+                    <PackSelectIcon />
+                    <span>Select</span>
                   </button>
-                ) : null}
-                <button
-                  type="button"
-                  className={`desktop-pack-page-search-toggle ${isSearchVisible ? 'is-active' : ''}`}
-                  onClick={() => setIsSearchVisible((current) => !current)}
-                  aria-label="Search items"
-                  aria-expanded={isSearchVisible}
-                >
-                  <SearchIcon />
-                </button>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      className={`desktop-pack-page-toolbar-action desktop-pack-page-search-toggle ${isSearchVisible ? 'is-active' : ''}`}
+                      onClick={() => {
+                        setIsSearchVisible((current) => !current);
+                        setIsExportMenuOpen(false);
+                      }}
+                      aria-label="Search items"
+                      aria-expanded={isSearchVisible}
+                    >
+                      <SearchIcon />
+                    </button>
+                    <span className="desktop-pack-page-toolbar-divider" aria-hidden="true" />
+                    <button
+                      type="button"
+                      className="desktop-pack-page-toolbar-action desktop-pack-page-toolbar-text-action"
+                      onClick={enterSelectMode}
+                    >
+                      <PackSelectIcon />
+                      <span>Select</span>
+                    </button>
+                    <div className="desktop-pack-page-toolbar-menu-anchor" ref={exportMenuRef}>
+                      <button
+                        type="button"
+                        className={`desktop-pack-page-toolbar-action desktop-pack-page-toolbar-text-action ${isExportMenuOpen ? 'is-active' : ''}`}
+                        aria-haspopup="menu"
+                        aria-expanded={isExportMenuOpen}
+                        onClick={() => setIsExportMenuOpen((current) => !current)}
+                      >
+                        <PackExportIcon />
+                        <span>Export</span>
+                      </button>
+                      {isExportMenuOpen ? (
+                        <div className="desktop-pack-page-toolbar-menu" role="menu" aria-label="Export pack">
+                          {exportMenuOptions.map(({ id, label }) => (
+                            <button
+                              key={id}
+                              type="button"
+                              role="menuitem"
+                              className="desktop-pack-page-toolbar-menu-item"
+                              onClick={() => handleExportMenuAction(id)}
+                            >
+                              {label}
+                            </button>
+                          ))}
+                        </div>
+                      ) : null}
+                    </div>
+                  </>
+                )}
               </div>
             </div>
             {isSearchVisible && (
@@ -2273,6 +2820,7 @@ const DesktopGroupFullViewModal = ({
           onCancel={() => setIsDeleteConfirmOpen(false)}
           onConfirm={confirmDeleteSelected}
         />
+        </div>
       </div>
     </div>
   );
@@ -2480,6 +3028,50 @@ const DragDayFeedbackOverlay = ({
     </div>
   </div>
 );
+
+const DragDayFeedbackOverlayV2 = ({
+  direction,
+  previousLabel,
+  nextLabel,
+  zones,
+  isConfirming,
+}) => {
+  const renderEdge = (edgeDirection, label, arrow, width) => {
+    const isActive = direction === edgeDirection;
+    const stateClass = isActive ? (isConfirming ? 'is-armed' : 'is-preview') : '';
+
+    return (
+      <div
+        className={`desktop-drag-day-feedback-edge desktop-drag-day-feedback-edge-${edgeDirection} ${isActive ? 'is-active' : ''} ${stateClass}`}
+        style={typeof width === 'number' ? { width } : undefined}
+      >
+        <div className="desktop-drag-day-feedback-chip">
+          {edgeDirection === 'previous' ? (
+            <span className="desktop-drag-day-feedback-arrow desktop-drag-day-feedback-arrow-previous">{'<'}</span>
+          ) : null}
+          <div className="desktop-drag-day-feedback-copy">
+            <span className="desktop-drag-day-feedback-label">{label}</span>
+            {isActive ? (
+              <span className="desktop-drag-day-feedback-hint">
+                {isConfirming ? 'Ready to switch' : 'Hold or drag further'}
+              </span>
+            ) : null}
+          </div>
+          {edgeDirection === 'next' ? (
+            <span className="desktop-drag-day-feedback-arrow desktop-drag-day-feedback-arrow-next">{'>'}</span>
+          ) : null}
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div className={`desktop-drag-day-feedback ${direction ? 'is-visible' : ''} ${isConfirming ? 'is-confirming' : ''}`} aria-hidden="true">
+      {renderEdge('previous', previousLabel, '<', zones ? Math.max(0, zones.previousEnd - zones.previousStart) : undefined)}
+      {renderEdge('next', nextLabel, '>', zones ? Math.max(0, zones.nextEnd - zones.nextStart) : undefined)}
+    </div>
+  );
+};
 
 const ScheduleSection = ({
   section,
@@ -2750,8 +3342,21 @@ const InlineMiniCalendar = ({
   );
 };
 
-const AddPanel = ({ open, language, selectedDate, inputText, setInputText, onClose, onSubmit, onSelectDate }) => {
+const AddPanel = ({
+  open,
+  language,
+  selectedDate,
+  inputText,
+  setInputText,
+  imageAttachments,
+  onDropImages,
+  onRemoveImage,
+  onClose,
+  onSubmit,
+  onSelectDate,
+}) => {
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
+  const [isImageDragActive, setIsImageDragActive] = useState(false);
   const t = getTranslationsForLanguage(language);
 
   if (!open) return null;
@@ -2784,8 +3389,102 @@ const AddPanel = ({ open, language, selectedDate, inputText, setInputText, onClo
           />
         ) : null}
         <div style={{ flex: 1 }} />
-        <div style={{ position: 'relative', marginTop: 12 }}>
-          <textarea autoFocus value={inputText} onChange={(event) => setInputText(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); onSubmit(); } }} placeholder={t.placeholder} style={{ width: '100%', height: 120, resize: 'none', borderRadius: 20, border: '1px solid var(--desktop-input-border)', background: 'var(--desktop-input-bg)', color: 'var(--desktop-root-text)', padding: '16px 56px 16px 16px', outline: 'none', fontSize: 15, fontFamily: 'inherit', boxShadow: 'var(--desktop-input-shadow)' }} />
+        <div
+          style={{
+            position: 'relative',
+            marginTop: 12,
+            borderRadius: 24,
+            border: isImageDragActive ? '1px solid var(--desktop-accent)' : '1px solid transparent',
+            background: isImageDragActive ? 'rgba(59, 130, 246, 0.05)' : 'transparent',
+            transition: 'border-color 160ms ease, background 160ms ease',
+          }}
+          onDragEnter={(event) => {
+            if (!hasImageFiles(event.dataTransfer)) return;
+            event.preventDefault();
+            setIsImageDragActive(true);
+          }}
+          onDragOver={(event) => {
+            if (!hasImageFiles(event.dataTransfer)) return;
+            event.preventDefault();
+            if (event.dataTransfer) {
+              event.dataTransfer.dropEffect = 'copy';
+            }
+            if (!isImageDragActive) {
+              setIsImageDragActive(true);
+            }
+          }}
+          onDragLeave={(event) => {
+            if (!hasImageFiles(event.dataTransfer)) return;
+            event.preventDefault();
+            if (!event.currentTarget.contains(event.relatedTarget)) {
+              setIsImageDragActive(false);
+            }
+          }}
+          onDrop={(event) => {
+            if (!hasImageFiles(event.dataTransfer)) return;
+            event.preventDefault();
+            setIsImageDragActive(false);
+            const files = Array.from(event.dataTransfer?.files || []).filter((file) => file.type?.startsWith('image/'));
+            if (files.length) {
+              onDropImages?.(files);
+            }
+          }}
+        >
+          {imageAttachments.length ? (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, padding: '12px 12px 0' }}>
+              {imageAttachments.map((image) => (
+                <div
+                  key={image.id}
+                  style={{
+                    position: 'relative',
+                    width: 72,
+                    height: 72,
+                    borderRadius: 16,
+                    overflow: 'hidden',
+                    border: '1px solid var(--desktop-divider)',
+                    background: 'var(--desktop-input-bg)',
+                    boxShadow: 'var(--desktop-input-shadow)',
+                  }}
+                >
+                  <img
+                    src={image.photoDataUrl}
+                    alt={image.title}
+                    draggable={false}
+                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                  />
+                  <button
+                    type="button"
+                    aria-label={`Remove ${image.title}`}
+                    onClick={() => onRemoveImage?.(image.id)}
+                    style={{
+                      position: 'absolute',
+                      top: 6,
+                      right: 6,
+                      width: 22,
+                      height: 22,
+                      borderRadius: '50%',
+                      border: 'none',
+                      background: 'rgba(15, 23, 42, 0.72)',
+                      color: '#fff',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      cursor: 'pointer',
+                      padding: 0,
+                    }}
+                  >
+                    <CloseIcon />
+                  </button>
+                </div>
+              ))}
+            </div>
+          ) : null}
+          <textarea autoFocus value={inputText} onChange={(event) => setInputText(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); onSubmit(); } }} placeholder={t.placeholder} style={{ width: '100%', height: 120, resize: 'none', borderRadius: 20, border: '1px solid var(--desktop-input-border)', background: 'var(--desktop-input-bg)', color: 'var(--desktop-root-text)', padding: imageAttachments.length ? '12px 56px 16px 16px' : '16px 56px 16px 16px', outline: 'none', fontSize: 15, fontFamily: 'inherit', boxShadow: 'var(--desktop-input-shadow)' }} />
+          {isImageDragActive ? (
+            <div style={{ position: 'absolute', inset: 10, borderRadius: 18, border: '1px dashed rgba(59, 130, 246, 0.55)', background: 'rgba(255,255,255,0.42)', display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none', color: 'var(--desktop-accent)', fontSize: 14, fontWeight: 600 }}>
+              Drop image to attach
+            </div>
+          ) : null}
           <button type="button" onClick={onSubmit} style={{ position: 'absolute', right: 12, bottom: 12, width: 36, height: 36, borderRadius: '50%', border: 'none', background: 'var(--desktop-submit-bg)', color: 'var(--desktop-submit-text)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', boxShadow: 'var(--desktop-submit-shadow)' }}><ArrowUpIcon /></button>
         </div>
       </div>
@@ -2907,6 +3606,7 @@ function App() {
   const [showAddPreview, setShowAddPreview] = useState(false);
   const hoverAddTimeoutRef = useRef(null);
   const [inputText, setInputText] = useState('');
+  const [addPanelImages, setAddPanelImages] = useState([]);
   const [editingTaskId, setEditingTaskId] = useState(null);
   const [editText, setEditText] = useState('');
   const [editCopied, setEditCopied] = useState(false);
@@ -3469,6 +4169,29 @@ function App() {
     setDesktopDragOverlapTargetId(null);
   }, []);
 
+  const clearDesktopDayFlipHoldTimer = useCallback(() => {
+    if (desktopDayFlipTimerRef.current !== null) {
+      window.clearTimeout(desktopDayFlipTimerRef.current);
+      desktopDayFlipTimerRef.current = null;
+    }
+  }, []);
+
+  const setDesktopDragDayArmed = useCallback((nextValue) => {
+    if (desktopDragDayIsReadyRef.current === nextValue) return;
+    desktopDragDayIsReadyRef.current = nextValue;
+    setDesktopDragDayConfirming(nextValue);
+  }, []);
+
+  const scheduleDesktopDayFlipArm = useCallback((direction, taskId) => {
+    clearDesktopDayFlipHoldTimer();
+    desktopDayFlipTimerRef.current = window.setTimeout(() => {
+      desktopDayFlipTimerRef.current = null;
+      if (!desktopDragModeRef.current || desktopDragStateRef.current.taskId !== taskId) return;
+      if (desktopDayFlipDirectionRef.current !== direction) return;
+      setDesktopDragDayArmed(true);
+    }, DESKTOP_DRAG_DAY_EDGE_HOLD_MS);
+  }, [clearDesktopDayFlipHoldTimer, setDesktopDragDayArmed]);
+
   const clearDesktopDayFlipTimer = useCallback(() => {
     resetDesktopDragInteraction();
   }, [resetDesktopDragInteraction]);
@@ -3622,16 +4345,17 @@ function App() {
     }
 
     if (Date.now() < desktopDayFlipCooldownUntilRef.current) {
+      clearDesktopDayFlipHoldTimer();
+      setDesktopDragDayArmed(false);
       return;
     }
 
-    // Entering the edge zone arms the preview
     if (desktopDayFlipDirectionRef.current !== direction) {
-      // Don't call clearDesktopDayFlipTimer completely here to avoid flickering feedback
-      // but reset our tracking state for the new direction
+      clearDesktopDayFlipHoldTimer();
       desktopDayFlipDirectionRef.current = direction;
       desktopDragDayEntryPointXRef.current = clientX;
-      desktopDragDayIsReadyRef.current = false;
+      setDesktopDragDayArmed(false);
+      scheduleDesktopDayFlipArm(direction, taskId);
       return;
     }
 
@@ -3640,21 +4364,24 @@ function App() {
 
     const outwardDelta = (clientX - entryX) * direction;
 
-    // Phase 3: Cancel (Moving Inward)
     if (outwardDelta <= -DESKTOP_DRAG_DAY_CANCEL_DISTANCE_PX) {
       clearDesktopDayFlipTimer();
       return;
     }
 
-    // Visual indication: we consider it "ready" or "confirming" once pushing outward
-    const isReady = outwardDelta > 0;
-    if (desktopDragDayIsReadyRef.current !== isReady) {
-      desktopDragDayIsReadyRef.current = isReady;
-      setDesktopDragDayConfirming(isReady);
+    if (!desktopDragDayIsReadyRef.current && outwardDelta >= DESKTOP_DRAG_DAY_ARM_DISTANCE_PX) {
+      clearDesktopDayFlipHoldTimer();
+      setDesktopDragDayArmed(true);
+    } else if (desktopDragDayIsReadyRef.current && outwardDelta < DESKTOP_DRAG_DAY_ARM_DISTANCE_PX * 0.35) {
+      setDesktopDragDayArmed(false);
+      if (desktopDayFlipTimerRef.current === null) {
+        scheduleDesktopDayFlipArm(direction, taskId);
+      }
+    } else if (!desktopDragDayIsReadyRef.current && desktopDayFlipTimerRef.current === null) {
+      scheduleDesktopDayFlipArm(direction, taskId);
     }
 
-    // Phase 2: Confirm (Pushing Outward)
-    if (outwardDelta >= DESKTOP_DRAG_DAY_CONFIRM_DISTANCE_PX) {
+    if (desktopDragDayIsReadyRef.current && outwardDelta >= DESKTOP_DRAG_DAY_CONFIRM_DISTANCE_PX) {
       if (!desktopDragModeRef.current || desktopDragStateRef.current.taskId !== taskId) {
         clearDesktopDayFlipTimer();
         return;
@@ -3663,7 +4390,7 @@ function App() {
       moveDraggedTaskToDate(taskId, shiftDateByDays(selectedDateRef.current, direction));
       clearDesktopDayFlipTimer();
     }
-  }, [clearDesktopDayFlipTimer, moveDraggedTaskToDate]);
+  }, [clearDesktopDayFlipHoldTimer, clearDesktopDayFlipTimer, moveDraggedTaskToDate, scheduleDesktopDayFlipArm, setDesktopDragDayArmed]);
 
   const stopDesktopAutoScroll = useCallback(() => {
     desktopAutoScrollLastTsRef.current = null;
@@ -4365,6 +5092,7 @@ function App() {
     : null;
   const closePanel = () => {
     setInputText('');
+    setAddPanelImages([]);
     setPanelOpen(false);
   };
   const showToast = (message) => {
@@ -4496,49 +5224,110 @@ function App() {
       });
     }
   };
+  const handleAddPanelImagesDropped = async (files) => {
+    if (!files?.length) return;
+    try {
+      const serializedImages = await Promise.all(files.map(async (file, index) => {
+        const photoFields = await serializeDroppedImageFile(file);
+        return {
+          id: `${Date.now()}-${index}-${Math.round(Math.random() * 1000)}`,
+          fileName: file.name,
+          title: getDroppedImageTitle(file.name),
+          ...photoFields,
+        };
+      }));
+      setAddPanelImages((current) => [...current, ...serializedImages]);
+      showToast(serializedImages.length === 1 ? 'Photo attached' : `${serializedImages.length} photos attached`);
+    } catch (error) {
+      console.error('Failed to attach image files to add panel:', error);
+      showToast('Unable to attach image');
+    }
+  };
+  const handleRemoveAddPanelImage = (imageId) => {
+    setAddPanelImages((current) => current.filter((image) => image.id !== imageId));
+  };
   const saveTask = () => {
     const rawText = inputText.trim();
-    if (!rawText) return;
+    if (!rawText && addPanelImages.length === 0) return;
 
     const resolvedTimeOfDay = todaySelected ? sectionIdToMobileId(currentBlock) : 'Morning';
-    const typeFields = getDerivedTaskFields(rawText);
-    const { cardType, videoUrl, mapUrl } = typeFields;
+    const typeFields = rawText ? getDerivedTaskFields(rawText) : null;
     const taskId = Date.now();
     const operationUpdatedAt = createUpdatedTimestamp();
 
-    const nextTask = normalizeTask({
-      id: taskId,
-      text: rawText,
-      completed: false,
-      desktopWorkspaceId: activeWorkspaceId,
-      timeOfDay: resolvedTimeOfDay,
-      dateString: selectedDateKey,
-      updatedAt: operationUpdatedAt,
-      ...typeFields,
-      desktopSlot: null,
-      desktopZ: Date.now(),
-    });
-
     setTasks((prev) => {
-      const workspaceTasks = prev.filter((task) => taskBelongsToWorkspace(task, activeWorkspaceId));
-      const nextPosition = getNextDesktopCanvasPosition(workspaceTasks, selectedDateKey);
-      const desktopSlot = getFirstAvailableDesktopSlot(workspaceTasks, selectedDateKey, nextTask.timeOfDay);
-      return [...prev, normalizeTask({
-        ...nextTask,
-        desktopSlot,
-        desktopCanvasX: nextPosition.x,
-        desktopCanvasY: nextPosition.y,
-      })];
+      let nextTasks = [...prev];
+
+      if (rawText && typeFields) {
+        const nextTask = normalizeTask({
+          id: taskId,
+          text: rawText,
+          completed: false,
+          desktopWorkspaceId: activeWorkspaceId,
+          timeOfDay: resolvedTimeOfDay,
+          dateString: selectedDateKey,
+          updatedAt: operationUpdatedAt,
+          ...typeFields,
+          desktopSlot: null,
+          desktopZ: Date.now(),
+        });
+        const workspaceTasks = nextTasks.filter((task) => taskBelongsToWorkspace(task, activeWorkspaceId));
+        const nextPosition = getNextDesktopCanvasPosition(workspaceTasks, selectedDateKey);
+        const desktopSlot = getFirstAvailableDesktopSlot(workspaceTasks, selectedDateKey, nextTask.timeOfDay);
+        nextTasks = [...nextTasks, normalizeTask({
+          ...nextTask,
+          desktopSlot,
+          desktopCanvasX: nextPosition.x,
+          desktopCanvasY: nextPosition.y,
+        })];
+      }
+
+      addPanelImages.forEach((image, index) => {
+        const imageTaskId = taskId + index + 1;
+        const imageTask = normalizeTask({
+          id: imageTaskId,
+          text: image.title,
+          title: image.title,
+          completed: false,
+          desktopWorkspaceId: activeWorkspaceId,
+          timeOfDay: 'Morning',
+          dateString: selectedDateKey,
+          updatedAt: operationUpdatedAt,
+          cardType: CARD_TYPES.PHOTO,
+          primaryUrl: null,
+          redirectUrl: image.photoDataUrl || null,
+          photoUrl: image.photoDataUrl || null,
+          photoTitle: image.title,
+          photoFileName: image.fileName,
+          photoDataUrl: image.photoDataUrl,
+          photoWidth: image.photoWidth,
+          photoHeight: image.photoHeight,
+          desktopSlot: null,
+          desktopZ: Date.now() + index + 1,
+        });
+        const workspaceTasks = nextTasks.filter((task) => taskBelongsToWorkspace(task, activeWorkspaceId));
+        const nextPosition = getNextDesktopCanvasPosition(workspaceTasks, selectedDateKey);
+        nextTasks = [...nextTasks, normalizeTask({
+          ...imageTask,
+          desktopCanvasX: nextPosition.x,
+          desktopCanvasY: nextPosition.y,
+        })];
+      });
+
+      return nextTasks;
     });
 
     // Track analytics 
-    if (user?.id) {
-      trackUserEvent(user.id, 'task_added', { cardType, platform: 'desktop' });
+    if (user?.id && rawText && typeFields) {
+      trackUserEvent(user.id, 'task_added', { cardType: typeFields.cardType, platform: 'desktop' });
     }
 
     setInputText('');
+    setAddPanelImages([]);
     setPanelOpen(false);
-    applyAsyncMetadata(taskId, cardType, videoUrl, mapUrl, typeFields.primaryUrl, operationUpdatedAt);
+    if (rawText && typeFields) {
+      applyAsyncMetadata(taskId, typeFields.cardType, typeFields.videoUrl, typeFields.mapUrl, typeFields.primaryUrl, operationUpdatedAt);
+    }
   };
   const handleEditSave = () => {
     const rawText = editText.trim();
@@ -4579,6 +5368,11 @@ function App() {
     }
 
     setSelectedTaskIds(normalizedTaskIds);
+
+    // For a single loose task, keep canvas selection visible but still open it on first click.
+    if (normalizedTaskIds.length === 1) {
+      openAction?.();
+    }
   };
 
   const handleTaskClick = (task, event) => {
@@ -4630,13 +5424,33 @@ function App() {
   const closeActiveGroupView = () => {
     setActiveGroupView(null);
   };
-  const openActiveGroupView = (groupTasks, focusTaskId = null) => {
+  const getGroupCardOriginRect = (groupTasks, event = null) => {
+    const leadTask = groupTasks?.[0];
+    const triggerNode = event?.currentTarget instanceof HTMLElement
+      ? event.currentTarget.closest('.desktop-task-group-card')
+      : null;
+    const fallbackNode = leadTask
+      ? document.getElementById(`desktop-group-card-${leadTask.id}`) || document.getElementById(`desktop-task-wrapper-${leadTask.id}`)
+      : null;
+    const sourceNode = triggerNode || fallbackNode;
+    if (!sourceNode) return null;
+
+    const rect = sourceNode.getBoundingClientRect();
+    return {
+      left: rect.left,
+      top: rect.top,
+      width: rect.width,
+      height: rect.height,
+    };
+  };
+  const openActiveGroupView = (groupTasks, focusTaskId = null, originRect = null) => {
     if (!groupTasks?.length) return;
     const nextView = {
       groupId: groupTasks[0].desktopGroupId || `group-${groupTasks[0].id}`,
       title: getDesktopGroupDisplayName(groupTasks),
       tasks: groupTasks.map((task) => normalizeTask(task)),
       focusTaskId,
+      originRect,
     };
     window.requestAnimationFrame(() => {
       setActiveGroupView(nextView);
@@ -4649,7 +5463,7 @@ function App() {
       return;
     }
     if (Date.now() < suppressAllTaskClicksUntilRef.current) return;
-    openActiveGroupView(groupTasks);
+    openActiveGroupView(groupTasks, null, getGroupCardOriginRect(groupTasks, event));
   };
   const handleHistoryPackOpen = (groupTasks) => {
     setHistoryOpen(false);
@@ -5006,7 +5820,7 @@ function App() {
         <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
           <div
             ref={desktopDragViewportRef}
-            className={`desktop-main-stage ${desktopDragDayFeedback ? `desktop-main-stage-feedback-${desktopDragDayFeedback}` : ''}`}
+            className={`desktop-main-stage ${desktopDragDayFeedback ? `desktop-main-stage-feedback-${desktopDragDayFeedback}` : ''} ${desktopDragDayConfirming ? 'desktop-main-stage-feedback-armed' : ''}`}
             style={{ flex: 1, minWidth: 0, minHeight: 0, position: 'relative', overflow: 'hidden' }}
           >
             <div className="desktop-main-stage-inner" style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', background: 'var(--desktop-main-gradient)' }}>
@@ -5070,7 +5884,7 @@ function App() {
                 </div>
               </main>
             </div>
-            <DragDayFeedbackOverlay
+            <DragDayFeedbackOverlayV2
               direction={desktopDragDayFeedback}
               previousLabel={desktopPreviousDayLabel}
               nextLabel={desktopNextDayLabel}
@@ -5081,7 +5895,19 @@ function App() {
         </div>
 
         {panelOpen ? <div style={{ position: 'fixed', inset: 0, zIndex: 25 }} onClick={closePanel} /> : null}
-        <AddPanel open={panelOpen} language={language} selectedDate={selectedDate} inputText={inputText} setInputText={setInputText} onClose={closePanel} onSubmit={saveTask} onSelectDate={setSelectedDate} />
+        <AddPanel
+          open={panelOpen}
+          language={language}
+          selectedDate={selectedDate}
+          inputText={inputText}
+          setInputText={setInputText}
+          imageAttachments={addPanelImages}
+          onDropImages={handleAddPanelImagesDropped}
+          onRemoveImage={handleRemoveAddPanelImage}
+          onClose={closePanel}
+          onSubmit={saveTask}
+          onSelectDate={setSelectedDate}
+        />
 
         {(!panelOpen && showAddPreview) ? (
           <div style={{ position: 'fixed', right: 104, bottom: 38, background: 'var(--desktop-floating-bg)', color: 'var(--desktop-floating-text)', padding: '6px 14px', borderRadius: 16, border: '1px solid var(--desktop-floating-border)', boxShadow: '0 4px 12px rgba(0,0,0,0.08)', zIndex: 19, fontSize: 13, fontWeight: 500, pointerEvents: 'none', animation: 'fadeIn 0.2s ease-out' }}>
@@ -5305,6 +6131,7 @@ function App() {
           }}
           onDeleteTasks={deleteTasksByIds}
           onUpdateGroup={updateActiveGroupMetadata}
+          onToast={showToast}
           onTaskOpen={(task) => {
             closeActiveGroupView();
             handleTaskClick(task);

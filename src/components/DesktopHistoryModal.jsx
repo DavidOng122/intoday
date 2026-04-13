@@ -48,12 +48,42 @@ const getPackDisplayName = (tasks) => (
 
 const PackSearchResultCard = ({ packInfo, appearance, labels, onClickPack, onClickItem, onResultPointerDown, onResultPointerEnd }) => {
   const isDark = appearance === 'dark';
+  const [isHovered, setIsHovered] = useState(false);
+  const [isPreviewExpanded, setIsPreviewExpanded] = useState(false);
+  const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
+  const exportMenuRef = useRef(null);
   const packDragTask = {
     ...packInfo.tasks[0],
     groupTaskIds: packInfo.tasks.map((task) => task.id),
     groupSize: packInfo.tasks.length,
     desktopGroupName: packInfo.packTitle,
   };
+
+  useEffect(() => {
+    if (!isExportMenuOpen) return undefined;
+
+    const handlePointerDown = (event) => {
+      if (exportMenuRef.current && !exportMenuRef.current.contains(event.target)) {
+        setIsExportMenuOpen(false);
+      }
+    };
+
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') {
+        setIsExportMenuOpen(false);
+      }
+    };
+
+    window.addEventListener('pointerdown', handlePointerDown);
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('pointerdown', handlePointerDown);
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isExportMenuOpen]);
+
+  const visiblePreviewTasks = isPreviewExpanded ? packInfo.previewTasks : packInfo.previews;
+
   return (
     <div
       onClick={() => onClickPack(packInfo.tasks)}
@@ -69,19 +99,130 @@ const PackSearchResultCard = ({ packInfo, appearance, labels, onClickPack, onCli
         cursor: 'pointer',
         transition: 'background 0.15s ease',
       }}
-      onMouseEnter={(e) => { e.currentTarget.style.background = isDark ? '#2C2C2E' : '#F0F0F0'; }}
-      onMouseLeave={(e) => { e.currentTarget.style.background = isDark ? '#252527' : '#F9F9F9'; }}
+      onMouseEnter={(e) => {
+        setIsHovered(true);
+        e.currentTarget.style.background = isDark ? '#2C2C2E' : '#F0F0F0';
+      }}
+      onMouseLeave={(e) => {
+        setIsHovered(false);
+        setIsPreviewExpanded(false);
+        e.currentTarget.style.background = isDark ? '#252527' : '#F9F9F9';
+      }}
     >
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
         <div style={{ fontWeight: 600, fontSize: 15, color: isDark ? '#FFF' : '#111' }}>
           {packInfo.packTitle}
         </div>
-        <div style={{ fontSize: 12, color: isDark ? '#777' : '#999', background: isDark ? '#1C1C1E' : '#FFF', padding: '2px 8px', borderRadius: 999 }}>
-          {packInfo.matchedCount} {packInfo.matchedCount === 1 ? 'item' : 'items'}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <button
+            type="button"
+            onClick={(event) => event.stopPropagation()}
+            onPointerDown={(event) => event.stopPropagation()}
+            onMouseEnter={() => setIsPreviewExpanded(true)}
+            onFocus={() => setIsPreviewExpanded(true)}
+            style={{
+              border: 'none',
+              fontSize: 12,
+              fontWeight: 600,
+              color: isDark ? '#8E8E93' : '#999',
+              background: isDark ? '#1C1C1E' : '#FFF',
+              padding: '2px 8px',
+              borderRadius: 999,
+              cursor: 'default',
+            }}
+          >
+            {packInfo.matchedCount} {packInfo.matchedCount === 1 ? 'item' : 'items'}
+          </button>
+          <div
+            ref={exportMenuRef}
+            style={{ position: 'relative', display: 'flex', alignItems: 'center' }}
+            onClick={(event) => event.stopPropagation()}
+            onPointerDown={(event) => event.stopPropagation()}
+          >
+            <button
+              type="button"
+              aria-haspopup="menu"
+              aria-expanded={isExportMenuOpen}
+              onClick={() => setIsExportMenuOpen((current) => !current)}
+              style={{
+                border: 'none',
+                background: 'transparent',
+                padding: '2px 4px',
+                borderRadius: 8,
+                fontSize: 12,
+                fontWeight: 500,
+                color: isDark ? 'rgba(255,255,255,0.62)' : 'rgba(17,17,17,0.48)',
+                cursor: 'pointer',
+                opacity: isHovered || isExportMenuOpen ? 1 : 0,
+                transform: isHovered || isExportMenuOpen ? 'translateX(0)' : 'translateX(3px)',
+                transition: 'opacity 0.16s ease, transform 0.16s ease, color 0.16s ease',
+              }}
+            >
+              Export
+            </button>
+            {isExportMenuOpen ? (
+              <div
+                role="menu"
+                aria-label="Pack export options"
+                style={{
+                  position: 'absolute',
+                  top: 'calc(100% + 8px)',
+                  right: 0,
+                  minWidth: 156,
+                  padding: 6,
+                  borderRadius: 12,
+                  background: isDark ? '#1F1F21' : 'rgba(255,255,255,0.96)',
+                  border: `1px solid ${isDark ? '#343438' : '#ECE7E1'}`,
+                  boxShadow: isDark ? '0 14px 30px rgba(0,0,0,0.34)' : '0 12px 28px rgba(28,23,18,0.12)',
+                  backdropFilter: 'blur(12px)',
+                  WebkitBackdropFilter: 'blur(12px)',
+                  zIndex: 2,
+                }}
+              >
+                {[
+                  { key: 'copy', label: 'Copy for AI' },
+                  { key: 'markdown', label: 'Export as Markdown' },
+                  { key: 'open', label: 'Open pack' },
+                ].map((action) => (
+                  <button
+                    key={action.key}
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      if (action.key === 'open') {
+                        onClickPack(packInfo.tasks);
+                      }
+                      setIsExportMenuOpen(false);
+                    }}
+                    style={{
+                      width: '100%',
+                      border: 'none',
+                      background: 'transparent',
+                      borderRadius: 9,
+                      padding: '8px 10px',
+                      textAlign: 'left',
+                      fontSize: 12,
+                      fontWeight: 500,
+                      color: isDark ? '#E7E7EA' : '#2A2622',
+                      cursor: 'pointer',
+                    }}
+                    onMouseEnter={(event) => {
+                      event.currentTarget.style.background = isDark ? 'rgba(255,255,255,0.06)' : 'rgba(17,17,17,0.04)';
+                    }}
+                    onMouseLeave={(event) => {
+                      event.currentTarget.style.background = 'transparent';
+                    }}
+                  >
+                    {action.label}
+                  </button>
+                ))}
+              </div>
+            ) : null}
+          </div>
         </div>
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-        {packInfo.previews.map(task => {
+        {visiblePreviewTasks.map(task => {
           const { cfg, displayTitle, displaySub } = getTaskCardPresentation(task, labels);
           return (
             <div
@@ -421,6 +562,7 @@ const DesktopHistoryModal = ({ open, tasks, appearance, language, t, onClose, on
           packTitle,
           tasks: packTasks,
           matchedCount: previews.length,
+          previewTasks: previews,
           previews: previews.slice(0, 2),
           updatedAt: Math.max(...packTasks.map(t => t.updatedAt || t.id))
         });
