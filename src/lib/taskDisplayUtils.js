@@ -597,9 +597,14 @@ export const deriveTaskDisplaySubtitle = (task, labels = {}) => {
   const cardType = normalizeCardType(task.cardType);
   const primaryUrl = getPrimaryUrlForTask(task);
   const title = deriveTaskDisplayTitle(task);
+  const uploadedSourceLabel = normalizeSubtitleLabel(task.uploadedSourceLabel);
 
   if (cardType === CARD_TYPES.TEXT) {
     return labels.actionItem || labelsForType(CARD_TYPES.TEXT, labels);
+  }
+
+  if (uploadedSourceLabel && uploadedSourceLabel.toLowerCase() !== title.toLowerCase()) {
+    return uploadedSourceLabel;
   }
 
   if (cardType === CARD_TYPES.PHOTO) {

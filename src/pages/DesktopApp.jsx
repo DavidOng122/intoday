@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 import EmojiPicker from 'emoji-picker-react';
+import JSZip from 'jszip';
 import { PenLine, Trash2, X } from 'lucide-react';
 import { supabase } from '../supabase';
 import DesktopLogin from '../DesktopLogin';
@@ -12,6 +13,7 @@ import IntoDayLogo from '../components/IntoDayLogo';
 import { DAY_BOUNDARY_HOUR, getLogicalToday } from '../lib/dateHelpers';
 import { getInitialLanguage } from '../lib/language';
 import { createUpdatedTimestamp, getPackMetadataTextFromItems } from '../lib/packMetadata';
+import { deleteUploadedFileBlob, getUploadedFileRecord, saveUploadedFileBlob } from '../lib/uploadedFileStorage';
 import {
   createPackActiveDurationFields,
   getPackActiveBaseDateFromTasks,
@@ -154,6 +156,11 @@ const DESKTOP_PHOTO_CARD_HEIGHT = 236;
 const DESKTOP_CANVAS_CARD_GAP = 20;
 const DESKTOP_IMAGE_DROP_MAX_EDGE = 1600;
 const DESKTOP_IMAGE_DROP_QUALITY = 0.88;
+const UPLOADED_FILE_SOURCE_LABEL = 'Uploaded file';
+const SUPPORTED_UPLOAD_IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'webp'];
+const SUPPORTED_UPLOAD_WORD_EXTENSIONS = ['doc', 'docx'];
+const SUPPORTED_UPLOAD_PDF_EXTENSIONS = ['pdf'];
+const SUPPORTED_UPLOAD_ACCEPT = '.pdf,.doc,.docx,.png,.jpg,.jpeg,.webp,image/png,image/jpeg,image/webp,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 const DESKTOP_CANVAS_MIN_HEIGHT = 560;
 const DESKTOP_GROUP_CARD_MIN_HEIGHT = 176;
 const DESKTOP_GROUP_CARD_ITEM_HEIGHT = 60;
@@ -712,15 +719,77 @@ const parseSharedSelectedDate = (value) => {
   const parsed = new Date(Number(year), Number(month) - 1, Number(day));
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 };
-const getDroppedImageTitle = (fileName = '') => fileName.replace(/\.[^.]+$/, '').trim() || 'Photo';
+const getUploadedFileTitle = (fileName = '', fallback = 'Untitled file') => fileName.replace(/\.[^.]+$/, '').trim() || fallback;
+const getDroppedImageTitle = (fileName = '') => getUploadedFileTitle(fileName, 'Photo');
+const getFileExtension = (fileName = '') => {
+  const segments = String(fileName || '').toLowerCase().split('.');
+  return segments.length > 1 ? segments.pop() : '';
+};
+const getUploadedFileFallbackMimeType = (uploadKind) => {
+  if (uploadKind === 'pdf') return 'application/pdf';
+  if (uploadKind === 'word') return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+  if (uploadKind === 'image') return 'image/png';
+  return 'application/octet-stream';
+};
+const getSupportedUploadKind = (file) => {
+  const mimeType = String(file?.type || '').toLowerCase();
+  const extension = getFileExtension(file?.name || '');
+
+  if (mimeType === 'application/pdf' || SUPPORTED_UPLOAD_PDF_EXTENSIONS.includes(extension)) {
+    return 'pdf';
+  }
+
+  if (
+    mimeType === 'application/msword'
+    || mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    || SUPPORTED_UPLOAD_WORD_EXTENSIONS.includes(extension)
+  ) {
+    return 'word';
+  }
+
+  if (
+    (mimeType.startsWith('image/') && SUPPORTED_UPLOAD_IMAGE_EXTENSIONS.includes(extension))
+    || SUPPORTED_UPLOAD_IMAGE_EXTENSIONS.includes(extension)
+  ) {
+    return 'image';
+  }
+
+  return null;
+};
+const isSupportedUploadFile = (file) => Boolean(getSupportedUploadKind(file));
 const hasImageFiles = (dataTransfer) => {
   const files = Array.from(dataTransfer?.files || []);
-  if (files.some((file) => file.type?.startsWith('image/'))) {
+  if (files.some((file) => getSupportedUploadKind(file) === 'image' || String(file?.type || '').toLowerCase().startsWith('image/'))) {
     return true;
   }
 
   const items = Array.from(dataTransfer?.items || []);
-  if (items.some((item) => item.kind === 'file' && (!item.type || item.type.startsWith('image/')))) {
+  if (items.some((item) => item.kind === 'file' && String(item.type || '').toLowerCase().startsWith('image/'))) {
+    return true;
+  }
+
+  const types = Array.from(dataTransfer?.types || []);
+  return types.includes('Files');
+};
+const hasSupportedUploadFiles = (dataTransfer) => {
+  const files = Array.from(dataTransfer?.files || []);
+  if (files.some((file) => isSupportedUploadFile(file))) {
+    return true;
+  }
+
+  const items = Array.from(dataTransfer?.items || []);
+  if (items.some((item) => {
+    if (item.kind !== 'file') return false;
+    const itemType = String(item.type || '').toLowerCase();
+    return (
+      itemType === 'application/pdf'
+      || itemType === 'application/msword'
+      || itemType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+      || itemType === 'image/png'
+      || itemType === 'image/jpeg'
+      || itemType === 'image/webp'
+    );
+  })) {
     return true;
   }
 
@@ -739,6 +808,15 @@ const loadImageElement = (src) => new Promise((resolve, reject) => {
   image.onerror = () => reject(new Error('Failed to decode image'));
   image.src = src;
 });
+const createUploadAttachmentId = () => `${Date.now()}-${Math.round(Math.random() * 100000)}`;
+const createUploadedFileStorageKey = (fileName = 'file') => {
+  const normalizedName = String(fileName || 'file')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    || 'file';
+  return `upload:${Date.now()}:${Math.random().toString(36).slice(2, 10)}:${normalizedName}`;
+};
 const serializeDroppedImageFile = async (file) => {
   const originalDataUrl = await readFileAsDataUrl(file);
   const image = await loadImageElement(originalDataUrl);
@@ -771,6 +849,38 @@ const serializeDroppedImageFile = async (file) => {
     photoWidth: targetWidth,
     photoHeight: targetHeight,
     photoMimeType: mimeType,
+  };
+};
+const serializeUploadAttachment = async (file) => {
+  const uploadKind = getSupportedUploadKind(file);
+  if (!uploadKind) {
+    throw new Error(`Unsupported file type: ${file?.name || 'unknown'}`);
+  }
+
+  const fallbackTitle = uploadKind === 'image' ? 'Photo' : 'Untitled file';
+  const baseAttachment = {
+    id: createUploadAttachmentId(),
+    file,
+    uploadKind,
+    title: uploadKind === 'image' ? getDroppedImageTitle(file.name) : getUploadedFileTitle(file.name, fallbackTitle),
+    originalFileName: file.name || `${fallbackTitle.toLowerCase().replace(/\s+/g, '-')}`,
+    mimeType: file.type || getUploadedFileFallbackMimeType(uploadKind),
+    size: Number.isFinite(file.size) ? file.size : 0,
+    createdAt: createUpdatedTimestamp(),
+    updatedAt: createUpdatedTimestamp(),
+    extractedText: null,
+    previewUrl: null,
+  };
+
+  if (uploadKind !== 'image') {
+    return baseAttachment;
+  }
+
+  const photoFields = await serializeDroppedImageFile(file);
+  return {
+    ...baseAttachment,
+    ...photoFields,
+    previewUrl: photoFields.photoDataUrl || null,
   };
 };
 const sectionIdToMobileId = (sectionId) => {
@@ -813,6 +923,15 @@ const normalizeTask = (task) => {
     photoHeight: Number.isFinite(task.photoHeight) ? task.photoHeight : null,
     photoUrl: typeof task.photoUrl === 'string' && task.photoUrl.trim() ? task.photoUrl : null,
     photoTitle: typeof task.photoTitle === 'string' && task.photoTitle.trim() ? task.photoTitle : null,
+    uploadedFileStorageKey: typeof task.uploadedFileStorageKey === 'string' && task.uploadedFileStorageKey.trim() ? task.uploadedFileStorageKey : null,
+    uploadedFileType: typeof task.uploadedFileType === 'string' && task.uploadedFileType.trim() ? task.uploadedFileType : null,
+    uploadedOriginalFileName: typeof task.uploadedOriginalFileName === 'string' && task.uploadedOriginalFileName.trim() ? task.uploadedOriginalFileName : null,
+    uploadedMimeType: typeof task.uploadedMimeType === 'string' && task.uploadedMimeType.trim() ? task.uploadedMimeType : null,
+    uploadedFileSize: Number.isFinite(task.uploadedFileSize) ? task.uploadedFileSize : null,
+    uploadedSourceLabel: typeof task.uploadedSourceLabel === 'string' && task.uploadedSourceLabel.trim() ? task.uploadedSourceLabel : null,
+    uploadedCreatedAt: typeof task.uploadedCreatedAt === 'string' && task.uploadedCreatedAt.trim() ? task.uploadedCreatedAt : null,
+    uploadedUpdatedAt: typeof task.uploadedUpdatedAt === 'string' && task.uploadedUpdatedAt.trim() ? task.uploadedUpdatedAt : null,
+    extractedText: typeof task.extractedText === 'string' && task.extractedText.trim() ? task.extractedText : null,
   };
 };
 const currentSection = (date = new Date()) => {
@@ -1092,15 +1211,21 @@ const getPackItemSourceMeta = (task, labels) => {
 };
 const PACK_EXPORT_SECTION_ORDER = [
   { role: 'Context', heading: 'Context' },
-  { role: 'Code', heading: 'Code' },
+  { role: 'Code', heading: 'Tech' },
   { role: 'Notes', heading: 'Notes' },
   { role: 'Reference', heading: 'Reference' },
 ];
+const PACK_FILTER_ORDER = ['All', 'Context', 'Code', 'Notes', 'Reference'];
+const getPackRoleHeading = (role) => PACK_EXPORT_SECTION_ORDER.find((entry) => entry.role === role)?.heading || role;
+const getPackFilterLabel = (filter) => (filter === 'Code' ? 'Tech' : filter);
 
 const getPackTaskRoles = (task, labels) => {
   const q = (task?.text || '').toLowerCase();
   const title = (deriveTaskDisplayTitle(task) || '').toLowerCase();
-  const source = getPackItemSourceMeta(task, labels).key.toLowerCase();
+  const sourceMeta = getPackItemSourceMeta(task, labels);
+  const source = sourceMeta.key.toLowerCase();
+  const sourceLabel = String(sourceMeta.label || '').toLowerCase();
+  const sourceDomain = String(sourceMeta.domain || '').toLowerCase();
   const tags = Array.isArray(task?.tags) ? task.tags.map((tag) => String(tag).toLowerCase()) : [];
   const cardType = normalizeCardType(task?.cardType);
   const roles = [];
@@ -1120,6 +1245,10 @@ const getPackTaskRoles = (task, labels) => {
 
   if (
     ['github'].includes(source)
+    || sourceLabel.includes('github')
+    || sourceDomain.includes('github.com')
+    || q.includes('github.com')
+    || title.includes('github')
     || q.includes('```')
     || tags.some((tag) => ['code', 'dev', 'api', 'technical'].includes(tag))
     || ['code', 'dev', 'api', 'implementation', 'technical'].some((keyword) => q.includes(keyword) || title.includes(keyword))
@@ -1206,14 +1335,132 @@ const isCodeLikeContent = (value) => {
   if (/=>/.test(text)) return true;
   return false;
 };
+const shouldIncludePackExportUrl = (value) => /^(https?:\/\/|www\.)/i.test(String(value || '').trim());
+const isBundleExportableUploadedAsset = (task) => (
+  Boolean(task?.uploadedFileStorageKey)
+  && ['pdf', 'word', 'image'].includes(String(task?.uploadedFileType || '').toLowerCase())
+);
+const isDataUrl = (value) => /^data:/i.test(String(value || '').trim());
+const dataUrlToBlob = async (value) => {
+  const response = await fetch(value);
+  return response.blob();
+};
+const sanitizeAssetFilename = (value, fallback = 'file') => {
+  const trimmed = String(value || '').trim();
+  const extensionMatch = /\.([a-z0-9]+)$/i.exec(trimmed);
+  const extension = extensionMatch ? `.${extensionMatch[1].toLowerCase()}` : '';
+  const baseName = (extension ? trimmed.slice(0, -extension.length) : trimmed) || fallback;
+  const sanitizedBase = baseName
+    .replace(/[\\/:*?"<>|]+/g, ' ')
+    .trim()
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '')
+    || fallback;
+  const sanitizedExtension = extension.replace(/[^.a-z0-9]+/gi, '').toLowerCase();
+  return `${sanitizedBase}${sanitizedExtension}`.toLowerCase();
+};
+const ensureUniqueAssetFilename = (fileName, usedNames) => {
+  const extensionMatch = /(\.[a-z0-9]+)$/i.exec(fileName);
+  const extension = extensionMatch ? extensionMatch[1] : '';
+  const baseName = extension ? fileName.slice(0, -extension.length) : fileName;
+  let candidate = fileName;
+  let suffix = 2;
+  while (usedNames.has(candidate)) {
+    candidate = `${baseName}-${suffix}${extension}`;
+    suffix += 1;
+  }
+  usedNames.add(candidate);
+  return candidate;
+};
+const collectPackAssets = async (tasks) => {
+  const usedNames = new Set();
+  const assetPathByStorageKey = new Map();
+  const assetPathByTaskId = new Map();
+  const assets = [];
 
-const buildPackExportItemMarkdown = (task, labels, role) => {
+  for (const task of tasks) {
+    if (isBundleExportableUploadedAsset(task)) {
+      const storageKey = task.uploadedFileStorageKey;
+      if (assetPathByStorageKey.has(storageKey)) {
+        assetPathByTaskId.set(task.id, assetPathByStorageKey.get(storageKey));
+        continue;
+      }
+
+      try {
+        const record = await getUploadedFileRecord(storageKey);
+        if (!record?.blob) continue;
+
+        const safeName = ensureUniqueAssetFilename(
+          sanitizeAssetFilename(
+            task.uploadedOriginalFileName
+            || record.originalFileName
+            || `${deriveTaskDisplayTitle(task) || 'file'}`
+          ),
+          usedNames,
+        );
+        const relativePath = `assets/${safeName}`;
+        assetPathByStorageKey.set(storageKey, relativePath);
+        assetPathByTaskId.set(task.id, relativePath);
+        assets.push({
+          storageKey,
+          path: relativePath,
+          blob: record.blob,
+        });
+      } catch (error) {
+        console.error('Failed to collect uploaded asset for export bundle:', error);
+      }
+      continue;
+    }
+
+    if (normalizeCardType(task?.cardType) !== CARD_TYPES.PHOTO) continue;
+
+    const photoReference = task?.photoDataUrl || task?.photoUrl || '';
+    if (!isDataUrl(photoReference)) continue;
+
+    try {
+      const blob = await dataUrlToBlob(photoReference);
+      const mimeType = blob.type || task?.photoMimeType || 'image/png';
+      const extension = mimeType.includes('jpeg') ? '.jpg' : mimeType.includes('webp') ? '.webp' : '.png';
+      const safeName = ensureUniqueAssetFilename(
+        sanitizeAssetFilename(
+          task?.photoFileName || `${deriveTaskDisplayTitle(task) || 'image'}${extension}`
+        ),
+        usedNames,
+      );
+      const relativePath = `assets/${safeName}`;
+      assetPathByTaskId.set(task.id, relativePath);
+      assets.push({
+        storageKey: null,
+        path: relativePath,
+        blob,
+      });
+    } catch (error) {
+      console.error('Failed to collect legacy photo asset for export bundle:', error);
+    }
+  }
+
+  return {
+    assets,
+    assetPathByStorageKey,
+    assetPathByTaskId,
+  };
+};
+
+const buildPackExportItemMarkdown = (task, labels, role, options = {}) => {
   const title = deriveTaskDisplayTitle(task).trim() || task?.text?.trim() || 'Untitled item';
   const sourceMeta = getPackItemSourceMeta(task, labels);
   const primaryUrl = getPackItemPrimaryUrl(task).trim();
   const bodyText = getPackExportBodyText(task);
   const cardType = normalizeCardType(task?.cardType);
-  const imageReference = task?.photoUrl || task?.photoFileName || '';
+  const isPhotoCard = cardType === CARD_TYPES.PHOTO;
+  const assetReferencePath = (
+    (task?.uploadedFileStorageKey
+      ? options.assetPathByStorageKey?.get(task.uploadedFileStorageKey)
+      : null)
+    || options.assetPathByTaskId?.get(task?.id)
+    || null
+  );
   const lines = [`### ${title}`];
 
   if (sourceMeta?.label) {
@@ -1221,12 +1468,12 @@ const buildPackExportItemMarkdown = (task, labels, role) => {
     lines.push(`Source: ${sourceMeta.label}`);
   }
 
-  if (primaryUrl && (role === 'Reference' || sourceMeta?.key === 'gpt')) {
-    lines.push(`URL: ${primaryUrl}`);
+  if (assetReferencePath && !isPhotoCard) {
+    lines.push(`File: ${assetReferencePath}`);
   }
 
-  if (cardType === CARD_TYPES.PHOTO && imageReference) {
-    lines.push(`Image: ${imageReference}`);
+  if (shouldIncludePackExportUrl(primaryUrl)) {
+    lines.push(`URL: ${primaryUrl}`);
   }
 
   if (bodyText) {
@@ -1243,13 +1490,13 @@ const buildPackExportItemMarkdown = (task, labels, role) => {
   return lines.join('\n');
 };
 
-const buildPackSectionMarkdown = (tasks, labels, role, heading) => {
+const buildPackSectionMarkdown = (tasks, labels, role, heading, options = {}) => {
   const sectionTasks = getPackTasksByRole(tasks, labels, role);
   if (!sectionTasks.length) return '';
 
   const lines = [`## ${heading}`, ''];
   sectionTasks.forEach((task, index) => {
-    lines.push(buildPackExportItemMarkdown(task, labels, role));
+    lines.push(buildPackExportItemMarkdown(task, labels, role, options));
     if (index < sectionTasks.length - 1) {
       lines.push('');
     }
@@ -1329,7 +1576,7 @@ const buildCopyForAIText = (tasks, labels, exportType) => {
     reference: 'Reference',
   };
   const role = roleMap[exportType];
-  const heading = PACK_EXPORT_SECTION_ORDER.find((entry) => entry.role === role)?.heading;
+  const heading = getPackRoleHeading(role);
   if (!role || !heading) return '';
 
   const sectionBlock = buildPackSectionMarkdown(tasks, labels, role, heading);
@@ -1346,7 +1593,7 @@ const buildCopyForAIText = (tasks, labels, exportType) => {
   ].join('\n').trim();
 };
 
-const buildWholePackMarkdown = (tasks, labels) => {
+const buildWholePackMarkdown = (tasks, labels, options = {}) => {
   const packTitle = getDesktopGroupDisplayName(tasks) || 'Untitled pack';
   const sectionMap = new Map(PACK_EXPORT_SECTION_ORDER.map(({ role }) => [role, []]));
 
@@ -1365,7 +1612,7 @@ const buildWholePackMarkdown = (tasks, labels) => {
     lines.push(`## ${heading}`);
     lines.push('');
     sectionTasks.forEach((task, index) => {
-      lines.push(buildPackExportItemMarkdown(task, labels, role));
+      lines.push(buildPackExportItemMarkdown(task, labels, role, options));
       if (index < sectionTasks.length - 1) {
         lines.push('');
       }
@@ -1379,9 +1626,7 @@ const buildWholePackMarkdown = (tasks, labels) => {
 
   return `${lines.join('\n').trim()}\n`;
 };
-
-const downloadMarkdown = (filename, markdown) => {
-  const blob = new Blob([markdown], { type: 'text/markdown;charset=utf-8' });
+const downloadBlob = (filename, blob) => {
   const objectUrl = URL.createObjectURL(blob);
   const anchor = document.createElement('a');
   anchor.href = objectUrl;
@@ -1390,6 +1635,11 @@ const downloadMarkdown = (filename, markdown) => {
   anchor.click();
   document.body.removeChild(anchor);
   window.setTimeout(() => URL.revokeObjectURL(objectUrl), 0);
+};
+
+const downloadMarkdown = (filename, markdown) => {
+  const blob = new Blob([markdown], { type: 'text/markdown;charset=utf-8' });
+  downloadBlob(filename, blob);
 };
 
 const copyTextToClipboard = async (text) => {
@@ -2427,7 +2677,7 @@ const DesktopGroupFullViewModal = ({
 
   if (!open || !tasks?.length) return null;
 
-  const filters = ['All', 'Context', 'Code', 'Notes', 'Reference'];
+  const filters = PACK_FILTER_ORDER;
   const isDark = appearance === 'dark';
   const selectedCount = selectedItemIds.length;
   const toggleSelectItem = (taskId) => {
@@ -2469,6 +2719,26 @@ const DesktopGroupFullViewModal = ({
     downloadMarkdown(filename, markdown);
     setIsExportMenuOpen(false);
   };
+  const handleExportPackBundle = async () => {
+    try {
+      const { assets, assetPathByStorageKey, assetPathByTaskId } = await collectPackAssets(tasks);
+      const markdown = buildWholePackMarkdown(tasks, labels, { assetPathByStorageKey, assetPathByTaskId });
+      const zip = new JSZip();
+      zip.file('context.md', markdown);
+      assets.forEach((asset) => {
+        zip.file(asset.path, asset.blob);
+      });
+
+      const zipBlob = await zip.generateAsync({ type: 'blob' });
+      const packSlug = sanitizePackFilename(getDesktopGroupDisplayName(tasks));
+      const filename = packSlug === 'untitled-pack' ? 'untitled-pack.zip' : `${packSlug}-pack.zip`;
+      downloadBlob(filename, zipBlob);
+    } catch (error) {
+      console.error('Failed to export pack bundle:', error);
+      onToast?.('Unable to export pack bundle');
+    }
+    setIsExportMenuOpen(false);
+  };
   const handleCopyWholePackForAi = async () => {
     const text = buildCopyForAIText(tasks, labels, 'all');
     if (!text) {
@@ -2486,24 +2756,26 @@ const DesktopGroupFullViewModal = ({
   };
   const handleCopyRoleForAi = async (role, exportType) => {
     const text = buildCopyForAIText(tasks, labels, exportType);
+    const roleHeading = getPackRoleHeading(role);
     if (!text) {
-      onToast?.(`No ${role} items to copy`);
+      onToast?.(`No ${roleHeading} items to copy`);
       setIsExportMenuOpen(false);
       return;
     }
     try {
       await copyTextToClipboard(text);
-      onToast?.(`Copied ${role} for AI`);
+      onToast?.(`Copied ${roleHeading} for AI`);
     } catch (_) {
-      onToast?.(`Unable to copy ${role}`);
+      onToast?.(`Unable to copy ${roleHeading}`);
     }
     setIsExportMenuOpen(false);
   };
   const handleExportByRole = (role) => {
     const markdown = buildRoleMarkdown(tasks, labels, role);
-    const roleSlug = role.toLowerCase();
+    const roleHeading = getPackRoleHeading(role);
+    const roleSlug = roleHeading.toLowerCase();
     if (!markdown) {
-      onToast?.(`No ${role} items to export`);
+      onToast?.(`No ${roleHeading} items to export`);
       setIsExportMenuOpen(false);
       return;
     }
@@ -2536,6 +2808,10 @@ const DesktopGroupFullViewModal = ({
       handleExportWholePack();
       return;
     }
+    if (action === 'pack-bundle') {
+      void handleExportPackBundle();
+      return;
+    }
     if (action === 'context') {
       handleExportByRole('Context');
       return;
@@ -2564,7 +2840,7 @@ const DesktopGroupFullViewModal = ({
       case 'Code':
         return [
           { id: 'copy-code', label: 'Copy for AI' },
-          { id: 'code', label: 'Export Code' },
+          { id: 'code', label: 'Export Tech' },
         ];
       case 'Notes':
         return [
@@ -2581,6 +2857,7 @@ const DesktopGroupFullViewModal = ({
         return [
           { id: 'copy-for-ai', label: 'Copy for AI' },
           { id: 'whole-pack', label: 'Export whole pack' },
+          { id: 'pack-bundle', label: 'Export Pack Bundle (.zip)' },
         ];
     }
   })();
@@ -2664,7 +2941,7 @@ const DesktopGroupFullViewModal = ({
                       setIsExportMenuOpen(false);
                     }}
                   >
-                    {filter}
+                    {getPackFilterLabel(filter)}
                   </button>
                 ))}
               </div>
@@ -3348,15 +3625,16 @@ const AddPanel = ({
   selectedDate,
   inputText,
   setInputText,
-  imageAttachments,
-  onDropImages,
-  onRemoveImage,
+  fileAttachments,
+  onAddFiles,
+  onRemoveFile,
   onClose,
   onSubmit,
   onSelectDate,
 }) => {
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
-  const [isImageDragActive, setIsImageDragActive] = useState(false);
+  const [isFileDragActive, setIsFileDragActive] = useState(false);
+  const fileInputRef = useRef(null);
   const t = getTranslationsForLanguage(language);
 
   if (!open) return null;
@@ -3394,68 +3672,97 @@ const AddPanel = ({
             position: 'relative',
             marginTop: 12,
             borderRadius: 24,
-            border: isImageDragActive ? '1px solid var(--desktop-accent)' : '1px solid transparent',
-            background: isImageDragActive ? 'rgba(59, 130, 246, 0.05)' : 'transparent',
+            border: isFileDragActive ? '1px solid var(--desktop-accent)' : '1px solid transparent',
+            background: isFileDragActive ? 'rgba(59, 130, 246, 0.05)' : 'transparent',
             transition: 'border-color 160ms ease, background 160ms ease',
           }}
           onDragEnter={(event) => {
-            if (!hasImageFiles(event.dataTransfer)) return;
+            if (!hasSupportedUploadFiles(event.dataTransfer)) return;
             event.preventDefault();
-            setIsImageDragActive(true);
+            setIsFileDragActive(true);
           }}
           onDragOver={(event) => {
-            if (!hasImageFiles(event.dataTransfer)) return;
+            if (!hasSupportedUploadFiles(event.dataTransfer)) return;
             event.preventDefault();
             if (event.dataTransfer) {
               event.dataTransfer.dropEffect = 'copy';
             }
-            if (!isImageDragActive) {
-              setIsImageDragActive(true);
+            if (!isFileDragActive) {
+              setIsFileDragActive(true);
             }
           }}
           onDragLeave={(event) => {
-            if (!hasImageFiles(event.dataTransfer)) return;
+            if (!hasSupportedUploadFiles(event.dataTransfer)) return;
             event.preventDefault();
             if (!event.currentTarget.contains(event.relatedTarget)) {
-              setIsImageDragActive(false);
+              setIsFileDragActive(false);
             }
           }}
           onDrop={(event) => {
-            if (!hasImageFiles(event.dataTransfer)) return;
+            if (!hasSupportedUploadFiles(event.dataTransfer)) return;
             event.preventDefault();
-            setIsImageDragActive(false);
-            const files = Array.from(event.dataTransfer?.files || []).filter((file) => file.type?.startsWith('image/'));
+            setIsFileDragActive(false);
+            const files = Array.from(event.dataTransfer?.files || []);
             if (files.length) {
-              onDropImages?.(files);
+              onAddFiles?.(files);
             }
           }}
         >
-          {imageAttachments.length ? (
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept={SUPPORTED_UPLOAD_ACCEPT}
+            multiple
+            style={{ display: 'none' }}
+            onChange={(event) => {
+              const files = Array.from(event.target.files || []);
+              if (files.length) {
+                onAddFiles?.(files);
+              }
+              event.target.value = '';
+            }}
+          />
+          {fileAttachments.length ? (
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, padding: '12px 12px 0' }}>
-              {imageAttachments.map((image) => (
+              {fileAttachments.map((attachment) => (
                 <div
-                  key={image.id}
+                  key={attachment.id}
                   style={{
                     position: 'relative',
-                    width: 72,
+                    width: attachment.uploadKind === 'image' ? 72 : 160,
                     height: 72,
                     borderRadius: 16,
                     overflow: 'hidden',
                     border: '1px solid var(--desktop-divider)',
                     background: 'var(--desktop-input-bg)',
                     boxShadow: 'var(--desktop-input-shadow)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: attachment.uploadKind === 'image' ? 'center' : 'flex-start',
                   }}
                 >
-                  <img
-                    src={image.photoDataUrl}
-                    alt={image.title}
-                    draggable={false}
-                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                  />
+                  {attachment.uploadKind === 'image' ? (
+                    <img
+                      src={attachment.previewUrl || attachment.photoDataUrl}
+                      alt={attachment.title}
+                      draggable={false}
+                      style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                    />
+                  ) : (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '0 14px', width: '100%' }}>
+                      <div style={{ width: 42, height: 42, borderRadius: 12, background: attachment.uploadKind === 'pdf' ? 'rgba(239, 68, 68, 0.12)' : 'rgba(59, 130, 246, 0.12)', color: attachment.uploadKind === 'pdf' ? '#b42318' : '#1d4ed8', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', flexShrink: 0 }}>
+                        {attachment.uploadKind === 'pdf' ? 'PDF' : 'DOC'}
+                      </div>
+                      <div style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 3 }}>
+                        <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--desktop-root-text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{attachment.title}</span>
+                        <span style={{ fontSize: 11, color: 'var(--desktop-muted-text)', textTransform: 'capitalize' }}>{attachment.uploadKind}</span>
+                      </div>
+                    </div>
+                  )}
                   <button
                     type="button"
-                    aria-label={`Remove ${image.title}`}
-                    onClick={() => onRemoveImage?.(image.id)}
+                    aria-label={`Remove ${attachment.title}`}
+                    onClick={() => onRemoveFile?.(attachment.id)}
                     style={{
                       position: 'absolute',
                       top: 6,
@@ -3479,12 +3786,19 @@ const AddPanel = ({
               ))}
             </div>
           ) : null}
-          <textarea autoFocus value={inputText} onChange={(event) => setInputText(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); onSubmit(); } }} placeholder={t.placeholder} style={{ width: '100%', height: 120, resize: 'none', borderRadius: 20, border: '1px solid var(--desktop-input-border)', background: 'var(--desktop-input-bg)', color: 'var(--desktop-root-text)', padding: imageAttachments.length ? '12px 56px 16px 16px' : '16px 56px 16px 16px', outline: 'none', fontSize: 15, fontFamily: 'inherit', boxShadow: 'var(--desktop-input-shadow)' }} />
-          {isImageDragActive ? (
+          <textarea autoFocus value={inputText} onChange={(event) => setInputText(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); onSubmit(); } }} placeholder={t.placeholder} style={{ width: '100%', height: 120, resize: 'none', borderRadius: 20, border: '1px solid var(--desktop-input-border)', background: 'var(--desktop-input-bg)', color: 'var(--desktop-root-text)', padding: fileAttachments.length ? '12px 108px 16px 16px' : '16px 108px 16px 16px', outline: 'none', fontSize: 15, fontFamily: 'inherit', boxShadow: 'var(--desktop-input-shadow)' }} />
+          {isFileDragActive ? (
             <div style={{ position: 'absolute', inset: 10, borderRadius: 18, border: '1px dashed rgba(59, 130, 246, 0.55)', background: 'rgba(255,255,255,0.42)', display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none', color: 'var(--desktop-accent)', fontSize: 14, fontWeight: 600 }}>
-              Drop image to attach
+              Drop PDF, Word, or image to attach
             </div>
           ) : null}
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            style={{ position: 'absolute', left: 12, bottom: 12, height: 36, padding: '0 14px', borderRadius: 18, border: '1px solid var(--desktop-divider)', background: 'rgba(255,255,255,0.76)', color: 'var(--desktop-root-text)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}
+          >
+            Files
+          </button>
           <button type="button" onClick={onSubmit} style={{ position: 'absolute', right: 12, bottom: 12, width: 36, height: 36, borderRadius: '50%', border: 'none', background: 'var(--desktop-submit-bg)', color: 'var(--desktop-submit-text)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', boxShadow: 'var(--desktop-submit-shadow)' }}><ArrowUpIcon /></button>
         </div>
       </div>
@@ -3606,7 +3920,7 @@ function App() {
   const [showAddPreview, setShowAddPreview] = useState(false);
   const hoverAddTimeoutRef = useRef(null);
   const [inputText, setInputText] = useState('');
-  const [addPanelImages, setAddPanelImages] = useState([]);
+  const [addPanelAttachments, setAddPanelAttachments] = useState([]);
   const [editingTaskId, setEditingTaskId] = useState(null);
   const [editText, setEditText] = useState('');
   const [editCopied, setEditCopied] = useState(false);
@@ -3665,6 +3979,7 @@ function App() {
   const desktopDragSelectionPositionsRef = useRef(new Map());
   const desktopDragAnchorStartPositionRef = useRef(null);
   const selectedTaskIdsRef = useRef(new Set());
+  const previousUploadedFileKeysRef = useRef(new Set());
   const selectedDayEntriesRef = useRef([]);
   const desktopSelectionStateRef = useRef({ pointerId: null, origin: null });
   const dragOverSectionRef = useRef(null);
@@ -3713,6 +4028,22 @@ function App() {
   useEffect(() => {
     tasksRef.current = currentWorkspaceTasks;
   }, [currentWorkspaceTasks]);
+  useEffect(() => {
+    const nextKeys = new Set(
+      tasks
+        .map((task) => task.uploadedFileStorageKey)
+        .filter((storageKey) => typeof storageKey === 'string' && storageKey.trim())
+    );
+    const previousKeys = previousUploadedFileKeysRef.current;
+    previousKeys.forEach((storageKey) => {
+      if (!nextKeys.has(storageKey)) {
+        deleteUploadedFileBlob(storageKey).catch((error) => {
+          console.error('Failed to delete uploaded file blob:', error);
+        });
+      }
+    });
+    previousUploadedFileKeysRef.current = nextKeys;
+  }, [tasks]);
   useEffect(() => {
     const existingIds = new Set(currentWorkspaceTasks.map((task) => task.id));
     setSelectedTaskIds((current) => current.filter((taskId) => existingIds.has(taskId)));
@@ -5092,7 +5423,7 @@ function App() {
     : null;
   const closePanel = () => {
     setInputText('');
-    setAddPanelImages([]);
+    setAddPanelAttachments([]);
     setPanelOpen(false);
   };
   const showToast = (message) => {
@@ -5100,6 +5431,40 @@ function App() {
     window.setTimeout(() => {
       setToastMessage((current) => (current === message ? null : current));
     }, 2200);
+  };
+  const openUploadedFileTask = async (task) => {
+    const storageKey = typeof task?.uploadedFileStorageKey === 'string' && task.uploadedFileStorageKey.trim()
+      ? task.uploadedFileStorageKey
+      : null;
+    const uploadedType = typeof task?.uploadedFileType === 'string' ? task.uploadedFileType : null;
+
+    if (uploadedType === 'image' && (task?.photoUrl || task?.photoDataUrl)) {
+      setFullscreenImage(task.photoUrl || task.photoDataUrl);
+      return true;
+    }
+
+    if (!storageKey) {
+      return false;
+    }
+
+    try {
+      const record = await getUploadedFileRecord(storageKey);
+      if (!record?.blob) {
+        showToast('File is no longer available on this device');
+        return true;
+      }
+
+      const objectUrl = URL.createObjectURL(record.blob);
+      window.open(objectUrl, '_blank', 'noopener,noreferrer');
+      window.setTimeout(() => {
+        URL.revokeObjectURL(objectUrl);
+      }, 60_000);
+      return true;
+    } catch (error) {
+      console.error('Failed to open uploaded file:', error);
+      showToast('Unable to open file');
+      return true;
+    }
   };
   const handleCanvasFileDragEnter = (event) => {
     if (!hasImageFiles(event.dataTransfer)) return;
@@ -5146,6 +5511,19 @@ function App() {
     try {
       const imageTasks = await Promise.all(imageFiles.map(async (file, index) => {
         const photoFields = await serializeDroppedImageFile(file);
+        const storageKey = createUploadedFileStorageKey(file.name);
+        await saveUploadedFileBlob({
+          storageKey,
+          blob: file,
+          metadata: {
+            originalFileName: file.name,
+            mimeType: file.type || getUploadedFileFallbackMimeType('image'),
+            size: Number.isFinite(file.size) ? file.size : 0,
+            uploadedFileType: 'image',
+            createdAt: createUpdatedTimestamp(),
+            updatedAt: createUpdatedTimestamp(),
+          },
+        });
         const taskId = Date.now() + index + Math.floor(Math.random() * 1000);
         const title = getDroppedImageTitle(file.name);
         return normalizeTask({
@@ -5159,6 +5537,16 @@ function App() {
           updatedAt: createUpdatedTimestamp(),
           cardType: CARD_TYPES.PHOTO,
           primaryUrl: null,
+          source: UPLOADED_FILE_SOURCE_LABEL,
+          uploadedSourceLabel: UPLOADED_FILE_SOURCE_LABEL,
+          uploadedFileStorageKey: storageKey,
+          uploadedFileType: 'image',
+          uploadedOriginalFileName: file.name,
+          uploadedMimeType: file.type || getUploadedFileFallbackMimeType('image'),
+          uploadedFileSize: Number.isFinite(file.size) ? file.size : 0,
+          uploadedCreatedAt: createUpdatedTimestamp(),
+          uploadedUpdatedAt: createUpdatedTimestamp(),
+          extractedText: null,
           redirectUrl: photoFields.photoDataUrl || null,
           photoUrl: photoFields.photoDataUrl || null,
           photoTitle: title,
@@ -5224,36 +5612,67 @@ function App() {
       });
     }
   };
-  const handleAddPanelImagesDropped = async (files) => {
+  const handleAddPanelFilesSelected = async (files) => {
     if (!files?.length) return;
+
+    const selectedFiles = Array.from(files);
+    const supportedFiles = selectedFiles.filter((file) => isSupportedUploadFile(file));
+    const rejectedCount = selectedFiles.length - supportedFiles.length;
+
+    if (rejectedCount > 0) {
+      showToast(rejectedCount === 1 ? 'Unsupported file skipped' : `${rejectedCount} unsupported files skipped`);
+    }
+    if (!supportedFiles.length) return;
+
     try {
-      const serializedImages = await Promise.all(files.map(async (file, index) => {
-        const photoFields = await serializeDroppedImageFile(file);
-        return {
-          id: `${Date.now()}-${index}-${Math.round(Math.random() * 1000)}`,
-          fileName: file.name,
-          title: getDroppedImageTitle(file.name),
-          ...photoFields,
-        };
-      }));
-      setAddPanelImages((current) => [...current, ...serializedImages]);
-      showToast(serializedImages.length === 1 ? 'Photo attached' : `${serializedImages.length} photos attached`);
+      const serializedAttachments = await Promise.all(supportedFiles.map((file) => serializeUploadAttachment(file)));
+      setAddPanelAttachments((current) => [...current, ...serializedAttachments]);
+      showToast(serializedAttachments.length === 1 ? 'File attached' : `${serializedAttachments.length} files attached`);
     } catch (error) {
-      console.error('Failed to attach image files to add panel:', error);
-      showToast('Unable to attach image');
+      console.error('Failed to attach files to add panel:', error);
+      showToast('Unable to attach files');
     }
   };
-  const handleRemoveAddPanelImage = (imageId) => {
-    setAddPanelImages((current) => current.filter((image) => image.id !== imageId));
+  const handleRemoveAddPanelAttachment = (attachmentId) => {
+    setAddPanelAttachments((current) => current.filter((attachment) => attachment.id !== attachmentId));
   };
-  const saveTask = () => {
+  const saveTask = async () => {
     const rawText = inputText.trim();
-    if (!rawText && addPanelImages.length === 0) return;
+    if (!rawText && addPanelAttachments.length === 0) return;
 
     const resolvedTimeOfDay = todaySelected ? sectionIdToMobileId(currentBlock) : 'Morning';
     const typeFields = rawText ? getDerivedTaskFields(rawText) : null;
     const taskId = Date.now();
     const operationUpdatedAt = createUpdatedTimestamp();
+    let preparedAttachments = [];
+
+    if (addPanelAttachments.length) {
+      try {
+        preparedAttachments = await Promise.all(addPanelAttachments.map(async (attachment) => {
+          const storageKey = createUploadedFileStorageKey(attachment.originalFileName || attachment.title);
+          await saveUploadedFileBlob({
+            storageKey,
+            blob: attachment.file,
+            metadata: {
+              originalFileName: attachment.originalFileName,
+              mimeType: attachment.mimeType,
+              size: attachment.size,
+              uploadedFileType: attachment.uploadKind,
+              createdAt: attachment.createdAt,
+              updatedAt: operationUpdatedAt,
+            },
+          });
+          return {
+            ...attachment,
+            storageKey,
+          };
+        }));
+      } catch (error) {
+        console.error('Failed to store uploaded files:', error);
+        showToast('Unable to save files');
+        return;
+      }
+    }
 
     setTasks((prev) => {
       let nextTasks = [...prev];
@@ -5282,33 +5701,44 @@ function App() {
         })];
       }
 
-      addPanelImages.forEach((image, index) => {
-        const imageTaskId = taskId + index + 1;
-        const imageTask = normalizeTask({
-          id: imageTaskId,
-          text: image.title,
-          title: image.title,
+      preparedAttachments.forEach((attachment, index) => {
+        const attachmentTaskId = taskId + index + 1;
+        const isImageAttachment = attachment.uploadKind === 'image';
+        const attachmentTask = normalizeTask({
+          id: attachmentTaskId,
+          text: attachment.title,
+          title: attachment.title,
           completed: false,
           desktopWorkspaceId: activeWorkspaceId,
           timeOfDay: 'Morning',
           dateString: selectedDateKey,
           updatedAt: operationUpdatedAt,
-          cardType: CARD_TYPES.PHOTO,
+          cardType: isImageAttachment ? CARD_TYPES.PHOTO : CARD_TYPES.DOCUMENT,
           primaryUrl: null,
-          redirectUrl: image.photoDataUrl || null,
-          photoUrl: image.photoDataUrl || null,
-          photoTitle: image.title,
-          photoFileName: image.fileName,
-          photoDataUrl: image.photoDataUrl,
-          photoWidth: image.photoWidth,
-          photoHeight: image.photoHeight,
+          source: UPLOADED_FILE_SOURCE_LABEL,
+          uploadedSourceLabel: UPLOADED_FILE_SOURCE_LABEL,
+          uploadedFileStorageKey: attachment.storageKey,
+          uploadedFileType: attachment.uploadKind,
+          uploadedOriginalFileName: attachment.originalFileName,
+          uploadedMimeType: attachment.mimeType,
+          uploadedFileSize: attachment.size,
+          uploadedCreatedAt: attachment.createdAt,
+          uploadedUpdatedAt: operationUpdatedAt,
+          extractedText: null,
+          redirectUrl: isImageAttachment ? (attachment.previewUrl || attachment.photoDataUrl || null) : null,
+          photoUrl: isImageAttachment ? (attachment.previewUrl || attachment.photoDataUrl || null) : null,
+          photoTitle: isImageAttachment ? attachment.title : null,
+          photoFileName: isImageAttachment ? attachment.originalFileName : null,
+          photoDataUrl: isImageAttachment ? attachment.photoDataUrl : null,
+          photoWidth: isImageAttachment ? attachment.photoWidth : null,
+          photoHeight: isImageAttachment ? attachment.photoHeight : null,
           desktopSlot: null,
           desktopZ: Date.now() + index + 1,
         });
         const workspaceTasks = nextTasks.filter((task) => taskBelongsToWorkspace(task, activeWorkspaceId));
         const nextPosition = getNextDesktopCanvasPosition(workspaceTasks, selectedDateKey);
         nextTasks = [...nextTasks, normalizeTask({
-          ...imageTask,
+          ...attachmentTask,
           desktopCanvasX: nextPosition.x,
           desktopCanvasY: nextPosition.y,
         })];
@@ -5323,7 +5753,7 @@ function App() {
     }
 
     setInputText('');
-    setAddPanelImages([]);
+    setAddPanelAttachments([]);
     setPanelOpen(false);
     if (rawText && typeFields) {
       applyAsyncMetadata(taskId, typeFields.cardType, typeFields.videoUrl, typeFields.mapUrl, typeFields.primaryUrl, operationUpdatedAt);
@@ -5389,6 +5819,11 @@ function App() {
 
       if (user?.id) {
         trackUserEvent(user.id, 'task_clicked', { action: 'card_click', platform: 'desktop', isPlain, hasRedirect: !!redirectUrl });
+      }
+
+      if (task.uploadedFileStorageKey) {
+        void openUploadedFileTask(task);
+        return;
       }
 
       if (redirectUrl) {
@@ -5901,9 +6336,9 @@ function App() {
           selectedDate={selectedDate}
           inputText={inputText}
           setInputText={setInputText}
-          imageAttachments={addPanelImages}
-          onDropImages={handleAddPanelImagesDropped}
-          onRemoveImage={handleRemoveAddPanelImage}
+          fileAttachments={addPanelAttachments}
+          onAddFiles={handleAddPanelFilesSelected}
+          onRemoveFile={handleRemoveAddPanelAttachment}
           onClose={closePanel}
           onSubmit={saveTask}
           onSelectDate={setSelectedDate}
@@ -6095,6 +6530,11 @@ function App() {
           onTaskClick={(task) => {
             if (!task.id) return;
             const { redirectUrl } = getTaskCardPresentation(task, t);
+            if (task.uploadedFileStorageKey) {
+              setHistoryOpen(false);
+              void openUploadedFileTask(task);
+              return;
+            }
             if (redirectUrl) {
               if (normalizeCardType(task.cardType) === CARD_TYPES.PHOTO) {
                 setFullscreenImage(task.photoUrl || task.photoDataUrl || redirectUrl);
