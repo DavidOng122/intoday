@@ -161,6 +161,7 @@ const SUPPORTED_UPLOAD_IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'webp'];
 const SUPPORTED_UPLOAD_WORD_EXTENSIONS = ['doc', 'docx'];
 const SUPPORTED_UPLOAD_PDF_EXTENSIONS = ['pdf'];
 const SUPPORTED_UPLOAD_ACCEPT = '.pdf,.doc,.docx,.png,.jpg,.jpeg,.webp,image/png,image/jpeg,image/webp,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+const SUPPORTED_CONVERT_ACCEPT = '.pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 const DESKTOP_CANVAS_MIN_HEIGHT = 560;
 const DESKTOP_GROUP_CARD_MIN_HEIGHT = 176;
 const DESKTOP_GROUP_CARD_ITEM_HEIGHT = 60;
@@ -757,6 +758,10 @@ const getSupportedUploadKind = (file) => {
   return null;
 };
 const isSupportedUploadFile = (file) => Boolean(getSupportedUploadKind(file));
+const isSupportedConvertFile = (file) => {
+  const kind = getSupportedUploadKind(file);
+  return kind === 'pdf' || kind === 'word';
+};
 const hasImageFiles = (dataTransfer) => {
   const files = Array.from(dataTransfer?.files || []);
   if (files.some((file) => getSupportedUploadKind(file) === 'image' || String(file?.type || '').toLowerCase().startsWith('image/'))) {
@@ -1070,6 +1075,19 @@ const OpenFullViewIcon = () => (
 const ArrowUpIcon = () => (
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.2" stroke="currentColor" style={{ width: 18, height: 18 }}>
     <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 10.5 12 3m0 0 7.5 7.5M12 3v18" />
+  </svg>
+);
+const AttachFileIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="none" aria-hidden="true" style={{ width: 16, height: 16 }}>
+    <path d="M6.75 10.25 11.5 5.5a2.5 2.5 0 1 1 3.54 3.54l-6.1 6.1a3.75 3.75 0 1 1-5.3-5.3l6.36-6.36" stroke="currentColor" strokeWidth="1.55" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+const ConvertUploadIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" aria-hidden="true" style={{ width: 22, height: 22 }}>
+    <path d="M12 7.25v7.5" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="m8.75 10.5 3.25-3.25 3.25 3.25" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M7.25 15.75H6A1.75 1.75 0 0 1 4.25 14V6A1.75 1.75 0 0 1 6 4.25h8.1a1.75 1.75 0 0 1 1.24.51l2.15 2.15c.33.33.51.78.51 1.24V10.5" stroke="currentColor" strokeWidth="1.55" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M13.5 19.75h4.5" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
   </svg>
 );
 const HeaderChevronIcon = ({ direction = 'left' }) => (
@@ -3622,7 +3640,6 @@ const InlineMiniCalendar = ({
 const AddPanel = ({
   open,
   language,
-  selectedDate,
   inputText,
   setInputText,
   fileAttachments,
@@ -3630,176 +3647,248 @@ const AddPanel = ({
   onRemoveFile,
   onClose,
   onSubmit,
-  onSelectDate,
 }) => {
-  const [isCalendarOpen, setIsCalendarOpen] = useState(false);
+  const [mode, setMode] = useState('add');
   const [isFileDragActive, setIsFileDragActive] = useState(false);
+  const [isConvertDragActive, setIsConvertDragActive] = useState(false);
+  const [convertFileName, setConvertFileName] = useState('');
   const fileInputRef = useRef(null);
+  const convertFileInputRef = useRef(null);
   const t = getTranslationsForLanguage(language);
+
+  useEffect(() => {
+    if (!open) {
+      setMode('add');
+      setIsFileDragActive(false);
+      setIsConvertDragActive(false);
+      setConvertFileName('');
+    }
+  }, [open]);
 
   if (!open) return null;
 
-  const logicalToday = getLogicalToday();
-  const maxDate = new Date(logicalToday);
-  maxDate.setDate(maxDate.getDate() + 30);
+  const handleConvertFiles = (files) => {
+    const selectedFiles = Array.from(files || []);
+    const firstSupportedFile = selectedFiles.find((file) => isSupportedConvertFile(file));
+    if (!firstSupportedFile) return;
+    setConvertFileName(firstSupportedFile.name || 'Untitled document');
+  };
+
   return (
-    <div role="dialog" style={{ position: 'fixed', right: 42, bottom: 94, width: 440, minHeight: 520, maxHeight: 'calc(100vh - 120px)', borderRadius: 24, border: '1px solid var(--desktop-divider)', background: 'var(--desktop-section-bg)', display: 'flex', flexDirection: 'column', boxShadow: '0 16px 48px rgba(0,0,0,0.12)', zIndex: 30, overflow: 'hidden' }}>
-      <div style={{ padding: '24px 28px 12px', display: 'flex', justifyContent: 'flex-end', flexShrink: 0 }}>
-        <button type="button" onClick={onClose} aria-label={t.close} style={{ width: 32, height: 32, borderRadius: '50%', border: 'none', background: 'var(--desktop-panel-close-bg)', color: 'var(--desktop-panel-close-text)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}><CloseIcon /></button>
-      </div>
-      <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', padding: '0 28px 28px', overflowY: 'auto' }}>
-        <button type="button" onClick={() => {
-          setIsCalendarOpen((prev) => !prev);
-        }} style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '6px 0 20px', padding: 0, border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--desktop-root-text)', flexShrink: 0 }}>
-          <h2 style={{ margin: 0, fontFamily: 'DM Serif Display, serif', fontSize: 26, fontStyle: 'italic', lineHeight: 1 }}>{panelLabel(selectedDate, language)}</h2>
-          <svg xmlns="http://www.w3.org/2000/svg" width="8" height="13" viewBox="0 0 9 14" fill="none" style={{ transform: isCalendarOpen ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.24s cubic-bezier(0.16, 1, 0.3, 1)', opacity: 0.6 }}><path fillRule="evenodd" clipRule="evenodd" d="M8.78019 6.54928C8.92094 6.66887 9 6.83098 9 7C9 7.16902 8.92094 7.33113 8.78019 7.45072L1.26401 13.8288C1.12153 13.9415 0.933079 14.0028 0.738359 13.9999C0.543638 13.997 0.357853 13.93 0.220144 13.8132C0.0824342 13.6963 0.00355271 13.5387 0.000117099 13.3734C-0.00331851 13.2082 0.06896 13.0483 0.201726 12.9274L7.18676 7L0.201726 1.07262C0.06896 0.951712 -0.00331851 0.791795 0.000117099 0.626558C0.00355271 0.461322 0.0824342 0.303668 0.220144 0.18681C0.357853 0.0699525 0.543638 0.00301477 0.738359 9.93682e-05C0.933079 -0.00281603 1.12153 0.0585185 1.26401 0.171181L8.78019 6.54928Z" fill="currentColor" /></svg>
-        </button>
-        {isCalendarOpen ? (
-          <InlineMiniCalendar
-            language={language}
-            selectedDate={selectedDate}
-            minDate={logicalToday}
-            maxDate={maxDate}
-            onSelectDate={(cellDate) => {
-              onSelectDate(cellDate);
-              setIsCalendarOpen(false);
-            }}
-          />
-        ) : null}
-        <div style={{ flex: 1 }} />
-        <div
-          style={{
-            position: 'relative',
-            marginTop: 12,
-            borderRadius: 24,
-            border: isFileDragActive ? '1px solid var(--desktop-accent)' : '1px solid transparent',
-            background: isFileDragActive ? 'rgba(59, 130, 246, 0.05)' : 'transparent',
-            transition: 'border-color 160ms ease, background 160ms ease',
-          }}
-          onDragEnter={(event) => {
-            if (!hasSupportedUploadFiles(event.dataTransfer)) return;
-            event.preventDefault();
-            setIsFileDragActive(true);
-          }}
-          onDragOver={(event) => {
-            if (!hasSupportedUploadFiles(event.dataTransfer)) return;
-            event.preventDefault();
-            if (event.dataTransfer) {
-              event.dataTransfer.dropEffect = 'copy';
-            }
-            if (!isFileDragActive) {
-              setIsFileDragActive(true);
-            }
-          }}
-          onDragLeave={(event) => {
-            if (!hasSupportedUploadFiles(event.dataTransfer)) return;
-            event.preventDefault();
-            if (!event.currentTarget.contains(event.relatedTarget)) {
-              setIsFileDragActive(false);
-            }
-          }}
-          onDrop={(event) => {
-            if (!hasSupportedUploadFiles(event.dataTransfer)) return;
-            event.preventDefault();
-            setIsFileDragActive(false);
-            const files = Array.from(event.dataTransfer?.files || []);
-            if (files.length) {
-              onAddFiles?.(files);
-            }
-          }}
-        >
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept={SUPPORTED_UPLOAD_ACCEPT}
-            multiple
-            style={{ display: 'none' }}
-            onChange={(event) => {
-              const files = Array.from(event.target.files || []);
-              if (files.length) {
-                onAddFiles?.(files);
-              }
-              event.target.value = '';
-            }}
-          />
-          {fileAttachments.length ? (
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, padding: '12px 12px 0' }}>
-              {fileAttachments.map((attachment) => (
-                <div
-                  key={attachment.id}
-                  style={{
-                    position: 'relative',
-                    width: attachment.uploadKind === 'image' ? 72 : 160,
-                    height: 72,
-                    borderRadius: 16,
-                    overflow: 'hidden',
-                    border: '1px solid var(--desktop-divider)',
-                    background: 'var(--desktop-input-bg)',
-                    boxShadow: 'var(--desktop-input-shadow)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: attachment.uploadKind === 'image' ? 'center' : 'flex-start',
-                  }}
-                >
-                  {attachment.uploadKind === 'image' ? (
-                    <img
-                      src={attachment.previewUrl || attachment.photoDataUrl}
-                      alt={attachment.title}
-                      draggable={false}
-                      style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                    />
-                  ) : (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '0 14px', width: '100%' }}>
-                      <div style={{ width: 42, height: 42, borderRadius: 12, background: attachment.uploadKind === 'pdf' ? 'rgba(239, 68, 68, 0.12)' : 'rgba(59, 130, 246, 0.12)', color: attachment.uploadKind === 'pdf' ? '#b42318' : '#1d4ed8', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', flexShrink: 0 }}>
-                        {attachment.uploadKind === 'pdf' ? 'PDF' : 'DOC'}
-                      </div>
-                      <div style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 3 }}>
-                        <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--desktop-root-text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{attachment.title}</span>
-                        <span style={{ fontSize: 11, color: 'var(--desktop-muted-text)', textTransform: 'capitalize' }}>{attachment.uploadKind}</span>
-                      </div>
-                    </div>
-                  )}
-                  <button
-                    type="button"
-                    aria-label={`Remove ${attachment.title}`}
-                    onClick={() => onRemoveFile?.(attachment.id)}
-                    style={{
-                      position: 'absolute',
-                      top: 6,
-                      right: 6,
-                      width: 22,
-                      height: 22,
-                      borderRadius: '50%',
-                      border: 'none',
-                      background: 'rgba(15, 23, 42, 0.72)',
-                      color: '#fff',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      cursor: 'pointer',
-                      padding: 0,
-                    }}
-                  >
-                    <CloseIcon />
-                  </button>
-                </div>
-              ))}
-            </div>
-          ) : null}
-          <textarea autoFocus value={inputText} onChange={(event) => setInputText(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); onSubmit(); } }} placeholder={t.placeholder} style={{ width: '100%', height: 120, resize: 'none', borderRadius: 20, border: '1px solid var(--desktop-input-border)', background: 'var(--desktop-input-bg)', color: 'var(--desktop-root-text)', padding: fileAttachments.length ? '12px 108px 16px 16px' : '16px 108px 16px 16px', outline: 'none', fontSize: 15, fontFamily: 'inherit', boxShadow: 'var(--desktop-input-shadow)' }} />
-          {isFileDragActive ? (
-            <div style={{ position: 'absolute', inset: 10, borderRadius: 18, border: '1px dashed rgba(59, 130, 246, 0.55)', background: 'rgba(255,255,255,0.42)', display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none', color: 'var(--desktop-accent)', fontSize: 14, fontWeight: 600 }}>
-              Drop PDF, Word, or image to attach
-            </div>
-          ) : null}
+    <div role="dialog" className="desktop-add-panel">
+      <div className="desktop-add-panel-header">
+        <div className="desktop-add-panel-segmented" role="tablist" aria-label="Panel mode">
           <button
             type="button"
-            onClick={() => fileInputRef.current?.click()}
-            style={{ position: 'absolute', left: 12, bottom: 12, height: 36, padding: '0 14px', borderRadius: 18, border: '1px solid var(--desktop-divider)', background: 'rgba(255,255,255,0.76)', color: 'var(--desktop-root-text)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}
+            role="tab"
+            aria-selected={mode === 'add'}
+            className={`desktop-add-panel-segment ${mode === 'add' ? 'active' : ''}`}
+            onClick={() => setMode('add')}
           >
-            Files
+            Add
           </button>
-          <button type="button" onClick={onSubmit} style={{ position: 'absolute', right: 12, bottom: 12, width: 36, height: 36, borderRadius: '50%', border: 'none', background: 'var(--desktop-submit-bg)', color: 'var(--desktop-submit-text)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', boxShadow: 'var(--desktop-submit-shadow)' }}><ArrowUpIcon /></button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={mode === 'convert'}
+            className={`desktop-add-panel-segment ${mode === 'convert' ? 'active' : ''}`}
+            onClick={() => setMode('convert')}
+          >
+            Convert
+          </button>
+        </div>
+        <button type="button" onClick={onClose} aria-label={t.close} className="desktop-add-panel-close"><CloseIcon /></button>
+      </div>
+      <div className="desktop-add-panel-body">
+        <div className="desktop-add-panel-mode-content">
+          {mode === 'add' ? (
+            <>
+              <div className="desktop-add-panel-copy">
+                <h2 className="desktop-add-panel-title">Add to workspace</h2>
+                <p className="desktop-add-panel-support">Type a note, paste a link, or drop an image</p>
+              </div>
+              <div
+                className={`desktop-add-panel-surface ${isFileDragActive ? 'drag-active' : ''}`}
+                onDragEnter={(event) => {
+                  if (!hasSupportedUploadFiles(event.dataTransfer)) return;
+                  event.preventDefault();
+                  setIsFileDragActive(true);
+                }}
+                onDragOver={(event) => {
+                  if (!hasSupportedUploadFiles(event.dataTransfer)) return;
+                  event.preventDefault();
+                  if (event.dataTransfer) {
+                    event.dataTransfer.dropEffect = 'copy';
+                  }
+                  if (!isFileDragActive) {
+                    setIsFileDragActive(true);
+                  }
+                }}
+                onDragLeave={(event) => {
+                  if (!hasSupportedUploadFiles(event.dataTransfer)) return;
+                  event.preventDefault();
+                  if (!event.currentTarget.contains(event.relatedTarget)) {
+                    setIsFileDragActive(false);
+                  }
+                }}
+                onDrop={(event) => {
+                  if (!hasSupportedUploadFiles(event.dataTransfer)) return;
+                  event.preventDefault();
+                  setIsFileDragActive(false);
+                  const files = Array.from(event.dataTransfer?.files || []);
+                  if (files.length) {
+                    onAddFiles?.(files);
+                  }
+                }}
+              >
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept={SUPPORTED_UPLOAD_ACCEPT}
+                  multiple
+                  style={{ display: 'none' }}
+                  onChange={(event) => {
+                    const files = Array.from(event.target.files || []);
+                    if (files.length) {
+                      onAddFiles?.(files);
+                    }
+                    event.target.value = '';
+                  }}
+                />
+                {fileAttachments.length ? (
+                  <div className="desktop-add-panel-attachment-strip">
+                    {fileAttachments.map((attachment) => (
+                      <div
+                        key={attachment.id}
+                        className={`desktop-add-panel-attachment ${attachment.uploadKind === 'image' ? 'image' : 'document'}`}
+                      >
+                        {attachment.uploadKind === 'image' ? (
+                          <img
+                            src={attachment.previewUrl || attachment.photoDataUrl}
+                            alt={attachment.title}
+                            draggable={false}
+                            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                          />
+                        ) : (
+                          <div className="desktop-add-panel-attachment-content">
+                            <div className={`desktop-add-panel-attachment-badge ${attachment.uploadKind}`}>
+                              {attachment.uploadKind === 'pdf' ? 'PDF' : 'DOC'}
+                            </div>
+                            <div className="desktop-add-panel-attachment-copy">
+                              <span className="desktop-add-panel-attachment-title">{attachment.title}</span>
+                              <span className="desktop-add-panel-attachment-kind">{attachment.uploadKind}</span>
+                            </div>
+                          </div>
+                        )}
+                        <button
+                          type="button"
+                          aria-label={`Remove ${attachment.title}`}
+                          onClick={() => onRemoveFile?.(attachment.id)}
+                          className="desktop-add-panel-attachment-remove"
+                        >
+                          <CloseIcon />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+                <textarea
+                  autoFocus
+                  value={inputText}
+                  onChange={(event) => setInputText(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' && !event.shiftKey) {
+                      event.preventDefault();
+                      onSubmit();
+                    }
+                  }}
+                  placeholder="Start typing or drop something here..."
+                  className="desktop-add-panel-textarea"
+                />
+                {isFileDragActive ? (
+                  <div className="desktop-add-panel-drop-overlay">
+                    Drop PDF, Word, or image to attach
+                  </div>
+                ) : null}
+              </div>
+              <div className="desktop-add-panel-footer">
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="desktop-add-panel-files-button"
+                >
+                  <AttachFileIcon />
+                  <span>Files</span>
+                </button>
+                <button type="button" onClick={onSubmit} className="desktop-add-panel-submit-button">Add</button>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="desktop-add-panel-copy">
+                <h2 className="desktop-add-panel-title">Convert to Markdown</h2>
+                <p className="desktop-add-panel-support">Drop a PDF or DOCX file to turn it into reusable markdown</p>
+              </div>
+              <div
+                className={`desktop-convert-panel-dropzone ${isConvertDragActive ? 'drag-active' : ''}`}
+                onClick={() => convertFileInputRef.current?.click()}
+                onDragEnter={(event) => {
+                  if (!Array.from(event.dataTransfer?.files || []).some((file) => isSupportedConvertFile(file))) return;
+                  event.preventDefault();
+                  setIsConvertDragActive(true);
+                }}
+                onDragOver={(event) => {
+                  if (!Array.from(event.dataTransfer?.files || []).some((file) => isSupportedConvertFile(file))) return;
+                  event.preventDefault();
+                  if (event.dataTransfer) {
+                    event.dataTransfer.dropEffect = 'copy';
+                  }
+                  if (!isConvertDragActive) {
+                    setIsConvertDragActive(true);
+                  }
+                }}
+                onDragLeave={(event) => {
+                  event.preventDefault();
+                  if (!event.currentTarget.contains(event.relatedTarget)) {
+                    setIsConvertDragActive(false);
+                  }
+                }}
+                onDrop={(event) => {
+                  const files = Array.from(event.dataTransfer?.files || []);
+                  if (!files.some((file) => isSupportedConvertFile(file))) return;
+                  event.preventDefault();
+                  setIsConvertDragActive(false);
+                  handleConvertFiles(files);
+                }}
+              >
+                <input
+                  ref={convertFileInputRef}
+                  type="file"
+                  accept={SUPPORTED_CONVERT_ACCEPT}
+                  style={{ display: 'none' }}
+                  onChange={(event) => {
+                    handleConvertFiles(event.target.files || []);
+                    event.target.value = '';
+                  }}
+                />
+                <div className="desktop-convert-panel-icon-shell">
+                  <ConvertUploadIcon />
+                </div>
+                <div className="desktop-convert-panel-drop-copy">
+                  <div className="desktop-convert-panel-drop-title">
+                    {convertFileName || 'Click or drag a file here'}
+                  </div>
+                  {convertFileName ? (
+                    <div className="desktop-convert-panel-drop-subtitle">Frontend preview only</div>
+                  ) : null}
+                </div>
+              </div>
+              <div className="desktop-convert-panel-meta">
+                <span>Supports PDF, DOCX</span>
+                <span>Up to 10MB</span>
+              </div>
+            </>
+          )}
         </div>
       </div>
     </div>
@@ -6271,7 +6360,7 @@ function App() {
                 onDragOver={handleCanvasFileDragOver}
                 onDragLeave={handleCanvasFileDragLeave}
                 onDrop={handleCanvasFileDrop}
-                style={{ flex: 1, minHeight: 0, overflow: 'auto', background: 'var(--desktop-root-bg)' }}
+                style={{ flex: 1, minHeight: 0, overflow: 'auto', background: 'var(--desktop-root-bg)', paddingTop: 110 }}
               >
                 <div className="desktop-canvas-stage">
                   <div
@@ -6333,7 +6422,6 @@ function App() {
         <AddPanel
           open={panelOpen}
           language={language}
-          selectedDate={selectedDate}
           inputText={inputText}
           setInputText={setInputText}
           fileAttachments={addPanelAttachments}
@@ -6341,7 +6429,6 @@ function App() {
           onRemoveFile={handleRemoveAddPanelAttachment}
           onClose={closePanel}
           onSubmit={saveTask}
-          onSelectDate={setSelectedDate}
         />
 
         {(!panelOpen && showAddPreview) ? (

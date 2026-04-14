@@ -1,6 +1,7 @@
 @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Cormorant+Garamond:wght@500;600;700&display=swap');
 
 .desktop-app {
+  position: relative;
   --desktop-root-bg: #ffffff;
   --desktop-root-text: #111111;
   --desktop-header-bg: #ffffff;
@@ -85,6 +86,15 @@
     0 0 0 1px rgba(83, 74, 64, 0.18),
     0 16px 32px rgba(42, 33, 23, 0.1);
   --desktop-selection-card-border: rgba(92, 82, 71, 0.34);
+  --desktop-canvas-dot-color: rgba(128, 142, 163, 0.22);
+  --desktop-canvas-dot-glow: rgba(228, 234, 243, 0.78);
+  --desktop-canvas-dot-fade-top: rgba(255, 255, 255, 0.72);
+  --desktop-canvas-dot-fade-bottom: rgba(255, 255, 255, 0.94);
+  --desktop-header-dot-color: rgba(148, 163, 184, 0.12);
+  --desktop-header-dot-glow: rgba(238, 242, 247, 0.92);
+  --desktop-header-surface-top: rgba(255, 255, 255, 0.94);
+  --desktop-header-surface-bottom: rgba(255, 255, 255, 0.74);
+  --desktop-header-bridge: rgba(236, 241, 247, 0.78);
 
   /* Option 2: Cool Blue (E8EDF4) - Uncomment to try
   --desktop-drag-feedback-glow-strong: rgba(232, 237, 244, 0.85);
@@ -179,6 +189,15 @@
     0 0 0 1px rgba(219, 209, 197, 0.18),
     0 18px 36px rgba(0, 0, 0, 0.24);
   --desktop-selection-card-border: rgba(214, 205, 193, 0.34);
+  --desktop-canvas-dot-color: rgba(178, 188, 203, 0.18);
+  --desktop-canvas-dot-glow: rgba(39, 45, 56, 0.92);
+  --desktop-canvas-dot-fade-top: rgba(18, 18, 18, 0.5);
+  --desktop-canvas-dot-fade-bottom: rgba(18, 18, 18, 0.88);
+  --desktop-header-dot-color: rgba(173, 184, 199, 0.08);
+  --desktop-header-dot-glow: rgba(33, 38, 46, 0.96);
+  --desktop-header-surface-top: rgba(28, 30, 34, 0.9);
+  --desktop-header-surface-bottom: rgba(24, 26, 30, 0.68);
+  --desktop-header-bridge: rgba(39, 45, 56, 0.72);
 }
 
 .desktop-login-page {
@@ -199,6 +218,361 @@
     linear-gradient(135deg, #efe7da 0%, #f8f6f1 40%, #e9eef7 100%);
   color: var(--login-ink);
   font-family: 'Manrope', 'Segoe UI', sans-serif;
+}
+
+.desktop-add-panel {
+  position: fixed;
+  right: 42px;
+  bottom: 94px;
+  width: 440px;
+  min-height: 520px;
+  max-height: calc(100vh - 120px);
+  border-radius: 28px;
+  border: 1px solid rgba(231, 233, 237, 0.96);
+  background: #ffffff;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 18px 44px rgba(15, 23, 42, 0.08);
+  z-index: 30;
+  overflow: hidden;
+}
+
+.desktop-add-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 22px 26px 8px;
+  gap: 16px;
+  flex-shrink: 0;
+}
+
+.desktop-add-panel-segmented {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 999px;
+  background: #f1f3f6;
+  box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.04);
+}
+
+.desktop-add-panel-segment {
+  min-width: 74px;
+  height: 34px;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--desktop-muted-strong);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 160ms ease, color 160ms ease, box-shadow 160ms ease;
+}
+
+.desktop-add-panel-segment.active {
+  background: #ffffff;
+  color: var(--desktop-root-text);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06), 0 0 0 1px rgba(15, 23, 42, 0.06);
+}
+
+.desktop-add-panel-close {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: none;
+  background: var(--desktop-panel-close-bg);
+  color: var(--desktop-panel-close-text);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.desktop-add-panel-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 4px 26px 28px;
+  overflow-y: auto;
+  justify-content: center;
+}
+
+.desktop-add-panel-mode-content {
+  width: 100%;
+  max-width: 100%;
+  margin: auto 0;
+  display: flex;
+  flex-direction: column;
+  padding-top: 18px;
+}
+
+.desktop-add-panel-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 22px;
+}
+
+.desktop-add-panel-title {
+  margin: 0;
+  color: var(--desktop-root-text);
+  font-size: 16px;
+  line-height: 1.2;
+  font-weight: 700;
+}
+
+.desktop-add-panel-support {
+  margin: 0;
+  color: var(--desktop-muted);
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.desktop-add-panel-surface,
+.desktop-convert-panel-dropzone {
+  position: relative;
+  border-radius: 22px;
+  border: 1px solid rgba(232, 235, 240, 0.96);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(250, 251, 253, 0.98) 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.92);
+  transition: border-color 160ms ease, background 160ms ease, box-shadow 160ms ease;
+}
+
+.desktop-add-panel-surface.drag-active,
+.desktop-convert-panel-dropzone.drag-active {
+  border-color: rgba(96, 111, 134, 0.26);
+  background: linear-gradient(180deg, rgba(249, 250, 252, 0.98) 0%, rgba(245, 247, 250, 0.99) 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.92), 0 0 0 4px rgba(71, 85, 105, 0.035);
+}
+
+.desktop-add-panel-surface {
+  min-height: 196px;
+  padding: 12px;
+  border-style: dashed;
+  border-color: rgba(229, 232, 237, 0.96);
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: none;
+}
+
+.desktop-add-panel-attachment-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.desktop-add-panel-attachment {
+  position: relative;
+  overflow: hidden;
+  border-radius: 16px;
+  border: 1px solid rgba(232, 235, 240, 0.96);
+  background: var(--desktop-input-bg);
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.05);
+}
+
+.desktop-add-panel-attachment.image {
+  width: 72px;
+  height: 72px;
+}
+
+.desktop-add-panel-attachment.document {
+  width: 170px;
+  height: 72px;
+  display: flex;
+  align-items: center;
+}
+
+.desktop-add-panel-attachment-content {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 14px;
+  width: 100%;
+}
+
+.desktop-add-panel-attachment-badge {
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+.desktop-add-panel-attachment-badge.pdf {
+  background: rgba(239, 68, 68, 0.1);
+  color: #c2410c;
+}
+
+.desktop-add-panel-attachment-badge.word {
+  background: rgba(59, 130, 246, 0.1);
+  color: #2563eb;
+}
+
+.desktop-add-panel-attachment-copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.desktop-add-panel-attachment-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--desktop-root-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.desktop-add-panel-attachment-kind {
+  font-size: 11px;
+  color: var(--desktop-muted);
+  text-transform: capitalize;
+}
+
+.desktop-add-panel-attachment-remove {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(15, 23, 42, 0.72);
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+}
+
+.desktop-add-panel-textarea {
+  width: 100%;
+  min-height: 126px;
+  resize: none;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  color: var(--desktop-root-text);
+  padding: 18px 12px 12px;
+  outline: none;
+  font-size: 15px;
+  line-height: 1.5;
+  font-family: inherit;
+  box-shadow: none;
+}
+
+.desktop-add-panel-textarea::placeholder {
+  color: #d1d5db;
+}
+
+.desktop-add-panel-drop-overlay {
+  position: absolute;
+  inset: 12px;
+  border-radius: 18px;
+  border: 1px dashed rgba(100, 116, 139, 0.3);
+  background: rgba(248, 250, 252, 0.82);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  color: var(--desktop-root-text);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.desktop-add-panel-footer,
+.desktop-convert-panel-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 18px;
+}
+
+.desktop-add-panel-files-button {
+  height: 38px;
+  padding: 0 2px;
+  border: none;
+  background: transparent;
+  color: var(--desktop-muted-strong);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.desktop-add-panel-submit-button {
+  min-width: 78px;
+  height: 42px;
+  padding: 0 18px;
+  border-radius: 999px;
+  border: none;
+  background: #121a2f;
+  color: #ffffff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 700;
+  box-shadow: 0 10px 24px rgba(18, 26, 47, 0.2);
+}
+
+.desktop-convert-panel-dropzone {
+  min-height: 214px;
+  padding: 22px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  text-align: center;
+  cursor: pointer;
+}
+
+.desktop-convert-panel-icon-shell {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  border: 1px solid rgba(232, 235, 240, 0.96);
+  background: rgba(255, 255, 255, 0.98);
+  color: var(--desktop-muted-strong);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.desktop-convert-panel-drop-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.desktop-convert-panel-drop-title {
+  color: var(--desktop-muted-strong);
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.desktop-convert-panel-drop-subtitle {
+  color: var(--desktop-muted);
+  font-size: 13px;
+}
+
+.desktop-convert-panel-meta {
+  color: var(--desktop-muted);
+  font-size: 13px;
+  font-weight: 500;
 }
 
 .desktop-login-page::before {
@@ -1171,6 +1545,28 @@ body.desktop-task-dragging * {
   position: relative;
   overscroll-behavior: none;
   scrollbar-gutter: stable both-edges;
+  isolation: isolate;
+}
+
+.desktop-canvas-scroll::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background:
+    radial-gradient(circle at 18% 16%, var(--desktop-canvas-dot-glow) 0, rgba(255, 255, 255, 0) 28%),
+    radial-gradient(circle at 82% 12%, rgba(226, 232, 240, 0.55) 0, rgba(255, 255, 255, 0) 24%),
+    radial-gradient(circle, var(--desktop-canvas-dot-color) 1.1px, transparent 1.35px);
+  background-size:
+    100% 100%,
+    100% 100%,
+    24px 24px;
+  background-position:
+    center,
+    center,
+    0 0;
+  mask-image: linear-gradient(180deg, var(--desktop-canvas-dot-fade-top) 0%, rgba(0, 0, 0, 1) 18%, rgba(0, 0, 0, 1) 72%, var(--desktop-canvas-dot-fade-bottom) 100%);
 }
 
 .desktop-canvas-scroll.is-pan-ready {
@@ -1189,6 +1585,8 @@ body.desktop-task-dragging * {
 }
 
 .desktop-canvas-stage {
+  position: relative;
+  z-index: 1;
   min-width: 100%;
   min-height: 100%;
   display: flex;
@@ -1686,16 +2084,44 @@ body.desktop-task-dragging * {
   min-width: 132px;
   position: relative;
   justify-self: end;
+  z-index: 1;
 }
 
 .desktop-minimal-header {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  isolation: isolate;
   height: 110px;
   padding: 0 36px;
   display: grid;
   grid-template-columns: 1fr auto 1fr;
   align-items: center;
   gap: 28px;
-  background: var(--desktop-header-bg);
+  background: transparent;
+  z-index: 10;
+}
+
+.desktop-minimal-header::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: none;
+}
+
+.desktop-minimal-header::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 28px;
+  z-index: 0;
+  pointer-events: none;
+  background: none;
 }
 
 .desktop-minimal-brand {
@@ -1704,6 +2130,7 @@ body.desktop-task-dragging * {
   min-width: 0;
   justify-self: start;
   position: relative;
+  z-index: 1;
 }
 
 .desktop-minimal-brand-label {
@@ -1723,7 +2150,7 @@ body.desktop-task-dragging * {
   gap: 0;
   border-radius: 10px;
   border: 1px solid transparent;
-  background: #ffffff;
+  background: rgba(255, 255, 255, 0.56);
   box-shadow: none;
   overflow: hidden;
   transition: background-color 140ms ease, border-color 140ms ease, box-shadow 140ms ease;
@@ -1793,7 +2220,7 @@ body.desktop-task-dragging * {
 }
 
 .desktop-workspace-shell:hover {
-  background: #f1f1f3;
+  background: rgba(255, 255, 255, 0.72);
 }
 
 .desktop-workspace-name-button:hover,
@@ -1802,7 +2229,7 @@ body.desktop-task-dragging * {
 }
 
 .desktop-workspace-shell.is-editing {
-  background: #ffffff;
+  background: rgba(255, 255, 255, 0.86);
   border-color: #3b82f6;
   box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.18);
 }
@@ -2120,6 +2547,7 @@ body.desktop-task-dragging * {
   justify-content: center;
   justify-self: center;
   position: relative;
+  z-index: 1;
 }
 
 .desktop-minimal-today-button {
