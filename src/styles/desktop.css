@@ -1905,6 +1905,7 @@ body.desktop-task-dragging * {
   padding: 10px 0 0;
   overflow: hidden;
   transition: max-height 180ms cubic-bezier(0.22, 1, 0.36, 1);
+  overscroll-behavior: contain;
 }
 
 .desktop-task-group-list::-webkit-scrollbar {
@@ -1916,7 +1917,7 @@ body.desktop-task-dragging * {
 }
 
 .desktop-task-group-list::-webkit-scrollbar-thumb {
-  background: transparent;
+  background: rgba(109, 118, 132, 0.34);
   border-radius: 10px;
 }
 
@@ -1927,6 +1928,10 @@ body.desktop-task-dragging * {
 }
 
 .desktop-app-dark .desktop-task-group-list::-webkit-scrollbar-thumb {
+  background: rgba(213, 221, 232, 0.24);
+}
+
+.desktop-task-group-card:not(.is-expanded) .desktop-task-group-list::-webkit-scrollbar-thumb {
   background: transparent;
 }
 

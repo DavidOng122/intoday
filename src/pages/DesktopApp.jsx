@@ -166,6 +166,7 @@ const DESKTOP_CANVAS_MIN_HEIGHT = 560;
 const DESKTOP_GROUP_CARD_MIN_HEIGHT = 176;
 const DESKTOP_GROUP_CARD_ITEM_HEIGHT = 60;
 const DESKTOP_GROUP_CARD_VISIBLE_ITEMS = 3;
+const DESKTOP_GROUP_CARD_EXPANDED_VISIBLE_ITEMS = 5;
 const DESKTOP_UI_SCALE = 0.8;
 const getDesktopSectionPillStyle = (section, appearance) => (
   appearance === 'dark'
@@ -2067,16 +2068,18 @@ const GroupedTaskCard = ({
   const isDraggingGroup = isDragging && isGroupDragActive;
   const filteredTasks = tasks.filter((t) => isDraggingGroup || t.id !== draggedTaskId);
   const collapsedVisibleCount = Math.min(filteredTasks.length, DESKTOP_GROUP_CARD_VISIBLE_ITEMS);
-  const visibleItemCount = isExpanded ? filteredTasks.length : collapsedVisibleCount;
+  const expandedVisibleCount = Math.min(filteredTasks.length, DESKTOP_GROUP_CARD_EXPANDED_VISIBLE_ITEMS);
+  const visibleItemCount = isExpanded ? expandedVisibleCount : collapsedVisibleCount;
   const hiddenTaskCount = Math.max(0, filteredTasks.length - collapsedVisibleCount);
   const groupCardMinHeight = getDesktopGroupCardHeight(filteredTasks.length, visibleItemCount);
   const groupListMaxHeight = (visibleItemCount * DESKTOP_GROUP_CARD_ITEM_HEIGHT) + (Math.max(0, visibleItemCount - 1) * 6);
+  const canScrollExpandedList = isExpanded && filteredTasks.length > expandedVisibleCount;
 
   return (
       <div id={`desktop-task-wrapper-${leadTask.id}`} className={`desktop-task-wrapper desktop-task-group-wrapper ${isDragging ? 'is-dragging' : ''} ${isSelected ? 'is-selected' : ''}`}>
         <div
           id={`desktop-group-card-${leadTask.id}`}
-          className={`desktop-task-card desktop-task-group-card ${isDragging ? 'is-dragging' : ''}`}
+          className={`desktop-task-card desktop-task-group-card ${isDragging ? 'is-dragging' : ''} ${isExpanded ? 'is-expanded' : ''}`}
           onPointerDown={(event) => onPointerDown(groupTask, event)}
           onPointerMove={(event) => onPointerMove(groupTask, event)}
           onPointerUp={(event) => onPointerUp(groupTask, event)}
@@ -2140,7 +2143,7 @@ const GroupedTaskCard = ({
           <div className="desktop-task-group-divider" />
         <div
           className="desktop-task-group-list"
-          style={{ maxHeight: groupListMaxHeight }}
+          style={{ maxHeight: groupListMaxHeight, overflowY: canScrollExpandedList ? 'auto' : 'hidden' }}
           onPointerDown={(event) => {
             // Only trigger if clicking the list container itself (empty space)
             if (event.target === event.currentTarget) {
