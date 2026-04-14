@@ -5606,8 +5606,8 @@ function App() {
       });
     } else if (primaryUrl && (!cardType || cardType === 'link' || cardType === 'text' || cardType === 'ai_tool' || cardType === 'social' || cardType === 'shopping' || cardType === 'financial' || cardType === 'document')) {
       fetchLinkPreviewMeta(primaryUrl).then((meta) => {
-        if (meta && meta.linkTitle) {
-          setTasks((prev) => prev.map((task) => (task.id === taskId ? normalizeTask({ ...task, linkTitle: meta.linkTitle, ...(updatedAt ? { updatedAt } : {}) }) : task)));
+        if (meta) {
+          setTasks((prev) => prev.map((task) => (task.id === taskId ? normalizeTask({ ...task, ...meta, ...(updatedAt ? { updatedAt } : {}) }) : task)));
         }
       });
     }

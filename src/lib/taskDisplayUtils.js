@@ -353,7 +353,6 @@ const getUrlPlatformLabel = (url, cardType) => {
     if (
       host.includes('maps.google.com') ||
       host === 'maps.app.goo.gl' ||
-      host === 'https://maps.app.goo.gl/qc689D1KstqwhNhn6?g_st=ic' || // 👉 新增这一行
       (host.includes('google.com') && path.startsWith('/maps'))
     ) {
       return 'Google Maps';
@@ -522,6 +521,11 @@ const labelsForType = (cardType, labels = {}) => {
 
 export const deriveTaskDisplayTitle = (task) => {
   if (!task) return '';
+  
+  // Use backend resolution for AI conversation links directly to prevent re-guess logic
+  if (task.aiPlatform && task.linkTitle) {
+    return task.linkTitle;
+  }
 
   const rawText = getTaskText(task);
   const cardType = normalizeCardType(task.cardType);
@@ -641,7 +645,14 @@ export const deriveTaskDisplaySubtitle = (task, labels = {}) => {
     return labelsForType(cardType, labels);
   }
 
-  const platform = normalizeSubtitleLabel(getUrlPlatformLabel(primaryUrl, cardType));
+  let platform = normalizeSubtitleLabel(getUrlPlatformLabel(primaryUrl, cardType));
+  
+  if (!platform && task.aiPlatform) {
+    if (task.aiPlatform === 'chatgpt') platform = 'ChatGPT';
+    else if (task.aiPlatform === 'claude') platform = 'Claude';
+    else if (task.aiPlatform === 'gemini') platform = 'Gemini';
+  }
+
   if (platform && platform.toLowerCase() !== title.toLowerCase()) {
     return platform;
   }

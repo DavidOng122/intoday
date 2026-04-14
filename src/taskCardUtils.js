@@ -388,13 +388,23 @@ export const fetchLinkPreviewMeta = async (url) => {
           linkTitle: data.title || null,
           mapTitle: data.mapTitle || null,
           resolvedUrl: data.resolvedUrl || null,
+          aiPlatform: data.platform || null,
+          aiSource: data.source || null,
+          aiIsFallback: data.isFallback || false,
         };
       }
     }
   } catch {
     // Ignore fetch failures
   }
-  return { linkTitle: null, mapTitle: null, resolvedUrl: null };
+  return { 
+    linkTitle: null, 
+    mapTitle: null, 
+    resolvedUrl: null, 
+    aiPlatform: null, 
+    aiSource: null, 
+    aiIsFallback: false 
+  };
 };
 
 export const getTaskCardPresentation = (

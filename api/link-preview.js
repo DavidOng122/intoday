@@ -1,3 +1,75 @@
+const isAiConversationUrl = (url) => {
+  try {
+    const parsed = new URL(url);
+    const host = parsed.hostname.toLowerCase();
+    const path = parsed.pathname.toLowerCase();
+
+    if (host.includes('chatgpt.com') || host.includes('openai.com')) {
+      return { platform: 'chatgpt', isAiConversation: true };
+    }
+    if (host.includes('claude.ai')) {
+      return { platform: 'claude', isAiConversation: true };
+    }
+    if (host.includes('gemini.google.com') || host.includes('bard.google.com') || 
+        (host.includes('g.co') && path.startsWith('/gemini/share/'))) {
+      return { platform: 'gemini', isAiConversation: true };
+    }
+    return { platform: null, isAiConversation: false };
+  } catch {
+    return { platform: null, isAiConversation: false };
+  }
+};
+
+const INVALID_AI_TITLES = new Set([
+  'chatgpt', 'claude', 'gemini', 'new chat', 'conversation', 'shared link',
+  'chatgpt conversation', 'claude chat', 'gemini conversation', 'ai tool', 'openai',
+  'gemini - direct access to google ai'
+]);
+
+const cleanDisplayText = (value = '') => {
+  return String(value || '')
+    .replace(/[_-]+/g, ' ')
+    .replace(/\+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .replace(/^[\s"'`([{<]+|[\s"'`)\]}>]+$/g, '')
+    .trim();
+};
+
+const resolveAiConversationTitle = (html, metadataTitle, platform) => {
+  let title = metadataTitle ? metadataTitle.replace(/[\u200B-\u200D\uFEFF\u200E\u200F]/g, "").trim() : null;
+  
+  // 1. Try Metadata explicitly
+  if (title) {
+    title = title.replace(/^(ChatGPT|Claude|Gemini)\s*[-–|:]\s*/i, '').trim();
+    if (!INVALID_AI_TITLES.has(title.toLowerCase())) {
+      return { title, source: 'metadata', isFallback: false };
+    }
+  }
+
+  // 2. Content Summary Scraping
+  if (html) {
+    let stripped = html.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, ' ');
+    stripped = stripped.replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, ' ');
+    stripped = stripped.replace(/<[^>]+>/g, ' ');
+    
+    const lines = stripped.split(/\s*(?:[.!?]\s+|\r?\n+|[|•·]\s+)\s*/).map(l => cleanDisplayText(l)).filter(Boolean);
+    
+    for (const line of lines) {
+      if (line.length > 3 && !/^[\W_]+$/.test(line) && !INVALID_AI_TITLES.has(line.toLowerCase())) {
+         return { title: line.length > 96 ? line.slice(0, 96).trimEnd() + '…' : line, source: 'content_summary', isFallback: false };
+      }
+    }
+  }
+
+  // 3. Fallback
+  let fallback = 'AI Conversation';
+  if (platform === 'chatgpt') fallback = 'ChatGPT Conversation';
+  if (platform === 'claude') fallback = 'Claude Chat';
+  if (platform === 'gemini') fallback = 'Gemini Conversation';
+  
+  return { title: fallback, source: 'fallback', isFallback: true };
+};
+
 export default async function handler(req, res) {
   const { url } = req.query;
 
@@ -5,7 +77,6 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'Missing url parameter' });
   }
 
-  // --- YouTube: use oEmbed API server-side to bypass bot-detection ---
   if (/youtube\.com|youtu\.be/i.test(url)) {
     try {
       const oembedUrl = `https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`;
@@ -29,7 +100,6 @@ export default async function handler(req, res) {
         }
       }
     } catch (_) {
-      // Fall through to generic scraping
     }
   }
 
@@ -45,105 +115,95 @@ export default async function handler(req, res) {
 
     const resolvedUrl = response.url || url;
 
-    // Special handling for Google Maps: extract place name from ?q= parameter in the resolved URL
     if (resolvedUrl.includes('google.com/maps') || resolvedUrl.includes('maps.app.goo.gl')) {
       try {
         const parsed = new URL(resolvedUrl);
         const q = parsed.searchParams.get('q');
         if (q) {
-          // Return just the first part (the place name) before the street address
-          const cleanPlace = decodeURIComponent(q).split(/[+,]/)[0].trim();
+          const decodedQ = decodeURIComponent(q).replace(/\+/g, ' ');
+          const cleanPlace = decodedQ.split(',')[0].trim();
           if (cleanPlace && cleanPlace.length > 2) {
             return res.status(200).json({ title: null, mapTitle: cleanPlace, resolvedUrl });
           }
         }
       } catch (e) {
-        // ignore parse errors, fall through to html parsing
       }
     }
 
-    let title = null;
+    let titleLabel = null;
+    let html = null;
 
     if (response.ok) {
-      const html = await response.text();
-
-      // 1. Prioritize og:title or twitter:title usingsafer regex to avoid catastrophic backtracking
+      html = await response.text();
       const ogTitleMatch = html.match(/property=["']og:title["'][^>]*content=["']([^"']+)["']/i) ||
                            html.match(/content=["']([^"']+)["'][^>]*property=["']og:title["']/i);
       const twitterTitleMatch = html.match(/name=["']twitter:title["'][^>]*content=["']([^"']+)["']/i) ||
                                 html.match(/content=["']([^"']+)["'][^>]*name=["']twitter:title["']/i);
 
       if (ogTitleMatch && ogTitleMatch[1]) {
-        title = ogTitleMatch[1];
+        titleLabel = ogTitleMatch[1];
       } else if (twitterTitleMatch && twitterTitleMatch[1]) {
-        title = twitterTitleMatch[1];
+        titleLabel = twitterTitleMatch[1];
       } else {
-        // 2. Fallback to <title> using fast substring search
         const titleStart = html.toLowerCase().indexOf('<title');
         if (titleStart !== -1) {
           const titleTagEnd = html.indexOf('>', titleStart);
           if (titleTagEnd !== -1) {
             const titleEnd = html.toLowerCase().indexOf('</title>', titleTagEnd);
             if (titleEnd !== -1) {
-              title = html.substring(titleTagEnd + 1, titleEnd);
+              titleLabel = html.substring(titleTagEnd + 1, titleEnd);
             }
           }
         }
       }
     }
 
-
-
-    // Clean up title
-    if (title) {
-        title = title.replace(/&#x27;/g, "'")
-                     .replace(/&quot;/g, '"')
-                     .replace(/&amp;/g, '&')
-                     .replace(/&lt;/g, '<')
-                     .replace(/&gt;/g, '>')
-                     .replace(/\s+/g, ' ') // Collapse multiple newlines and spaces into a single space
-                     .trim();
+    if (titleLabel) {
+      titleLabel = titleLabel.replace(/&#x27;/g, "'")
+                   .replace(/&quot;/g, '"')
+                   .replace(/&amp;/g, '&')
+                   .replace(/&lt;/g, '<')
+                   .replace(/&gt;/g, '>')
+                   .replace(/\s+/g, ' ')
+                   .trim();
     }
 
-    // Special handling for ChatGPT
-    const isChatGPT = resolvedUrl.includes('chatgpt.com') || resolvedUrl.includes('openai.com');
-    if (isChatGPT && title) {
-        if (title.toLowerCase().startsWith('chatgpt - ')) {
-            title = title.substring(10).trim();
-        } else if (title === 'ChatGPT') {
-            title = null;
-        }
-    }
-    if (isChatGPT && !title) {
-        title = 'ChatGPT Conversation';
+    const { platform, isAiConversation } = isAiConversationUrl(resolvedUrl);
+    if (isAiConversation) {
+      const resolvedTarget = resolveAiConversationTitle(html, titleLabel, platform);
+      return res.status(200).json({
+        title: resolvedTarget.title,
+        resolvedUrl,
+        platform,
+        source: resolvedTarget.source,
+        isFallback: resolvedTarget.isFallback
+      });
     }
 
-    // Special handling for GitHub
+    let title = titleLabel;
+
     const isGitHub = /github\.com/i.test(resolvedUrl);
     if (isGitHub) {
-        if (!title || /^github$/i.test(title) || /^page not found/i.test(title)) {
-            // Extract from URL: github.com/user/repo
-            try {
-                const parsedUrl = new URL(resolvedUrl);
-                const pathParts = parsedUrl.pathname.split('/').filter(Boolean);
-                if (pathParts.length >= 2) {
-                    title = `${pathParts[0]}/${pathParts[1]}`;
-                } else {
-                    title = 'GitHub Repository';
-                }
-            } catch (e) {
-                // Ignore parse errors
-            }
-        } else {
-            // Clean up "GitHub - user/repo: description..."
-            if (title.startsWith('GitHub - ')) {
-                title = title.substring(9).trim();
-                const repoMatch = title.match(/^([^:]+)/);
-                if (repoMatch && repoMatch[1]) {
-                    title = repoMatch[1].trim();
-                }
+      if (!title || /^github$/i.test(title) || /^page not found/i.test(title)) {
+        try {
+          const parsedUrl = new URL(resolvedUrl);
+          const pathParts = parsedUrl.pathname.split('/').filter(Boolean);
+          if (pathParts.length >= 2) {
+              title = `${pathParts[0]}/${pathParts[1]}`;
+          } else {
+              title = 'GitHub Repository';
+          }
+        } catch (e) {
+        }
+      } else {
+        if (title.startsWith('GitHub - ')) {
+            title = title.substring(9).trim();
+            const repoMatch = title.match(/^([^:]+)/);
+            if (repoMatch && repoMatch[1]) {
+                title = repoMatch[1].trim();
             }
         }
+      }
     }
 
     if (!response.ok && !title) {
