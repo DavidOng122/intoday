@@ -231,7 +231,9 @@ const parseReadableSlugFromUrl = (url) => {
     const cleaned = cleanDisplayText(last);
 
     if (!isMeaningfulText(cleaned)) return null;
-    if (/^[a-z0-9]{6,}$/i.test(cleaned.replace(/\s+/g, ''))) return null;
+    
+    // Check if the original slug is just a long alphanumeric hash without dividers
+    if (!/[-_\s]/.test(last) && /^[a-f0-9]{12,}$|^[a-z0-9]{20,}$/i.test(last)) return null;
 
     return toTitleCase(cleaned);
   } catch {
@@ -342,6 +344,7 @@ const getUrlPlatformLabel = (url, cardType) => {
     const host = parsed.hostname.toLowerCase();
     const path = parsed.pathname.toLowerCase();
 
+    if (host.includes('github.com')) return 'GitHub';
     if (host.includes('chatgpt.com') || host.includes('openai.com')) return 'ChatGPT';
     if (host.includes('gemini.google.com') || host.includes('bard.google.com')) return 'Gemini';
     if (host.includes('claude.ai')) return 'Claude';

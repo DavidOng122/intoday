@@ -45,10 +45,6 @@ export default async function handler(req, res) {
 
     const resolvedUrl = response.url || url;
 
-    if (!response.ok) {
-      return res.status(response.status).json({ error: `Failed to fetch URL: ${response.statusText}`, title: null, resolvedUrl });
-    }
-
     // Special handling for Google Maps: extract place name from ?q= parameter in the resolved URL
     if (resolvedUrl.includes('google.com/maps') || resolvedUrl.includes('maps.app.goo.gl')) {
       try {
@@ -66,29 +62,37 @@ export default async function handler(req, res) {
       }
     }
 
-    const html = await response.text();
-
     let title = null;
 
-    // 1. Prioritize og:title using safer regex to avoid catastrophic backtracking
-    const ogTitleMatch = html.match(/property=["']og:title["'][^>]*content=["']([^"']+)["']/i) ||
-                         html.match(/content=["']([^"']+)["'][^>]*property=["']og:title["']/i);
+    if (response.ok) {
+      const html = await response.text();
 
-    if (ogTitleMatch && ogTitleMatch[1]) {
-      title = ogTitleMatch[1];
-    } else {
-      // 2. Fallback to <title> using fast substring search
-      const titleStart = html.toLowerCase().indexOf('<title');
-      if (titleStart !== -1) {
-        const titleTagEnd = html.indexOf('>', titleStart);
-        if (titleTagEnd !== -1) {
-          const titleEnd = html.toLowerCase().indexOf('</title>', titleTagEnd);
-          if (titleEnd !== -1) {
-            title = html.substring(titleTagEnd + 1, titleEnd);
+      // 1. Prioritize og:title or twitter:title usingsafer regex to avoid catastrophic backtracking
+      const ogTitleMatch = html.match(/property=["']og:title["'][^>]*content=["']([^"']+)["']/i) ||
+                           html.match(/content=["']([^"']+)["'][^>]*property=["']og:title["']/i);
+      const twitterTitleMatch = html.match(/name=["']twitter:title["'][^>]*content=["']([^"']+)["']/i) ||
+                                html.match(/content=["']([^"']+)["'][^>]*name=["']twitter:title["']/i);
+
+      if (ogTitleMatch && ogTitleMatch[1]) {
+        title = ogTitleMatch[1];
+      } else if (twitterTitleMatch && twitterTitleMatch[1]) {
+        title = twitterTitleMatch[1];
+      } else {
+        // 2. Fallback to <title> using fast substring search
+        const titleStart = html.toLowerCase().indexOf('<title');
+        if (titleStart !== -1) {
+          const titleTagEnd = html.indexOf('>', titleStart);
+          if (titleTagEnd !== -1) {
+            const titleEnd = html.toLowerCase().indexOf('</title>', titleTagEnd);
+            if (titleEnd !== -1) {
+              title = html.substring(titleTagEnd + 1, titleEnd);
+            }
           }
         }
       }
     }
+
+
 
     // Clean up title
     if (title) {
@@ -99,13 +103,51 @@ export default async function handler(req, res) {
                      .replace(/&gt;/g, '>')
                      .replace(/\s+/g, ' ') // Collapse multiple newlines and spaces into a single space
                      .trim();
+    }
 
-        // Special handling for ChatGPT: it often returns "ChatGPT - <Actual Title>"
-        if (resolvedUrl.includes('chatgpt.com') && title.toLowerCase().startsWith('chatgpt - ')) {
-          title = title.substring(10).trim();
+    // Special handling for ChatGPT
+    const isChatGPT = resolvedUrl.includes('chatgpt.com') || resolvedUrl.includes('openai.com');
+    if (isChatGPT && title) {
+        if (title.toLowerCase().startsWith('chatgpt - ')) {
+            title = title.substring(10).trim();
         } else if (title === 'ChatGPT') {
-          title = null; // if it's literally just "ChatGPT", don't save it so we don't pollute the generic title
+            title = null;
         }
+    }
+    if (isChatGPT && !title) {
+        title = 'ChatGPT Conversation';
+    }
+
+    // Special handling for GitHub
+    const isGitHub = /github\.com/i.test(resolvedUrl);
+    if (isGitHub) {
+        if (!title || /^github$/i.test(title) || /^page not found/i.test(title)) {
+            // Extract from URL: github.com/user/repo
+            try {
+                const parsedUrl = new URL(resolvedUrl);
+                const pathParts = parsedUrl.pathname.split('/').filter(Boolean);
+                if (pathParts.length >= 2) {
+                    title = `${pathParts[0]}/${pathParts[1]}`;
+                } else {
+                    title = 'GitHub Repository';
+                }
+            } catch (e) {
+                // Ignore parse errors
+            }
+        } else {
+            // Clean up "GitHub - user/repo: description..."
+            if (title.startsWith('GitHub - ')) {
+                title = title.substring(9).trim();
+                const repoMatch = title.match(/^([^:]+)/);
+                if (repoMatch && repoMatch[1]) {
+                    title = repoMatch[1].trim();
+                }
+            }
+        }
+    }
+
+    if (!response.ok && !title) {
+      return res.status(response.status).json({ error: `Failed to fetch URL: ${response.statusText}`, title: null, resolvedUrl });
     }
 
     return res.status(200).json({ title: title || null, resolvedUrl });
