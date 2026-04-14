@@ -540,10 +540,13 @@ const resolveDesktopCanvasEntries = (tasks, dateString) => {
       if (processedGroupIds.has(task.desktopGroupId)) {
         return entries;
       }
-      const groupedTasks = selectedTasks.filter((item) => item.desktopGroupId === task.desktopGroupId);
+      const activeGroupTasks = selectedTasks.filter((item) => item.desktopGroupId === task.desktopGroupId);
+      const groupedTasks = tasks.filter((item) => item.desktopGroupId === task.desktopGroupId);
       if (groupedTasks.length > 1) {
         processedGroupIds.add(task.desktopGroupId);
-        const anchorTask = groupedTasks.find((item) => (
+        const anchorTask = activeGroupTasks.find((item) => (
+          isFiniteCanvasCoordinate(item.desktopCanvasX) && isFiniteCanvasCoordinate(item.desktopCanvasY)
+        )) || groupedTasks.find((item) => (
           isFiniteCanvasCoordinate(item.desktopCanvasX) && isFiniteCanvasCoordinate(item.desktopCanvasY)
         )) || task;
         entries.push({
