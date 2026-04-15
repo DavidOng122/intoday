@@ -125,8 +125,6 @@ const sections = [
   },
 ];
 const DESKTOP_DRAG_START_DISTANCE = 8;
-const DESKTOP_DRAG_SCROLL_ZONE = 96;
-const DESKTOP_DRAG_MAX_SCROLL_SPEED = 1.35;
 const DESKTOP_DRAG_DAY_EDGE_HOLD_MS = 380;
 const DESKTOP_DRAG_DAY_FLIP_COOLDOWN_MS = 700;
 const DESKTOP_DRAG_DAY_FLIP_ZONE_PX = 56;
@@ -146,7 +144,7 @@ const DESKTOP_TIME_AXIS_LINE_BOTTOM = 36;
 const DESKTOP_TIME_MARKER_SIZE = 7;
 const DESKTOP_SLOT_MIN_HEIGHT = 98;
 const DESKTOP_SLOT_GAP = 22;
-const DESKTOP_CANVAS_DEFAULT_SCALE = 1;
+const DESKTOP_CANVAS_DEFAULT_ZOOM = 0.8;
 const DESKTOP_CANVAS_MIN_SCALE = 0.15;
 const DESKTOP_CANVAS_MAX_SCALE = 2;
 const DESKTOP_CANVAS_SCALE_STEP = 0.12;
@@ -167,7 +165,20 @@ const DESKTOP_GROUP_CARD_MIN_HEIGHT = 176;
 const DESKTOP_GROUP_CARD_ITEM_HEIGHT = 60;
 const DESKTOP_GROUP_CARD_VISIBLE_ITEMS = 3;
 const DESKTOP_GROUP_CARD_EXPANDED_VISIBLE_ITEMS = 5;
-const DESKTOP_UI_SCALE = 0.8;
+// Pure coordinate utility functions (no DOM refs, no closures)
+const canvasToScreen = (canvasX, canvasY, vp) => ({
+  x: canvasX * vp.zoom + vp.panX,
+  y: canvasY * vp.zoom + vp.panY,
+});
+const screenToCanvas = (screenX, screenY, vp) => ({
+  x: (screenX - vp.panX) / vp.zoom,
+  y: (screenY - vp.panY) / vp.zoom,
+});
+// Root-level app window scale (OS density scaling) — unrelated to canvas zoom.
+// The entire desktop app wrapper is scaled down to 0.8 so the UI fits a typical
+// consumer monitor pixel density. Drag overlay positions must compensate for this.
+const DESKTOP_APP_WINDOW_SCALE = 0.8;
+
 const getDesktopSectionPillStyle = (section, appearance) => (
   appearance === 'dark'
     ? {
@@ -3173,47 +3184,7 @@ const GroupDragPreview = ({ tasks, appearance, labels }) => {
   );
 };
 
-const DragOverlayCard = (props) => {
-  const { task, rect, appearance, tasks } = props;
-  const taskCardLabels = props?.labels;
 
-  if (!task || !rect) return null;
-
-  // Reliability Fix: 
-  // Get all members of the group this task belongs to, regardless of whether
-  // the task object currently being dragged has groupTaskIds (which may be virtual).
-  const groupTasks = task.desktopGroupId 
-    ? tasks.filter(t => t.desktopGroupId === task.desktopGroupId) 
-    : [];
-
-  // It's a group drag if we expressly initiated it from the group header/container
-  const isGroupDrag = !!task.isGroupInitiator;
-
-  const displayGroupTasks = isGroupDrag ? groupTasks : [];
-
-  return (
-    <div
-      id="desktop-task-drag-overlay"
-      className="desktop-task-drag-overlay"
-      style={{
-        left: 0,
-        top: 0,
-        transform: `translate3d(${rect.left / DESKTOP_UI_SCALE}px, ${rect.top / DESKTOP_UI_SCALE}px, 0)`,
-        width: rect.width / DESKTOP_UI_SCALE,
-        height: (isGroupDrag ? getDesktopGroupCardHeight(Math.min(displayGroupTasks.length, 3)) : rect.height) / DESKTOP_UI_SCALE,
-        willChange: 'transform',
-      }}
-    >
-      <div className="desktop-task-drag-overlay-card" style={{ opacity: 1, height: '100%' }}>
-        {isGroupDrag ? (
-          <GroupDragPreview tasks={displayGroupTasks} appearance={appearance} labels={taskCardLabels} />
-        ) : (
-          <TaskCardContent task={task} appearance={appearance} labels={taskCardLabels} />
-        )}
-      </div>
-    </div>
-  );
-};
 
 const DesktopGroupPrompt = ({
   prompt,
@@ -3480,7 +3451,7 @@ const DailyTaskList = ({
           ? (draggedTaskId === dragTask.id && isGroupDragActive) // Only hide whole card if lead task (group drag) is active
           : (draggedTaskId === entry.task.id && !isGroupDragActive);
         return (
-        <div key={entry.type === 'group' ? `group-${entry.id}` : entry.task.id} data-desktop-layout-id={`task-${dragTask.id}`} className="desktop-canvas-card-node" style={{ left: entry.x, top: entry.y, width: DESKTOP_CANVAS_CARD_WIDTH }}>
+        <div key={entry.type === 'group' ? `group-${entry.id}` : entry.task.id} id={`desktop-canvas-entry-${dragTask.id}`} data-desktop-layout-id={`task-${dragTask.id}`} className="desktop-canvas-card-node" style={{ left: entry.x, top: entry.y, width: DESKTOP_CANVAS_CARD_WIDTH }}>
           <div className={`desktop-canvas-card-shell ${isGroupReady ? 'desktop-canvas-card-shell--group-ready' : ''} ${isDragging ? 'is-dragging' : ''}`}>
             {entry.type === 'group' ? (
                 <GroupedTaskCard
@@ -4053,7 +4024,6 @@ function App() {
   );
   const selectedDateRef = useRef(selectedDate);
   const tasksRef = useRef(currentWorkspaceTasks);
-  const mainScrollRef = useRef(null);
   const desktopDragViewportRef = useRef(null);
   const desktopDragStateRef = useRef({
     pointerId: null,
@@ -4063,9 +4033,7 @@ function App() {
   });
   const activePointerTaskRef = useRef(null);
   const desktopDragPointerRef = useRef({ x: 0, y: 0 });
-  const desktopDragOriginRectRef = useRef(null);
-  const desktopDragPointerOffsetRef = useRef({ x: 0, y: 0 });
-  const desktopDragOverlayRectRef = useRef(null);
+  const desktopDragCanvasStartRef = useRef(null); // canvas-space point where drag began
   const desktopDragModeRef = useRef(false);
   const desktopDragSelectedTaskIdsRef = useRef(new Set());
   const desktopDragSelectionPositionsRef = useRef(new Map());
@@ -4076,9 +4044,6 @@ function App() {
   const desktopSelectionStateRef = useRef({ pointerId: null, origin: null });
   const dragOverSectionRef = useRef(null);
   const dragOverSlotRef = useRef(null);
-  const lockedMainScrollTopRef = useRef(0);
-  const desktopAutoScrollFrameRef = useRef(null);
-  const desktopAutoScrollLastTsRef = useRef(null);
   const desktopDayFlipTimerRef = useRef(null);
   const desktopDayFlipDirectionRef = useRef(0);
   const desktopDayFlipCooldownUntilRef = useRef(0);
@@ -4091,14 +4056,13 @@ function App() {
   const suppressAllTaskClicksUntilRef = useRef(0);
   const suppressTaskClickTimeoutRef = useRef(null);
   const desktopLayoutRectsRef = useRef(new Map());
-  const desktopCanvasScaleRef = useRef(DESKTOP_CANVAS_DEFAULT_SCALE);
   const desktopCanvasContentRef = useRef(null);
-  const desktopCanvasSizerRef = useRef(null);
+  const viewportContainerRef = useRef(null);
   const searchDragSeparateRef = useRef(false);
   const editCopyResetTimerRef = useRef(null);
   const canvasFileDragDepthRef = useRef(0);
-  const [desktopCanvasScale, setDesktopCanvasScale] = useState(DESKTOP_CANVAS_DEFAULT_SCALE);
-  const [desktopCanvasBaseHeight, setDesktopCanvasBaseHeight] = useState(0);
+  const [viewport, setViewport] = useState({ panX: 0, panY: 0, zoom: DESKTOP_CANVAS_DEFAULT_ZOOM });
+  const viewportRef = useRef({ panX: 0, panY: 0, zoom: DESKTOP_CANVAS_DEFAULT_ZOOM });
   const [desktopCanvasPanReady, setDesktopCanvasPanReady] = useState(false);
   const [desktopCanvasPanActive, setDesktopCanvasPanActive] = useState(false);
   const [desktopZoomMenuOpen, setDesktopZoomMenuOpen] = useState(false);
@@ -4106,8 +4070,8 @@ function App() {
     pointerId: null,
     startX: 0,
     startY: 0,
-    scrollLeft: 0,
-    scrollTop: 0,
+    startPanX: 0,
+    startPanY: 0,
   });
 
   useEffect(() => {
@@ -4179,8 +4143,8 @@ function App() {
     selectedTaskIdsRef.current = new Set(selectedTaskIds);
   }, [selectedTaskIds]);
   useEffect(() => {
-    desktopCanvasScaleRef.current = desktopCanvasScale;
-  }, [desktopCanvasScale]);
+    viewportRef.current = viewport;
+  }, [viewport]);
   useEffect(() => {
     if (!desktopZoomMenuOpen) return undefined;
 
@@ -4216,10 +4180,6 @@ function App() {
       window.clearTimeout(editCopyResetTimerRef.current);
       editCopyResetTimerRef.current = null;
     }
-    if (desktopAutoScrollFrameRef.current !== null) {
-      window.cancelAnimationFrame(desktopAutoScrollFrameRef.current);
-      desktopAutoScrollFrameRef.current = null;
-    }
     if (desktopDayFlipTimerRef.current !== null) {
       window.clearTimeout(desktopDayFlipTimerRef.current);
       desktopDayFlipTimerRef.current = null;
@@ -4247,29 +4207,7 @@ function App() {
     setActiveWorkspaceId(fallbackWorkspaceId);
     localStorage.setItem(DESKTOP_ACTIVE_WORKSPACE_KEY, fallbackWorkspaceId);
   }, [activeWorkspaceId, workspaces]);
-  useLayoutEffect(() => {
-    const content = desktopCanvasContentRef.current;
-    if (!content) return undefined;
 
-    const updateCanvasHeight = () => {
-      setDesktopCanvasBaseHeight(content.offsetHeight);
-    };
-
-    updateCanvasHeight();
-
-    if (typeof ResizeObserver === 'undefined') {
-      window.addEventListener('resize', updateCanvasHeight);
-      return () => window.removeEventListener('resize', updateCanvasHeight);
-    }
-
-    const observer = new ResizeObserver(() => updateCanvasHeight());
-    observer.observe(content);
-    window.addEventListener('resize', updateCanvasHeight);
-    return () => {
-      observer.disconnect();
-      window.removeEventListener('resize', updateCanvasHeight);
-    };
-  }, [tasks, panelOpen, selectedDate]);
   useEffect(() => {
     const handleStorageChange = (e) => {
       if (e.key === DESKTOP_APPEARANCE_KEY && e.newValue) {
@@ -4309,61 +4247,21 @@ function App() {
   const currentBlock = currentSection(currentTime);
 
   const fitDesktopCanvas = useCallback(() => {
-    const viewport = mainScrollRef.current;
-    if (!viewport) return;
-
-    const viewportWidth = Math.max(0, viewport.clientWidth - 64);
-    const viewportHeight = Math.max(0, viewport.clientHeight - 64);
-    const widthScale = viewportWidth / DESKTOP_MAIN_CONTENT_MAX_WIDTH;
-    const heightScale = desktopCanvasBaseHeight > 0 ? viewportHeight / desktopCanvasBaseHeight : DESKTOP_CANVAS_DEFAULT_SCALE;
-    const fittedScale = clampDesktopCanvasScale(Number(Math.min(widthScale, heightScale, DESKTOP_CANVAS_DEFAULT_SCALE).toFixed(2)));
-    setDesktopCanvasScale(fittedScale);
-  }, [desktopCanvasBaseHeight]);
-
-  const getDesktopCanvasPositionFromPointer = useCallback((clientX, clientY) => {
-    const content = desktopCanvasContentRef.current;
-    const originRect = desktopDragOriginRectRef.current;
-    if (!content || !originRect) return null;
-
-    const pointerOffset = desktopDragPointerOffsetRef.current;
-    const contentRect = content.getBoundingClientRect();
-    const canvasScale = desktopCanvasScaleRef.current || 1;
-    const renderedScale = canvasScale * DESKTOP_UI_SCALE;
-    const logicalCardWidth = originRect.width / renderedScale;
-    const logicalOffsetX = pointerOffset.x / renderedScale;
-    const logicalOffsetY = pointerOffset.y / renderedScale;
-    return {
-      x: ((clientX - contentRect.left) / renderedScale) - logicalOffsetX,
-      y: ((clientY - contentRect.top) / renderedScale) - logicalOffsetY,
-    };
+    const container = viewportContainerRef.current;
+    if (!container) return;
+    const vw = container.clientWidth;
+    const zoom = clampDesktopCanvasScale(Math.min(vw / DESKTOP_MAIN_CONTENT_MAX_WIDTH, DESKTOP_CANVAS_DEFAULT_ZOOM));
+    const nextVp = { panX: 0, panY: 0, zoom };
+    viewportRef.current = nextVp;
+    setViewport(nextVp);
   }, []);
 
-  const getDesktopCanvasDropPositionFromPointer = useCallback((clientX, clientY, width = DESKTOP_CANVAS_CARD_WIDTH, height = DESKTOP_CANVAS_CARD_HEIGHT) => {
-    const content = desktopCanvasContentRef.current;
-    if (!content) return null;
-
-    const contentRect = content.getBoundingClientRect();
-    const canvasScale = desktopCanvasScaleRef.current || 1;
-    const renderedScale = canvasScale * DESKTOP_UI_SCALE;
-    return {
-      x: ((clientX - contentRect.left) / renderedScale) - (width / 2),
-      y: ((clientY - contentRect.top) / renderedScale) - (height / 2),
-    };
+  const getCanvasPointFromClient = useCallback((clientX, clientY) => {
+    const container = viewportContainerRef.current;
+    if (!container) return null;
+    const rect = container.getBoundingClientRect();
+    return screenToCanvas(clientX - rect.left, clientY - rect.top, viewportRef.current);
   }, []);
-
-  function getDesktopCanvasPointFromClient(clientX, clientY) {
-    const content = desktopCanvasContentRef.current;
-    if (!content) return null;
-
-    const contentRect = content.getBoundingClientRect();
-    const canvasScale = desktopCanvasScaleRef.current || 1;
-    const renderedScale = canvasScale * DESKTOP_UI_SCALE;
-
-    return {
-      x: (clientX - contentRect.left) / renderedScale,
-      y: (clientY - contentRect.top) / renderedScale,
-    };
-  }
 
   const updateDesktopSelectionFromRect = useCallback((selectionRect) => {
     const nextSelectedTaskIds = selectedDayEntriesRef.current.flatMap((entry) => {
@@ -4382,35 +4280,32 @@ function App() {
     setSelectedTaskIds([...new Set(nextSelectedTaskIds)]);
   }, []);
 
-  const updateDesktopCanvasScale = useCallback((nextScale, anchor = null) => {
-    const viewport = mainScrollRef.current;
-    const currentScale = desktopCanvasScaleRef.current;
-    const clampedScale = clampDesktopCanvasScale(Number(nextScale.toFixed(2)));
-    if (!viewport || Math.abs(clampedScale - currentScale) < 0.001) return;
+  const updateDesktopCanvasZoom = useCallback((nextZoom, anchor = null) => {
+    const container = viewportContainerRef.current;
+    const current = viewportRef.current;
+    const clampedZoom = clampDesktopCanvasScale(Number(nextZoom.toFixed(3)));
+    if (!container || Math.abs(clampedZoom - current.zoom) < 0.001) return;
 
-    const viewportRect = viewport.getBoundingClientRect();
-    const anchorX = anchor ? anchor.clientX - viewportRect.left : viewport.clientWidth / 2;
-    const anchorY = anchor ? anchor.clientY - viewportRect.top : viewport.clientHeight / 2;
-    const contentX = (viewport.scrollLeft + anchorX) / currentScale;
-    const contentY = (viewport.scrollTop + anchorY) / currentScale;
-
-    setDesktopCanvasScale(clampedScale);
-
-    requestAnimationFrame(() => {
-      viewport.scrollLeft = Math.max(0, (contentX * clampedScale) - anchorX);
-      viewport.scrollTop = Math.max(0, (contentY * clampedScale) - anchorY);
-    });
+    const containerRect = container.getBoundingClientRect();
+    const screenAnchorX = anchor ? anchor.clientX - containerRect.left : container.clientWidth / 2;
+    const screenAnchorY = anchor ? anchor.clientY - containerRect.top : container.clientHeight / 2;
+    const { x: canvasAnchorX, y: canvasAnchorY } = screenToCanvas(screenAnchorX, screenAnchorY, current);
+    const nextPanX = screenAnchorX - canvasAnchorX * clampedZoom;
+    const nextPanY = screenAnchorY - canvasAnchorY * clampedZoom;
+    const nextVp = { panX: nextPanX, panY: nextPanY, zoom: clampedZoom };
+    viewportRef.current = nextVp;
+    setViewport(nextVp);
   }, []);
 
   const handleDesktopCanvasWheel = useCallback((event) => {
     if (!(event.ctrlKey || event.metaKey)) return;
     event.preventDefault();
     const direction = event.deltaY > 0 ? -1 : 1;
-    updateDesktopCanvasScale(
-      desktopCanvasScaleRef.current + (direction * DESKTOP_CANVAS_SCALE_STEP),
+    updateDesktopCanvasZoom(
+      viewportRef.current.zoom + (direction * DESKTOP_CANVAS_SCALE_STEP),
       { clientX: event.clientX, clientY: event.clientY },
     );
-  }, [updateDesktopCanvasScale]);
+  }, [updateDesktopCanvasZoom]);
 
   const handleDesktopCanvasPointerDown = useCallback((event) => {
     if (event.button !== 0 || isEditableElement(event.target)) return;
@@ -4423,8 +4318,8 @@ function App() {
         pointerId: event.pointerId,
         startX: event.clientX,
         startY: event.clientY,
-        scrollLeft: mainScrollRef.current?.scrollLeft || 0,
-        scrollTop: mainScrollRef.current?.scrollTop || 0,
+        startPanX: viewportRef.current.panX,
+        startPanY: viewportRef.current.panY,
       };
 
       event.currentTarget.setPointerCapture?.(event.pointerId);
@@ -4436,7 +4331,7 @@ function App() {
       return;
     }
 
-    const origin = getDesktopCanvasPointFromClient(event.clientX, event.clientY);
+    const origin = getCanvasPointFromClient(event.clientX, event.clientY);
     if (!origin) return;
 
     event.preventDefault();
@@ -4448,11 +4343,11 @@ function App() {
     };
     setDesktopSelectionRect({ x: origin.x, y: origin.y, width: 0, height: 0 });
     setSelectedTaskIds([]);
-  }, [desktopCanvasPanReady, getDesktopCanvasPointFromClient]);
+  }, [desktopCanvasPanReady, getCanvasPointFromClient]);
 
   const handleDesktopCanvasPointerMove = useCallback((event) => {
     if (desktopSelectionStateRef.current.pointerId === event.pointerId) {
-      const nextPoint = getDesktopCanvasPointFromClient(event.clientX, event.clientY);
+      const nextPoint = getCanvasPointFromClient(event.clientX, event.clientY);
       if (!nextPoint || !desktopSelectionStateRef.current.origin) return;
 
       const nextRect = getDesktopSelectionRect(desktopSelectionStateRef.current.origin, nextPoint);
@@ -4462,14 +4357,15 @@ function App() {
     }
 
     if (!desktopCanvasPanActive || desktopCanvasPanStateRef.current.pointerId !== event.pointerId) return;
-    const viewport = mainScrollRef.current;
-    if (!viewport) return;
 
-    const deltaX = event.clientX - desktopCanvasPanStateRef.current.startX;
-    const deltaY = event.clientY - desktopCanvasPanStateRef.current.startY;
-    viewport.scrollLeft = desktopCanvasPanStateRef.current.scrollLeft - deltaX;
-    viewport.scrollTop = desktopCanvasPanStateRef.current.scrollTop - deltaY;
-  }, [desktopCanvasPanActive, getDesktopCanvasPointFromClient, updateDesktopSelectionFromRect]);
+    const dx = event.clientX - desktopCanvasPanStateRef.current.startX;
+    const dy = event.clientY - desktopCanvasPanStateRef.current.startY;
+    const nextPanX = desktopCanvasPanStateRef.current.startPanX + dx;
+    const nextPanY = desktopCanvasPanStateRef.current.startPanY + dy;
+    const nextVp = { ...viewportRef.current, panX: nextPanX, panY: nextPanY };
+    viewportRef.current = nextVp;
+    setViewport(nextVp);
+  }, [desktopCanvasPanActive, getCanvasPointFromClient, updateDesktopSelectionFromRect]);
 
   const handleDesktopCanvasPointerEnd = useCallback((event) => {
     if (desktopSelectionStateRef.current.pointerId === event.pointerId) {
@@ -4514,13 +4410,13 @@ function App() {
 
       if (event.key === '+' || event.key === '=') {
         event.preventDefault();
-        setDesktopCanvasScale((current) => clampDesktopCanvasScale(Number((current + DESKTOP_CANVAS_SCALE_STEP).toFixed(2))));
+        updateDesktopCanvasZoom(viewportRef.current.zoom + DESKTOP_CANVAS_SCALE_STEP);
       } else if (event.key === '-') {
         event.preventDefault();
-        setDesktopCanvasScale((current) => clampDesktopCanvasScale(Number((current - DESKTOP_CANVAS_SCALE_STEP).toFixed(2))));
+        updateDesktopCanvasZoom(viewportRef.current.zoom - DESKTOP_CANVAS_SCALE_STEP);
       } else if (event.key === '0') {
         event.preventDefault();
-        setDesktopCanvasScale(DESKTOP_CANVAS_DEFAULT_SCALE);
+        updateDesktopCanvasZoom(DESKTOP_CANVAS_DEFAULT_ZOOM);
       }
     };
 
@@ -4549,16 +4445,16 @@ function App() {
   }, [activeGroupView, editingTaskId, fitDesktopCanvas, panelOpen]);
   const handleDesktopZoomPresetSelect = useCallback((preset) => {
     if (preset === 'in') {
-      updateDesktopCanvasScale(desktopCanvasScaleRef.current + DESKTOP_CANVAS_SCALE_STEP);
+      updateDesktopCanvasZoom(viewportRef.current.zoom + DESKTOP_CANVAS_SCALE_STEP);
     } else if (preset === 'out') {
-      updateDesktopCanvasScale(desktopCanvasScaleRef.current - DESKTOP_CANVAS_SCALE_STEP);
+      updateDesktopCanvasZoom(viewportRef.current.zoom - DESKTOP_CANVAS_SCALE_STEP);
     } else if (preset === 'fit') {
       fitDesktopCanvas();
     } else if (typeof preset === 'number') {
-      updateDesktopCanvasScale(preset);
+      updateDesktopCanvasZoom(preset);
     }
     setDesktopZoomMenuOpen(false);
-  }, [fitDesktopCanvas, updateDesktopCanvasScale]);
+  }, [fitDesktopCanvas, updateDesktopCanvasZoom]);
 
   const suppressNextTaskClick = useCallback((taskId) => {
     if (suppressTaskClickTimeoutRef.current !== null) {
@@ -4620,7 +4516,7 @@ function App() {
   }, [resetDesktopDragInteraction]);
 
   const updateDesktopDragOverlapTarget = useCallback((clientX, clientY, taskId) => {
-    const nextPosition = getDesktopCanvasPositionFromPointer(clientX, clientY);
+    const nextPosition = getCanvasPointFromClient(clientX, clientY);
     if (!nextPosition) return;
 
     const movingTaskIds = new Set(
@@ -4660,7 +4556,7 @@ function App() {
 
     desktopDragOverlapTargetIdRef.current = nextTargetId;
     setDesktopDragOverlapTargetId(nextTargetId);
-  }, [getDesktopCanvasPositionFromPointer]);
+  }, [getCanvasPointFromClient]);
 
   const getNearestDesktopDropTarget = useCallback((clientX, clientY) => {
     const slots = document.querySelectorAll('[data-desktop-slot-id]');
@@ -4687,23 +4583,28 @@ function App() {
   }, []);
 
 
-  const syncDesktopDraggedTaskPosition = useCallback((taskId, clientX, clientY) => {
-    const overlay = document.getElementById('desktop-task-drag-overlay');
-    if (!overlay) return;
-    const originRect = desktopDragOriginRectRef.current;
-    const pointerOffset = desktopDragPointerOffsetRef.current;
-    if (originRect) {
-      const left = clientX - pointerOffset.x;
-      const top = clientY - pointerOffset.y;
-      overlay.style.transform = `translate3d(${left / DESKTOP_UI_SCALE}px, ${top / DESKTOP_UI_SCALE}px, 0)`;
-      desktopDragOverlayRectRef.current = {
-        left,
-        top,
-        width: originRect.width,
-        height: originRect.height,
-      };
-    }
-  }, []);
+  const syncDesktopDraggedTaskPosition = useCallback((clientX, clientY) => {
+    const startPt = desktopDragCanvasStartRef.current;
+    if (!startPt) return;
+    const currentPt = getCanvasPointFromClient(clientX, clientY);
+    if (!currentPt) return;
+
+    const dx = currentPt.x - startPt.x;
+    const dy = currentPt.y - startPt.y;
+
+    const movingIds = desktopDragSelectedTaskIdsRef.current.size > 0
+      ? [...desktopDragSelectedTaskIdsRef.current]
+      : [desktopDragStateRef.current.taskId];
+
+    movingIds.forEach((id) => {
+      // Target the absolutely-positioned canvas entry node (not the inner wrapper)
+      const node = document.getElementById(`desktop-canvas-entry-${id}`);
+      if (node) {
+        node.style.transform = `translate(${dx}px, ${dy}px)`;
+        node.style.zIndex = '999';
+      }
+    });
+  }, [getCanvasPointFromClient]);
 
   const moveDraggedTaskToDate = useCallback((taskId, nextDate) => {
     if (!taskId || !nextDate) return;
@@ -4729,10 +4630,10 @@ function App() {
   }, []);
 
   const updateDesktopDragDayAutoFlip = useCallback((clientX, taskId) => {
-    const viewport = desktopDragViewportRef.current || mainScrollRef.current;
-    if (!viewport || !taskId) return;
+    const viewportEl = desktopDragViewportRef.current || viewportContainerRef.current;
+    if (!viewportEl || !taskId) return;
 
-    const rect = viewport.getBoundingClientRect();
+    const rect = viewportEl.getBoundingClientRect();
     const zones = getDesktopDayFlipZones(rect);
 
     let direction = 0;
@@ -4815,178 +4716,67 @@ function App() {
     }
   }, [clearDesktopDayFlipHoldTimer, clearDesktopDayFlipTimer, moveDraggedTaskToDate, scheduleDesktopDayFlipArm, setDesktopDragDayArmed]);
 
-  const stopDesktopAutoScroll = useCallback(() => {
-    desktopAutoScrollLastTsRef.current = null;
-    if (desktopAutoScrollFrameRef.current !== null) {
-      window.cancelAnimationFrame(desktopAutoScrollFrameRef.current);
-      desktopAutoScrollFrameRef.current = null;
-    }
-  }, []);
-
-  const runDesktopAutoScroll = useCallback((timestamp) => {
-    if (!desktopDragModeRef.current || !desktopDragStateRef.current.taskId) {
-      stopDesktopAutoScroll();
-      return;
-    }
-
-    const mainScroll = mainScrollRef.current;
-    if (!mainScroll) {
-      stopDesktopAutoScroll();
-      return;
-    }
-
-    if (desktopAutoScrollLastTsRef.current === null) {
-      desktopAutoScrollLastTsRef.current = timestamp;
-    }
-
-    const elapsed = Math.min(timestamp - desktopAutoScrollLastTsRef.current, 32);
-    desktopAutoScrollLastTsRef.current = timestamp;
-    const rect = mainScroll.getBoundingClientRect();
-    const maxScrollLeft = Math.max(0, mainScroll.scrollWidth - mainScroll.clientWidth);
-    const maxScrollTop = Math.max(0, mainScroll.scrollHeight - mainScroll.clientHeight);
-    const clientX = desktopDragPointerRef.current.x;
-    const clientY = desktopDragPointerRef.current.y;
-    let velocityX = 0;
-    let velocityY = 0;
-
-    if (clientX < rect.left + DESKTOP_DRAG_SCROLL_ZONE) {
-      const intensity = (rect.left + DESKTOP_DRAG_SCROLL_ZONE - clientX) / DESKTOP_DRAG_SCROLL_ZONE;
-      velocityX = -DESKTOP_DRAG_MAX_SCROLL_SPEED * Math.min(Math.max(intensity, 0), 1);
-    } else if (clientX > rect.right - DESKTOP_DRAG_SCROLL_ZONE) {
-      const intensity = (clientX - (rect.right - DESKTOP_DRAG_SCROLL_ZONE)) / DESKTOP_DRAG_SCROLL_ZONE;
-      velocityX = DESKTOP_DRAG_MAX_SCROLL_SPEED * Math.min(Math.max(intensity, 0), 1);
-    }
-
-    if (clientY < rect.top + DESKTOP_DRAG_SCROLL_ZONE) {
-      const intensity = (rect.top + DESKTOP_DRAG_SCROLL_ZONE - clientY) / DESKTOP_DRAG_SCROLL_ZONE;
-      velocityY = -DESKTOP_DRAG_MAX_SCROLL_SPEED * Math.min(Math.max(intensity, 0), 1);
-    } else if (clientY > rect.bottom - DESKTOP_DRAG_SCROLL_ZONE) {
-      const intensity = (clientY - (rect.bottom - DESKTOP_DRAG_SCROLL_ZONE)) / DESKTOP_DRAG_SCROLL_ZONE;
-      velocityY = DESKTOP_DRAG_MAX_SCROLL_SPEED * Math.min(Math.max(intensity, 0), 1);
-    }
-
-    if ((velocityX < 0 && mainScroll.scrollLeft <= 0) || (velocityX > 0 && mainScroll.scrollLeft >= maxScrollLeft)) {
-      velocityX = 0;
-    }
-
-    if ((velocityY < 0 && mainScroll.scrollTop <= 0) || (velocityY > 0 && mainScroll.scrollTop >= maxScrollTop)) {
-      velocityY = 0;
-    }
-
-    if (velocityX !== 0 || velocityY !== 0) {
-      const prevScrollLeft = mainScroll.scrollLeft;
-      const prevScrollTop = mainScroll.scrollTop;
-      const nextScrollLeft = Math.max(0, Math.min(maxScrollLeft, prevScrollLeft + (velocityX * elapsed)));
-      const nextScrollTop = Math.max(0, Math.min(maxScrollTop, prevScrollTop + (velocityY * elapsed)));
-      if (nextScrollLeft !== prevScrollLeft || nextScrollTop !== prevScrollTop) {
-        mainScroll.scrollLeft = nextScrollLeft;
-        mainScroll.scrollTop = nextScrollTop;
-        syncDesktopDraggedTaskPosition(
-          desktopDragStateRef.current.taskId,
-          desktopDragPointerRef.current.x,
-          desktopDragPointerRef.current.y,
-        );
-      }
-    }
-
-    desktopAutoScrollFrameRef.current = window.requestAnimationFrame(runDesktopAutoScroll);
-  }, [stopDesktopAutoScroll, syncDesktopDraggedTaskPosition]);
 
   const startDesktopTaskDrag = useCallback((task) => {
-      setHistoryOpen(false); // Ensure modal closes when drag starts
-  
-      const taskId = task.id;
-      const movingTaskIds = desktopDragSelectedTaskIdsRef.current.size > 0
-        ? [...desktopDragSelectedTaskIdsRef.current]
-        : getDesktopDragTaskIds(task);
-      const entryPositionMap = new Map();
-      selectedDayEntriesRef.current.forEach((entry) => {
-        const taskIds = getDesktopCanvasEntryTaskIds(entry);
-        taskIds.forEach((entryTaskId) => {
-          entryPositionMap.set(entryTaskId, { x: entry.x, y: entry.y });
-        });
+    setHistoryOpen(false); // Ensure modal closes when drag starts
+
+    const taskId = task.id;
+    const movingTaskIds = desktopDragSelectedTaskIdsRef.current.size > 0
+      ? [...desktopDragSelectedTaskIdsRef.current]
+      : getDesktopDragTaskIds(task);
+
+    // Record original canvas positions of all moving tasks for multi-drag delta math
+    const entryPositionMap = new Map();
+    selectedDayEntriesRef.current.forEach((entry) => {
+      const taskIds = getDesktopCanvasEntryTaskIds(entry);
+      taskIds.forEach((entryTaskId) => {
+        entryPositionMap.set(entryTaskId, { x: entry.x, y: entry.y });
       });
-      const anchorPosition = entryPositionMap.get(taskId) || { x: 0, y: 0 };
-      const nextPositions = new Map();
-      movingTaskIds.forEach((movingTaskId) => {
-        const movingPosition = entryPositionMap.get(movingTaskId) || anchorPosition;
-        nextPositions.set(movingTaskId, movingPosition);
-      });
-      desktopDragSelectionPositionsRef.current = nextPositions;
-      desktopDragAnchorStartPositionRef.current = anchorPosition;
-      desktopDragModeRef.current = true;
-      lockedMainScrollTopRef.current = mainScrollRef.current?.scrollTop || 0;
-      document.body.classList.add('desktop-task-dragging');
+    });
+    const anchorPosition = entryPositionMap.get(taskId) || { x: 0, y: 0 };
+    const nextPositions = new Map();
+    movingTaskIds.forEach((movingTaskId) => {
+      const movingPosition = entryPositionMap.get(movingTaskId) || anchorPosition;
+      nextPositions.set(movingTaskId, movingPosition);
+    });
+    desktopDragSelectionPositionsRef.current = nextPositions;
+    desktopDragAnchorStartPositionRef.current = anchorPosition;
+
+    // Record the canvas-space point where the drag started
+    desktopDragCanvasStartRef.current = getCanvasPointFromClient(
+      desktopDragPointerRef.current.x,
+      desktopDragPointerRef.current.y,
+    );
+
+    desktopDragModeRef.current = true;
+    document.body.classList.add('desktop-task-dragging');
 
     movingTaskIds.forEach((movingTaskId) => {
-      const movingWrapper = document.getElementById(`desktop-task-wrapper-${movingTaskId}`);
-      if (movingWrapper) movingWrapper.classList.add('is-dragging');
+      // Mark the canvas-card-shell (direct child of the canvas entry node) for the lift CSS
+      const entryNode = document.getElementById(`desktop-canvas-entry-${movingTaskId}`);
+      const shell = entryNode?.querySelector('.desktop-canvas-card-shell');
+      if (shell) shell.classList.add('is-dragging');
     });
-
-    const card = document.getElementById(`desktop-task-card-${taskId}`) || document.getElementById(`desktop-group-card-${taskId}`);
-    if (card) {
-      const originRect = card.getBoundingClientRect();
-      desktopDragOriginRectRef.current = originRect;
-      desktopDragOverlayRectRef.current = {
-        left: originRect.left,
-        top: originRect.top,
-        width: originRect.width,
-        height: originRect.height,
-      };
-      desktopDragPointerOffsetRef.current = {
-        x: desktopDragPointerRef.current.x - originRect.left,
-        y: desktopDragPointerRef.current.y - originRect.top,
-      };
-    } else {
-      const fallbackWidth = DESKTOP_CANVAS_CARD_WIDTH * DESKTOP_UI_SCALE;
-      const fallbackHeight = DESKTOP_CANVAS_CARD_HEIGHT * DESKTOP_UI_SCALE;
-      const fallbackLeft = desktopDragPointerRef.current.x - (fallbackWidth * 0.24);
-      const fallbackTop = desktopDragPointerRef.current.y - 24;
-      desktopDragOriginRectRef.current = {
-        left: fallbackLeft,
-        top: fallbackTop,
-        width: fallbackWidth,
-        height: fallbackHeight,
-      };
-      desktopDragOverlayRectRef.current = {
-        left: fallbackLeft,
-        top: fallbackTop,
-        width: fallbackWidth,
-        height: fallbackHeight,
-      };
-      desktopDragPointerOffsetRef.current = {
-        x: desktopDragPointerRef.current.x - fallbackLeft,
-        y: desktopDragPointerRef.current.y - fallbackTop,
-      };
-    }
 
     setDraggedTaskId(taskId);
     setIsGroupDragActive(!!task.isGroupInitiator);
-
-    window.requestAnimationFrame(() => {
-      syncDesktopDraggedTaskPosition(
-        taskId,
-        desktopDragPointerRef.current.x,
-        desktopDragPointerRef.current.y,
-      );
-    });
-    if (desktopAutoScrollFrameRef.current === null) {
-      desktopAutoScrollFrameRef.current = window.requestAnimationFrame(runDesktopAutoScroll);
-    }
-  }, [runDesktopAutoScroll, syncDesktopDraggedTaskPosition]);
+  }, [getCanvasPointFromClient]);
 
   const finishDesktopTaskDrag = useCallback((task, pointerTarget, pointerId) => {
-    stopDesktopAutoScroll();
     clearDesktopDayFlipTimer();
 
     const movingTaskIds = desktopDragSelectedTaskIdsRef.current.size > 0
       ? [...desktopDragSelectedTaskIdsRef.current]
       : getDesktopDragTaskIds(task);
 
+    // Reset live transform and class on every dragged canvas entry node
     movingTaskIds.forEach((movingTaskId) => {
-      const wrapper = document.getElementById(`desktop-task-wrapper-${movingTaskId}`);
-      if (wrapper) {
-        wrapper.classList.remove('is-dragging');
+      const node = document.getElementById(`desktop-canvas-entry-${movingTaskId}`);
+      if (node) {
+        node.style.transform = '';
+        node.style.zIndex = '';
+        const shell = node.querySelector('.desktop-canvas-card-shell');
+        if (shell) shell.classList.remove('is-dragging');
       }
     });
 
@@ -4994,32 +4784,42 @@ function App() {
 
     if (desktopDragModeRef.current) {
       suppressNextTaskClick(task.id);
-      const nextPosition = getDesktopCanvasPositionFromPointer(
+
+      // Compute canvas-space delta: current pointer canvas pos minus drag-start canvas pos
+      const startPt = desktopDragCanvasStartRef.current;
+      const currentPt = getCanvasPointFromClient(
         desktopDragPointerRef.current.x,
         desktopDragPointerRef.current.y,
       );
-      if (nextPosition) {
-          flushSync(() => {
-            setTasks((prev) => {
-              const isGroupDrag = !!task.isGroupInitiator;
-              const movingTaskIds = new Set(
-                desktopDragSelectedTaskIdsRef.current.size > 0
-                  ? [...desktopDragSelectedTaskIdsRef.current]
-                  : (isGroupDrag ? task.groupTaskIds : [task.id]),
-              );
-              const activeDateKey = selectedDateRef.current ? dateKey(selectedDateRef.current) : task.dateString;
-              const overlapResult = searchDragSeparateRef.current
-                ? null
-                : getDesktopCanvasOverlapEntry(prev, activeDateKey, movingTaskIds, nextPosition);
-              const overlapEntry = overlapResult?.entry;
+
+      if (startPt && currentPt) {
+        const deltaX = currentPt.x - startPt.x;
+        const deltaY = currentPt.y - startPt.y;
+        const anchorStart = desktopDragAnchorStartPositionRef.current || { x: 0, y: 0 };
+        // The anchor card's final canvas position
+        const nextPosition = { x: anchorStart.x + deltaX, y: anchorStart.y + deltaY };
+
+        flushSync(() => {
+          setTasks((prev) => {
+            const isGroupDrag = !!task.isGroupInitiator;
+            const movingTaskIds = new Set(
+              desktopDragSelectedTaskIdsRef.current.size > 0
+                ? [...desktopDragSelectedTaskIdsRef.current]
+                : (isGroupDrag ? task.groupTaskIds : [task.id]),
+            );
+            const activeDateKey = selectedDateRef.current ? dateKey(selectedDateRef.current) : task.dateString;
+            const overlapResult = searchDragSeparateRef.current
+              ? null
+              : getDesktopCanvasOverlapEntry(prev, activeDateKey, movingTaskIds, nextPosition);
+            const overlapEntry = overlapResult?.entry;
             const timestamp = Date.now();
 
             if (overlapEntry) {
               const movingTasks = prev.filter((item) => movingTaskIds.has(item.id));
-              
+
               // Put Back Logic: If the target group is the group this task is already in, merge instantly
               const isPutBack = overlapEntry.type === 'group' && movingTasks.every(t => t.desktopGroupId === overlapEntry.id);
-              
+
               if (isPutBack) {
                 return prev.map((item) => {
                   if (!movingTaskIds.has(item.id)) return item;
@@ -5053,58 +4853,53 @@ function App() {
               return prev;
             }
 
-              setPendingGroupPrompt(null);
-              return prev.map((item) => {
-                if (!movingTaskIds.has(item.id)) return item;
-                const anchorStartPosition = desktopDragAnchorStartPositionRef.current || { x: nextPosition.x, y: nextPosition.y };
-                const itemStartPosition = desktopDragSelectionPositionsRef.current.get(item.id) || anchorStartPosition;
-                const deltaX = nextPosition.x - anchorStartPosition.x;
-                const deltaY = nextPosition.y - anchorStartPosition.y;
+            setPendingGroupPrompt(null);
+            return prev.map((item) => {
+              if (!movingTaskIds.has(item.id)) return item;
+              const itemStartPosition = desktopDragSelectionPositionsRef.current.get(item.id) || anchorStart;
 
-                const isMultiDrag = desktopDragSelectedTaskIdsRef.current.size > 1;
-                const shouldResetGroup = !isGroupDrag && !isMultiDrag;
-                const resetGroupProps = shouldResetGroup ? {
-                  desktopGroupId: null,
-                  desktopGroupName: null,
-                  desktopGroupIcon: null,
-                  desktopGroupTags: [],
-                  desktopGroupCover: null,
-                  desktopGroupActiveDurationType: null,
-                  desktopGroupActiveFrom: null,
-                  desktopGroupActiveUntil: null,
-                } : {};
+              const isMultiDrag = desktopDragSelectedTaskIdsRef.current.size > 1;
+              const shouldResetGroup = !isGroupDrag && !isMultiDrag;
+              const resetGroupProps = shouldResetGroup ? {
+                desktopGroupId: null,
+                desktopGroupName: null,
+                desktopGroupIcon: null,
+                desktopGroupTags: [],
+                desktopGroupCover: null,
+                desktopGroupActiveDurationType: null,
+                desktopGroupActiveFrom: null,
+                desktopGroupActiveUntil: null,
+              } : {};
 
-                return normalizeTask({
-                  ...item,
-                  ...resetGroupProps,
-                  dateString: activeDateKey,
-                  desktopSlot: null,
-                  desktopCanvasX: Number((itemStartPosition.x + deltaX).toFixed(1)),
-                  desktopCanvasY: Number((itemStartPosition.y + deltaY).toFixed(1)),
-                  desktopZ: timestamp,
-                });
+              return normalizeTask({
+                ...item,
+                ...resetGroupProps,
+                dateString: activeDateKey,
+                desktopSlot: null,
+                desktopCanvasX: Number((itemStartPosition.x + deltaX).toFixed(1)),
+                desktopCanvasY: Number((itemStartPosition.y + deltaY).toFixed(1)),
+                desktopZ: timestamp,
               });
             });
           });
+        });
       }
     }
 
     desktopDragModeRef.current = false;
-      desktopDragStateRef.current = { pointerId: null, taskId: null, startX: 0, startY: 0 };
-      desktopDragOriginRectRef.current = null;
-      desktopDragPointerOffsetRef.current = { x: 0, y: 0 };
-      desktopDragOverlayRectRef.current = null;
-      desktopDragSelectionPositionsRef.current = new Map();
-      desktopDragAnchorStartPositionRef.current = null;
-        desktopDayFlipCooldownUntilRef.current = 0;
-        dragOverSectionRef.current = null;
-        dragOverSlotRef.current = null;
-      desktopDragSelectedTaskIdsRef.current = new Set();
-      searchDragSeparateRef.current = false;
-      setDragOverSection(null);
-      setDragOverSlot(null);
-      setDraggedTaskId(null);
-      setIsGroupDragActive(false);
+    desktopDragStateRef.current = { pointerId: null, taskId: null, startX: 0, startY: 0 };
+    desktopDragCanvasStartRef.current = null;
+    desktopDragSelectionPositionsRef.current = new Map();
+    desktopDragAnchorStartPositionRef.current = null;
+    desktopDayFlipCooldownUntilRef.current = 0;
+    dragOverSectionRef.current = null;
+    dragOverSlotRef.current = null;
+    desktopDragSelectedTaskIdsRef.current = new Set();
+    searchDragSeparateRef.current = false;
+    setDragOverSection(null);
+    setDragOverSlot(null);
+    setDraggedTaskId(null);
+    setIsGroupDragActive(false);
 
     if (pointerTarget?.hasPointerCapture?.(pointerId)) {
       try {
@@ -5113,7 +4908,8 @@ function App() {
         // Pointer capture may already be released.
       }
     }
-  }, [clearDesktopDayFlipTimer, getDesktopCanvasPositionFromPointer, setTasks, stopDesktopAutoScroll, suppressNextTaskClick]);
+  }, [clearDesktopDayFlipTimer, getCanvasPointFromClient, setTasks, suppressNextTaskClick]);
+
 
   const handleTaskPointerDown = useCallback((task, event) => {
     if (!event.isPrimary || event.button !== 0) return;
@@ -5156,7 +4952,7 @@ function App() {
     if (nativeEvent?.cancelable) {
       nativeEvent.preventDefault();
     }
-    syncDesktopDraggedTaskPosition(task.id, clientX, clientY);
+    syncDesktopDraggedTaskPosition(clientX, clientY);
     updateDesktopDragDayAutoFlip(clientX, task.id);
     updateDesktopDragOverlapTarget(clientX, clientY, task.id);
   }, [startDesktopTaskDrag, syncDesktopDraggedTaskPosition, updateDesktopDragDayAutoFlip, updateDesktopDragOverlapTarget]);
@@ -5221,7 +5017,6 @@ function App() {
         finishDesktopTaskDrag(activeTask, null, event.pointerId);
       } else {
         desktopDragStateRef.current = { pointerId: null, taskId: null, startX: 0, startY: 0 };
-        desktopDragOriginRectRef.current = null;
         clearDesktopDayFlipTimer();
       }
       activePointerTaskRef.current = null;
@@ -5593,12 +5388,10 @@ function App() {
     if (!imageFiles.length) return;
 
     const droppedDateKey = selectedDateRef.current ? dateKey(selectedDateRef.current) : selectedDateKey;
-    const dropBasePosition = getDesktopCanvasDropPositionFromPointer(
-      event.clientX,
-      event.clientY,
-      DESKTOP_CANVAS_CARD_WIDTH,
-      DESKTOP_PHOTO_CARD_HEIGHT,
-    );
+    const dropCenter = getCanvasPointFromClient(event.clientX, event.clientY);
+    const dropBasePosition = dropCenter
+      ? { x: dropCenter.x - DESKTOP_CANVAS_CARD_WIDTH / 2, y: dropCenter.y - DESKTOP_PHOTO_CARD_HEIGHT / 2 }
+      : null;
 
     try {
       const imageTasks = await Promise.all(imageFiles.map(async (file, index) => {
@@ -6159,9 +5952,9 @@ function App() {
       >
         <div
           style={{
-            width: `${100 / DESKTOP_UI_SCALE}vw`,
-            height: `${100 / DESKTOP_UI_SCALE}dvh`,
-            transform: `scale(${DESKTOP_UI_SCALE})`,
+            width: `${100 / DESKTOP_APP_WINDOW_SCALE}vw`,
+            height: `${100 / DESKTOP_APP_WINDOW_SCALE}dvh`,
+            transform: `scale(${DESKTOP_APP_WINDOW_SCALE})`,
             transformOrigin: 'top left',
           }}
         >
@@ -6352,7 +6145,7 @@ function App() {
           >
             <div className="desktop-main-stage-inner" style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', background: 'var(--desktop-main-gradient)' }}>
               <main
-                ref={mainScrollRef}
+                ref={viewportContainerRef}
                 className={`desktop-canvas-scroll ${desktopCanvasPanReady ? 'is-pan-ready' : ''} ${desktopCanvasPanActive ? 'is-panning' : ''} ${isCanvasFileDragActive ? 'is-file-drag-active' : ''}`}
                 onWheel={handleDesktopCanvasWheel}
                 onPointerDownCapture={handleDesktopCanvasPointerDown}
@@ -6363,51 +6156,45 @@ function App() {
                 onDragOver={handleCanvasFileDragOver}
                 onDragLeave={handleCanvasFileDragLeave}
                 onDrop={handleCanvasFileDrop}
-                style={{ flex: 1, minHeight: 0, overflow: 'auto', background: 'var(--desktop-root-bg)', paddingTop: 110 }}
+                style={{ flex: 1, minHeight: 0, overflow: 'hidden', position: 'relative', background: 'var(--desktop-root-bg)' }}
               >
-                <div className="desktop-canvas-stage">
-                  <div
-                    ref={desktopCanvasSizerRef}
-                    className="desktop-canvas-sizer"
-                    style={{
-                      width: Math.round(DESKTOP_MAIN_CONTENT_MAX_WIDTH * desktopCanvasScale),
-                      height: desktopCanvasBaseHeight > 0 ? Math.round(desktopCanvasBaseHeight * desktopCanvasScale) : 'auto',
-                    }}
-                  >
-                    <div
-                      ref={desktopCanvasContentRef}
-                      className="desktop-canvas-content"
-                      style={{
-                        width: DESKTOP_MAIN_CONTENT_MAX_WIDTH,
-                        transform: `scale(${desktopCanvasScale})`,
-                      }}
-                    >
-                        <DailyTaskList
-                          entries={selectedDayEntries}
-                          canvasHeight={selectedDayCanvasHeight}
-                          appearance={appearance}
-                          labels={t}
-                          onTaskClick={handleTaskClick}
-                          onGroupOpenFullView={handleGroupCardOpen}
-                          onTaskEdit={handleTaskEdit}
-                          onTaskDelete={handleTaskDelete}
-                          onTaskPointerDown={handleTaskPointerDown}
-                          onTaskPointerMove={handleTaskPointerMove}
-                          onTaskPointerUp={handleTaskPointerUp}
-                        onTaskPointerCancel={handleTaskPointerCancel}
-                        draggedTaskId={draggedTaskId}
-                        selectedTaskIds={selectedTaskIds}
-                        selectionRect={desktopSelectionRect}
-                        dragOverlapTargetId={desktopDragOverlapTargetId}
-                        layoutWidth={DESKTOP_MAIN_CONTENT_MAX_WIDTH}
-                      />
-                      {isCanvasFileDragActive ? (
-                        <div className="desktop-canvas-file-drop-indicator">
-                          <span>Drop image to create a photo card</span>
-                        </div>
-                      ) : null}
+                <div
+                  ref={desktopCanvasContentRef}
+                  className="desktop-canvas-content"
+                  style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    width: DESKTOP_MAIN_CONTENT_MAX_WIDTH,
+                    transformOrigin: '0 0',
+                    transform: `translate(${viewport.panX}px, ${viewport.panY}px) scale(${viewport.zoom})`,
+                    paddingTop: 110,
+                  }}
+                >
+                    <DailyTaskList
+                      entries={selectedDayEntries}
+                      canvasHeight={selectedDayCanvasHeight}
+                      appearance={appearance}
+                      labels={t}
+                      onTaskClick={handleTaskClick}
+                      onGroupOpenFullView={handleGroupCardOpen}
+                      onTaskEdit={handleTaskEdit}
+                      onTaskDelete={handleTaskDelete}
+                      onTaskPointerDown={handleTaskPointerDown}
+                      onTaskPointerMove={handleTaskPointerMove}
+                      onTaskPointerUp={handleTaskPointerUp}
+                    onTaskPointerCancel={handleTaskPointerCancel}
+                    draggedTaskId={draggedTaskId}
+                    selectedTaskIds={selectedTaskIds}
+                    selectionRect={desktopSelectionRect}
+                    dragOverlapTargetId={desktopDragOverlapTargetId}
+                    layoutWidth={DESKTOP_MAIN_CONTENT_MAX_WIDTH}
+                  />
+                  {isCanvasFileDragActive ? (
+                    <div className="desktop-canvas-file-drop-indicator">
+                      <span>Drop image to create a photo card</span>
                     </div>
-                  </div>
+                  ) : null}
                 </div>
               </main>
             </div>
@@ -6420,6 +6207,7 @@ function App() {
             />
           </div>
         </div>
+
 
         {panelOpen ? <div style={{ position: 'fixed', inset: 0, zIndex: 25 }} onClick={closePanel} /> : null}
         <AddPanel
@@ -6641,7 +6429,7 @@ function App() {
           onTaskPointerDown={handleTaskPointerDown}
           onTaskLongPress={handleHistorySearchLongPress}
         />
-        <DragOverlayCard task={draggedTask} tasks={currentWorkspaceTasks} rect={desktopDragOverlayRectRef.current} appearance={appearance} labels={t} />
+
         <DesktopGroupPrompt
           prompt={pendingGroupPrompt}
           groupName={pendingGroupName}
