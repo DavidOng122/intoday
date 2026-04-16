@@ -1335,6 +1335,8 @@ function MobileApp({ session, platformInfo }) {
   const dragFloatingRectRef = React.useRef(null);
   const dragFloatingAnchorRef = React.useRef({ x: 0, y: 0 });
   const dragPlaceholderHeightRef = React.useRef(88);
+  const dragSyncRafRef = React.useRef(null);
+  const dragSyncPendingRef = React.useRef(null);
   const swipeWrapperRectsRef = React.useRef(new Map());
 
   const handleDragOverlayRef = useCallback((node) => {
@@ -1379,7 +1381,6 @@ function MobileApp({ session, platformInfo }) {
     if (!sourceEl || !wrapper || !dragOverlayTodo || !dragOverlayRect || !dragOverlayMounted) return;
 
     wrapper.classList.add('is-dragging');
-    wrapper.style.height = '0px';
 
     sourceEl.style.transition = 'none';
     sourceEl.style.opacity = '0';
@@ -1411,7 +1412,7 @@ function MobileApp({ session, platformInfo }) {
     const dragAnchor = dragFloatingAnchorRef.current;
     if (!overlayEl || !dragRect) return;
 
-    overlayEl.style.transform = `translate3d(${touchX - dragAnchor.x - dragRect.left}px, ${touchY - dragAnchor.y - dragRect.top}px, 0) scale(1.04)`;
+    overlayEl.style.transform = `translate3d(${touchX - dragAnchor.x - dragRect.left}px, ${touchY - dragAnchor.y - dragRect.top}px, 0)`;
   }, []);
   const syncDragPreview = useCallback((nextPreview) => {
     const normalizedPreview = nextPreview?.blockId
@@ -1459,6 +1460,11 @@ function MobileApp({ session, platformInfo }) {
       window.clearTimeout(directDayFlipTimeoutRef.current);
       directDayFlipTimeoutRef.current = null;
     }
+    if (dragSyncRafRef.current !== null) {
+      window.cancelAnimationFrame(dragSyncRafRef.current);
+      dragSyncRafRef.current = null;
+    }
+    dragSyncPendingRef.current = null;
     removeDragGhost();
   }, [removeDragGhost]);
 
@@ -1692,8 +1698,15 @@ function MobileApp({ session, platformInfo }) {
     };
   }, [getNearestBlock]);
 
-  const syncDraggedCardPosition = useCallback((todoId, touchY, touchX = dragTouchX.current) => {
-    applyDragSourceCardState(todoId);
+  const flushTouchDragSync = useCallback(() => {
+    dragSyncRafRef.current = null;
+    const pending = dragSyncPendingRef.current;
+    dragSyncPendingRef.current = null;
+    if (!pending) return;
+
+    const { todoId, touchX, touchY } = pending;
+    if (!isDragMode.current || activeDragTodoIdRef.current !== todoId) return;
+
     syncDragOverlayPosition(touchX, touchY);
 
     const dragTarget = getTouchDragTarget(todoId, touchY);
@@ -1711,8 +1724,17 @@ function MobileApp({ session, platformInfo }) {
     if (insertAfterChanged) {
       dragInsertAfterRef.current = dragTarget.insertAfter;
     }
+
     syncDragPreview(dragTarget);
-  }, [applyDragSourceCardState, getTouchDragTarget, syncDragOverlayPosition, syncDragPreview]);
+  }, [getTouchDragTarget, syncDragOverlayPosition, syncDragPreview]);
+
+  const syncDraggedCardPosition = useCallback((todoId, touchY, touchX = dragTouchX.current) => {
+    // Center-locked dragging: position is driven by refs + rAF (no easing, no interpolation).
+    dragSyncPendingRef.current = { todoId, touchX, touchY };
+    if (dragSyncRafRef.current === null) {
+      dragSyncRafRef.current = window.requestAnimationFrame(flushTouchDragSync);
+    }
+  }, [flushTouchDragSync]);
 
   const moveDraggedTodoToDate = useCallback((todoId, nextDate) => {
     if (!todoId || !nextDate) return;
@@ -2231,6 +2253,12 @@ function MobileApp({ session, platformInfo }) {
       window.cancelAnimationFrame(frame);
     };
   }, [dragOverlayTodo, syncDragOverlayPosition]);
+
+  useLayoutEffect(() => {
+    if (!dragOverlayMounted) return undefined;
+    syncDragOverlayPosition(dragTouchX.current, dragTouchY.current);
+    return undefined;
+  }, [dragOverlayMounted, syncDragOverlayPosition]);
 
   const deleteTodo = useCallback((id) => {
     if (openSwipeTodoIdRef.current === id) {

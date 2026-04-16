@@ -1451,6 +1451,11 @@ body.desktop-task-dragging * {
   cursor: grabbing !important;
 }
 
+.desktop-task-group-card.is-dragging {
+  cursor: grabbing !important;
+  transition: none !important;
+}
+
 .desktop-task-wrapper:hover .desktop-task-card {
   transform: translateY(-1px) scale(0.985);
 }
@@ -1620,6 +1625,22 @@ body.desktop-task-dragging * {
   position: absolute;
 }
 
+body.desktop-task-dragging .desktop-canvas-card-node {
+  will-change: transform;
+}
+
+body.desktop-task-dragging .desktop-canvas-card-shell,
+body.desktop-task-dragging .desktop-canvas-card-shell * {
+  transition: none !important;
+  animation: none !important;
+}
+
+.desktop-drag-source-hidden {
+  opacity: 0 !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
 .desktop-canvas-card-shell {
   position: relative;
   transition: transform 180ms cubic-bezier(0.16, 1, 0.3, 1);
@@ -1627,7 +1648,6 @@ body.desktop-task-dragging * {
 
 /* Direct-manipulation dragging: the real card is the drag object — no hiding */
 .desktop-canvas-card-shell.is-dragging {
-  filter: drop-shadow(0 12px 28px rgba(0, 0, 0, 0.18));
   transition: none !important;
   will-change: transform;
 }
