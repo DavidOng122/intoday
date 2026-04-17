@@ -54,7 +54,18 @@ const loadCloudTodos = async (userId, normalizeTodo) => {
     .order('todo_id', { ascending: true });
 
   if (error) throw error;
-  return (data || []).map((row) => normalizeTodo(row.payload || { id: row.todo_id }));
+  return (data || []).map((row) => {
+    let payload = row.payload;
+    if (typeof payload === 'string' && payload.trim().startsWith('{')) {
+      try {
+        payload = JSON.parse(payload);
+      } catch (e) {
+        console.error('Failed to parse todo payload:', e);
+        payload = null;
+      }
+    }
+    return normalizeTodo(payload || { id: row.todo_id });
+  });
 };
 
 const persistCloudTodos = async (userId, todos) => {
@@ -137,7 +148,6 @@ export const useSyncedTodos = ({ userId, normalizeTodo }) => {
         setCloudLoaded(true);
       } catch (error) {
         console.error('Failed to load todos from Supabase:', error);
-        if (!cancelled) setCloudLoaded(true);
       }
     };
 

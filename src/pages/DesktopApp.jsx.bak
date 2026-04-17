@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useSta
 import { flushSync } from 'react-dom';
 import { X, PenLine, Trash2 } from 'lucide-react';
 import { supabase } from '../supabase';
+import DesktopLogin from '../DesktopLogin';
 import { useSyncedTodos } from '../todoSync';
 import { getUserProfile } from '../userProfile';
 import DesktopProfilePage from '../components/DesktopProfilePage';
@@ -47,7 +48,7 @@ import { resolveDesktopCanvasEntries, getDesktopCanvasHeight, getNextDesktopCanv
 import { isEditableElement, clampDesktopCanvasScale, getCanvasDeletionSummary } from '../lib/domUtils';
 import { dateKey, sameDay, shiftDateByDays, getDesktopDayFlipZones, parseSharedSelectedDate, panelLabel, getTranslationsForLanguage } from '../lib/dateUtils';
 import { normalizeDesktopWorkspaces, taskBelongsToWorkspace, getDefaultDesktopWorkspaces, getUntitledWorkspaceName, areTaskIdSelectionsEqual } from '../lib/workspaceUtils';
-import { getDesktopGroupDisplayName, getDesktopGroupIcon, getDesktopGroupDisplayTags, getSuggestedDesktopGroupName, cleanupDesktopGroupMetadata, getDesktopGroupCardHeight } from '../lib/groupMetadata';
+import { getDesktopGroupDisplayName, getDesktopGroupDisplayTags, getSuggestedDesktopGroupName, cleanupDesktopGroupMetadata, getDesktopGroupCardHeight } from '../lib/groupMetadata';
 import { getFirstAvailableDesktopSlot, getDesktopSectionTaskOrder, getDesktopDragTaskIds } from '../lib/taskOrder';
 import { normalizeTask, sectionIdToMobileId } from '../lib/taskNormalize';
 import { getUploadedFileTitle, getDroppedImageTitle, getFileExtension, getUploadedFileFallbackMimeType, getSupportedUploadKind, isSupportedUploadFile, isSupportedConvertFile, hasImageFiles, hasSupportedUploadFiles, readFileAsDataUrl, loadImageElement, createUploadAttachmentId, createUploadedFileStorageKey, serializeDroppedImageFile, serializeUploadAttachment } from '../lib/uploadUtils';
@@ -2065,8 +2066,9 @@ const DesktopDeleteConfirmModal = ({
 
 
 
-function App({ session }) {
-  const user = session?.user;
+function App() {
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
 
   // Track retention on Desktop app wide open
   useEffect(() => {
@@ -2348,6 +2350,30 @@ function App({ session }) {
     window.addEventListener('storage', handleStorageChange);
     return () => window.removeEventListener('storage', handleStorageChange);
   }, []);
+  useEffect(() => {
+    const timeout = setTimeout(() => setLoading(false), 5000);
+    if (!supabase) {
+      setLoading(false);
+      clearTimeout(timeout);
+      return undefined;
+    }
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null);
+      setLoading(false);
+      clearTimeout(timeout);
+    }).catch(() => {
+      setLoading(false);
+      clearTimeout(timeout);
+    });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+      setLoading(false);
+    });
+    return () => {
+      subscription.unsubscribe();
+      clearTimeout(timeout);
+    };
+  }, []);
 
   const logicalToday = getLogicalToday();
   const todaySelected = sameDay(selectedDate, logicalToday);
@@ -2614,7 +2640,7 @@ function App({ session }) {
   const setDesktopDragSourceHidden = useCallback((hidden) => {
     const sourceId = desktopDragSourceEntryIdRef.current;
     if (!sourceId) return;
-    const node = document.getElementById(`desktop-canvas-entry-${sourceId}`);
+    const node = document.getElementById(`desktop - canvas - entry - ${sourceId} `);
     if (!node) return;
     if (hidden) {
       node.classList.add('desktop-drag-source-hidden');
@@ -2754,7 +2780,7 @@ function App({ session }) {
 
     movingIds.forEach((id) => {
       // Target the absolutely-positioned canvas entry node (not the inner wrapper)
-      const node = document.getElementById(`desktop-canvas-entry-${id}`);
+      const node = document.getElementById(`desktop - canvas - entry - ${id} `);
       if (node) {
         node.style.transform = `translate3d(${dx}px, ${dy}px, 0)`;
         node.style.zIndex = '999';
@@ -2989,7 +3015,7 @@ function App({ session }) {
 
     // Reset live transform and class on every dragged canvas entry node
     movingTaskIds.forEach((movingTaskId) => {
-      const node = document.getElementById(`desktop-canvas-entry-${movingTaskId}`);
+      const node = document.getElementById(`desktop - canvas - entry - ${movingTaskId} `);
       if (node) {
         node.style.transform = '';
         node.style.zIndex = '';
@@ -3053,7 +3079,7 @@ function App({ session }) {
               setPendingGroupPrompt({
                 movingTaskIds: [...movingTaskIds],
                 targetTaskIds: overlapEntry.type === 'group' ? overlapEntry.tasks.map((item) => item.id) : [overlapEntry.task.id],
-                groupId: overlapEntry.type === 'group' ? overlapEntry.id : `desktop-group-${timestamp}`,
+                groupId: overlapEntry.type === 'group' ? overlapEntry.id : `desktop - group - ${timestamp} `,
                 anchorX: desktopDragPointerRef.current.x,
                 anchorY: desktopDragPointerRef.current.y,
                 targetDateKey: activeDateKey,
@@ -3542,6 +3568,15 @@ function App({ session }) {
     });
   }, [activeGroupView?.groupId, currentWorkspaceTasks]);
 
+  if (loading) {
+    return (
+      <div style={{ width: '100vw', height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: appearance === 'dark' ? '#121212' : '#ffffff' }}>
+        <div style={{ width: 42, height: 42, borderRadius: '50%', border: `4px solid ${appearance === 'dark' ? '#333333' : '#e8e0d6'} `, borderTop: '4px solid #ED1F1F', animation: 'desktop-spin 1s linear infinite' }} />
+        <style>{`@keyframes desktop - spin { 0 % { transform: rotate(0deg); } 100 % { transform: rotate(360deg); } } `}</style>
+      </div>
+    );
+  }
+  if (!user) return <DesktopLogin />;
   const draggedTask = draggedTaskId
     ? (tasks.find((task) => task.id === draggedTaskId)
       ? { ...tasks.find((task) => task.id === draggedTaskId), isGroupInitiator: isGroupDragActive }
@@ -3989,7 +4024,7 @@ function App({ session }) {
       ? event.currentTarget.closest('.desktop-task-group-card')
       : null;
     const fallbackNode = leadTask
-      ? document.getElementById(`desktop-group-card-${leadTask.id}`) || document.getElementById(`desktop-task-wrapper-${leadTask.id}`)
+      ? document.getElementById(`desktop - group - card - ${leadTask.id} `) || document.getElementById(`desktop - task - wrapper - ${leadTask.id} `)
       : null;
     const sourceNode = triggerNode || fallbackNode;
     if (!sourceNode) return null;
@@ -4005,7 +4040,7 @@ function App({ session }) {
   const openActiveGroupView = (groupTasks, focusTaskId = null, originRect = null) => {
     if (!groupTasks?.length) return;
     const nextView = {
-      groupId: groupTasks[0].desktopGroupId || `group-${groupTasks[0].id}`,
+      groupId: groupTasks[0].desktopGroupId || `group - ${groupTasks[0].id} `,
       title: getDesktopGroupDisplayName(groupTasks),
       tasks: groupTasks.map((task) => normalizeTask(task)),
       focusTaskId,
@@ -4085,7 +4120,7 @@ function App({ session }) {
     if (!canAddWorkspace) return;
     setWorkspaces((current) => {
       const nextWorkspace = {
-        id: `workspace-${Date.now()}`,
+        id: `workspace - ${Date.now()} `,
         name: getUntitledWorkspaceName(current.length + 1),
         iconType: 'dot',
       };
@@ -4114,7 +4149,7 @@ function App({ session }) {
     setPendingWorkspaceDeletion({
       workspaceId: workspace.id,
       workspaceName: workspace.name || 'Untitled',
-      title: `Delete workspace "${workspace.name || 'Untitled'}"?`,
+      title: `Delete workspace "${workspace.name || 'Untitled'}" ? `,
       description: 'This will remove this page and its items.',
     });
   };
@@ -4191,16 +4226,16 @@ function App({ session }) {
       >
         <div
           style={{
-            width: `${100 / DESKTOP_APP_WINDOW_SCALE}vw`,
-            height: `${100 / DESKTOP_APP_WINDOW_SCALE}dvh`,
+            width: `${100 / DESKTOP_APP_WINDOW_SCALE} vw`,
+            height: `${100 / DESKTOP_APP_WINDOW_SCALE} dvh`,
             transform: `scale(${DESKTOP_APP_WINDOW_SCALE})`,
             transformOrigin: 'top left',
           }}
         >
-          <div className={`desktop-app ${appearance === 'dark' ? 'desktop-app-dark dark-theme' : 'desktop-app-light'}`} style={{ width: '100%', height: '100%', overflow: 'hidden', background: 'var(--desktop-root-bg)', color: 'var(--desktop-root-text)', fontFamily: 'Inter, sans-serif', display: 'flex', flexDirection: 'column' }}>
+          <div className={`desktop - app ${appearance === 'dark' ? 'desktop-app-dark dark-theme' : 'desktop-app-light'} `} style={{ width: '100%', height: '100%', overflow: 'hidden', background: 'var(--desktop-root-bg)', color: 'var(--desktop-root-text)', fontFamily: 'Inter, sans-serif', display: 'flex', flexDirection: 'column' }}>
             <header className="desktop-minimal-header">
               <div className="desktop-minimal-brand" ref={workspaceMenuRef}>
-                <div className={`desktop-workspace-shell ${workspaceMenuOpen ? 'is-open' : ''} ${isWorkspaceNameEditing ? 'is-editing' : ''}`}>
+                <div className={`desktop - workspace - shell ${workspaceMenuOpen ? 'is-open' : ''} ${isWorkspaceNameEditing ? 'is-editing' : ''} `}>
                   {isWorkspaceNameEditing ? (
                     <input
                       ref={workspaceNameInputRef}
@@ -4257,7 +4292,7 @@ function App({ session }) {
                         return (
                           <div
                             key={workspace.id}
-                            className={`desktop-workspace-menu-row ${isActive ? 'is-active' : ''} ${isActionsOpen ? 'is-actions-open' : ''}`}
+                            className={`desktop - workspace - menu - row ${isActive ? 'is-active' : ''} ${isActionsOpen ? 'is-actions-open' : ''} `}
                           >
                             <button
                               type="button"
@@ -4334,7 +4369,7 @@ function App({ session }) {
                   </button>
                   <button
                     type="button"
-                    className={`desktop-minimal-date-nav-label ${todaySelected ? 'is-today' : ''}`}
+                    className={`desktop - minimal - date - nav - label ${todaySelected ? 'is-today' : ''} `}
                     onClick={() => {
                       setSelectedDate(logicalToday);
                       setProfileOpen(false);
@@ -4379,13 +4414,13 @@ function App({ session }) {
             <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
               <div
                 ref={desktopDragViewportRef}
-                className={`desktop-main-stage ${desktopDragDayFeedback ? `desktop-main-stage-feedback-${desktopDragDayFeedback}` : ''} ${desktopDragDayConfirming ? 'desktop-main-stage-feedback-armed' : ''}`}
+                className={`desktop - main - stage ${desktopDragDayFeedback ? `desktop-main-stage-feedback-${desktopDragDayFeedback}` : ''} ${desktopDragDayConfirming ? 'desktop-main-stage-feedback-armed' : ''} `}
                 style={{ flex: 1, minWidth: 0, minHeight: 0, position: 'relative', overflow: 'hidden' }}
               >
                 <div className="desktop-main-stage-inner" style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', background: 'var(--desktop-main-gradient)' }}>
                   <main
                     ref={viewportContainerRef}
-                    className={`desktop-canvas-scroll ${desktopCanvasPanReady ? 'is-pan-ready' : ''} ${desktopCanvasPanActive ? 'is-panning' : ''} ${isCanvasFileDragActive ? 'is-file-drag-active' : ''}`}
+                    className={`desktop - canvas - scroll ${desktopCanvasPanReady ? 'is-pan-ready' : ''} ${desktopCanvasPanActive ? 'is-panning' : ''} ${isCanvasFileDragActive ? 'is-file-drag-active' : ''} `}
                     onWheel={handleDesktopCanvasWheel}
                     onPointerDownCapture={handleDesktopCanvasPointerDown}
                     onPointerMove={handleDesktopCanvasPointerMove}
