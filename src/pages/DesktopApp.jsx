@@ -1766,6 +1766,7 @@ const DailyTaskList = ({
 
 
 
+
 const AddPanel = ({
   open,
   language,
@@ -1811,7 +1812,7 @@ const AddPanel = ({
             type="button"
             role="tab"
             aria-selected={mode === 'add'}
-            className={`desktop - add - panel - segment ${mode === 'add' ? 'active' : ''} `}
+            className={`desktop-add-panel-segment ${mode === 'add' ? 'active' : ''} `}
             onClick={() => setMode('add')}
           >
             Add
@@ -1820,7 +1821,7 @@ const AddPanel = ({
             type="button"
             role="tab"
             aria-selected={mode === 'convert'}
-            className={`desktop - add - panel - segment ${mode === 'convert' ? 'active' : ''} `}
+            className={`desktop-add-panel-segment ${mode === 'convert' ? 'active' : ''} `}
             onClick={() => setMode('convert')}
           >
             Convert
@@ -1837,7 +1838,7 @@ const AddPanel = ({
                 <p className="desktop-add-panel-support">Type a note, paste a link, or drop an image</p>
               </div>
               <div
-                className={`desktop - add - panel - surface ${isFileDragActive ? 'drag-active' : ''} `}
+                className={`desktop-add-panel-surface ${isFileDragActive ? 'drag-active' : ''} `}
                 onDragEnter={(event) => {
                   if (!hasSupportedUploadFiles(event.dataTransfer)) return;
                   event.preventDefault();
@@ -1889,7 +1890,7 @@ const AddPanel = ({
                     {fileAttachments.map((attachment) => (
                       <div
                         key={attachment.id}
-                        className={`desktop - add - panel - attachment ${attachment.uploadKind === 'image' ? 'image' : 'document'} `}
+                        className={`desktop-add-panel-attachment ${attachment.uploadKind === 'image' ? 'image' : 'document'} `}
                       >
                         {attachment.uploadKind === 'image' ? (
                           <img
@@ -1900,7 +1901,7 @@ const AddPanel = ({
                           />
                         ) : (
                           <div className="desktop-add-panel-attachment-content">
-                            <div className={`desktop - add - panel - attachment - badge ${attachment.uploadKind} `}>
+                            <div className={`desktop-add-panel-attachment-badge ${attachment.uploadKind} `}>
                               {attachment.uploadKind === 'pdf' ? 'PDF' : 'DOC'}
                             </div>
                             <div className="desktop-add-panel-attachment-copy">
@@ -1959,7 +1960,7 @@ const AddPanel = ({
                 <p className="desktop-add-panel-support">Drop a PDF or DOCX file to turn it into reusable markdown</p>
               </div>
               <div
-                className={`desktop - convert - panel - dropzone ${isConvertDragActive ? 'drag-active' : ''} `}
+                className={`desktop-convert-panel-dropzone ${isConvertDragActive ? 'drag-active' : ''} `}
                 onClick={() => convertFileInputRef.current?.click()}
                 onDragEnter={(event) => {
                   if (!Array.from(event.dataTransfer?.files || []).some((file) => isSupportedConvertFile(file))) return;
@@ -2023,7 +2024,6 @@ const AddPanel = ({
     </div>
   );
 };
-
 const DesktopDeleteConfirmModal = ({
   open,
   title,
@@ -4560,6 +4560,7 @@ function App({ session }) {
               onClose={closePanel}
               onSubmit={saveTask}
             />
+
 
             {(!panelOpen && showAddPreview) ? (
               <div style={{ position: 'fixed', right: 104, bottom: 38, background: 'var(--desktop-floating-bg)', color: 'var(--desktop-floating-text)', padding: '6px 14px', borderRadius: 16, border: '1px solid var(--desktop-floating-border)', boxShadow: '0 4px 12px rgba(0,0,0,0.08)', zIndex: 19, fontSize: 13, fontWeight: 500, pointerEvents: 'none', animation: 'fadeIn 0.2s ease-out' }}>
