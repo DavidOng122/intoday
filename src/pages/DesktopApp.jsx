@@ -1767,6 +1767,98 @@ const DailyTaskList = ({
 
 
 
+const InlineMiniCalendar = ({
+  language,
+  selectedDate,
+  minDate,
+  maxDate,
+  onSelectDate,
+}) => {
+  const [calendarOffset, setCalendarOffset] = useState(0);
+  const locale = getLocaleForLanguage(language);
+  const calendarMonth = new Date(selectedDate.getFullYear(), selectedDate.getMonth() + calendarOffset, 1);
+  const monthStart = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth(), 1);
+  const monthLabel = monthStart.toLocaleDateString(locale, { month: 'short', year: 'numeric' });
+  const startOffset = monthStart.getDay();
+  const daysInMonth = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 0).getDate();
+  const trailingCells = Math.max(0, 42 - startOffset - daysInMonth);
+  const desktopCalendarCellSize = 32;
+  const desktopCalendarGap = 6;
+  const calendarWeekdayLabels = getCalendarWeekdayLabels(language);
+  const normalizedMinDate = minDate ? new Date(minDate.getFullYear(), minDate.getMonth(), minDate.getDate()) : null;
+  const normalizedMaxDate = maxDate ? new Date(maxDate.getFullYear(), maxDate.getMonth(), maxDate.getDate()) : null;
+  const isAtMinMonth = normalizedMinDate
+    ? monthStart.getFullYear() === normalizedMinDate.getFullYear() && monthStart.getMonth() === normalizedMinDate.getMonth()
+    : false;
+  const isAtMaxMonth = normalizedMaxDate
+    ? monthStart.getFullYear() === normalizedMaxDate.getFullYear() && monthStart.getMonth() === normalizedMaxDate.getMonth()
+    : false;
+
+  return (
+    <div style={{ width: 'fit-content', maxWidth: '100%', marginBottom: 16, padding: '4px 0 8px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+        <button
+          type="button"
+          disabled={isAtMinMonth}
+          onClick={() => setCalendarOffset((prev) => prev - 1)}
+          style={{ width: 28, height: 28, borderRadius: '50%', border: 'none', background: 'var(--desktop-panel-close-bg)', color: isAtMinMonth ? 'var(--desktop-muted-subtle)' : 'var(--desktop-root-text)', cursor: isAtMinMonth ? 'default' : 'pointer', fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+        >
+          {'<'}
+        </button>
+        <span style={{ fontFamily: 'DM Serif Display, serif', fontSize: 18, fontStyle: 'italic' }}>{monthLabel}</span>
+        <button
+          type="button"
+          disabled={isAtMaxMonth}
+          onClick={() => setCalendarOffset((prev) => prev + 1)}
+          style={{ width: 28, height: 28, borderRadius: '50%', border: 'none', background: 'var(--desktop-panel-close-bg)', color: isAtMaxMonth ? 'var(--desktop-muted-subtle)' : 'var(--desktop-root-text)', cursor: isAtMaxMonth ? 'default' : 'pointer', fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+        >
+          {'>'}
+        </button>
+      </div>
+      <div style={{ display: 'grid', width: 'fit-content', maxWidth: '100%', gridTemplateColumns: `repeat(7, ${desktopCalendarCellSize}px)`, gap: desktopCalendarGap }}>
+        {calendarWeekdayLabels.map((label, index) => (
+          <div key={`${label}-${index}`} style={{ textAlign: 'center', fontSize: 13, fontWeight: 600, color: 'var(--desktop-muted-subtle)' }}>{label}</div>
+        ))}
+        {Array.from({ length: startOffset }).map((_, index) => <div key={`empty-${index}`} />)}
+        {Array.from({ length: daysInMonth }).map((_, index) => {
+          const day = index + 1;
+          const cellDate = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth(), day);
+          const inRange = (!normalizedMinDate || cellDate >= normalizedMinDate) && (!normalizedMaxDate || cellDate <= normalizedMaxDate);
+          const currentSelectedDate = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate());
+          const selected = sameDay(cellDate, currentSelectedDate);
+          const today = sameDay(cellDate, getLogicalToday());
+
+          return (
+            <button
+              key={day}
+              type="button"
+              disabled={!inRange}
+              onClick={() => {
+                if (!inRange) return;
+                onSelectDate(cellDate);
+              }}
+              style={{
+                width: desktopCalendarCellSize,
+                aspectRatio: '1 / 1',
+                borderRadius: '50%',
+                border: today && !selected ? '1px solid var(--desktop-accent)' : 'none',
+                background: selected ? 'var(--desktop-active-date-bg)' : 'transparent',
+                color: selected ? '#fff' : today ? 'var(--desktop-accent)' : inRange ? 'var(--desktop-root-text)' : 'var(--desktop-disabled-text)',
+                fontSize: 14,
+                fontWeight: selected || today ? 700 : 500,
+                cursor: inRange ? 'pointer' : 'default',
+              }}
+            >
+              {day}
+            </button>
+          );
+        })}
+        {Array.from({ length: trailingCells }).map((_, index) => <div key={`trail-${index}`} />)}
+      </div>
+    </div>
+  );
+};
+
 const AddPanel = ({
   open,
   language,
@@ -1812,7 +1904,7 @@ const AddPanel = ({
             type="button"
             role="tab"
             aria-selected={mode === 'add'}
-            className={`desktop-add-panel-segment ${mode === 'add' ? 'active' : ''} `}
+            className={`desktop-add-panel-segment ${mode === 'add' ? 'active' : ''}`}
             onClick={() => setMode('add')}
           >
             Add
@@ -1821,7 +1913,7 @@ const AddPanel = ({
             type="button"
             role="tab"
             aria-selected={mode === 'convert'}
-            className={`desktop-add-panel-segment ${mode === 'convert' ? 'active' : ''} `}
+            className={`desktop-add-panel-segment ${mode === 'convert' ? 'active' : ''}`}
             onClick={() => setMode('convert')}
           >
             Convert
@@ -1838,7 +1930,7 @@ const AddPanel = ({
                 <p className="desktop-add-panel-support">Type a note, paste a link, or drop an image</p>
               </div>
               <div
-                className={`desktop-add-panel-surface ${isFileDragActive ? 'drag-active' : ''} `}
+                className={`desktop-add-panel-surface ${isFileDragActive ? 'drag-active' : ''}`}
                 onDragEnter={(event) => {
                   if (!hasSupportedUploadFiles(event.dataTransfer)) return;
                   event.preventDefault();
@@ -1890,7 +1982,7 @@ const AddPanel = ({
                     {fileAttachments.map((attachment) => (
                       <div
                         key={attachment.id}
-                        className={`desktop-add-panel-attachment ${attachment.uploadKind === 'image' ? 'image' : 'document'} `}
+                        className={`desktop-add-panel-attachment ${attachment.uploadKind === 'image' ? 'image' : 'document'}`}
                       >
                         {attachment.uploadKind === 'image' ? (
                           <img
@@ -1901,7 +1993,7 @@ const AddPanel = ({
                           />
                         ) : (
                           <div className="desktop-add-panel-attachment-content">
-                            <div className={`desktop-add-panel-attachment-badge ${attachment.uploadKind} `}>
+                            <div className={`desktop-add-panel-attachment-badge ${attachment.uploadKind}`}>
                               {attachment.uploadKind === 'pdf' ? 'PDF' : 'DOC'}
                             </div>
                             <div className="desktop-add-panel-attachment-copy">
@@ -1912,7 +2004,7 @@ const AddPanel = ({
                         )}
                         <button
                           type="button"
-                          aria-label={`Remove ${attachment.title} `}
+                          aria-label={`Remove ${attachment.title}`}
                           onClick={() => onRemoveFile?.(attachment.id)}
                           className="desktop-add-panel-attachment-remove"
                         >
@@ -1960,7 +2052,7 @@ const AddPanel = ({
                 <p className="desktop-add-panel-support">Drop a PDF or DOCX file to turn it into reusable markdown</p>
               </div>
               <div
-                className={`desktop-convert-panel-dropzone ${isConvertDragActive ? 'drag-active' : ''} `}
+                className={`desktop-convert-panel-dropzone ${isConvertDragActive ? 'drag-active' : ''}`}
                 onClick={() => convertFileInputRef.current?.click()}
                 onDragEnter={(event) => {
                   if (!Array.from(event.dataTransfer?.files || []).some((file) => isSupportedConvertFile(file))) return;
@@ -2111,8 +2203,6 @@ function App({ session }) {
     setProfileOpenState(val);
   }, []);
   const [panelOpen, setPanelOpen] = useState(false);
-  const [showAddPreview, setShowAddPreview] = useState(false);
-  const hoverAddTimeoutRef = useRef(null);
   const [inputText, setInputText] = useState('');
   const [addPanelAttachments, setAddPanelAttachments] = useState([]);
   const [editingTaskId, setEditingTaskId] = useState(null);
@@ -4544,54 +4634,38 @@ function App({ session }) {
                   zones={desktopDragDayZones}
                   isConfirming={desktopDragDayConfirming}
                 />
-              </div>
-            </div>
+          </div>
+        </div>
 
 
-            {panelOpen ? <div style={{ position: 'fixed', inset: 0, zIndex: 25 }} onClick={closePanel} /> : null}
-            <AddPanel
-              open={panelOpen}
-              language={language}
-              inputText={inputText}
-              setInputText={setInputText}
-              fileAttachments={addPanelAttachments}
-              onAddFiles={handleAddPanelFilesSelected}
-              onRemoveFile={handleRemoveAddPanelAttachment}
-              onClose={closePanel}
-              onSubmit={saveTask}
-            />
+        {panelOpen ? <div style={{ position: 'fixed', inset: 0, zIndex: 25 }} onClick={closePanel} /> : null}
+        <AddPanel
+          open={panelOpen}
+          language={language}
+          inputText={inputText}
+          setInputText={setInputText}
+          fileAttachments={addPanelAttachments}
+          onAddFiles={handleAddPanelFilesSelected}
+          onRemoveFile={handleRemoveAddPanelAttachment}
+          onClose={closePanel}
+          onSubmit={saveTask}
+        />
 
-
-            {(!panelOpen && showAddPreview) ? (
-              <div style={{ position: 'fixed', right: 104, bottom: 38, background: 'var(--desktop-floating-bg)', color: 'var(--desktop-floating-text)', padding: '6px 14px', borderRadius: 16, border: '1px solid var(--desktop-floating-border)', boxShadow: '0 4px 12px rgba(0,0,0,0.08)', zIndex: 19, fontSize: 13, fontWeight: 500, pointerEvents: 'none', animation: 'fadeIn 0.2s ease-out' }}>
-                Add task...
-              </div>
-            ) : null}
-
-            {!panelOpen ? (
-              <button
-                type="button"
-                onClick={() => {
-                  setProfileOpen(false);
-                  closeEditModal();
-                  setInputText('');
-                  setPanelOpen(true);
-                  setShowAddPreview(false);
-                  if (hoverAddTimeoutRef.current) clearTimeout(hoverAddTimeoutRef.current);
-                }}
-                onMouseEnter={() => {
-                  hoverAddTimeoutRef.current = setTimeout(() => setShowAddPreview(true), 500);
-                }}
-                onMouseLeave={() => {
-                  if (hoverAddTimeoutRef.current) clearTimeout(hoverAddTimeoutRef.current);
-                  setShowAddPreview(false);
-                }}
-                aria-label={t.addTaskAria}
-                style={{ position: 'fixed', right: 42, bottom: 30, width: 50, height: 50, borderRadius: '50%', border: '1px solid var(--desktop-floating-border)', background: 'var(--desktop-floating-bg)', color: 'var(--desktop-floating-text)', boxShadow: 'var(--desktop-floating-shadow)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', zIndex: 20 }}
-              >
-                <PlusIcon />
-              </button>
-            ) : null}
+        {!panelOpen ? (
+          <button 
+            type="button" 
+            onClick={() => { 
+              setProfileOpen(false); 
+              closeEditModal(); 
+              setInputText(''); 
+              setPanelOpen(true); 
+            }} 
+            aria-label={t.addTaskAria} 
+            style={{ position: 'fixed', right: 42, bottom: 30, width: 50, height: 50, borderRadius: '50%', border: '1px solid var(--desktop-floating-border)', background: 'var(--desktop-floating-bg)', color: 'var(--desktop-floating-text)', boxShadow: 'var(--desktop-floating-shadow)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', zIndex: 20 }}
+          >
+            <PlusIcon />
+          </button>
+        ) : null}
 
             {editingTask ? (
               <div

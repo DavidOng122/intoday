@@ -220,6 +220,1338 @@
   font-family: 'Manrope', 'Segoe UI', sans-serif;
 }
 
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Cormorant+Garamond:wght@500;600;700&display=swap');
+
+.desktop-app {
+  position: relative;
+  --desktop-root-bg: #ffffff;
+  --desktop-root-text: #111111;
+  --desktop-header-bg: #ffffff;
+  --desktop-main-gradient: linear-gradient(180deg, #ffffff 0%, #ffffff 52px, #ffffff 52px, #ffffff 100%);
+  --desktop-section-bg: #ffffff;
+  --desktop-divider: #ece4da;
+  --desktop-week-top-divider: #e6e0d9;
+  --desktop-week-bottom-divider: #ede7df;
+  --desktop-week-strip-bg: #ffffff;
+  --desktop-muted: #8d867f;
+  --desktop-muted-strong: #7d7b77;
+  --desktop-muted-subtle: #a0a4ab;
+  --desktop-accent: #ed1f1f;
+  --desktop-active-date-bg: #ef2f2f;
+  --desktop-time-axis-line: #e2ddd7;
+  --desktop-chip-bg: #f5f5f5;
+  --desktop-chip-text: #242424;
+  --desktop-chip-active-bg: #ef2f2f;
+  --desktop-chip-active-text: #ffffff;
+  --desktop-back-today-bg: #f4f1ed;
+  --desktop-back-today-text: #a63024;
+  --desktop-back-today-border: #ddd6cf;
+  --desktop-avatar-bg: #ffffff;
+  --desktop-avatar-border: #ddd6cf;
+  --desktop-clock-bg: #f4f1ed;
+  --desktop-clock-border: #ddd6cf;
+  --desktop-clock-text: #111111;
+  --desktop-floating-bg: #fffefc;
+  --desktop-floating-border: #d9d1c8;
+  --desktop-floating-text: #111111;
+  --desktop-floating-shadow: 0 14px 30px rgba(28, 17, 8, 0.12);
+  --desktop-panel-close-bg: #f5f1ec;
+  --desktop-panel-close-text: #202020;
+  --desktop-input-bg: #ffffff;
+  --desktop-input-border: #ddd7cf;
+  --desktop-input-shadow: 0 12px 28px rgba(17, 17, 17, 0.06);
+  --desktop-submit-bg: #111111;
+  --desktop-submit-text: #ffffff;
+  --desktop-submit-shadow: 0 8px 18px rgba(17, 17, 17, 0.18);
+  --desktop-task-border: #f2f2f2;
+  --desktop-task-bg: #ffffff;
+  --desktop-task-shadow: 0 2px 16px rgba(0, 0, 0, 0.03);
+  --desktop-card-title: #181818;
+  --desktop-card-desc: #8e8e93;
+  --desktop-slot-gradient: linear-gradient(180deg, #f9f5ef 0%, #f3ece4 100%);
+  --desktop-slot-shadow:
+    0 10px 24px rgba(53, 35, 15, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 0.92);
+  --desktop-slot-shadow-hover:
+    0 14px 28px rgba(53, 35, 15, 0.09),
+    inset 0 1px 0 rgba(255, 255, 255, 0.96);
+  --desktop-modal-backdrop: rgba(17, 17, 17, 0.34);
+  --desktop-edit-bg: #ffffff;
+  --desktop-edit-border: rgba(99, 77, 52, 0.08);
+  --desktop-edit-shadow: 0 24px 60px rgba(26, 20, 12, 0.18);
+  --desktop-modal-close-bg: #f4f1ec;
+  --desktop-modal-close-text: #3a3026;
+  --desktop-edit-input-bg: #ffffff;
+  --desktop-edit-input-border: rgba(99, 77, 52, 0.1);
+  --desktop-cancel-bg: #f5f1ec;
+  --desktop-cancel-border: rgba(99, 77, 52, 0.12);
+  --desktop-cancel-text: #2b241d;
+  --desktop-save-bg: #17120d;
+  --desktop-save-disabled-bg: #b8afa5;
+  --desktop-save-text: #ffffff;
+  --desktop-save-disabled-text: #ffffff;
+  --desktop-disabled-text: #d0d0d0;
+  --desktop-accent-soft: rgba(237, 31, 31, 0.45);
+  --desktop-group-ready-bg: rgba(237, 31, 31, 0.05);
+
+  /* Option 1: Warm Beige (F6E8D7) - Active */
+  --desktop-drag-feedback-glow-strong: rgba(246, 232, 215, 0.85);
+  --desktop-drag-feedback-glow: rgba(246, 232, 215, 0.5);
+  --desktop-drag-feedback-glow-transparent: rgba(246, 232, 215, 0);
+  --desktop-drag-feedback-chip-bg: rgba(255, 253, 251, 0.92);
+  --desktop-drag-feedback-chip-border: rgba(215, 195, 170, 0.3);
+  --desktop-drag-feedback-chip-text: #8b6d4c;
+  --desktop-selection-border: rgba(74, 67, 58, 0.42);
+  --desktop-selection-fill: rgba(63, 56, 47, 0.1);
+  --desktop-selection-lift-bg: linear-gradient(180deg, rgba(250, 247, 243, 0.92) 0%, rgba(255, 253, 249, 0.98) 100%);
+  --desktop-selection-lift-shadow:
+    0 0 0 1px rgba(83, 74, 64, 0.18),
+    0 16px 32px rgba(42, 33, 23, 0.1);
+  --desktop-selection-card-border: rgba(92, 82, 71, 0.34);
+  --desktop-canvas-dot-color: rgba(128, 142, 163, 0.22);
+  --desktop-canvas-dot-glow: rgba(228, 234, 243, 0.78);
+  --desktop-canvas-dot-fade-top: rgba(255, 255, 255, 0.72);
+  --desktop-canvas-dot-fade-bottom: rgba(255, 255, 255, 0.94);
+  --desktop-header-dot-color: rgba(148, 163, 184, 0.12);
+  --desktop-header-dot-glow: rgba(238, 242, 247, 0.92);
+  --desktop-header-surface-top: rgba(255, 255, 255, 0.94);
+  --desktop-header-surface-bottom: rgba(255, 255, 255, 0.74);
+  --desktop-header-bridge: rgba(236, 241, 247, 0.78);
+
+  /* Option 2: Cool Blue (E8EDF4) - Uncomment to try
+  --desktop-drag-feedback-glow-strong: rgba(232, 237, 244, 0.85);
+  --desktop-drag-feedback-glow: rgba(232, 237, 244, 0.5);
+  --desktop-drag-feedback-glow-transparent: rgba(232, 237, 244, 0);
+  --desktop-drag-feedback-chip-bg: rgba(255, 253, 251, 0.92);
+  --desktop-drag-feedback-chip-border: rgba(180, 195, 215, 0.3);
+  --desktop-drag-feedback-chip-text: #4a6b8c;
+  */
+}
+
+.desktop-app-dark {
+  --desktop-root-bg: #121212;
+  --desktop-root-text: #ffffff;
+  --desktop-header-bg: #1e1e1e;
+  --desktop-main-gradient: linear-gradient(180deg, #1e1e1e 0%, #1e1e1e 52px, #121212 52px, #121212 100%);
+  --desktop-section-bg: #1e1e1e;
+  --desktop-divider: #333333;
+  --desktop-week-top-divider: #222222;
+  --desktop-week-bottom-divider: #333333;
+  --desktop-week-strip-bg: #131313;
+  --desktop-muted: #a0a0a0;
+  --desktop-muted-strong: #ffffff;
+  --desktop-muted-subtle: #4b4b53;
+  --desktop-accent: #ed1f1f;
+  --desktop-active-date-bg: #e84d3d;
+  --desktop-time-axis-line: #333333;
+  --desktop-chip-bg: #2c2c2c;
+  --desktop-chip-text: #ffffff;
+  --desktop-chip-active-bg: #ed1f1f;
+  --desktop-chip-active-text: #ffffff;
+  --desktop-back-today-bg: #ffffff;
+  --desktop-back-today-text: #111111;
+  --desktop-back-today-border: #d9d9d9;
+  --desktop-avatar-bg: #2c2c2c;
+  --desktop-avatar-border: #333333;
+  --desktop-clock-bg: #2c2c2c;
+  --desktop-clock-border: #333333;
+  --desktop-clock-text: #ffffff;
+  --desktop-floating-bg: #ffffff;
+  --desktop-floating-border: #d9d9d9;
+  --desktop-floating-text: #111111;
+  --desktop-floating-shadow: 0 14px 28px rgba(0, 0, 0, 0.18);
+  --desktop-panel-close-bg: #2c2c2c;
+  --desktop-panel-close-text: #ffffff;
+  --desktop-input-bg: #383838;
+  --desktop-input-border: #505050;
+  --desktop-input-shadow: 0 12px 28px rgba(0, 0, 0, 0.28);
+  --desktop-submit-bg: #111111;
+  --desktop-submit-text: #ffffff;
+  --desktop-submit-shadow: 0 8px 18px rgba(0, 0, 0, 0.28);
+  --desktop-task-border: #333333;
+  --desktop-task-bg: #1e1e1e;
+  --desktop-task-shadow: 0 2px 16px rgba(0, 0, 0, 0.4);
+  --desktop-card-title: #ffffff;
+  --desktop-card-desc: #a0a0a0;
+  --desktop-slot-gradient: linear-gradient(180deg, #2c2c2c 0%, #1e1e1e 100%);
+  --desktop-slot-shadow:
+    0 10px 24px rgba(0, 0, 0, 0.32),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  --desktop-slot-shadow-hover:
+    0 14px 28px rgba(0, 0, 0, 0.38),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  --desktop-modal-backdrop: rgba(0, 0, 0, 0.56);
+  --desktop-edit-bg: #2c2c2e;
+  --desktop-edit-border: rgba(255, 255, 255, 0.08);
+  --desktop-edit-shadow: 0 24px 60px rgba(0, 0, 0, 0.42);
+  --desktop-modal-close-bg: #444444;
+  --desktop-modal-close-text: #ffffff;
+  --desktop-edit-input-bg: #000000;
+  --desktop-edit-input-border: #333333;
+  --desktop-cancel-bg: #2c2c2c;
+  --desktop-cancel-border: #333333;
+  --desktop-cancel-text: #ffffff;
+  --desktop-save-bg: #ffffff;
+  --desktop-save-disabled-bg: #595959;
+  --desktop-save-text: #111111;
+  --desktop-save-disabled-text: #a0a0a0;
+  --desktop-disabled-text: #4b4b53;
+  --desktop-drag-feedback-glow: rgba(246, 232, 215, 0.22);
+  --desktop-drag-feedback-glow-strong: rgba(246, 232, 215, 0.38);
+  --desktop-drag-feedback-glow-transparent: rgba(246, 232, 215, 0);
+  --desktop-drag-feedback-chip-bg: rgba(26, 26, 26, 0.82);
+  --desktop-drag-feedback-chip-border: rgba(255, 255, 255, 0.08);
+  --desktop-drag-feedback-chip-text: #ffffff;
+  --desktop-accent-soft: rgba(237, 31, 31, 0.6);
+  --desktop-group-ready-bg: rgba(237, 31, 31, 0.12);
+  --desktop-selection-border: rgba(214, 206, 194, 0.42);
+  --desktop-selection-fill: rgba(232, 226, 216, 0.12);
+  --desktop-selection-lift-bg: linear-gradient(180deg, rgba(48, 45, 41, 0.9) 0%, rgba(33, 31, 28, 0.96) 100%);
+  --desktop-selection-lift-shadow:
+    0 0 0 1px rgba(219, 209, 197, 0.18),
+    0 18px 36px rgba(0, 0, 0, 0.24);
+  --desktop-selection-card-border: rgba(214, 205, 193, 0.34);
+  --desktop-canvas-dot-color: rgba(178, 188, 203, 0.18);
+  --desktop-canvas-dot-glow: rgba(39, 45, 56, 0.92);
+  --desktop-canvas-dot-fade-top: rgba(18, 18, 18, 0.5);
+  --desktop-canvas-dot-fade-bottom: rgba(18, 18, 18, 0.88);
+  --desktop-header-dot-color: rgba(173, 184, 199, 0.08);
+  --desktop-header-dot-glow: rgba(33, 38, 46, 0.96);
+  --desktop-header-surface-top: rgba(28, 30, 34, 0.9);
+  --desktop-header-surface-bottom: rgba(24, 26, 30, 0.68);
+  --desktop-header-bridge: rgba(39, 45, 56, 0.72);
+}
+
+.desktop-login-page {
+  --login-bg: #f7f4ee;
+  --login-panel: rgba(255, 252, 248, 0.84);
+  --login-card: rgba(255, 255, 255, 0.82);
+  --login-line: rgba(26, 38, 43, 0.09);
+  --login-ink: #182126;
+  --login-muted: #67727b;
+  --login-gold: #efb659;
+  --login-red: #b84a34;
+  --login-blue: #8ca6d4;
+  position: relative;
+  min-height: 100%;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at top left, rgba(255, 255, 255, 0.9), rgba(255, 255, 255, 0) 34%),
+    linear-gradient(135deg, #efe7da 0%, #f8f6f1 40%, #e9eef7 100%);
+  color: var(--login-ink);
+  font-family: 'Manrope', 'Segoe UI', sans-serif;
+}
+
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Cormorant+Garamond:wght@500;600;700&display=swap');
+
+.desktop-app {
+  position: relative;
+  --desktop-root-bg: #ffffff;
+  --desktop-root-text: #111111;
+  --desktop-header-bg: #ffffff;
+  --desktop-main-gradient: linear-gradient(180deg, #ffffff 0%, #ffffff 52px, #ffffff 52px, #ffffff 100%);
+  --desktop-section-bg: #ffffff;
+  --desktop-divider: #ece4da;
+  --desktop-week-top-divider: #e6e0d9;
+  --desktop-week-bottom-divider: #ede7df;
+  --desktop-week-strip-bg: #ffffff;
+  --desktop-muted: #8d867f;
+  --desktop-muted-strong: #7d7b77;
+  --desktop-muted-subtle: #a0a4ab;
+  --desktop-accent: #ed1f1f;
+  --desktop-active-date-bg: #ef2f2f;
+  --desktop-time-axis-line: #e2ddd7;
+  --desktop-chip-bg: #f5f5f5;
+  --desktop-chip-text: #242424;
+  --desktop-chip-active-bg: #ef2f2f;
+  --desktop-chip-active-text: #ffffff;
+  --desktop-back-today-bg: #f4f1ed;
+  --desktop-back-today-text: #a63024;
+  --desktop-back-today-border: #ddd6cf;
+  --desktop-avatar-bg: #ffffff;
+  --desktop-avatar-border: #ddd6cf;
+  --desktop-clock-bg: #f4f1ed;
+  --desktop-clock-border: #ddd6cf;
+  --desktop-clock-text: #111111;
+  --desktop-floating-bg: #fffefc;
+  --desktop-floating-border: #d9d1c8;
+  --desktop-floating-text: #111111;
+  --desktop-floating-shadow: 0 14px 30px rgba(28, 17, 8, 0.12);
+  --desktop-panel-close-bg: #f5f1ec;
+  --desktop-panel-close-text: #202020;
+  --desktop-input-bg: #ffffff;
+  --desktop-input-border: #ddd7cf;
+  --desktop-input-shadow: 0 12px 28px rgba(17, 17, 17, 0.06);
+  --desktop-submit-bg: #111111;
+  --desktop-submit-text: #ffffff;
+  --desktop-submit-shadow: 0 8px 18px rgba(17, 17, 17, 0.18);
+  --desktop-task-border: #f2f2f2;
+  --desktop-task-bg: #ffffff;
+  --desktop-task-shadow: 0 2px 16px rgba(0, 0, 0, 0.03);
+  --desktop-card-title: #181818;
+  --desktop-card-desc: #8e8e93;
+  --desktop-slot-gradient: linear-gradient(180deg, #f9f5ef 0%, #f3ece4 100%);
+  --desktop-slot-shadow:
+    0 10px 24px rgba(53, 35, 15, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 0.92);
+  --desktop-slot-shadow-hover:
+    0 14px 28px rgba(53, 35, 15, 0.09),
+    inset 0 1px 0 rgba(255, 255, 255, 0.96);
+  --desktop-modal-backdrop: rgba(17, 17, 17, 0.34);
+  --desktop-edit-bg: #ffffff;
+  --desktop-edit-border: rgba(99, 77, 52, 0.08);
+  --desktop-edit-shadow: 0 24px 60px rgba(26, 20, 12, 0.18);
+  --desktop-modal-close-bg: #f4f1ec;
+  --desktop-modal-close-text: #3a3026;
+  --desktop-edit-input-bg: #ffffff;
+  --desktop-edit-input-border: rgba(99, 77, 52, 0.1);
+  --desktop-cancel-bg: #f5f1ec;
+  --desktop-cancel-border: rgba(99, 77, 52, 0.12);
+  --desktop-cancel-text: #2b241d;
+  --desktop-save-bg: #17120d;
+  --desktop-save-disabled-bg: #b8afa5;
+  --desktop-save-text: #ffffff;
+  --desktop-save-disabled-text: #ffffff;
+  --desktop-disabled-text: #d0d0d0;
+  --desktop-accent-soft: rgba(237, 31, 31, 0.45);
+  --desktop-group-ready-bg: rgba(237, 31, 31, 0.05);
+
+  /* Option 1: Warm Beige (F6E8D7) - Active */
+  --desktop-drag-feedback-glow-strong: rgba(246, 232, 215, 0.85);
+  --desktop-drag-feedback-glow: rgba(246, 232, 215, 0.5);
+  --desktop-drag-feedback-glow-transparent: rgba(246, 232, 215, 0);
+  --desktop-drag-feedback-chip-bg: rgba(255, 253, 251, 0.92);
+  --desktop-drag-feedback-chip-border: rgba(215, 195, 170, 0.3);
+  --desktop-drag-feedback-chip-text: #8b6d4c;
+  --desktop-selection-border: rgba(74, 67, 58, 0.42);
+  --desktop-selection-fill: rgba(63, 56, 47, 0.1);
+  --desktop-selection-lift-bg: linear-gradient(180deg, rgba(250, 247, 243, 0.92) 0%, rgba(255, 253, 249, 0.98) 100%);
+  --desktop-selection-lift-shadow:
+    0 0 0 1px rgba(83, 74, 64, 0.18),
+    0 16px 32px rgba(42, 33, 23, 0.1);
+  --desktop-selection-card-border: rgba(92, 82, 71, 0.34);
+  --desktop-canvas-dot-color: rgba(128, 142, 163, 0.22);
+  --desktop-canvas-dot-glow: rgba(228, 234, 243, 0.78);
+  --desktop-canvas-dot-fade-top: rgba(255, 255, 255, 0.72);
+  --desktop-canvas-dot-fade-bottom: rgba(255, 255, 255, 0.94);
+  --desktop-header-dot-color: rgba(148, 163, 184, 0.12);
+  --desktop-header-dot-glow: rgba(238, 242, 247, 0.92);
+  --desktop-header-surface-top: rgba(255, 255, 255, 0.94);
+  --desktop-header-surface-bottom: rgba(255, 255, 255, 0.74);
+  --desktop-header-bridge: rgba(236, 241, 247, 0.78);
+
+  /* Option 2: Cool Blue (E8EDF4) - Uncomment to try
+  --desktop-drag-feedback-glow-strong: rgba(232, 237, 244, 0.85);
+  --desktop-drag-feedback-glow: rgba(232, 237, 244, 0.5);
+  --desktop-drag-feedback-glow-transparent: rgba(232, 237, 244, 0);
+  --desktop-drag-feedback-chip-bg: rgba(255, 253, 251, 0.92);
+  --desktop-drag-feedback-chip-border: rgba(180, 195, 215, 0.3);
+  --desktop-drag-feedback-chip-text: #4a6b8c;
+  */
+}
+
+.desktop-app-dark {
+  --desktop-root-bg: #121212;
+  --desktop-root-text: #ffffff;
+  --desktop-header-bg: #1e1e1e;
+  --desktop-main-gradient: linear-gradient(180deg, #1e1e1e 0%, #1e1e1e 52px, #121212 52px, #121212 100%);
+  --desktop-section-bg: #1e1e1e;
+  --desktop-divider: #333333;
+  --desktop-week-top-divider: #222222;
+  --desktop-week-bottom-divider: #333333;
+  --desktop-week-strip-bg: #131313;
+  --desktop-muted: #a0a0a0;
+  --desktop-muted-strong: #ffffff;
+  --desktop-muted-subtle: #4b4b53;
+  --desktop-accent: #ed1f1f;
+  --desktop-active-date-bg: #e84d3d;
+  --desktop-time-axis-line: #333333;
+  --desktop-chip-bg: #2c2c2c;
+  --desktop-chip-text: #ffffff;
+  --desktop-chip-active-bg: #ed1f1f;
+  --desktop-chip-active-text: #ffffff;
+  --desktop-back-today-bg: #ffffff;
+  --desktop-back-today-text: #111111;
+  --desktop-back-today-border: #d9d9d9;
+  --desktop-avatar-bg: #2c2c2c;
+  --desktop-avatar-border: #333333;
+  --desktop-clock-bg: #2c2c2c;
+  --desktop-clock-border: #333333;
+  --desktop-clock-text: #ffffff;
+  --desktop-floating-bg: #ffffff;
+  --desktop-floating-border: #d9d9d9;
+  --desktop-floating-text: #111111;
+  --desktop-floating-shadow: 0 14px 28px rgba(0, 0, 0, 0.18);
+  --desktop-panel-close-bg: #2c2c2c;
+  --desktop-panel-close-text: #ffffff;
+  --desktop-input-bg: #383838;
+  --desktop-input-border: #505050;
+  --desktop-input-shadow: 0 12px 28px rgba(0, 0, 0, 0.28);
+  --desktop-submit-bg: #111111;
+  --desktop-submit-text: #ffffff;
+  --desktop-submit-shadow: 0 8px 18px rgba(0, 0, 0, 0.28);
+  --desktop-task-border: #333333;
+  --desktop-task-bg: #1e1e1e;
+  --desktop-task-shadow: 0 2px 16px rgba(0, 0, 0, 0.4);
+  --desktop-card-title: #ffffff;
+  --desktop-card-desc: #a0a0a0;
+  --desktop-slot-gradient: linear-gradient(180deg, #2c2c2c 0%, #1e1e1e 100%);
+  --desktop-slot-shadow:
+    0 10px 24px rgba(0, 0, 0, 0.32),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  --desktop-slot-shadow-hover:
+    0 14px 28px rgba(0, 0, 0, 0.38),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  --desktop-modal-backdrop: rgba(0, 0, 0, 0.56);
+  --desktop-edit-bg: #2c2c2e;
+  --desktop-edit-border: rgba(255, 255, 255, 0.08);
+  --desktop-edit-shadow: 0 24px 60px rgba(0, 0, 0, 0.42);
+  --desktop-modal-close-bg: #444444;
+  --desktop-modal-close-text: #ffffff;
+  --desktop-edit-input-bg: #000000;
+  --desktop-edit-input-border: #333333;
+  --desktop-cancel-bg: #2c2c2c;
+  --desktop-cancel-border: #333333;
+  --desktop-cancel-text: #ffffff;
+  --desktop-save-bg: #ffffff;
+  --desktop-save-disabled-bg: #595959;
+  --desktop-save-text: #111111;
+  --desktop-save-disabled-text: #a0a0a0;
+  --desktop-disabled-text: #4b4b53;
+  --desktop-drag-feedback-glow: rgba(246, 232, 215, 0.22);
+  --desktop-drag-feedback-glow-strong: rgba(246, 232, 215, 0.38);
+  --desktop-drag-feedback-glow-transparent: rgba(246, 232, 215, 0);
+  --desktop-drag-feedback-chip-bg: rgba(26, 26, 26, 0.82);
+  --desktop-drag-feedback-chip-border: rgba(255, 255, 255, 0.08);
+  --desktop-drag-feedback-chip-text: #ffffff;
+  --desktop-accent-soft: rgba(237, 31, 31, 0.6);
+  --desktop-group-ready-bg: rgba(237, 31, 31, 0.12);
+  --desktop-selection-border: rgba(214, 206, 194, 0.42);
+  --desktop-selection-fill: rgba(232, 226, 216, 0.12);
+  --desktop-selection-lift-bg: linear-gradient(180deg, rgba(48, 45, 41, 0.9) 0%, rgba(33, 31, 28, 0.96) 100%);
+  --desktop-selection-lift-shadow:
+    0 0 0 1px rgba(219, 209, 197, 0.18),
+    0 18px 36px rgba(0, 0, 0, 0.24);
+  --desktop-selection-card-border: rgba(214, 205, 193, 0.34);
+  --desktop-canvas-dot-color: rgba(178, 188, 203, 0.18);
+  --desktop-canvas-dot-glow: rgba(39, 45, 56, 0.92);
+  --desktop-canvas-dot-fade-top: rgba(18, 18, 18, 0.5);
+  --desktop-canvas-dot-fade-bottom: rgba(18, 18, 18, 0.88);
+  --desktop-header-dot-color: rgba(173, 184, 199, 0.08);
+  --desktop-header-dot-glow: rgba(33, 38, 46, 0.96);
+  --desktop-header-surface-top: rgba(28, 30, 34, 0.9);
+  --desktop-header-surface-bottom: rgba(24, 26, 30, 0.68);
+  --desktop-header-bridge: rgba(39, 45, 56, 0.72);
+}
+
+.desktop-login-page {
+  --login-bg: #f7f4ee;
+  --login-panel: rgba(255, 252, 248, 0.84);
+  --login-card: rgba(255, 255, 255, 0.82);
+  --login-line: rgba(26, 38, 43, 0.09);
+  --login-ink: #182126;
+  --login-muted: #67727b;
+  --login-gold: #efb659;
+  --login-red: #b84a34;
+  --login-blue: #8ca6d4;
+  position: relative;
+  min-height: 100%;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at top left, rgba(255, 255, 255, 0.9), rgba(255, 255, 255, 0) 34%),
+    linear-gradient(135deg, #efe7da 0%, #f8f6f1 40%, #e9eef7 100%);
+  color: var(--login-ink);
+  font-family: 'Manrope', 'Segoe UI', sans-serif;
+}
+
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Cormorant+Garamond:wght@500;600;700&display=swap');
+
+.desktop-app {
+  position: relative;
+  --desktop-root-bg: #ffffff;
+  --desktop-root-text: #111111;
+  --desktop-header-bg: #ffffff;
+  --desktop-main-gradient: linear-gradient(180deg, #ffffff 0%, #ffffff 52px, #ffffff 52px, #ffffff 100%);
+  --desktop-section-bg: #ffffff;
+  --desktop-divider: #ece4da;
+  --desktop-week-top-divider: #e6e0d9;
+  --desktop-week-bottom-divider: #ede7df;
+  --desktop-week-strip-bg: #ffffff;
+  --desktop-muted: #8d867f;
+  --desktop-muted-strong: #7d7b77;
+  --desktop-muted-subtle: #a0a4ab;
+  --desktop-accent: #ed1f1f;
+  --desktop-active-date-bg: #ef2f2f;
+  --desktop-time-axis-line: #e2ddd7;
+  --desktop-chip-bg: #f5f5f5;
+  --desktop-chip-text: #242424;
+  --desktop-chip-active-bg: #ef2f2f;
+  --desktop-chip-active-text: #ffffff;
+  --desktop-back-today-bg: #f4f1ed;
+  --desktop-back-today-text: #a63024;
+  --desktop-back-today-border: #ddd6cf;
+  --desktop-avatar-bg: #ffffff;
+  --desktop-avatar-border: #ddd6cf;
+  --desktop-clock-bg: #f4f1ed;
+  --desktop-clock-border: #ddd6cf;
+  --desktop-clock-text: #111111;
+  --desktop-floating-bg: #fffefc;
+  --desktop-floating-border: #d9d1c8;
+  --desktop-floating-text: #111111;
+  --desktop-floating-shadow: 0 14px 30px rgba(28, 17, 8, 0.12);
+  --desktop-panel-close-bg: #f5f1ec;
+  --desktop-panel-close-text: #202020;
+  --desktop-input-bg: #ffffff;
+  --desktop-input-border: #ddd7cf;
+  --desktop-input-shadow: 0 12px 28px rgba(17, 17, 17, 0.06);
+  --desktop-submit-bg: #111111;
+  --desktop-submit-text: #ffffff;
+  --desktop-submit-shadow: 0 8px 18px rgba(17, 17, 17, 0.18);
+  --desktop-task-border: #f2f2f2;
+  --desktop-task-bg: #ffffff;
+  --desktop-task-shadow: 0 2px 16px rgba(0, 0, 0, 0.03);
+  --desktop-card-title: #181818;
+  --desktop-card-desc: #8e8e93;
+  --desktop-slot-gradient: linear-gradient(180deg, #f9f5ef 0%, #f3ece4 100%);
+  --desktop-slot-shadow:
+    0 10px 24px rgba(53, 35, 15, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 0.92);
+  --desktop-slot-shadow-hover:
+    0 14px 28px rgba(53, 35, 15, 0.09),
+    inset 0 1px 0 rgba(255, 255, 255, 0.96);
+  --desktop-modal-backdrop: rgba(17, 17, 17, 0.34);
+  --desktop-edit-bg: #ffffff;
+  --desktop-edit-border: rgba(99, 77, 52, 0.08);
+  --desktop-edit-shadow: 0 24px 60px rgba(26, 20, 12, 0.18);
+  --desktop-modal-close-bg: #f4f1ec;
+  --desktop-modal-close-text: #3a3026;
+  --desktop-edit-input-bg: #ffffff;
+  --desktop-edit-input-border: rgba(99, 77, 52, 0.1);
+  --desktop-cancel-bg: #f5f1ec;
+  --desktop-cancel-border: rgba(99, 77, 52, 0.12);
+  --desktop-cancel-text: #2b241d;
+  --desktop-save-bg: #17120d;
+  --desktop-save-disabled-bg: #b8afa5;
+  --desktop-save-text: #ffffff;
+  --desktop-save-disabled-text: #ffffff;
+  --desktop-disabled-text: #d0d0d0;
+  --desktop-accent-soft: rgba(237, 31, 31, 0.45);
+  --desktop-group-ready-bg: rgba(237, 31, 31, 0.05);
+
+  /* Option 1: Warm Beige (F6E8D7) - Active */
+  --desktop-drag-feedback-glow-strong: rgba(246, 232, 215, 0.85);
+  --desktop-drag-feedback-glow: rgba(246, 232, 215, 0.5);
+  --desktop-drag-feedback-glow-transparent: rgba(246, 232, 215, 0);
+  --desktop-drag-feedback-chip-bg: rgba(255, 253, 251, 0.92);
+  --desktop-drag-feedback-chip-border: rgba(215, 195, 170, 0.3);
+  --desktop-drag-feedback-chip-text: #8b6d4c;
+  --desktop-selection-border: rgba(74, 67, 58, 0.42);
+  --desktop-selection-fill: rgba(63, 56, 47, 0.1);
+  --desktop-selection-lift-bg: linear-gradient(180deg, rgba(250, 247, 243, 0.92) 0%, rgba(255, 253, 249, 0.98) 100%);
+  --desktop-selection-lift-shadow:
+    0 0 0 1px rgba(83, 74, 64, 0.18),
+    0 16px 32px rgba(42, 33, 23, 0.1);
+  --desktop-selection-card-border: rgba(92, 82, 71, 0.34);
+  --desktop-canvas-dot-color: rgba(128, 142, 163, 0.22);
+  --desktop-canvas-dot-glow: rgba(228, 234, 243, 0.78);
+  --desktop-canvas-dot-fade-top: rgba(255, 255, 255, 0.72);
+  --desktop-canvas-dot-fade-bottom: rgba(255, 255, 255, 0.94);
+  --desktop-header-dot-color: rgba(148, 163, 184, 0.12);
+  --desktop-header-dot-glow: rgba(238, 242, 247, 0.92);
+  --desktop-header-surface-top: rgba(255, 255, 255, 0.94);
+  --desktop-header-surface-bottom: rgba(255, 255, 255, 0.74);
+  --desktop-header-bridge: rgba(236, 241, 247, 0.78);
+
+  /* Option 2: Cool Blue (E8EDF4) - Uncomment to try
+  --desktop-drag-feedback-glow-strong: rgba(232, 237, 244, 0.85);
+  --desktop-drag-feedback-glow: rgba(232, 237, 244, 0.5);
+  --desktop-drag-feedback-glow-transparent: rgba(232, 237, 244, 0);
+  --desktop-drag-feedback-chip-bg: rgba(255, 253, 251, 0.92);
+  --desktop-drag-feedback-chip-border: rgba(180, 195, 215, 0.3);
+  --desktop-drag-feedback-chip-text: #4a6b8c;
+  */
+}
+
+.desktop-app-dark {
+  --desktop-root-bg: #121212;
+  --desktop-root-text: #ffffff;
+  --desktop-header-bg: #1e1e1e;
+  --desktop-main-gradient: linear-gradient(180deg, #1e1e1e 0%, #1e1e1e 52px, #121212 52px, #121212 100%);
+  --desktop-section-bg: #1e1e1e;
+  --desktop-divider: #333333;
+  --desktop-week-top-divider: #222222;
+  --desktop-week-bottom-divider: #333333;
+  --desktop-week-strip-bg: #131313;
+  --desktop-muted: #a0a0a0;
+  --desktop-muted-strong: #ffffff;
+  --desktop-muted-subtle: #4b4b53;
+  --desktop-accent: #ed1f1f;
+  --desktop-active-date-bg: #e84d3d;
+  --desktop-time-axis-line: #333333;
+  --desktop-chip-bg: #2c2c2c;
+  --desktop-chip-text: #ffffff;
+  --desktop-chip-active-bg: #ed1f1f;
+  --desktop-chip-active-text: #ffffff;
+  --desktop-back-today-bg: #ffffff;
+  --desktop-back-today-text: #111111;
+  --desktop-back-today-border: #d9d9d9;
+  --desktop-avatar-bg: #2c2c2c;
+  --desktop-avatar-border: #333333;
+  --desktop-clock-bg: #2c2c2c;
+  --desktop-clock-border: #333333;
+  --desktop-clock-text: #ffffff;
+  --desktop-floating-bg: #ffffff;
+  --desktop-floating-border: #d9d9d9;
+  --desktop-floating-text: #111111;
+  --desktop-floating-shadow: 0 14px 28px rgba(0, 0, 0, 0.18);
+  --desktop-panel-close-bg: #2c2c2c;
+  --desktop-panel-close-text: #ffffff;
+  --desktop-input-bg: #383838;
+  --desktop-input-border: #505050;
+  --desktop-input-shadow: 0 12px 28px rgba(0, 0, 0, 0.28);
+  --desktop-submit-bg: #111111;
+  --desktop-submit-text: #ffffff;
+  --desktop-submit-shadow: 0 8px 18px rgba(0, 0, 0, 0.28);
+  --desktop-task-border: #333333;
+  --desktop-task-bg: #1e1e1e;
+  --desktop-task-shadow: 0 2px 16px rgba(0, 0, 0, 0.4);
+  --desktop-card-title: #ffffff;
+  --desktop-card-desc: #a0a0a0;
+  --desktop-slot-gradient: linear-gradient(180deg, #2c2c2c 0%, #1e1e1e 100%);
+  --desktop-slot-shadow:
+    0 10px 24px rgba(0, 0, 0, 0.32),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  --desktop-slot-shadow-hover:
+    0 14px 28px rgba(0, 0, 0, 0.38),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  --desktop-modal-backdrop: rgba(0, 0, 0, 0.56);
+  --desktop-edit-bg: #2c2c2e;
+  --desktop-edit-border: rgba(255, 255, 255, 0.08);
+  --desktop-edit-shadow: 0 24px 60px rgba(0, 0, 0, 0.42);
+  --desktop-modal-close-bg: #444444;
+  --desktop-modal-close-text: #ffffff;
+  --desktop-edit-input-bg: #000000;
+  --desktop-edit-input-border: #333333;
+  --desktop-cancel-bg: #2c2c2c;
+  --desktop-cancel-border: #333333;
+  --desktop-cancel-text: #ffffff;
+  --desktop-save-bg: #ffffff;
+  --desktop-save-disabled-bg: #595959;
+  --desktop-save-text: #111111;
+  --desktop-save-disabled-text: #a0a0a0;
+  --desktop-disabled-text: #4b4b53;
+  --desktop-drag-feedback-glow: rgba(246, 232, 215, 0.22);
+  --desktop-drag-feedback-glow-strong: rgba(246, 232, 215, 0.38);
+  --desktop-drag-feedback-glow-transparent: rgba(246, 232, 215, 0);
+  --desktop-drag-feedback-chip-bg: rgba(26, 26, 26, 0.82);
+  --desktop-drag-feedback-chip-border: rgba(255, 255, 255, 0.08);
+  --desktop-drag-feedback-chip-text: #ffffff;
+  --desktop-accent-soft: rgba(237, 31, 31, 0.6);
+  --desktop-group-ready-bg: rgba(237, 31, 31, 0.12);
+  --desktop-selection-border: rgba(214, 206, 194, 0.42);
+  --desktop-selection-fill: rgba(232, 226, 216, 0.12);
+  --desktop-selection-lift-bg: linear-gradient(180deg, rgba(48, 45, 41, 0.9) 0%, rgba(33, 31, 28, 0.96) 100%);
+  --desktop-selection-lift-shadow:
+    0 0 0 1px rgba(219, 209, 197, 0.18),
+    0 18px 36px rgba(0, 0, 0, 0.24);
+  --desktop-selection-card-border: rgba(214, 205, 193, 0.34);
+  --desktop-canvas-dot-color: rgba(178, 188, 203, 0.18);
+  --desktop-canvas-dot-glow: rgba(39, 45, 56, 0.92);
+  --desktop-canvas-dot-fade-top: rgba(18, 18, 18, 0.5);
+  --desktop-canvas-dot-fade-bottom: rgba(18, 18, 18, 0.88);
+  --desktop-header-dot-color: rgba(173, 184, 199, 0.08);
+  --desktop-header-dot-glow: rgba(33, 38, 46, 0.96);
+  --desktop-header-surface-top: rgba(28, 30, 34, 0.9);
+  --desktop-header-surface-bottom: rgba(24, 26, 30, 0.68);
+  --desktop-header-bridge: rgba(39, 45, 56, 0.72);
+}
+
+.desktop-login-page {
+  --login-bg: #f7f4ee;
+  --login-panel: rgba(255, 252, 248, 0.84);
+  --login-card: rgba(255, 255, 255, 0.82);
+  --login-line: rgba(26, 38, 43, 0.09);
+  --login-ink: #182126;
+  --login-muted: #67727b;
+  --login-gold: #efb659;
+  --login-red: #b84a34;
+  --login-blue: #8ca6d4;
+  position: relative;
+  min-height: 100%;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at top left, rgba(255, 255, 255, 0.9), rgba(255, 255, 255, 0) 34%),
+    linear-gradient(135deg, #efe7da 0%, #f8f6f1 40%, #e9eef7 100%);
+  color: var(--login-ink);
+  font-family: 'Manrope', 'Segoe UI', sans-serif;
+}
+
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Cormorant+Garamond:wght@500;600;700&display=swap');
+
+.desktop-app {
+  position: relative;
+  --desktop-root-bg: #ffffff;
+  --desktop-root-text: #111111;
+  --desktop-header-bg: #ffffff;
+  --desktop-main-gradient: linear-gradient(180deg, #ffffff 0%, #ffffff 52px, #ffffff 52px, #ffffff 100%);
+  --desktop-section-bg: #ffffff;
+  --desktop-divider: #ece4da;
+  --desktop-week-top-divider: #e6e0d9;
+  --desktop-week-bottom-divider: #ede7df;
+  --desktop-week-strip-bg: #ffffff;
+  --desktop-muted: #8d867f;
+  --desktop-muted-strong: #7d7b77;
+  --desktop-muted-subtle: #a0a4ab;
+  --desktop-accent: #ed1f1f;
+  --desktop-active-date-bg: #ef2f2f;
+  --desktop-time-axis-line: #e2ddd7;
+  --desktop-chip-bg: #f5f5f5;
+  --desktop-chip-text: #242424;
+  --desktop-chip-active-bg: #ef2f2f;
+  --desktop-chip-active-text: #ffffff;
+  --desktop-back-today-bg: #f4f1ed;
+  --desktop-back-today-text: #a63024;
+  --desktop-back-today-border: #ddd6cf;
+  --desktop-avatar-bg: #ffffff;
+  --desktop-avatar-border: #ddd6cf;
+  --desktop-clock-bg: #f4f1ed;
+  --desktop-clock-border: #ddd6cf;
+  --desktop-clock-text: #111111;
+  --desktop-floating-bg: #fffefc;
+  --desktop-floating-border: #d9d1c8;
+  --desktop-floating-text: #111111;
+  --desktop-floating-shadow: 0 14px 30px rgba(28, 17, 8, 0.12);
+  --desktop-panel-close-bg: #f5f1ec;
+  --desktop-panel-close-text: #202020;
+  --desktop-input-bg: #ffffff;
+  --desktop-input-border: #ddd7cf;
+  --desktop-input-shadow: 0 12px 28px rgba(17, 17, 17, 0.06);
+  --desktop-submit-bg: #111111;
+  --desktop-submit-text: #ffffff;
+  --desktop-submit-shadow: 0 8px 18px rgba(17, 17, 17, 0.18);
+  --desktop-task-border: #f2f2f2;
+  --desktop-task-bg: #ffffff;
+  --desktop-task-shadow: 0 2px 16px rgba(0, 0, 0, 0.03);
+  --desktop-card-title: #181818;
+  --desktop-card-desc: #8e8e93;
+  --desktop-slot-gradient: linear-gradient(180deg, #f9f5ef 0%, #f3ece4 100%);
+  --desktop-slot-shadow:
+    0 10px 24px rgba(53, 35, 15, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 0.92);
+  --desktop-slot-shadow-hover:
+    0 14px 28px rgba(53, 35, 15, 0.09),
+    inset 0 1px 0 rgba(255, 255, 255, 0.96);
+  --desktop-modal-backdrop: rgba(17, 17, 17, 0.34);
+  --desktop-edit-bg: #ffffff;
+  --desktop-edit-border: rgba(99, 77, 52, 0.08);
+  --desktop-edit-shadow: 0 24px 60px rgba(26, 20, 12, 0.18);
+  --desktop-modal-close-bg: #f4f1ec;
+  --desktop-modal-close-text: #3a3026;
+  --desktop-edit-input-bg: #ffffff;
+  --desktop-edit-input-border: rgba(99, 77, 52, 0.1);
+  --desktop-cancel-bg: #f5f1ec;
+  --desktop-cancel-border: rgba(99, 77, 52, 0.12);
+  --desktop-cancel-text: #2b241d;
+  --desktop-save-bg: #17120d;
+  --desktop-save-disabled-bg: #b8afa5;
+  --desktop-save-text: #ffffff;
+  --desktop-save-disabled-text: #ffffff;
+  --desktop-disabled-text: #d0d0d0;
+  --desktop-accent-soft: rgba(237, 31, 31, 0.45);
+  --desktop-group-ready-bg: rgba(237, 31, 31, 0.05);
+
+  /* Option 1: Warm Beige (F6E8D7) - Active */
+  --desktop-drag-feedback-glow-strong: rgba(246, 232, 215, 0.85);
+  --desktop-drag-feedback-glow: rgba(246, 232, 215, 0.5);
+  --desktop-drag-feedback-glow-transparent: rgba(246, 232, 215, 0);
+  --desktop-drag-feedback-chip-bg: rgba(255, 253, 251, 0.92);
+  --desktop-drag-feedback-chip-border: rgba(215, 195, 170, 0.3);
+  --desktop-drag-feedback-chip-text: #8b6d4c;
+  --desktop-selection-border: rgba(74, 67, 58, 0.42);
+  --desktop-selection-fill: rgba(63, 56, 47, 0.1);
+  --desktop-selection-lift-bg: linear-gradient(180deg, rgba(250, 247, 243, 0.92) 0%, rgba(255, 253, 249, 0.98) 100%);
+  --desktop-selection-lift-shadow:
+    0 0 0 1px rgba(83, 74, 64, 0.18),
+    0 16px 32px rgba(42, 33, 23, 0.1);
+  --desktop-selection-card-border: rgba(92, 82, 71, 0.34);
+  --desktop-canvas-dot-color: rgba(128, 142, 163, 0.22);
+  --desktop-canvas-dot-glow: rgba(228, 234, 243, 0.78);
+  --desktop-canvas-dot-fade-top: rgba(255, 255, 255, 0.72);
+  --desktop-canvas-dot-fade-bottom: rgba(255, 255, 255, 0.94);
+  --desktop-header-dot-color: rgba(148, 163, 184, 0.12);
+  --desktop-header-dot-glow: rgba(238, 242, 247, 0.92);
+  --desktop-header-surface-top: rgba(255, 255, 255, 0.94);
+  --desktop-header-surface-bottom: rgba(255, 255, 255, 0.74);
+  --desktop-header-bridge: rgba(236, 241, 247, 0.78);
+
+  /* Option 2: Cool Blue (E8EDF4) - Uncomment to try
+  --desktop-drag-feedback-glow-strong: rgba(232, 237, 244, 0.85);
+  --desktop-drag-feedback-glow: rgba(232, 237, 244, 0.5);
+  --desktop-drag-feedback-glow-transparent: rgba(232, 237, 244, 0);
+  --desktop-drag-feedback-chip-bg: rgba(255, 253, 251, 0.92);
+  --desktop-drag-feedback-chip-border: rgba(180, 195, 215, 0.3);
+  --desktop-drag-feedback-chip-text: #4a6b8c;
+  */
+}
+
+.desktop-app-dark {
+  --desktop-root-bg: #121212;
+  --desktop-root-text: #ffffff;
+  --desktop-header-bg: #1e1e1e;
+  --desktop-main-gradient: linear-gradient(180deg, #1e1e1e 0%, #1e1e1e 52px, #121212 52px, #121212 100%);
+  --desktop-section-bg: #1e1e1e;
+  --desktop-divider: #333333;
+  --desktop-week-top-divider: #222222;
+  --desktop-week-bottom-divider: #333333;
+  --desktop-week-strip-bg: #131313;
+  --desktop-muted: #a0a0a0;
+  --desktop-muted-strong: #ffffff;
+  --desktop-muted-subtle: #4b4b53;
+  --desktop-accent: #ed1f1f;
+  --desktop-active-date-bg: #e84d3d;
+  --desktop-time-axis-line: #333333;
+  --desktop-chip-bg: #2c2c2c;
+  --desktop-chip-text: #ffffff;
+  --desktop-chip-active-bg: #ed1f1f;
+  --desktop-chip-active-text: #ffffff;
+  --desktop-back-today-bg: #ffffff;
+  --desktop-back-today-text: #111111;
+  --desktop-back-today-border: #d9d9d9;
+  --desktop-avatar-bg: #2c2c2c;
+  --desktop-avatar-border: #333333;
+  --desktop-clock-bg: #2c2c2c;
+  --desktop-clock-border: #333333;
+  --desktop-clock-text: #ffffff;
+  --desktop-floating-bg: #ffffff;
+  --desktop-floating-border: #d9d9d9;
+  --desktop-floating-text: #111111;
+  --desktop-floating-shadow: 0 14px 28px rgba(0, 0, 0, 0.18);
+  --desktop-panel-close-bg: #2c2c2c;
+  --desktop-panel-close-text: #ffffff;
+  --desktop-input-bg: #383838;
+  --desktop-input-border: #505050;
+  --desktop-input-shadow: 0 12px 28px rgba(0, 0, 0, 0.28);
+  --desktop-submit-bg: #111111;
+  --desktop-submit-text: #ffffff;
+  --desktop-submit-shadow: 0 8px 18px rgba(0, 0, 0, 0.28);
+  --desktop-task-border: #333333;
+  --desktop-task-bg: #1e1e1e;
+  --desktop-task-shadow: 0 2px 16px rgba(0, 0, 0, 0.4);
+  --desktop-card-title: #ffffff;
+  --desktop-card-desc: #a0a0a0;
+  --desktop-slot-gradient: linear-gradient(180deg, #2c2c2c 0%, #1e1e1e 100%);
+  --desktop-slot-shadow:
+    0 10px 24px rgba(0, 0, 0, 0.32),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  --desktop-slot-shadow-hover:
+    0 14px 28px rgba(0, 0, 0, 0.38),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  --desktop-modal-backdrop: rgba(0, 0, 0, 0.56);
+  --desktop-edit-bg: #2c2c2e;
+  --desktop-edit-border: rgba(255, 255, 255, 0.08);
+  --desktop-edit-shadow: 0 24px 60px rgba(0, 0, 0, 0.42);
+  --desktop-modal-close-bg: #444444;
+  --desktop-modal-close-text: #ffffff;
+  --desktop-edit-input-bg: #000000;
+  --desktop-edit-input-border: #333333;
+  --desktop-cancel-bg: #2c2c2c;
+  --desktop-cancel-border: #333333;
+  --desktop-cancel-text: #ffffff;
+  --desktop-save-bg: #ffffff;
+  --desktop-save-disabled-bg: #595959;
+  --desktop-save-text: #111111;
+  --desktop-save-disabled-text: #a0a0a0;
+  --desktop-disabled-text: #4b4b53;
+  --desktop-drag-feedback-glow: rgba(246, 232, 215, 0.22);
+  --desktop-drag-feedback-glow-strong: rgba(246, 232, 215, 0.38);
+  --desktop-drag-feedback-glow-transparent: rgba(246, 232, 215, 0);
+  --desktop-drag-feedback-chip-bg: rgba(26, 26, 26, 0.82);
+  --desktop-drag-feedback-chip-border: rgba(255, 255, 255, 0.08);
+  --desktop-drag-feedback-chip-text: #ffffff;
+  --desktop-accent-soft: rgba(237, 31, 31, 0.6);
+  --desktop-group-ready-bg: rgba(237, 31, 31, 0.12);
+  --desktop-selection-border: rgba(214, 206, 194, 0.42);
+  --desktop-selection-fill: rgba(232, 226, 216, 0.12);
+  --desktop-selection-lift-bg: linear-gradient(180deg, rgba(48, 45, 41, 0.9) 0%, rgba(33, 31, 28, 0.96) 100%);
+  --desktop-selection-lift-shadow:
+    0 0 0 1px rgba(219, 209, 197, 0.18),
+    0 18px 36px rgba(0, 0, 0, 0.24);
+  --desktop-selection-card-border: rgba(214, 205, 193, 0.34);
+  --desktop-canvas-dot-color: rgba(178, 188, 203, 0.18);
+  --desktop-canvas-dot-glow: rgba(39, 45, 56, 0.92);
+  --desktop-canvas-dot-fade-top: rgba(18, 18, 18, 0.5);
+  --desktop-canvas-dot-fade-bottom: rgba(18, 18, 18, 0.88);
+  --desktop-header-dot-color: rgba(173, 184, 199, 0.08);
+  --desktop-header-dot-glow: rgba(33, 38, 46, 0.96);
+  --desktop-header-surface-top: rgba(28, 30, 34, 0.9);
+  --desktop-header-surface-bottom: rgba(24, 26, 30, 0.68);
+  --desktop-header-bridge: rgba(39, 45, 56, 0.72);
+}
+
+.desktop-login-page {
+  --login-bg: #f7f4ee;
+  --login-panel: rgba(255, 252, 248, 0.84);
+  --login-card: rgba(255, 255, 255, 0.82);
+  --login-line: rgba(26, 38, 43, 0.09);
+  --login-ink: #182126;
+  --login-muted: #67727b;
+  --login-gold: #efb659;
+  --login-red: #b84a34;
+  --login-blue: #8ca6d4;
+  position: relative;
+  min-height: 100%;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at top left, rgba(255, 255, 255, 0.9), rgba(255, 255, 255, 0) 34%),
+    linear-gradient(135deg, #efe7da 0%, #f8f6f1 40%, #e9eef7 100%);
+  color: var(--login-ink);
+  font-family: 'Manrope', 'Segoe UI', sans-serif;
+}
+
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Cormorant+Garamond:wght@500;600;700&display=swap');
+
+.desktop-app {
+  position: relative;
+  --desktop-root-bg: #ffffff;
+  --desktop-root-text: #111111;
+  --desktop-header-bg: #ffffff;
+  --desktop-main-gradient: linear-gradient(180deg, #ffffff 0%, #ffffff 52px, #ffffff 52px, #ffffff 100%);
+  --desktop-section-bg: #ffffff;
+  --desktop-divider: #ece4da;
+  --desktop-week-top-divider: #e6e0d9;
+  --desktop-week-bottom-divider: #ede7df;
+  --desktop-week-strip-bg: #ffffff;
+  --desktop-muted: #8d867f;
+  --desktop-muted-strong: #7d7b77;
+  --desktop-muted-subtle: #a0a4ab;
+  --desktop-accent: #ed1f1f;
+  --desktop-active-date-bg: #ef2f2f;
+  --desktop-time-axis-line: #e2ddd7;
+  --desktop-chip-bg: #f5f5f5;
+  --desktop-chip-text: #242424;
+  --desktop-chip-active-bg: #ef2f2f;
+  --desktop-chip-active-text: #ffffff;
+  --desktop-back-today-bg: #f4f1ed;
+  --desktop-back-today-text: #a63024;
+  --desktop-back-today-border: #ddd6cf;
+  --desktop-avatar-bg: #ffffff;
+  --desktop-avatar-border: #ddd6cf;
+  --desktop-clock-bg: #f4f1ed;
+  --desktop-clock-border: #ddd6cf;
+  --desktop-clock-text: #111111;
+  --desktop-floating-bg: #fffefc;
+  --desktop-floating-border: #d9d1c8;
+  --desktop-floating-text: #111111;
+  --desktop-floating-shadow: 0 14px 30px rgba(28, 17, 8, 0.12);
+  --desktop-panel-close-bg: #f5f1ec;
+  --desktop-panel-close-text: #202020;
+  --desktop-input-bg: #ffffff;
+  --desktop-input-border: #ddd7cf;
+  --desktop-input-shadow: 0 12px 28px rgba(17, 17, 17, 0.06);
+  --desktop-submit-bg: #111111;
+  --desktop-submit-text: #ffffff;
+  --desktop-submit-shadow: 0 8px 18px rgba(17, 17, 17, 0.18);
+  --desktop-task-border: #f2f2f2;
+  --desktop-task-bg: #ffffff;
+  --desktop-task-shadow: 0 2px 16px rgba(0, 0, 0, 0.03);
+  --desktop-card-title: #181818;
+  --desktop-card-desc: #8e8e93;
+  --desktop-slot-gradient: linear-gradient(180deg, #f9f5ef 0%, #f3ece4 100%);
+  --desktop-slot-shadow:
+    0 10px 24px rgba(53, 35, 15, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 0.92);
+  --desktop-slot-shadow-hover:
+    0 14px 28px rgba(53, 35, 15, 0.09),
+    inset 0 1px 0 rgba(255, 255, 255, 0.96);
+  --desktop-modal-backdrop: rgba(17, 17, 17, 0.34);
+  --desktop-edit-bg: #ffffff;
+  --desktop-edit-border: rgba(99, 77, 52, 0.08);
+  --desktop-edit-shadow: 0 24px 60px rgba(26, 20, 12, 0.18);
+  --desktop-modal-close-bg: #f4f1ec;
+  --desktop-modal-close-text: #3a3026;
+  --desktop-edit-input-bg: #ffffff;
+  --desktop-edit-input-border: rgba(99, 77, 52, 0.1);
+  --desktop-cancel-bg: #f5f1ec;
+  --desktop-cancel-border: rgba(99, 77, 52, 0.12);
+  --desktop-cancel-text: #2b241d;
+  --desktop-save-bg: #17120d;
+  --desktop-save-disabled-bg: #b8afa5;
+  --desktop-save-text: #ffffff;
+  --desktop-save-disabled-text: #ffffff;
+  --desktop-disabled-text: #d0d0d0;
+  --desktop-accent-soft: rgba(237, 31, 31, 0.45);
+  --desktop-group-ready-bg: rgba(237, 31, 31, 0.05);
+
+  /* Option 1: Warm Beige (F6E8D7) - Active */
+  --desktop-drag-feedback-glow-strong: rgba(246, 232, 215, 0.85);
+  --desktop-drag-feedback-glow: rgba(246, 232, 215, 0.5);
+  --desktop-drag-feedback-glow-transparent: rgba(246, 232, 215, 0);
+  --desktop-drag-feedback-chip-bg: rgba(255, 253, 251, 0.92);
+  --desktop-drag-feedback-chip-border: rgba(215, 195, 170, 0.3);
+  --desktop-drag-feedback-chip-text: #8b6d4c;
+  --desktop-selection-border: rgba(74, 67, 58, 0.42);
+  --desktop-selection-fill: rgba(63, 56, 47, 0.1);
+  --desktop-selection-lift-bg: linear-gradient(180deg, rgba(250, 247, 243, 0.92) 0%, rgba(255, 253, 249, 0.98) 100%);
+  --desktop-selection-lift-shadow:
+    0 0 0 1px rgba(83, 74, 64, 0.18),
+    0 16px 32px rgba(42, 33, 23, 0.1);
+  --desktop-selection-card-border: rgba(92, 82, 71, 0.34);
+  --desktop-canvas-dot-color: rgba(128, 142, 163, 0.22);
+  --desktop-canvas-dot-glow: rgba(228, 234, 243, 0.78);
+  --desktop-canvas-dot-fade-top: rgba(255, 255, 255, 0.72);
+  --desktop-canvas-dot-fade-bottom: rgba(255, 255, 255, 0.94);
+  --desktop-header-dot-color: rgba(148, 163, 184, 0.12);
+  --desktop-header-dot-glow: rgba(238, 242, 247, 0.92);
+  --desktop-header-surface-top: rgba(255, 255, 255, 0.94);
+  --desktop-header-surface-bottom: rgba(255, 255, 255, 0.74);
+  --desktop-header-bridge: rgba(236, 241, 247, 0.78);
+
+  /* Option 2: Cool Blue (E8EDF4) - Uncomment to try
+  --desktop-drag-feedback-glow-strong: rgba(232, 237, 244, 0.85);
+  --desktop-drag-feedback-glow: rgba(232, 237, 244, 0.5);
+  --desktop-drag-feedback-glow-transparent: rgba(232, 237, 244, 0);
+  --desktop-drag-feedback-chip-bg: rgba(255, 253, 251, 0.92);
+  --desktop-drag-feedback-chip-border: rgba(180, 195, 215, 0.3);
+  --desktop-drag-feedback-chip-text: #4a6b8c;
+  */
+}
+
+.desktop-app-dark {
+  --desktop-root-bg: #121212;
+  --desktop-root-text: #ffffff;
+  --desktop-header-bg: #1e1e1e;
+  --desktop-main-gradient: linear-gradient(180deg, #1e1e1e 0%, #1e1e1e 52px, #121212 52px, #121212 100%);
+  --desktop-section-bg: #1e1e1e;
+  --desktop-divider: #333333;
+  --desktop-week-top-divider: #222222;
+  --desktop-week-bottom-divider: #333333;
+  --desktop-week-strip-bg: #131313;
+  --desktop-muted: #a0a0a0;
+  --desktop-muted-strong: #ffffff;
+  --desktop-muted-subtle: #4b4b53;
+  --desktop-accent: #ed1f1f;
+  --desktop-active-date-bg: #e84d3d;
+  --desktop-time-axis-line: #333333;
+  --desktop-chip-bg: #2c2c2c;
+  --desktop-chip-text: #ffffff;
+  --desktop-chip-active-bg: #ed1f1f;
+  --desktop-chip-active-text: #ffffff;
+  --desktop-back-today-bg: #ffffff;
+  --desktop-back-today-text: #111111;
+  --desktop-back-today-border: #d9d9d9;
+  --desktop-avatar-bg: #2c2c2c;
+  --desktop-avatar-border: #333333;
+  --desktop-clock-bg: #2c2c2c;
+  --desktop-clock-border: #333333;
+  --desktop-clock-text: #ffffff;
+  --desktop-floating-bg: #ffffff;
+  --desktop-floating-border: #d9d9d9;
+  --desktop-floating-text: #111111;
+  --desktop-floating-shadow: 0 14px 28px rgba(0, 0, 0, 0.18);
+  --desktop-panel-close-bg: #2c2c2c;
+  --desktop-panel-close-text: #ffffff;
+  --desktop-input-bg: #383838;
+  --desktop-input-border: #505050;
+  --desktop-input-shadow: 0 12px 28px rgba(0, 0, 0, 0.28);
+  --desktop-submit-bg: #111111;
+  --desktop-submit-text: #ffffff;
+  --desktop-submit-shadow: 0 8px 18px rgba(0, 0, 0, 0.28);
+  --desktop-task-border: #333333;
+  --desktop-task-bg: #1e1e1e;
+  --desktop-task-shadow: 0 2px 16px rgba(0, 0, 0, 0.4);
+  --desktop-card-title: #ffffff;
+  --desktop-card-desc: #a0a0a0;
+  --desktop-slot-gradient: linear-gradient(180deg, #2c2c2c 0%, #1e1e1e 100%);
+  --desktop-slot-shadow:
+    0 10px 24px rgba(0, 0, 0, 0.32),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  --desktop-slot-shadow-hover:
+    0 14px 28px rgba(0, 0, 0, 0.38),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  --desktop-modal-backdrop: rgba(0, 0, 0, 0.56);
+  --desktop-edit-bg: #2c2c2e;
+  --desktop-edit-border: rgba(255, 255, 255, 0.08);
+  --desktop-edit-shadow: 0 24px 60px rgba(0, 0, 0, 0.42);
+  --desktop-modal-close-bg: #444444;
+  --desktop-modal-close-text: #ffffff;
+  --desktop-edit-input-bg: #000000;
+  --desktop-edit-input-border: #333333;
+  --desktop-cancel-bg: #2c2c2c;
+  --desktop-cancel-border: #333333;
+  --desktop-cancel-text: #ffffff;
+  --desktop-save-bg: #ffffff;
+  --desktop-save-disabled-bg: #595959;
+  --desktop-save-text: #111111;
+  --desktop-save-disabled-text: #a0a0a0;
+  --desktop-disabled-text: #4b4b53;
+  --desktop-drag-feedback-glow: rgba(246, 232, 215, 0.22);
+  --desktop-drag-feedback-glow-strong: rgba(246, 232, 215, 0.38);
+  --desktop-drag-feedback-glow-transparent: rgba(246, 232, 215, 0);
+  --desktop-drag-feedback-chip-bg: rgba(26, 26, 26, 0.82);
+  --desktop-drag-feedback-chip-border: rgba(255, 255, 255, 0.08);
+  --desktop-drag-feedback-chip-text: #ffffff;
+  --desktop-accent-soft: rgba(237, 31, 31, 0.6);
+  --desktop-group-ready-bg: rgba(237, 31, 31, 0.12);
+  --desktop-selection-border: rgba(214, 206, 194, 0.42);
+  --desktop-selection-fill: rgba(232, 226, 216, 0.12);
+  --desktop-selection-lift-bg: linear-gradient(180deg, rgba(48, 45, 41, 0.9) 0%, rgba(33, 31, 28, 0.96) 100%);
+  --desktop-selection-lift-shadow:
+    0 0 0 1px rgba(219, 209, 197, 0.18),
+    0 18px 36px rgba(0, 0, 0, 0.24);
+  --desktop-selection-card-border: rgba(214, 205, 193, 0.34);
+  --desktop-canvas-dot-color: rgba(178, 188, 203, 0.18);
+  --desktop-canvas-dot-glow: rgba(39, 45, 56, 0.92);
+  --desktop-canvas-dot-fade-top: rgba(18, 18, 18, 0.5);
+  --desktop-canvas-dot-fade-bottom: rgba(18, 18, 18, 0.88);
+  --desktop-header-dot-color: rgba(173, 184, 199, 0.08);
+  --desktop-header-dot-glow: rgba(33, 38, 46, 0.96);
+  --desktop-header-surface-top: rgba(28, 30, 34, 0.9);
+  --desktop-header-surface-bottom: rgba(24, 26, 30, 0.68);
+  --desktop-header-bridge: rgba(39, 45, 56, 0.72);
+}
+
+.desktop-login-page {
+  --login-bg: #f7f4ee;
+  --login-panel: rgba(255, 252, 248, 0.84);
+  --login-card: rgba(255, 255, 255, 0.82);
+  --login-line: rgba(26, 38, 43, 0.09);
+  --login-ink: #182126;
+  --login-muted: #67727b;
+  --login-gold: #efb659;
+  --login-red: #b84a34;
+  --login-blue: #8ca6d4;
+  position: relative;
+  min-height: 100%;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at top left, rgba(255, 255, 255, 0.9), rgba(255, 255, 255, 0) 34%),
+    linear-gradient(135deg, #efe7da 0%, #f8f6f1 40%, #e9eef7 100%);
+  color: var(--login-ink);
+  font-family: 'Manrope', 'Segoe UI', sans-serif;
+}
+
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Cormorant+Garamond:wght@500;600;700&display=swap');
+
+.desktop-app {
+  position: relative;
+  --desktop-root-bg: #ffffff;
+  --desktop-root-text: #111111;
+  --desktop-header-bg: #ffffff;
+  --desktop-main-gradient: linear-gradient(180deg, #ffffff 0%, #ffffff 52px, #ffffff 52px, #ffffff 100%);
+  --desktop-section-bg: #ffffff;
+  --desktop-divider: #ece4da;
+  --desktop-week-top-divider: #e6e0d9;
+  --desktop-week-bottom-divider: #ede7df;
+  --desktop-week-strip-bg: #ffffff;
+  --desktop-muted: #8d867f;
+  --desktop-muted-strong: #7d7b77;
+  --desktop-muted-subtle: #a0a4ab;
+  --desktop-accent: #ed1f1f;
+  --desktop-active-date-bg: #ef2f2f;
+  --desktop-time-axis-line: #e2ddd7;
+  --desktop-chip-bg: #f5f5f5;
+  --desktop-chip-text: #242424;
+  --desktop-chip-active-bg: #ef2f2f;
+  --desktop-chip-active-text: #ffffff;
+  --desktop-back-today-bg: #f4f1ed;
+  --desktop-back-today-text: #a63024;
+  --desktop-back-today-border: #ddd6cf;
+  --desktop-avatar-bg: #ffffff;
+  --desktop-avatar-border: #ddd6cf;
+  --desktop-clock-bg: #f4f1ed;
+  --desktop-clock-border: #ddd6cf;
+  --desktop-clock-text: #111111;
+  --desktop-floating-bg: #fffefc;
+  --desktop-floating-border: #d9d1c8;
+  --desktop-floating-text: #111111;
+  --desktop-floating-shadow: 0 14px 30px rgba(28, 17, 8, 0.12);
+  --desktop-panel-close-bg: #f5f1ec;
+  --desktop-panel-close-text: #202020;
+  --desktop-input-bg: #ffffff;
+  --desktop-input-border: #ddd7cf;
+  --desktop-input-shadow: 0 12px 28px rgba(17, 17, 17, 0.06);
+  --desktop-submit-bg: #111111;
+  --desktop-submit-text: #ffffff;
+  --desktop-submit-shadow: 0 8px 18px rgba(17, 17, 17, 0.18);
+  --desktop-task-border: #f2f2f2;
+  --desktop-task-bg: #ffffff;
+  --desktop-task-shadow: 0 2px 16px rgba(0, 0, 0, 0.03);
+  --desktop-card-title: #181818;
+  --desktop-card-desc: #8e8e93;
+  --desktop-slot-gradient: linear-gradient(180deg, #f9f5ef 0%, #f3ece4 100%);
+  --desktop-slot-shadow:
+    0 10px 24px rgba(53, 35, 15, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 0.92);
+  --desktop-slot-shadow-hover:
+    0 14px 28px rgba(53, 35, 15, 0.09),
+    inset 0 1px 0 rgba(255, 255, 255, 0.96);
+  --desktop-modal-backdrop: rgba(17, 17, 17, 0.34);
+  --desktop-edit-bg: #ffffff;
+  --desktop-edit-border: rgba(99, 77, 52, 0.08);
+  --desktop-edit-shadow: 0 24px 60px rgba(26, 20, 12, 0.18);
+  --desktop-modal-close-bg: #f4f1ec;
+  --desktop-modal-close-text: #3a3026;
+  --desktop-edit-input-bg: #ffffff;
+  --desktop-edit-input-border: rgba(99, 77, 52, 0.1);
+  --desktop-cancel-bg: #f5f1ec;
+  --desktop-cancel-border: rgba(99, 77, 52, 0.12);
+  --desktop-cancel-text: #2b241d;
+  --desktop-save-bg: #17120d;
+  --desktop-save-disabled-bg: #b8afa5;
+  --desktop-save-text: #ffffff;
+  --desktop-save-disabled-text: #ffffff;
+  --desktop-disabled-text: #d0d0d0;
+  --desktop-accent-soft: rgba(237, 31, 31, 0.45);
+  --desktop-group-ready-bg: rgba(237, 31, 31, 0.05);
+
+  /* Option 1: Warm Beige (F6E8D7) - Active */
+  --desktop-drag-feedback-glow-strong: rgba(246, 232, 215, 0.85);
+  --desktop-drag-feedback-glow: rgba(246, 232, 215, 0.5);
+  --desktop-drag-feedback-glow-transparent: rgba(246, 232, 215, 0);
+  --desktop-drag-feedback-chip-bg: rgba(255, 253, 251, 0.92);
+  --desktop-drag-feedback-chip-border: rgba(215, 195, 170, 0.3);
+  --desktop-drag-feedback-chip-text: #8b6d4c;
+  --desktop-selection-border: rgba(74, 67, 58, 0.42);
+  --desktop-selection-fill: rgba(63, 56, 47, 0.1);
+  --desktop-selection-lift-bg: linear-gradient(180deg, rgba(250, 247, 243, 0.92) 0%, rgba(255, 253, 249, 0.98) 100%);
+  --desktop-selection-lift-shadow:
+    0 0 0 1px rgba(83, 74, 64, 0.18),
+    0 16px 32px rgba(42, 33, 23, 0.1);
+  --desktop-selection-card-border: rgba(92, 82, 71, 0.34);
+  --desktop-canvas-dot-color: rgba(128, 142, 163, 0.22);
+  --desktop-canvas-dot-glow: rgba(228, 234, 243, 0.78);
+  --desktop-canvas-dot-fade-top: rgba(255, 255, 255, 0.72);
+  --desktop-canvas-dot-fade-bottom: rgba(255, 255, 255, 0.94);
+  --desktop-header-dot-color: rgba(148, 163, 184, 0.12);
+  --desktop-header-dot-glow: rgba(238, 242, 247, 0.92);
+  --desktop-header-surface-top: rgba(255, 255, 255, 0.94);
+  --desktop-header-surface-bottom: rgba(255, 255, 255, 0.74);
+  --desktop-header-bridge: rgba(236, 241, 247, 0.78);
+
+  /* Option 2: Cool Blue (E8EDF4) - Uncomment to try
+  --desktop-drag-feedback-glow-strong: rgba(232, 237, 244, 0.85);
+  --desktop-drag-feedback-glow: rgba(232, 237, 244, 0.5);
+  --desktop-drag-feedback-glow-transparent: rgba(232, 237, 244, 0);
+  --desktop-drag-feedback-chip-bg: rgba(255, 253, 251, 0.92);
+  --desktop-drag-feedback-chip-border: rgba(180, 195, 215, 0.3);
+  --desktop-drag-feedback-chip-text: #4a6b8c;
+  */
+}
+
+.desktop-app-dark {
+  --desktop-root-bg: #121212;
+  --desktop-root-text: #ffffff;
+  --desktop-header-bg: #1e1e1e;
+  --desktop-main-gradient: linear-gradient(180deg, #1e1e1e 0%, #1e1e1e 52px, #121212 52px, #121212 100%);
+  --desktop-section-bg: #1e1e1e;
+  --desktop-divider: #333333;
+  --desktop-week-top-divider: #222222;
+  --desktop-week-bottom-divider: #333333;
+  --desktop-week-strip-bg: #131313;
+  --desktop-muted: #a0a0a0;
+  --desktop-muted-strong: #ffffff;
+  --desktop-muted-subtle: #4b4b53;
+  --desktop-accent: #ed1f1f;
+  --desktop-active-date-bg: #e84d3d;
+  --desktop-time-axis-line: #333333;
+  --desktop-chip-bg: #2c2c2c;
+  --desktop-chip-text: #ffffff;
+  --desktop-chip-active-bg: #ed1f1f;
+  --desktop-chip-active-text: #ffffff;
+  --desktop-back-today-bg: #ffffff;
+  --desktop-back-today-text: #111111;
+  --desktop-back-today-border: #d9d9d9;
+  --desktop-avatar-bg: #2c2c2c;
+  --desktop-avatar-border: #333333;
+  --desktop-clock-bg: #2c2c2c;
+  --desktop-clock-border: #333333;
+  --desktop-clock-text: #ffffff;
+  --desktop-floating-bg: #ffffff;
+  --desktop-floating-border: #d9d9d9;
+  --desktop-floating-text: #111111;
+  --desktop-floating-shadow: 0 14px 28px rgba(0, 0, 0, 0.18);
+  --desktop-panel-close-bg: #2c2c2c;
+  --desktop-panel-close-text: #ffffff;
+  --desktop-input-bg: #383838;
+  --desktop-input-border: #505050;
+  --desktop-input-shadow: 0 12px 28px rgba(0, 0, 0, 0.28);
+  --desktop-submit-bg: #111111;
+  --desktop-submit-text: #ffffff;
+  --desktop-submit-shadow: 0 8px 18px rgba(0, 0, 0, 0.28);
+  --desktop-task-border: #333333;
+  --desktop-task-bg: #1e1e1e;
+  --desktop-task-shadow: 0 2px 16px rgba(0, 0, 0, 0.4);
+  --desktop-card-title: #ffffff;
+  --desktop-card-desc: #a0a0a0;
+  --desktop-slot-gradient: linear-gradient(180deg, #2c2c2c 0%, #1e1e1e 100%);
+  --desktop-slot-shadow:
+    0 10px 24px rgba(0, 0, 0, 0.32),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  --desktop-slot-shadow-hover:
+    0 14px 28px rgba(0, 0, 0, 0.38),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  --desktop-modal-backdrop: rgba(0, 0, 0, 0.56);
+  --desktop-edit-bg: #2c2c2e;
+  --desktop-edit-border: rgba(255, 255, 255, 0.08);
+  --desktop-edit-shadow: 0 24px 60px rgba(0, 0, 0, 0.42);
+  --desktop-modal-close-bg: #444444;
+  --desktop-modal-close-text: #ffffff;
+  --desktop-edit-input-bg: #000000;
+  --desktop-edit-input-border: #333333;
+  --desktop-cancel-bg: #2c2c2c;
+  --desktop-cancel-border: #333333;
+  --desktop-cancel-text: #ffffff;
+  --desktop-save-bg: #ffffff;
+  --desktop-save-disabled-bg: #595959;
+  --desktop-save-text: #111111;
+  --desktop-save-disabled-text: #a0a0a0;
+  --desktop-disabled-text: #4b4b53;
+  --desktop-drag-feedback-glow: rgba(246, 232, 215, 0.22);
+  --desktop-drag-feedback-glow-strong: rgba(246, 232, 215, 0.38);
+  --desktop-drag-feedback-glow-transparent: rgba(246, 232, 215, 0);
+  --desktop-drag-feedback-chip-bg: rgba(26, 26, 26, 0.82);
+  --desktop-drag-feedback-chip-border: rgba(255, 255, 255, 0.08);
+  --desktop-drag-feedback-chip-text: #ffffff;
+  --desktop-accent-soft: rgba(237, 31, 31, 0.6);
+  --desktop-group-ready-bg: rgba(237, 31, 31, 0.12);
+  --desktop-selection-border: rgba(214, 206, 194, 0.42);
+  --desktop-selection-fill: rgba(232, 226, 216, 0.12);
+  --desktop-selection-lift-bg: linear-gradient(180deg, rgba(48, 45, 41, 0.9) 0%, rgba(33, 31, 28, 0.96) 100%);
+  --desktop-selection-lift-shadow:
+    0 0 0 1px rgba(219, 209, 197, 0.18),
+    0 18px 36px rgba(0, 0, 0, 0.24);
+  --desktop-selection-card-border: rgba(214, 205, 193, 0.34);
+  --desktop-canvas-dot-color: rgba(178, 188, 203, 0.18);
+  --desktop-canvas-dot-glow: rgba(39, 45, 56, 0.92);
+  --desktop-canvas-dot-fade-top: rgba(18, 18, 18, 0.5);
+  --desktop-canvas-dot-fade-bottom: rgba(18, 18, 18, 0.88);
+  --desktop-header-dot-color: rgba(173, 184, 199, 0.08);
+  --desktop-header-dot-glow: rgba(33, 38, 46, 0.96);
+  --desktop-header-surface-top: rgba(28, 30, 34, 0.9);
+  --desktop-header-surface-bottom: rgba(24, 26, 30, 0.68);
+  --desktop-header-bridge: rgba(39, 45, 56, 0.72);
+}
+
+.desktop-login-page {
+  --login-bg: #f7f4ee;
+  --login-panel: rgba(255, 252, 248, 0.84);
+  --login-card: rgba(255, 255, 255, 0.82);
+  --login-line: rgba(26, 38, 43, 0.09);
+  --login-ink: #182126;
+  --login-muted: #67727b;
+  --login-gold: #efb659;
+  --login-red: #b84a34;
+  --login-blue: #8ca6d4;
+  position: relative;
+  min-height: 100%;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at top left, rgba(255, 255, 255, 0.9), rgba(255, 255, 255, 0) 34%),
+    linear-gradient(135deg, #efe7da 0%, #f8f6f1 40%, #e9eef7 100%);
+  color: var(--login-ink);
+  font-family: 'Manrope', 'Segoe UI', sans-serif;
+}
+
 .desktop-add-panel {
   position: fixed;
   right: 42px;
