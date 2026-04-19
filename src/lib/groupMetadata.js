@@ -66,7 +66,10 @@ export const cleanupDesktopGroupMetadata = (tasks) => {
   ));
 };
 
-export const getDesktopGroupCardHeight = (itemCount, visibleItemCount = itemCount) => {
+export const getDesktopGroupCardHeight = (itemCount, visibleItemCount = itemCount, actualContentHeight = null) => {
+  if (typeof actualContentHeight === 'number') {
+    return Math.max(DESKTOP_GROUP_CARD_MIN_HEIGHT, actualContentHeight + 12);
+  }
   const visibleCount = Math.max(1, Math.min(visibleItemCount, itemCount));
   const hasExtra = itemCount > visibleCount;
   const padding = hasExtra ? 20 : 12;

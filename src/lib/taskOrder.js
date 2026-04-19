@@ -78,7 +78,7 @@ export const getDesktopCanvasTaskHeight = (task) => (
 );
 
 export const getDesktopDragTaskIds = (task) => (
-  Array.isArray(task?.groupTaskIds) && task.groupTaskIds.length > 0
+  task?.isGroupInitiator && Array.isArray(task?.groupTaskIds) && task.groupTaskIds.length > 0
     ? task.groupTaskIds
     : task?.id !== undefined && task?.id !== null
       ? [task.id]

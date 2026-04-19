@@ -434,6 +434,7 @@ const GroupedTaskCard = ({
   onPointerUp,
   onPointerCancel,
 }) => {
+  if (!tasks || tasks.length === 0) return null;
   const leadTask = tasks[0];
   const [isExpanded, setIsExpanded] = useState(false);
   const groupTitle = getDesktopGroupDisplayName(tasks);
@@ -452,13 +453,25 @@ const GroupedTaskCard = ({
   // If we are dragging a single item out of this group, hide it from the group preview
   const isDraggingGroup = isDragging && isGroupDragActive;
   const filteredTasks = tasks.filter((t) => isDraggingGroup || t.id !== draggedTaskId);
+
+  const getTaskHeightInGroup = (t) => {
+    if (normalizeCardType(t?.cardType) === CARD_TYPES.PHOTO) return 210;
+    const title = t.photoTitle || t.linkTitle || t.videoTitle || t.musicTitle || t.mapTitle || t.title || t.text || '';
+    const isLongTitle = title.length > 28 || title.includes('\n');
+    return isLongTitle ? 80 : 54;
+  };
+
   const collapsedVisibleCount = Math.min(filteredTasks.length, DESKTOP_GROUP_CARD_VISIBLE_ITEMS);
   const expandedVisibleCount = Math.min(filteredTasks.length, DESKTOP_GROUP_CARD_EXPANDED_VISIBLE_ITEMS);
   const visibleItemCount = isExpanded ? expandedVisibleCount : collapsedVisibleCount;
   const hiddenTaskCount = Math.max(0, filteredTasks.length - collapsedVisibleCount);
-  const groupCardMinHeight = getDesktopGroupCardHeight(filteredTasks.length, visibleItemCount);
-  const groupListMaxHeight = (visibleItemCount * DESKTOP_GROUP_CARD_ITEM_HEIGHT) + (Math.max(0, visibleItemCount - 1) * 6);
-  const canScrollExpandedList = isExpanded && filteredTasks.length > expandedVisibleCount;
+
+  // Sum up actual heights of visible tasks to provide a precise card height
+  const actualContentHeight = filteredTasks.slice(0, visibleItemCount).reduce((sum, t) => sum + getTaskHeightInGroup(t) + 6, 70);
+
+  const groupCardMinHeight = getDesktopGroupCardHeight(filteredTasks.length, visibleItemCount, actualContentHeight);
+  const groupListMaxHeight = isExpanded ? 500 : (actualContentHeight - 70);
+  const canScrollExpandedList = isExpanded && actualContentHeight > 550;
 
   return (
     <div id={`desktop-task-wrapper-${leadTask.id}`} className={`desktop-task-wrapper desktop-task-group-wrapper ${isDragging ? 'is-dragging' : ''} ${isSelected ? 'is-selected' : ''}`}>
@@ -1680,8 +1693,8 @@ const DailyTaskList = ({
           ? (draggedTaskId === dragTask.id && isGroupDragActive) // Only hide whole card if lead task (group drag) is active
           : (draggedTaskId === entry.task.id && !isGroupDragActive);
         return (
-          <div key={entry.type === 'group' ? `group - ${entry.id} ` : entry.task.id} id={`desktop - canvas - entry - ${dragTask.id} `} data-desktop-layout-id={`task - ${dragTask.id} `} className="desktop-canvas-card-node" style={{ left: entry.x, top: entry.y, width: DESKTOP_CANVAS_CARD_WIDTH }}>
-            <div className={`desktop - canvas - card - shell ${isGroupReady ? 'desktop-canvas-card-shell--group-ready' : ''} ${isDragging ? 'is-dragging' : ''} `}>
+          <div key={entry.type === 'group' ? `group-${entry.id}` : entry.task.id} id={`desktop-canvas-entry-${dragTask.id}`} data-desktop-layout-id={`task-${dragTask.id}`} className="desktop-canvas-card-node" style={{ left: entry.x, top: entry.y, width: DESKTOP_CANVAS_CARD_WIDTH }}>
+            <div className={`desktop-canvas-card-shell ${isGroupReady ? 'desktop-canvas-card-shell--group-ready' : ''} ${isDragging ? 'is-dragging' : ''}`}>
               {entry.type === 'group' ? (
                 <GroupedTaskCard
                   tasks={entry.tasks}
@@ -2908,11 +2921,32 @@ function App({ session }) {
     desktopDragAnchorStartPositionRef.current = anchorPosition;
 
     const anchorEntry = selectedDayEntriesRef.current.find((entry) => getDesktopCanvasEntryTaskIds(entry).includes(taskId)) || null;
+
+    // If lifting a single task out of a group, force the overlay immediately.
+    const isLiftingFromGroup = !desktopDragIsGroupRef.current && anchorEntry?.type === 'group';
+    let liftOffsetY = 0;
+
+    if (isLiftingFromGroup) {
+      // Calculate the approximate vertical offset of the task within the group card
+      // to avoid jumping to the top of the group when the drag starts.
+      const idx = anchorEntry.tasks.findIndex((t) => t.id === taskId);
+      if (idx !== -1) {
+        liftOffsetY = 76; // Header height + gap
+        for (let i = 0; i < idx; i += 1) {
+          const t = anchorEntry.tasks[i];
+          const title = t.photoTitle || t.title || t.text || '';
+          const isLongTitle = title.length > 28 || title.includes('\n');
+          const h = (normalizeCardType(t.cardType) === CARD_TYPES.PHOTO) ? 210 : (isLongTitle ? 80 : 54);
+          liftOffsetY += h + 6;
+        }
+      }
+    }
+
     const overlaySnapshot = {
       taskId,
       type: desktopDragIsGroupRef.current ? 'group' : 'task',
       baseX: anchorPosition.x,
-      baseY: anchorPosition.y,
+      baseY: anchorPosition.y + liftOffsetY,
       task: null,
       tasks: null,
     };
@@ -2929,20 +2963,25 @@ function App({ session }) {
 
     desktopDragOverlaySnapshotRef.current = overlaySnapshot;
     setDesktopDragOverlaySnapshot(overlaySnapshot);
-    // Do NOT activate overlay or hide source for same-day group drag.
-    // The source canvas entry node is used directly (same as single task drag).
-    // Overlay is only activated later for cross-day drag via the useEffect below.
-    setDesktopDragOverlayActive(false);
+    setDesktopDragOverlayActive(isLiftingFromGroup);
+
+    if (isLiftingFromGroup) {
+      // Prevent hiding the group entry node when lifting an item out of it.
+      // The individual row is hidden by visibility logic inside GroupedTaskCard.
+      desktopDragSourceEntryIdRef.current = null;
+    }
+
     desktopDragAnchorSizeRef.current = {
       width: DESKTOP_CANVAS_CARD_WIDTH,
       height: anchorEntry ? getDesktopCanvasEntryHeight(anchorEntry) : DESKTOP_CANVAS_CARD_HEIGHT,
     };
 
-    // Record the canvas-space pointer position at the moment drag mode begins.
-    // All visual updates use this as the grab-point origin so the card never jumps.
+    // Record the canvas-space pointer position at the *initial* mouse down.
+    // This serves as the grab-point origin. Since it matches the snapshot baseX/baseY
+    // at t=0, the card never jumps or snaps when drag mode activates.
     const pointerCanvasStart = getDragCanvasPointFromClient(
-      desktopDragPointerRef.current.x,
-      desktopDragPointerRef.current.y,
+      desktopDragStateRef.current.startX,
+      desktopDragStateRef.current.startY,
     );
     desktopDragPointerCanvasStartRef.current = pointerCanvasStart;
 
@@ -2951,7 +2990,7 @@ function App({ session }) {
 
     movingTaskIds.forEach((movingTaskId) => {
       // Mark the canvas-card-shell (direct child of the canvas entry node) for the lift CSS
-      const entryNode = document.getElementById(`desktop - canvas - entry - ${movingTaskId} `);
+      const entryNode = document.getElementById(`desktop-canvas-entry-${movingTaskId}`);
       const shell = entryNode?.querySelector('.desktop-canvas-card-shell');
       if (shell) shell.classList.add('is-dragging');
     });
