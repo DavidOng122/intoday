@@ -45,8 +45,25 @@ export const getSupportedUploadKind = (file) => {
 export const isSupportedUploadFile = (file) => Boolean(getSupportedUploadKind(file));
 
 export const isSupportedConvertFile = (file) => {
-  const kind = getSupportedUploadKind(file);
-  return kind === 'pdf' || kind === 'word';
+  const mimeType = String(file?.type || '').toLowerCase();
+  const extension = getFileExtension(file?.name || '');
+  return (
+    mimeType === 'application/pdf'
+    || mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    || mimeType === 'text/plain'
+    || mimeType === 'text/html'
+    || mimeType === 'text/markdown'
+    || mimeType === 'text/csv'
+    || extension === 'pdf'
+    || extension === 'docx'
+    || extension === 'html'
+    || extension === 'htm'
+    || extension === 'txt'
+    || extension === 'md'
+    || extension === 'csv'
+    || extension === 'tsv'
+    || extension === 'xml'
+  );
 };
 
 export const hasImageFiles = (dataTransfer) => {

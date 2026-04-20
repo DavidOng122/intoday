@@ -1,10 +1,39 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
+import convertHandler from './api/convert.js'
+
+const createVercelStyleResponse = (res) => {
+  res.status = (statusCode) => {
+    res.statusCode = statusCode
+    return res
+  }
+
+  res.json = (payload) => {
+    if (!res.headersSent) {
+      res.setHeader('content-type', 'application/json; charset=utf-8')
+    }
+    res.end(JSON.stringify(payload))
+    return res
+  }
+
+  return res
+}
+
+const localApiPlugin = () => ({
+  name: 'local-api-routes',
+  configureServer(server) {
+    server.middlewares.use('/api/convert', (req, res, next) => {
+      const adaptedResponse = createVercelStyleResponse(res)
+      Promise.resolve(convertHandler(req, adaptedResponse)).catch(next)
+    })
+  },
+})
 
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [
+    localApiPlugin(),
     react(),
     VitePWA({
       registerType: 'autoUpdate',

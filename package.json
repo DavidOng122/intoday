@@ -4,10 +4,13 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
+    "dev": "npm run dev:web",
+    "dev:web": "vite --host 127.0.0.1 --port 5173",
+    "build": "npm run build:web",
+    "build:web": "vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "npm run preview:web",
+    "preview:web": "vite preview --host 127.0.0.1 --port 4173"
   },
   "dependencies": {
     "@capacitor/android": "^8.2.0",

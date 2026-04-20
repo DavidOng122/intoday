@@ -1,13 +1,16 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
-import { X, PenLine, Trash2 } from 'lucide-react';
+import EmojiPicker from 'emoji-picker-react';
+import JSZip from 'jszip';
+import { PenLine, Trash2, X } from 'lucide-react';
 import { supabase } from '../supabase';
+import DesktopLogin from '../DesktopLogin';
 import { useSyncedTodos } from '../todoSync';
 import { getUserProfile } from '../userProfile';
 import DesktopProfilePage from '../components/DesktopProfilePage';
 import DesktopHistoryModal from '../components/DesktopHistoryModal';
 import IntoDayLogo from '../components/IntoDayLogo';
-import { getLogicalToday } from '../lib/dateHelpers';
+import { DAY_BOUNDARY_HOUR, getLogicalToday } from '../lib/dateHelpers';
 import { getInitialLanguage } from '../lib/language';
 import { createUpdatedTimestamp, getPackMetadataTextFromItems } from '../lib/packMetadata';
 import { deleteUploadedFileBlob, getUploadedFileRecord, saveUploadedFileBlob } from '../lib/uploadedFileStorage';
@@ -27,9 +30,11 @@ import {
   normalizePackTags,
   PACK_ICON_SUGGESTIONS,
 } from '../lib/packPageUtils';
-
+import { timeBlocks } from '../lib/timeBlocks';
+import { translations } from '../lib/translations';
 import {
   CARD_TYPES,
+  extractPrimaryUrl,
   fetchMapMeta,
   fetchVideoMeta,
   fetchSpotifyMeta,
@@ -38,28 +43,980 @@ import {
   getTaskCardPresentation,
   normalizeCardType,
 } from '../taskCardUtils';
+import {
+  deriveTaskDisplaySubtitle,
+  deriveTaskDisplayTitle,
+} from '../lib/taskDisplayUtils';
 import { useTaskInteraction } from '../task-interactions/useTaskInteraction';
 import { trackUserEvent } from '../lib/analytics';
-import { PlusIcon, SearchIcon, PackSelectIcon, PackExportIcon, CloseIcon, OpenFullViewIcon, ArrowUpIcon, AttachFileIcon, ConvertUploadIcon, HeaderChevronIcon, EditIcon, LinkGlobeIcon, DocumentTextIcon, VideoGlyphIcon, SparkRosetteIcon, NotionGlyphIcon, GithubGlyphIcon, YouTubeGlyphIcon, ZoomChevronIcon, WorkspaceChevronIcon, WorkspaceMoreIcon, WorkspacePlusIcon } from '../components/icons/DesktopIcons';
-import { SHARED_SELECTED_DATE_KEY, DESKTOP_LANGUAGE_KEY, DESKTOP_APPEARANCE_KEY, DESKTOP_WORKSPACES_KEY, DESKTOP_ACTIVE_WORKSPACE_KEY, DEFAULT_DESKTOP_WORKSPACE_ID, MAX_DESKTOP_WORKSPACES, DESKTOP_DRAG_START_DISTANCE, DESKTOP_DRAG_DAY_EDGE_HOLD_MS, DESKTOP_DRAG_DAY_FLIP_COOLDOWN_MS, DESKTOP_DRAG_DAY_FLIP_ZONE_PX, DESKTOP_DRAG_DAY_ARM_DISTANCE_PX, DESKTOP_DRAG_DAY_CONFIRM_DISTANCE_PX, DESKTOP_DRAG_DAY_CANCEL_DISTANCE_PX, DESKTOP_GROUP_OVERLAP_THRESHOLD, DESKTOP_MAIN_CONTENT_MAX_WIDTH, DESKTOP_MAIN_CONTENT_HORIZONTAL_PADDING, DESKTOP_BASE_SLOT_COUNT, DESKTOP_CANVAS_DEFAULT_ZOOM, DESKTOP_CANVAS_MIN_SCALE, DESKTOP_CANVAS_MAX_SCALE, DESKTOP_CANVAS_SCALE_STEP, DESKTOP_CANVAS_CARD_WIDTH, DESKTOP_CANVAS_CARD_HEIGHT, DESKTOP_PHOTO_CARD_HEIGHT, DESKTOP_CANVAS_CARD_GAP, DESKTOP_IMAGE_DROP_MAX_EDGE, DESKTOP_IMAGE_DROP_QUALITY, UPLOADED_FILE_SOURCE_LABEL, SUPPORTED_UPLOAD_IMAGE_EXTENSIONS, SUPPORTED_UPLOAD_WORD_EXTENSIONS, SUPPORTED_UPLOAD_PDF_EXTENSIONS, SUPPORTED_UPLOAD_ACCEPT, SUPPORTED_CONVERT_ACCEPT, DESKTOP_CANVAS_MIN_HEIGHT, DESKTOP_GROUP_CARD_MIN_HEIGHT, DESKTOP_GROUP_CARD_ITEM_HEIGHT, DESKTOP_GROUP_CARD_VISIBLE_ITEMS, DESKTOP_GROUP_CARD_EXPANDED_VISIBLE_ITEMS, DESKTOP_APP_WINDOW_SCALE } from '../lib/desktopConstants';
-import { screenToCanvas, doDesktopRectsIntersect, getDesktopSelectionRect, getDesktopCanvasRectIntersectionArea, getDesktopCanvasOverlapEntry } from '../lib/canvasGeometry';
-import { resolveDesktopCanvasEntries, getDesktopCanvasHeight, getNextDesktopCanvasPosition, getDesktopCanvasResolvedPosition, getDesktopCanvasEntryHeight, getDesktopCanvasEntryTaskIds } from '../lib/canvasEntries';
-import { isEditableElement, clampDesktopCanvasScale, getCanvasDeletionSummary } from '../lib/domUtils';
-import { dateKey, sameDay, shiftDateByDays, getDesktopDayFlipZones, parseSharedSelectedDate, panelLabel, getTranslationsForLanguage } from '../lib/dateUtils';
-import { normalizeDesktopWorkspaces, taskBelongsToWorkspace, getDefaultDesktopWorkspaces, getUntitledWorkspaceName, areTaskIdSelectionsEqual } from '../lib/workspaceUtils';
-import { getDesktopGroupDisplayName, getDesktopGroupIcon, getDesktopGroupDisplayTags, getSuggestedDesktopGroupName, cleanupDesktopGroupMetadata, getDesktopGroupCardHeight } from '../lib/groupMetadata';
-import { getFirstAvailableDesktopSlot, getDesktopSectionTaskOrder, getDesktopDragTaskIds } from '../lib/taskOrder';
-import { normalizeTask, sectionIdToMobileId } from '../lib/taskNormalize';
-import { getUploadedFileTitle, getDroppedImageTitle, getFileExtension, getUploadedFileFallbackMimeType, getSupportedUploadKind, isSupportedUploadFile, isSupportedConvertFile, hasImageFiles, hasSupportedUploadFiles, readFileAsDataUrl, loadImageElement, createUploadAttachmentId, createUploadedFileStorageKey, serializeDroppedImageFile, serializeUploadAttachment } from '../lib/uploadUtils';
-import { getPackItemPrimaryUrl, getPackItemSourceMeta, PACK_EXPORT_SECTION_ORDER, PACK_FILTER_ORDER, getPackRoleHeading, getPackFilterLabel, getPackTaskRoles, getPrimaryPackTaskRole, getPackTasksByRole, sanitizePackFilename, ensureUniqueAssetFilename, collectPackAssets, buildPackExportItemMarkdown, buildPackSectionMarkdown, buildPackExportHeaderLines, buildRoleMarkdown, buildCopyForAIText, buildWholePackMarkdown, downloadBlob, downloadMarkdown, copyTextToClipboard } from '../lib/packExport';
+import { convertDocumentFileToMarkdown } from '../lib/convertToMarkdown';
 
+const SHARED_SELECTED_DATE_KEY = 'shared_selected_date';
+const DESKTOP_LANGUAGE_KEY = 'desktop_profile_language';
+const DESKTOP_APPEARANCE_KEY = 'desktop_profile_appearance';
+const DESKTOP_WORKSPACES_KEY = 'desktop_workspace_items';
+const DESKTOP_ACTIVE_WORKSPACE_KEY = 'desktop_active_workspace';
+const DEFAULT_DESKTOP_WORKSPACE_ID = 'workspace-untitled';
+const MAX_DESKTOP_WORKSPACES = 3;
+const LEGACY_SAMPLE_WORKSPACE_IDS = new Set(['workspace-personal-projects', 'workspace-work-setup']);
+const DEFAULT_DESKTOP_WORKSPACES = [
+  {
+    id: DEFAULT_DESKTOP_WORKSPACE_ID,
+    name: 'Untitled',
+    iconType: 'dot',
+  },
+];
+const LANGUAGE_LOCALES = {
+  EN: 'en-US',
+  ZH: 'zh-CN',
+  MS: 'ms-MY',
+  JA: 'ja-JP',
+  TH: 'th-TH',
+};
+const MOBILE_BLOCK_STYLES = Object.fromEntries(timeBlocks.map((block) => [block.id, block]));
+const DAY_TASK_TIME_ORDER = ['Morning', 'Afternoon', 'Evening', 'Night', 'Midnight'];
+const sections = [
+  {
+    id: 'morning',
+    mobileId: 'Morning',
+    labelKey: 'morning',
+    start: '06:00',
+    end: '12:00',
+    pillBg: '#f7d8a5',
+    pillColor: '#6b3f06',
+    darkPillBg: MOBILE_BLOCK_STYLES.Morning.color,
+    darkPillColor: MOBILE_BLOCK_STYLES.Morning.textColor,
+    darkPillBorder: MOBILE_BLOCK_STYLES.Morning.strokeColor,
+  },
+  {
+    id: 'afternoon',
+    mobileId: 'Afternoon',
+    labelKey: 'afternoon',
+    start: '12:00',
+    end: '18:00',
+    pillBg: '#bfe3fb',
+    pillColor: '#0d4c82',
+    darkPillBg: MOBILE_BLOCK_STYLES.Afternoon.color,
+    darkPillColor: MOBILE_BLOCK_STYLES.Afternoon.textColor,
+    darkPillBorder: MOBILE_BLOCK_STYLES.Afternoon.strokeColor,
+  },
+  {
+    id: 'evening',
+    mobileId: 'Evening',
+    labelKey: 'evening',
+    start: '18:00',
+    end: '22:00',
+    pillBg: '#eadffd',
+    pillColor: '#5f2d90',
+    darkPillBg: MOBILE_BLOCK_STYLES.Evening.color,
+    darkPillColor: MOBILE_BLOCK_STYLES.Evening.textColor,
+    darkPillBorder: MOBILE_BLOCK_STYLES.Evening.strokeColor,
+  },
+  {
+    id: 'night',
+    mobileId: 'Night',
+    labelKey: 'night',
+    start: '22:00',
+    end: '06:00',
+    pillBg: '#dfe6ef',
+    pillColor: '#213243',
+    darkPillBg: MOBILE_BLOCK_STYLES.Night.color,
+    darkPillColor: MOBILE_BLOCK_STYLES.Night.textColor,
+    darkPillBorder: MOBILE_BLOCK_STYLES.Night.strokeColor,
+  },
+];
+const DESKTOP_DRAG_START_DISTANCE = 8;
+const DESKTOP_DRAG_DAY_EDGE_HOLD_MS = 380;
+const DESKTOP_DRAG_DAY_FLIP_COOLDOWN_MS = 700;
+const DESKTOP_DRAG_DAY_FLIP_ZONE_PX = 56;
+const DESKTOP_DRAG_DAY_ARM_DISTANCE_PX = 10;
+const DESKTOP_DRAG_DAY_CONFIRM_DISTANCE_PX = 28;
+const DESKTOP_DRAG_DAY_CANCEL_DISTANCE_PX = 16;
+const DESKTOP_GROUP_OVERLAP_THRESHOLD = 0.5;
+const DESKTOP_MAIN_CONTENT_MAX_WIDTH = 1008;
+const DESKTOP_MAIN_CONTENT_HORIZONTAL_PADDING = 72;
+const DESKTOP_DRAG_EDGE_OVERFLOW_TOP = 20;
+const DESKTOP_DRAG_EDGE_OVERFLOW_BOTTOM = 64;
+const DESKTOP_DRAG_EDGE_RESISTANCE = 0.22;
+const DESKTOP_DRAG_MAX_EDGE_OVERFLOW = 96;
+const DESKTOP_BASE_SLOT_COUNT = 4;
+const DESKTOP_TIME_AXIS_LINE_TOP = 26;
+const DESKTOP_TIME_AXIS_LINE_BOTTOM = 36;
+const DESKTOP_TIME_MARKER_SIZE = 7;
+const DESKTOP_SLOT_MIN_HEIGHT = 98;
+const DESKTOP_SLOT_GAP = 22;
+const DESKTOP_CANVAS_DEFAULT_ZOOM = 0.8;
+const DESKTOP_CANVAS_MIN_SCALE = 0.15;
+const DESKTOP_CANVAS_MAX_SCALE = 2;
+const DESKTOP_CANVAS_SCALE_STEP = 0.12;
+const DESKTOP_CANVAS_CARD_WIDTH = 336;
+const DESKTOP_CANVAS_CARD_HEIGHT = 92;
+const DESKTOP_PHOTO_CARD_HEIGHT = 236;
+const DESKTOP_CANVAS_CARD_GAP = 20;
+const DESKTOP_IMAGE_DROP_MAX_EDGE = 1600;
+const DESKTOP_IMAGE_DROP_QUALITY = 0.88;
+const UPLOADED_FILE_SOURCE_LABEL = 'Uploaded file';
+const SUPPORTED_UPLOAD_IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'webp'];
+const SUPPORTED_UPLOAD_WORD_EXTENSIONS = ['doc', 'docx'];
+const SUPPORTED_UPLOAD_PDF_EXTENSIONS = ['pdf'];
+const SUPPORTED_UPLOAD_ACCEPT = '.pdf,.doc,.docx,.png,.jpg,.jpeg,.webp,image/png,image/jpeg,image/webp,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+const SUPPORTED_CONVERT_ACCEPT = '.pdf,.docx,.html,.htm,.txt,.md,.csv,.tsv,.xml,text/plain,text/html,text/markdown,text/csv,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+const DESKTOP_CANVAS_MIN_HEIGHT = 560;
+const DESKTOP_GROUP_CARD_MIN_HEIGHT = 176;
+const DESKTOP_GROUP_CARD_ITEM_HEIGHT = 60;
+const DESKTOP_GROUP_CARD_VISIBLE_ITEMS = 3;
+const DESKTOP_GROUP_CARD_EXPANDED_VISIBLE_ITEMS = 5;
+const DESKTOP_CANVAS_HITBOX_HORIZONTAL_PADDING = 10;
+const DESKTOP_CANVAS_HITBOX_VERTICAL_PADDING = 18;
+// Pure coordinate utility functions (no DOM refs, no closures)
+const canvasToScreen = (canvasX, canvasY, vp) => ({
+  x: canvasX * vp.zoom + vp.panX,
+  y: canvasY * vp.zoom + vp.panY,
+});
+const screenToCanvas = (screenX, screenY, vp) => ({
+  x: (screenX - vp.panX) / vp.zoom,
+  y: (screenY - vp.panY) / vp.zoom,
+});
+// Root-level app window scale (OS density scaling) — unrelated to canvas zoom.
+// The entire desktop app wrapper is scaled down to 0.8 so the UI fits a typical
+// consumer monitor pixel density. Drag overlay positions must compensate for this.
+const DESKTOP_APP_WINDOW_SCALE = 0.8;
 
+const getDesktopSectionPillStyle = (section, appearance) => (
+  appearance === 'dark'
+    ? {
+      background: section.darkPillBg,
+      color: section.darkPillColor,
+      border: `1px solid ${section.darkPillBorder}`,
+      WebkitTextStroke: `0.2px ${section.darkPillBorder}`,
+    }
+    : {
+      background: section.pillBg,
+      color: section.pillColor,
+      border: 'none',
+      WebkitTextStroke: '0',
+    }
+);
 
+const isValidDesktopSlot = (value) => Number.isInteger(value) && value >= 0;
+const getDesktopSlotCapacity = (tasks) => {
+  const preferredSlotCount = tasks.reduce((max, task) => (
+    isValidDesktopSlot(task.desktopSlot) ? Math.max(max, task.desktopSlot + 1) : max
+  ), 0);
+  const itemCount = Math.max(tasks.length, preferredSlotCount);
+  return Math.max(
+    DESKTOP_BASE_SLOT_COUNT,
+    itemCount <= DESKTOP_BASE_SLOT_COUNT ? DESKTOP_BASE_SLOT_COUNT : Math.ceil(itemCount / 2) * 2,
+  );
+};
+const resolveDesktopSectionSlots = (tasks) => {
+  const slots = Array.from({ length: getDesktopSlotCapacity(tasks) }, () => null);
+  const orderedTasks = tasks
+    .map((task, index) => ({
+      task,
+      index,
+      preferredSlot: isValidDesktopSlot(task.desktopSlot) ? task.desktopSlot : null,
+    }))
+    .sort((a, b) => {
+      const aHasSlot = a.preferredSlot !== null;
+      const bHasSlot = b.preferredSlot !== null;
+      if (aHasSlot && bHasSlot) {
+        return a.preferredSlot - b.preferredSlot || a.index - b.index;
+      }
+      if (aHasSlot) return -1;
+      if (bHasSlot) return 1;
+      return a.index - b.index;
+    });
 
+  orderedTasks.forEach(({ task, preferredSlot }) => {
+    let slot = preferredSlot;
+    if (slot === null || slots[slot]) {
+      slot = slots.findIndex((entry) => entry === null);
+    }
+    slots[slot] = normalizeTask({ ...task, desktopSlot: slot });
+  });
 
+  return { slots };
+};
+const getFirstAvailableDesktopSlot = (tasks, dateString, timeOfDay) => {
+  const { slots } = resolveDesktopSectionSlots(
+    tasks.filter((task) => task.dateString === dateString && task.timeOfDay === timeOfDay),
+  );
+  const index = slots.findIndex((task) => task === null);
+  return index === -1 ? null : index;
+};
+const getDesktopSectionTaskOrder = (tasks, dateString, timeOfDay) => {
+  const sectionTasks = tasks.filter((task) => task.dateString === dateString && task.timeOfDay === timeOfDay);
+  const { slots } = resolveDesktopSectionSlots(sectionTasks);
+  return slots.filter(Boolean);
+};
+const getDayTaskOrder = (tasks, dateString) => tasks
+  .map((task, index) => ({ task, index }))
+  .filter(({ task }) => task.dateString === dateString)
+  .sort((a, b) => {
+    const timeRankA = DAY_TASK_TIME_ORDER.indexOf(a.task.timeOfDay);
+    const timeRankB = DAY_TASK_TIME_ORDER.indexOf(b.task.timeOfDay);
+    const normalizedTimeRankA = timeRankA === -1 ? DAY_TASK_TIME_ORDER.length : timeRankA;
+    const normalizedTimeRankB = timeRankB === -1 ? DAY_TASK_TIME_ORDER.length : timeRankB;
+    const slotA = isValidDesktopSlot(a.task.desktopSlot) ? a.task.desktopSlot : Number.POSITIVE_INFINITY;
+    const slotB = isValidDesktopSlot(b.task.desktopSlot) ? b.task.desktopSlot : Number.POSITIVE_INFINITY;
 
+    return normalizedTimeRankA - normalizedTimeRankB || slotA - slotB || a.index - b.index;
+  })
+  .map(({ task }) => task);
+const reflowDesktopSectionSlots = (tasks, dateString, timeOfDay, orderedIds = null) => {
+  const currentOrderedTasks = getDesktopSectionTaskOrder(tasks, dateString, timeOfDay);
+  const orderedTasks = orderedIds
+    ? [
+      ...orderedIds
+        .map((id) => currentOrderedTasks.find((task) => task.id === id))
+        .filter(Boolean),
+      ...currentOrderedTasks.filter((task) => !orderedIds.includes(task.id)),
+    ]
+    : currentOrderedTasks;
 
+  orderedTasks.forEach((task, index) => {
+    const targetTask = tasks.find((item) => item.id === task.id);
+    if (!targetTask) return;
+    targetTask.desktopSlot = index;
+  });
+};
+const buildDesktopRenderSections = ({ tasks, selectedDateKey, draggedTaskId, dragOverSection, dragOverSlot }) => {
+  const selectedTasks = tasks.filter((task) => task.dateString === selectedDateKey);
+  const baseSections = Object.fromEntries(
+    sections.map((section) => {
+      const { slots } = resolveDesktopSectionSlots(
+        selectedTasks.filter((task) => task.timeOfDay === section.mobileId),
+      );
+      return [section.mobileId, {
+        renderSlots: slots.map((task) => (task ? { type: 'task', task } : { type: 'empty' })),
+      }];
+    }),
+  );
 
+  if (!draggedTaskId) return baseSections;
+
+  const draggedTask = tasks.find((task) => task.id === draggedTaskId);
+  if (!draggedTask) return baseSections;
+
+  let previewTasks = tasks;
+  if (dragOverSection && isValidDesktopSlot(dragOverSlot)) {
+    previewTasks = applyDesktopTaskDrop({
+      tasks,
+      draggedTaskId,
+      sourceDateString: draggedTask.dateString,
+      sourceSection: draggedTask.timeOfDay,
+      sourceSlot: draggedTask.desktopSlot,
+      targetDateString: selectedDateKey,
+      targetSection: dragOverSection,
+      targetSlot: dragOverSlot,
+    });
+  }
+
+  const previewDraggedTask = previewTasks.find((task) => task.id === draggedTaskId) || draggedTask;
+  const previewSections = Object.fromEntries(
+    sections.map((section) => {
+      const { slots } = resolveDesktopSectionSlots(
+        previewTasks.filter((task) => task.dateString === selectedDateKey && task.timeOfDay === section.mobileId),
+      );
+      const renderSlots = slots.map((task, slotIndex) => {
+        if (
+          previewDraggedTask.dateString === selectedDateKey
+          &&
+          previewDraggedTask.timeOfDay === section.mobileId
+          && previewDraggedTask.desktopSlot === slotIndex
+        ) {
+          return { type: 'placeholder' };
+        }
+        if (task && task.id === draggedTaskId) {
+          return { type: 'empty' };
+        }
+        return task ? { type: 'task', task } : { type: 'empty' };
+      });
+
+      return [section.mobileId, { renderSlots }];
+    }),
+  );
+
+  return previewSections;
+};
+const applyDesktopTaskDrop = ({
+  tasks,
+  draggedTaskId,
+  sourceDateString,
+  sourceSection,
+  sourceSlot,
+  targetDateString,
+  targetSection,
+  targetSlot,
+}) => {
+  if (!targetSection || !isValidDesktopSlot(targetSlot)) return tasks;
+
+  const nextTasks = tasks.map((task) => ({ ...task }));
+  const draggedTask = nextTasks.find((task) => task.id === draggedTaskId);
+  if (!draggedTask) return tasks;
+  const resolvedSourceDateString = sourceDateString || draggedTask.dateString;
+  const resolvedTargetDateString = targetDateString || resolvedSourceDateString;
+  const targetOrder = getDesktopSectionTaskOrder(
+    nextTasks.filter((task) => task.id !== draggedTaskId),
+    resolvedTargetDateString,
+    targetSection,
+  ).map((task) => task.id);
+  const insertIndex = Math.max(0, Math.min(targetSlot, targetOrder.length));
+  targetOrder.splice(insertIndex, 0, draggedTaskId);
+
+  draggedTask.dateString = resolvedTargetDateString;
+  draggedTask.timeOfDay = targetSection;
+  draggedTask.desktopSlot = null;
+
+  if (resolvedSourceDateString !== resolvedTargetDateString || sourceSection !== targetSection) {
+    reflowDesktopSectionSlots(nextTasks, resolvedSourceDateString, sourceSection);
+  }
+  reflowDesktopSectionSlots(nextTasks, resolvedTargetDateString, targetSection, targetOrder);
+  return nextTasks.map(normalizeTask);
+};
+
+const dateKey = (date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+const sameDay = (a, b) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+const shiftDateByDays = (date, dayOffset) => {
+  const nextDate = new Date(date);
+  nextDate.setDate(nextDate.getDate() + dayOffset);
+  return nextDate;
+};
+const getDesktopDayFlipZones = (viewportRect) => {
+  const edgeZone = DESKTOP_DRAG_DAY_FLIP_ZONE_PX;
+  return {
+    mode: 'edge',
+    previousStart: viewportRect.left,
+    previousEnd: viewportRect.left + edgeZone,
+    nextStart: viewportRect.right - edgeZone,
+    nextEnd: viewportRect.right,
+  };
+};
+const getLocaleForLanguage = (language) => LANGUAGE_LOCALES[language] || LANGUAGE_LOCALES.EN;
+const getTranslationsForLanguage = (language) => translations[language] || translations.EN;
+const formatTemplate = (template, values) => Object.entries(values).reduce(
+  (result, [key, value]) => result.replaceAll(`{${key}}`, String(value)),
+  template,
+);
+const clampDesktopCanvasScale = (value) => Math.min(DESKTOP_CANVAS_MAX_SCALE, Math.max(DESKTOP_CANVAS_MIN_SCALE, value));
+const isEditableElement = (target) => (
+  target instanceof HTMLElement
+  && Boolean(target.closest('input, textarea, button, select, [contenteditable="true"], [role="dialog"]'))
+);
+const isFiniteCanvasCoordinate = (value) => Number.isFinite(value) && value >= 0;
+const getDesktopCollapsedGroupVisibleCount = (itemCount) => (
+  Math.min(itemCount, DESKTOP_GROUP_CARD_VISIBLE_ITEMS)
+);
+const getDesktopGroupCardHeight = (itemCount, visibleItemCount = itemCount) => {
+  const visibleCount = Math.max(1, Math.min(visibleItemCount, itemCount));
+  const hasExtra = itemCount > visibleCount;
+  const padding = hasExtra ? 20 : 12;
+  return Math.max(
+    DESKTOP_GROUP_CARD_MIN_HEIGHT,
+    70 + (visibleCount * DESKTOP_GROUP_CARD_ITEM_HEIGHT) + padding,
+  );
+};
+const getDesktopCanvasTaskHeight = (task) => (
+  normalizeCardType(task?.cardType) === CARD_TYPES.PHOTO
+    ? DESKTOP_PHOTO_CARD_HEIGHT
+    : DESKTOP_CANVAS_CARD_HEIGHT
+);
+const getDesktopDragTaskIds = (task) => (
+  Array.isArray(task?.groupTaskIds) && task.groupTaskIds.length > 0
+    ? task.groupTaskIds
+    : task?.id !== undefined && task?.id !== null
+      ? [task.id]
+      : []
+);
+const getDesktopCanvasEntryHeight = (entry) => (
+  entry?.type === 'group'
+    ? getDesktopGroupCardHeight(entry.tasks.length, getDesktopCollapsedGroupVisibleCount(entry.tasks.length))
+    : getDesktopCanvasTaskHeight(entry?.task)
+);
+const getDesktopCanvasEntryTaskIds = (entry) => (
+  entry?.type === 'group'
+    ? entry.tasks.map((task) => task.id)
+    : entry?.task?.id !== undefined && entry?.task?.id !== null
+      ? [entry.task.id]
+      : []
+);
+const getDesktopSelectionRect = (start, end) => ({
+  x: Math.min(start.x, end.x),
+  y: Math.min(start.y, end.y),
+  width: Math.abs(end.x - start.x),
+  height: Math.abs(end.y - start.y),
+});
+const getDefaultDesktopWorkspaces = () => DEFAULT_DESKTOP_WORKSPACES.map((workspace) => ({ ...workspace }));
+const getUntitledWorkspaceName = (index) => (index <= 1 ? 'Untitled' : `Untitled ${index}`);
+const getTaskWorkspaceId = (task) => (
+  typeof task?.desktopWorkspaceId === 'string' && task.desktopWorkspaceId.trim()
+    ? task.desktopWorkspaceId
+    : DEFAULT_DESKTOP_WORKSPACE_ID
+);
+const taskBelongsToWorkspace = (task, workspaceId) => getTaskWorkspaceId(task) === workspaceId;
+const normalizeDesktopWorkspaces = (value) => {
+  if (!Array.isArray(value) || !value.length) return getDefaultDesktopWorkspaces();
+  const normalized = value
+    .filter((workspace) => workspace && !LEGACY_SAMPLE_WORKSPACE_IDS.has(workspace.id))
+    .filter((workspace) => workspace && typeof workspace.id === 'string' && typeof workspace.name === 'string')
+    .map((workspace, index) => ({
+      id: workspace.id,
+      name: workspace.name.trim() || getUntitledWorkspaceName(index + 1),
+      iconType: workspace.iconType === 'letter' ? 'letter' : 'dot',
+      iconLetter: typeof workspace.iconLetter === 'string' ? workspace.iconLetter.slice(0, 1).toUpperCase() : null,
+      iconBackground: typeof workspace.iconBackground === 'string' ? workspace.iconBackground : null,
+      iconColor: typeof workspace.iconColor === 'string' ? workspace.iconColor : null,
+    }));
+  return normalized.length ? normalized : getDefaultDesktopWorkspaces();
+};
+const areTaskIdSelectionsEqual = (currentIds, nextIds) => (
+  currentIds.length === nextIds.length && nextIds.every((taskId) => currentIds.includes(taskId))
+);
+const getCanvasDeletionSummary = (tasks, selectedTaskIds) => {
+  const selectedTaskIdSet = new Set(selectedTaskIds);
+  const selectedTasks = tasks.filter((task) => selectedTaskIdSet.has(task.id));
+  if (!selectedTasks.length) return null;
+
+  const groupMembership = tasks.reduce((map, task) => {
+    if (!task.desktopGroupId) return map;
+    map.set(task.desktopGroupId, (map.get(task.desktopGroupId) || 0) + 1);
+    return map;
+  }, new Map());
+  const selectedGroupCounts = selectedTasks.reduce((map, task) => {
+    if (!task.desktopGroupId) return map;
+    map.set(task.desktopGroupId, (map.get(task.desktopGroupId) || 0) + 1);
+    return map;
+  }, new Map());
+
+  let packCount = 0;
+  let looseItemCount = 0;
+  selectedTasks.forEach((task) => {
+    if (!task.desktopGroupId) {
+      looseItemCount += 1;
+      return;
+    }
+    if (selectedGroupCounts.get(task.desktopGroupId) === groupMembership.get(task.desktopGroupId)) {
+      if (task.id === selectedTasks.find((item) => item.desktopGroupId === task.desktopGroupId)?.id) {
+        packCount += 1;
+      }
+      return;
+    }
+    looseItemCount += 1;
+  });
+
+  let title = 'Delete selected objects?';
+  if (packCount === 0) {
+    title = looseItemCount === 1
+      ? 'Delete this item?'
+      : `Delete ${looseItemCount} selected items?`;
+  } else if (looseItemCount === 0) {
+    title = packCount === 1
+      ? 'Delete this pack and its contents?'
+      : `Delete ${packCount} selected packs and their contents?`;
+  } else {
+    const itemLabel = `${looseItemCount} ${looseItemCount === 1 ? 'item' : 'items'}`;
+    const packLabel = `${packCount} ${packCount === 1 ? 'pack' : 'packs'}`;
+    title = `Delete ${itemLabel} and ${packLabel}?`;
+  }
+
+  return {
+    title,
+    packCount,
+    looseItemCount,
+    taskIds: selectedTasks.map((task) => task.id),
+  };
+};
+const doDesktopRectsIntersect = (first, second) => !(
+  first.x + first.width < second.x
+  || second.x + second.width < first.x
+  || first.y + first.height < second.y
+  || second.y + second.height < first.y
+);
+const getDefaultDesktopCanvasPosition = (index) => {
+  const column = index % 2;
+  const row = Math.floor(index / 2);
+  return {
+    x: column * (DESKTOP_CANVAS_CARD_WIDTH + DESKTOP_CANVAS_CARD_GAP),
+    y: row * (DESKTOP_CANVAS_CARD_HEIGHT + DESKTOP_CANVAS_CARD_GAP),
+  };
+};
+const resolveDesktopCanvasEntries = (tasks, dateString) => {
+  const selectedTasks = tasks
+    .filter((task) => isPackActiveOnDate(task, dateString))
+    .sort((a, b) => {
+      const layerA = Number.isFinite(a.desktopZ) ? a.desktopZ : 0;
+      const layerB = Number.isFinite(b.desktopZ) ? b.desktopZ : 0;
+      return layerA - layerB || Number(a.id) - Number(b.id);
+    });
+  const processedGroupIds = new Set();
+
+  return selectedTasks.reduce((entries, task, index) => {
+    const fallback = getDefaultDesktopCanvasPosition(index);
+    if (task.desktopGroupId) {
+      if (processedGroupIds.has(task.desktopGroupId)) {
+        return entries;
+      }
+      const activeGroupTasks = selectedTasks.filter((item) => item.desktopGroupId === task.desktopGroupId);
+      const groupedTasks = tasks.filter((item) => item.desktopGroupId === task.desktopGroupId);
+      if (groupedTasks.length > 0) {
+        processedGroupIds.add(task.desktopGroupId);
+        const anchorTask = activeGroupTasks.find((item) => (
+          isFiniteCanvasCoordinate(item.desktopCanvasX) && isFiniteCanvasCoordinate(item.desktopCanvasY)
+        )) || groupedTasks.find((item) => (
+          isFiniteCanvasCoordinate(item.desktopCanvasX) && isFiniteCanvasCoordinate(item.desktopCanvasY)
+        )) || task;
+        entries.push({
+          type: 'group',
+          id: task.desktopGroupId,
+          task: groupedTasks[0],
+          tasks: groupedTasks,
+          x: isFiniteCanvasCoordinate(anchorTask.desktopCanvasX) ? anchorTask.desktopCanvasX : fallback.x,
+          y: isFiniteCanvasCoordinate(anchorTask.desktopCanvasY) ? anchorTask.desktopCanvasY : fallback.y,
+        });
+        return entries;
+      }
+    }
+
+    entries.push({
+      type: 'task',
+      task,
+      x: isFiniteCanvasCoordinate(task.desktopCanvasX) ? task.desktopCanvasX : fallback.x,
+      y: isFiniteCanvasCoordinate(task.desktopCanvasY) ? task.desktopCanvasY : fallback.y,
+    });
+    return entries;
+  }, []);
+};
+const getDesktopCanvasHeight = (entries) => Math.max(
+  DESKTOP_CANVAS_MIN_HEIGHT,
+  entries.reduce((max, entry) => Math.max(max, entry.y + getDesktopCanvasEntryHeight(entry) + 96), 0),
+);
+const getNextDesktopCanvasPosition = (tasks, dateString) => {
+  const entries = resolveDesktopCanvasEntries(tasks, dateString);
+  if (entries.length === 0) return getDefaultDesktopCanvasPosition(0);
+
+  const maxBottom = entries.reduce((max, entry) => Math.max(max, entry.y + getDesktopCanvasEntryHeight(entry)), 0);
+  return { x: 0, y: maxBottom + DESKTOP_CANVAS_CARD_GAP };
+};
+const getDesktopCanvasRectIntersectionArea = (first, second) => {
+  const overlapWidth = Math.max(0, Math.min(first.x + first.width, second.x + second.width) - Math.max(first.x, second.x));
+  const overlapHeight = Math.max(0, Math.min(first.y + first.height, second.y + second.height) - Math.max(first.y, second.y));
+  return overlapWidth * overlapHeight;
+};
+const getRectCenterPoint = (rect) => ({
+  x: rect.x + (rect.width / 2),
+  y: rect.y + (rect.height / 2),
+});
+const expandDesktopCanvasRect = (rect, horizontal = DESKTOP_CANVAS_HITBOX_HORIZONTAL_PADDING, vertical = DESKTOP_CANVAS_HITBOX_VERTICAL_PADDING) => ({
+  x: rect.x - horizontal,
+  y: rect.y - vertical,
+  width: rect.width + (horizontal * 2),
+  height: rect.height + (vertical * 2),
+});
+const isDesktopCanvasPointInsideRect = (point, rect) => (
+  point.x >= rect.x
+  && point.x <= rect.x + rect.width
+  && point.y >= rect.y
+  && point.y <= rect.y + rect.height
+);
+const getDesktopCanvasOverlapEntry = (tasks, dateString, movingTaskIds, nextPosition, threshold = DESKTOP_GROUP_OVERLAP_THRESHOLD) => {
+  const movingTasks = tasks.filter((task) => movingTaskIds.has(task.id));
+  if (movingTasks.length === 0) return null;
+
+  const movingHeight = movingTasks.length > 1
+    ? getDesktopGroupCardHeight(movingTasks.length, getDesktopCollapsedGroupVisibleCount(movingTasks.length))
+    : DESKTOP_CANVAS_CARD_HEIGHT;
+  const movingRect = {
+    x: nextPosition.x,
+    y: nextPosition.y,
+    width: DESKTOP_CANVAS_CARD_WIDTH,
+    height: movingHeight,
+  };
+  const movingHitRect = expandDesktopCanvasRect(movingRect);
+  const movingCenter = {
+    x: movingRect.x + (movingRect.width / 2),
+    y: movingRect.y + (movingRect.height / 2),
+  };
+
+  let bestMatch = null;
+  let bestRatio = 0;
+  resolveDesktopCanvasEntries(tasks, dateString).forEach((entry) => {
+    const entryTaskIds = entry.type === 'group' ? entry.tasks.map((item) => item.id) : [entry.task.id];
+    
+    // Ignore this entry ONLY if we are moving the exact same set of tasks (all of them).
+    // This allows pulling 1 task out of a group and then "putting it back" (overlapping with the group).
+    const isMovingExactSameItems = entryTaskIds.length === movingTaskIds.size && entryTaskIds.every(id => movingTaskIds.has(id));
+    if (isMovingExactSameItems) return;
+
+    const targetWidth = DESKTOP_CANVAS_CARD_WIDTH;
+    const targetHeight = getDesktopCanvasEntryHeight(entry);
+    const targetArea = targetWidth * targetHeight;
+    const movingArea = movingRect.width * movingRect.height;
+    const targetRect = {
+      x: entry.x,
+      y: entry.y,
+      width: targetWidth,
+      height: targetHeight,
+    };
+    const targetHitRect = expandDesktopCanvasRect(targetRect);
+    const targetCenter = {
+      x: targetRect.x + (targetRect.width / 2),
+      y: targetRect.y + (targetRect.height / 2),
+    };
+
+    const overlapArea = getDesktopCanvasRectIntersectionArea(movingHitRect, targetHitRect);
+    
+    const movingCenterInsideTarget = isDesktopCanvasPointInsideRect(movingCenter, targetHitRect);
+    const targetCenterInsideMoving = isDesktopCanvasPointInsideRect(targetCenter, movingHitRect);
+    if (overlapArea <= 0 && !movingCenterInsideTarget && !targetCenterInsideMoving) return;
+
+    const movingCoverageRatio = overlapArea / movingArea;
+    const targetCoverageRatio = overlapArea / targetArea;
+    const overlapRatio = Math.max(movingCoverageRatio, targetCoverageRatio);
+    const qualifies = (
+      movingCoverageRatio >= threshold
+      || targetCoverageRatio >= threshold
+      || movingCenterInsideTarget
+      || targetCenterInsideMoving
+    );
+    if (qualifies && overlapRatio >= bestRatio) {
+      bestRatio = overlapRatio;
+      bestMatch = entry;
+    }
+  });
+
+  return bestMatch ? { entry: bestMatch, ratio: bestRatio } : null;
+};
+const getDesktopCanvasResolvedPosition = (tasks, dateString, movingTaskIds, preferredPosition) => {
+  const movingTasks = tasks.filter((task) => movingTaskIds.has(task.id));
+  if (movingTasks.length === 0) return preferredPosition;
+
+  const movingHeight = movingTasks.length > 1
+    ? getDesktopGroupCardHeight(movingTasks.length, getDesktopCollapsedGroupVisibleCount(movingTasks.length))
+    : DESKTOP_CANVAS_CARD_HEIGHT;
+  const maxX = Math.max(0, DESKTOP_MAIN_CONTENT_MAX_WIDTH - DESKTOP_CANVAS_CARD_WIDTH);
+  const clampedX = Math.max(0, Math.min(maxX, preferredPosition.x));
+  const stepY = DESKTOP_CANVAS_CARD_GAP + 12;
+
+  for (let attempt = 0; attempt < 80; attempt += 1) {
+    const candidate = {
+      x: clampedX,
+      y: Math.max(0, preferredPosition.y + (attempt * stepY)),
+    };
+    const result = getDesktopCanvasOverlapEntry(tasks, dateString, movingTaskIds, candidate, 0.01);
+    if (!result) return candidate;
+    const overlapEntry = result.entry;
+    preferredPosition = {
+      x: overlapEntry.x,
+      y: overlapEntry.y + getDesktopCanvasEntryHeight(overlapEntry) + DESKTOP_CANVAS_CARD_GAP,
+    };
+  }
+
+  return {
+    x: clampedX,
+    y: Math.max(0, preferredPosition.y),
+  };
+};
+const getDesktopGroupDisplayName = (tasks) => (
+  tasks.find((task) => typeof task.desktopGroupName === 'string' && task.desktopGroupName.trim())?.desktopGroupName
+  || tasks[0]?.text
+  || 'Untitled group'
+);
+const getDesktopGroupIcon = (tasks) => getPackIconFromTasks(tasks);
+const getDesktopGroupTags = (tasks) => getPackTagsFromTasks(tasks);
+const getDesktopGroupDisplayTags = (tasks) => {
+  const storedTags = getDesktopGroupTags(tasks);
+  if (storedTags.length > 0) return storedTags;
+  return getDesktopGroupChips(tasks);
+};
+const getSuggestedDesktopGroupName = (movingTasks, overlapEntry) => {
+  const overlapTasks = overlapEntry?.type === 'group' ? overlapEntry.tasks : overlapEntry?.task ? [overlapEntry.task] : [];
+  const existingName = getDesktopGroupDisplayName([...movingTasks, ...overlapTasks]);
+  return existingName || 'New group';
+};
+const formatDesktopGroupChipLabel = (value) => {
+  if (!value) return '';
+  if (value === 'text') return 'Note';
+  return value.charAt(0).toUpperCase() + value.slice(1);
+};
+const getDesktopGroupChips = (tasks) => {
+  const uniqueTypes = [...new Set(tasks.map((task) => normalizeCardType(task.cardType)).filter(Boolean))];
+  if (uniqueTypes.length === 0) return [];
+  if (uniqueTypes.length > 1) {
+    return ['Mixed Content', formatDesktopGroupChipLabel(uniqueTypes[0])];
+  }
+  return [formatDesktopGroupChipLabel(uniqueTypes[0])];
+};
+const cleanupDesktopGroupMetadata = (tasks) => {
+  // Keep group metadata even when one task remains so dragging one item out of a
+  // group does not collapse the pack into a plain standalone task.
+  return tasks;
+};
+const parseSharedSelectedDate = (value) => {
+  if (!value) return null;
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) return null;
+  const [, year, month, day] = match;
+  const parsed = new Date(Number(year), Number(month) - 1, Number(day));
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+};
+const getUploadedFileTitle = (fileName = '', fallback = 'Untitled file') => fileName.replace(/\.[^.]+$/, '').trim() || fallback;
+const getDroppedImageTitle = (fileName = '') => getUploadedFileTitle(fileName, 'Photo');
+const getFileExtension = (fileName = '') => {
+  const segments = String(fileName || '').toLowerCase().split('.');
+  return segments.length > 1 ? segments.pop() : '';
+};
+const getUploadedFileFallbackMimeType = (uploadKind) => {
+  if (uploadKind === 'pdf') return 'application/pdf';
+  if (uploadKind === 'word') return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+  if (uploadKind === 'image') return 'image/png';
+  return 'application/octet-stream';
+};
+const getSupportedUploadKind = (file) => {
+  const mimeType = String(file?.type || '').toLowerCase();
+  const extension = getFileExtension(file?.name || '');
+
+  if (mimeType === 'application/pdf' || SUPPORTED_UPLOAD_PDF_EXTENSIONS.includes(extension)) {
+    return 'pdf';
+  }
+
+  if (
+    mimeType === 'application/msword'
+    || mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    || SUPPORTED_UPLOAD_WORD_EXTENSIONS.includes(extension)
+  ) {
+    return 'word';
+  }
+
+  if (
+    (mimeType.startsWith('image/') && SUPPORTED_UPLOAD_IMAGE_EXTENSIONS.includes(extension))
+    || SUPPORTED_UPLOAD_IMAGE_EXTENSIONS.includes(extension)
+  ) {
+    return 'image';
+  }
+
+  return null;
+};
+const isSupportedUploadFile = (file) => Boolean(getSupportedUploadKind(file));
+const isSupportedConvertFile = (file) => {
+  const mimeType = String(file?.type || '').toLowerCase();
+  const extension = getFileExtension(file?.name || '');
+  return (
+    mimeType === 'application/pdf'
+    || mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    || mimeType === 'text/plain'
+    || mimeType === 'text/html'
+    || mimeType === 'text/markdown'
+    || mimeType === 'text/csv'
+    || extension === 'pdf'
+    || extension === 'docx'
+    || extension === 'html'
+    || extension === 'htm'
+    || extension === 'txt'
+    || extension === 'md'
+    || extension === 'csv'
+    || extension === 'tsv'
+    || extension === 'xml'
+  );
+};
+const hasImageFiles = (dataTransfer) => {
+  const files = Array.from(dataTransfer?.files || []);
+  if (files.some((file) => getSupportedUploadKind(file) === 'image' || String(file?.type || '').toLowerCase().startsWith('image/'))) {
+    return true;
+  }
+
+  const items = Array.from(dataTransfer?.items || []);
+  if (items.some((item) => item.kind === 'file' && String(item.type || '').toLowerCase().startsWith('image/'))) {
+    return true;
+  }
+
+  const types = Array.from(dataTransfer?.types || []);
+  return types.includes('Files');
+};
+const hasSupportedUploadFiles = (dataTransfer) => {
+  const files = Array.from(dataTransfer?.files || []);
+  if (files.some((file) => isSupportedUploadFile(file))) {
+    return true;
+  }
+
+  const items = Array.from(dataTransfer?.items || []);
+  if (items.some((item) => {
+    if (item.kind !== 'file') return false;
+    const itemType = String(item.type || '').toLowerCase();
+    return (
+      itemType === 'application/pdf'
+      || itemType === 'application/msword'
+      || itemType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+      || itemType === 'image/png'
+      || itemType === 'image/jpeg'
+      || itemType === 'image/webp'
+    );
+  })) {
+    return true;
+  }
+
+  const types = Array.from(dataTransfer?.types || []);
+  return types.includes('Files');
+};
+const hasSupportedConvertFiles = (dataTransfer) => {
+  const files = Array.from(dataTransfer?.files || []);
+  if (files.some((file) => isSupportedConvertFile(file))) {
+    return true;
+  }
+
+  const items = Array.from(dataTransfer?.items || []);
+  if (items.some((item) => {
+    if (item.kind !== 'file') return false;
+    const itemType = String(item.type || '').toLowerCase();
+    return (
+      itemType === 'application/pdf'
+      || itemType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    );
+  })) {
+    return true;
+  }
+
+  const types = Array.from(dataTransfer?.types || []);
+  return types.includes('Files');
+};
+const readFileAsDataUrl = (file) => new Promise((resolve, reject) => {
+  const reader = new FileReader();
+  reader.onload = () => resolve(reader.result);
+  reader.onerror = () => reject(reader.error || new Error('Failed to read file'));
+  reader.readAsDataURL(file);
+});
+const loadImageElement = (src) => new Promise((resolve, reject) => {
+  const image = new Image();
+  image.onload = () => resolve(image);
+  image.onerror = () => reject(new Error('Failed to decode image'));
+  image.src = src;
+});
+const createUploadAttachmentId = () => `${Date.now()}-${Math.round(Math.random() * 100000)}`;
+const createUploadedFileStorageKey = (fileName = 'file') => {
+  const normalizedName = String(fileName || 'file')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    || 'file';
+  return `upload:${Date.now()}:${Math.random().toString(36).slice(2, 10)}:${normalizedName}`;
+};
+const serializeDroppedImageFile = async (file) => {
+  const originalDataUrl = await readFileAsDataUrl(file);
+  const image = await loadImageElement(originalDataUrl);
+  const longestEdge = Math.max(image.naturalWidth || 0, image.naturalHeight || 0);
+  const scale = longestEdge > DESKTOP_IMAGE_DROP_MAX_EDGE
+    ? DESKTOP_IMAGE_DROP_MAX_EDGE / longestEdge
+    : 1;
+  const targetWidth = Math.max(1, Math.round((image.naturalWidth || 1) * scale));
+  const targetHeight = Math.max(1, Math.round((image.naturalHeight || 1) * scale));
+  const canvas = document.createElement('canvas');
+  canvas.width = targetWidth;
+  canvas.height = targetHeight;
+  const context = canvas.getContext('2d');
+  if (!context) {
+    return {
+      photoDataUrl: originalDataUrl,
+      photoWidth: image.naturalWidth || targetWidth,
+      photoHeight: image.naturalHeight || targetHeight,
+      photoMimeType: file.type || 'image/png',
+    };
+  }
+
+  context.drawImage(image, 0, 0, targetWidth, targetHeight);
+  const shouldKeepAlpha = /png|webp|gif|avif/i.test(file.type || '');
+  const mimeType = shouldKeepAlpha ? 'image/png' : 'image/jpeg';
+  const photoDataUrl = canvas.toDataURL(mimeType, DESKTOP_IMAGE_DROP_QUALITY);
+
+  return {
+    photoDataUrl,
+    photoWidth: targetWidth,
+    photoHeight: targetHeight,
+    photoMimeType: mimeType,
+  };
+};
+const serializeUploadAttachment = async (file) => {
+  const uploadKind = getSupportedUploadKind(file);
+  if (!uploadKind) {
+    throw new Error(`Unsupported file type: ${file?.name || 'unknown'}`);
+  }
+
+  const fallbackTitle = uploadKind === 'image' ? 'Photo' : 'Untitled file';
+  const baseAttachment = {
+    id: createUploadAttachmentId(),
+    file,
+    uploadKind,
+    title: uploadKind === 'image' ? getDroppedImageTitle(file.name) : getUploadedFileTitle(file.name, fallbackTitle),
+    originalFileName: file.name || `${fallbackTitle.toLowerCase().replace(/\s+/g, '-')}`,
+    mimeType: file.type || getUploadedFileFallbackMimeType(uploadKind),
+    size: Number.isFinite(file.size) ? file.size : 0,
+    createdAt: createUpdatedTimestamp(),
+    updatedAt: createUpdatedTimestamp(),
+    extractedText: null,
+    previewUrl: null,
+  };
+
+  if (uploadKind !== 'image') {
+    return baseAttachment;
+  }
+
+  const photoFields = await serializeDroppedImageFile(file);
+  return {
+    ...baseAttachment,
+    ...photoFields,
+    previewUrl: photoFields.photoDataUrl || null,
+  };
+};
+const sectionIdToMobileId = (sectionId) => {
+  const matched = sections.find((section) => section.id === sectionId);
+  return matched?.mobileId || 'Morning';
+};
+const mobileIdToSectionId = (mobileId) => {
+  const matched = sections.find((section) => section.mobileId === mobileId);
+  return matched?.id || 'morning';
+};
+const normalizeTask = (task) => {
+  const derivedFields = getDerivedTaskFields(task.text || '');
+
+  return {
+    ...derivedFields,
+    ...task,
+    text: task.text || '',
+    completed: task.completed ?? false,
+    dateString: task.dateString || dateKey(getLogicalToday()),
+    timeOfDay: task.timeOfDay || sectionIdToMobileId(task.section),
+    cardType: normalizeCardType(task.cardType || derivedFields.cardType),
+    updatedAt: typeof task.updatedAt === 'string' && task.updatedAt.trim() ? task.updatedAt : null,
+    desktopSlot: isValidDesktopSlot(task.desktopSlot) ? task.desktopSlot : null,
+    desktopCanvasX: isFiniteCanvasCoordinate(task.desktopCanvasX) ? task.desktopCanvasX : null,
+    desktopCanvasY: isFiniteCanvasCoordinate(task.desktopCanvasY) ? task.desktopCanvasY : null,
+    desktopZ: Number.isFinite(task.desktopZ) ? task.desktopZ : null,
+    desktopWorkspaceId: getTaskWorkspaceId(task),
+    desktopGroupId: typeof task.desktopGroupId === 'string' && task.desktopGroupId.trim() ? task.desktopGroupId : null,
+    desktopGroupName: typeof task.desktopGroupName === 'string' && task.desktopGroupName.trim() ? task.desktopGroupName : null,
+    desktopGroupIcon: normalizePackIcon(task.desktopGroupIcon),
+    desktopGroupCover: normalizePackCover(task.desktopGroupCover),
+    desktopGroupTags: normalizePackTags(task.desktopGroupTags),
+    desktopGroupActiveDurationType: normalizePackActiveDurationType(task.desktopGroupActiveDurationType),
+    desktopGroupActiveFrom: normalizePackActiveDate(task.desktopGroupActiveFrom),
+    desktopGroupActiveUntil: normalizePackActiveDate(task.desktopGroupActiveUntil),
+    photoDataUrl: typeof task.photoDataUrl === 'string' && task.photoDataUrl.trim() ? task.photoDataUrl : null,
+    photoFileName: typeof task.photoFileName === 'string' && task.photoFileName.trim() ? task.photoFileName : null,
+    photoMimeType: typeof task.photoMimeType === 'string' && task.photoMimeType.trim() ? task.photoMimeType : null,
+    photoWidth: Number.isFinite(task.photoWidth) ? task.photoWidth : null,
+    photoHeight: Number.isFinite(task.photoHeight) ? task.photoHeight : null,
+    photoUrl: typeof task.photoUrl === 'string' && task.photoUrl.trim() ? task.photoUrl : null,
+    photoTitle: typeof task.photoTitle === 'string' && task.photoTitle.trim() ? task.photoTitle : null,
+    uploadedFileStorageKey: typeof task.uploadedFileStorageKey === 'string' && task.uploadedFileStorageKey.trim() ? task.uploadedFileStorageKey : null,
+    uploadedFileType: typeof task.uploadedFileType === 'string' && task.uploadedFileType.trim() ? task.uploadedFileType : null,
+    uploadedOriginalFileName: typeof task.uploadedOriginalFileName === 'string' && task.uploadedOriginalFileName.trim() ? task.uploadedOriginalFileName : null,
+    uploadedMimeType: typeof task.uploadedMimeType === 'string' && task.uploadedMimeType.trim() ? task.uploadedMimeType : null,
+    uploadedFileSize: Number.isFinite(task.uploadedFileSize) ? task.uploadedFileSize : null,
+    uploadedSourceLabel: typeof task.uploadedSourceLabel === 'string' && task.uploadedSourceLabel.trim() ? task.uploadedSourceLabel : null,
+    uploadedCreatedAt: typeof task.uploadedCreatedAt === 'string' && task.uploadedCreatedAt.trim() ? task.uploadedCreatedAt : null,
+    uploadedUpdatedAt: typeof task.uploadedUpdatedAt === 'string' && task.uploadedUpdatedAt.trim() ? task.uploadedUpdatedAt : null,
+    extractedText: typeof task.extractedText === 'string' && task.extractedText.trim() ? task.extractedText : null,
+  };
+};
 const currentSection = (date = new Date()) => {
   const hour = date.getHours();
   if (hour >= 6 && hour < 12) return 'morning';
@@ -67,7 +1024,69 @@ const currentSection = (date = new Date()) => {
   if (hour >= 18 && hour < 22) return 'evening';
   return 'night';
 };
+const getSectionBounds = (section, logicalDate) => {
+  const baseDate = new Date(logicalDate);
+  baseDate.setHours(0, 0, 0, 0);
 
+  const [startHour, startMinute] = section.start.split(':').map(Number);
+  const [endHour, endMinute] = section.end.split(':').map(Number);
+
+  const sectionStart = new Date(baseDate);
+  sectionStart.setHours(startHour, startMinute, 0, 0);
+  if (startHour < DAY_BOUNDARY_HOUR) {
+    sectionStart.setDate(sectionStart.getDate() + 1);
+  }
+
+  const sectionEnd = new Date(baseDate);
+  sectionEnd.setHours(endHour, endMinute, 0, 0);
+  if (sectionEnd <= sectionStart) {
+    sectionEnd.setDate(sectionEnd.getDate() + 1);
+  }
+
+  return { sectionStart, sectionEnd };
+};
+const getSectionMarkerStyle = (section, currentTime, selectedDate) => {
+  const logicalToday = getLogicalToday(currentTime);
+  const logicalSelectedDate = new Date(selectedDate);
+  logicalSelectedDate.setHours(0, 0, 0, 0);
+
+  if (!sameDay(logicalSelectedDate, logicalToday)) return null;
+
+  const { sectionStart, sectionEnd } = getSectionBounds(section, logicalSelectedDate);
+
+  if (currentTime < sectionStart || currentTime >= sectionEnd) return null;
+
+  const progress = Math.max(
+    0,
+    Math.min(1, (currentTime.getTime() - sectionStart.getTime()) / (sectionEnd.getTime() - sectionStart.getTime())),
+  );
+
+  return {
+    top: `calc(${DESKTOP_TIME_AXIS_LINE_TOP}px + ((100% - ${DESKTOP_TIME_AXIS_LINE_TOP}px - ${DESKTOP_TIME_AXIS_LINE_BOTTOM}px) * ${progress}) - ${(DESKTOP_TIME_MARKER_SIZE / 2)}px)`,
+  };
+};
+const getCalendarWeekdayLabels = (language) => {
+  const locale = getLocaleForLanguage(language);
+  const baseSunday = new Date(Date.UTC(2024, 0, 7));
+
+  return Array.from({ length: 7 }, (_, index) => {
+    const date = new Date(baseSunday);
+    date.setUTCDate(baseSunday.getUTCDate() + index);
+    return new Intl.DateTimeFormat(locale, { weekday: 'narrow' }).format(date);
+  });
+};
+const panelLabel = (date, language) => {
+  const t = getTranslationsForLanguage(language);
+  if (sameDay(date, getLogicalToday())) {
+    return t.today;
+  }
+
+  return date.toLocaleDateString(getLocaleForLanguage(language), {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+  });
+};
 
 const GlobalStyles = ({ appearance }) => {
   useEffect(() => {
@@ -93,23 +1112,644 @@ const GlobalStyles = ({ appearance }) => {
   return null;
 };
 
+const PlusIcon = ({ size = 26 }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.9" stroke="currentColor" style={{ width: size, height: size }}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+  </svg>
+);
 
+const SearchIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="11" cy="11" r="8"></circle>
+    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+  </svg>
+);
+const PackSelectIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M4.5 12.5 8.5 16.5 19.5 6.5" />
+    <path d="M9.5 12.5 13.5 16.5" opacity="0.42" />
+  </svg>
+);
+const PackExportIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M12 4.75v10" />
+    <path d="M8.25 8.75 12 5l3.75 3.75" />
+    <path d="M5.5 13.75v3.5a1.25 1.25 0 0 0 1.25 1.25h10.5a1.25 1.25 0 0 0 1.25-1.25v-3.5" />
+  </svg>
+);
+const CloseIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" style={{ width: 18, height: 18 }}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+  </svg>
+);
+const OpenFullViewIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="none" style={{ width: 14, height: 14 }}>
+    <path d="M6.1 2.25H13.75V9.9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M13.25 2.75L8.85 7.15" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M9.9 13.75H2.25V6.1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M2.75 13.25L7.15 8.85" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+const ArrowUpIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.2" stroke="currentColor" style={{ width: 18, height: 18 }}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 10.5 12 3m0 0 7.5 7.5M12 3v18" />
+  </svg>
+);
+const AttachFileIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="none" aria-hidden="true" style={{ width: 16, height: 16 }}>
+    <path d="M6.75 10.25 11.5 5.5a2.5 2.5 0 1 1 3.54 3.54l-6.1 6.1a3.75 3.75 0 1 1-5.3-5.3l6.36-6.36" stroke="currentColor" strokeWidth="1.55" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+const ConvertUploadIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" aria-hidden="true" style={{ width: 22, height: 22 }}>
+    <path d="M12 7.25v7.5" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="m8.75 10.5 3.25-3.25 3.25 3.25" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M7.25 15.75H6A1.75 1.75 0 0 1 4.25 14V6A1.75 1.75 0 0 1 6 4.25h8.1a1.75 1.75 0 0 1 1.24.51l2.15 2.15c.33.33.51.78.51 1.24V10.5" stroke="currentColor" strokeWidth="1.55" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M13.5 19.75h4.5" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+const HeaderChevronIcon = ({ direction = 'left' }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="none" style={{ width: 16, height: 16 }}>
+    <path
+      d={direction === 'left' ? 'M9.75 3.5L5.25 8L9.75 12.5' : 'M6.25 3.5L10.75 8L6.25 12.5'}
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </svg>
+);
 
+const EditIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" style={{ width: 14, height: 14 }}>
+    <path d="M12 20H21" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M16.5 3.5C17.3284 2.67157 18.6716 2.67157 19.5 3.5C20.3284 4.32843 20.3284 5.67157 19.5 6.5L7 19L3 20L4 16L16.5 3.5Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+const LinkGlobeIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="none" style={{ width: 16, height: 16 }}>
+    <path d="M10 2.5C5.858 2.5 2.5 5.858 2.5 10C2.5 14.142 5.858 17.5 10 17.5C14.142 17.5 17.5 14.142 17.5 10C17.5 5.858 14.142 2.5 10 2.5Z" stroke="currentColor" strokeWidth="1.45" />
+    <path d="M2.917 8H17.083M2.917 12H17.083M10 2.917C11.563 4.63 12.451 6.855 12.5 9.167C12.451 11.478 11.563 13.703 10 15.417C8.437 13.703 7.549 11.478 7.5 9.167C7.549 6.855 8.437 4.63 10 2.917Z" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+const DocumentTextIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="none" style={{ width: 16, height: 16 }}>
+    <path d="M6 3.5H11.5L14.5 6.5V15.5C14.5 16.052 14.052 16.5 13.5 16.5H6.5C5.948 16.5 5.5 16.052 5.5 15.5V4.5C5.5 3.948 5.948 3.5 6.5 3.5H6Z" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" />
+    <path d="M11.25 3.75V6.75H14.25M7.75 9H12.25M7.75 11.75H12.25" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+const VideoGlyphIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="none" style={{ width: 16, height: 16 }}>
+    <rect x="3.5" y="5.25" width="9.75" height="9.5" rx="2.2" stroke="currentColor" strokeWidth="1.4" />
+    <path d="M9 8L11.75 10L9 12V8Z" fill="currentColor" />
+    <path d="M13.25 8L16 6.5V13.5L13.25 12" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+const SparkRosetteIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="none" style={{ width: 16, height: 16 }}>
+    <path d="M10 3.25L11.85 6.15L15.25 6.85L13.1 9.5L13.35 12.95L10 11.7L6.65 12.95L6.9 9.5L4.75 6.85L8.15 6.15L10 3.25Z" stroke="currentColor" strokeWidth="1.35" strokeLinejoin="round" />
+    <circle cx="10" cy="10" r="1.1" fill="currentColor" />
+  </svg>
+);
+const NotionGlyphIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="none" style={{ width: 16, height: 16 }}>
+    <rect x="4" y="4" width="12" height="12" rx="2.2" stroke="currentColor" strokeWidth="1.4" />
+    <path d="M7 13V7L12.6 13V7" stroke="currentColor" strokeWidth="1.35" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+const GithubGlyphIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="none" style={{ width: 16, height: 16 }}>
+    <path d="M7.75 15.25V12.9C6.25 13.35 5.25 12.65 4.75 11.5M15.25 13.5C16.05 12.75 16.5 11.65 16.5 10.25C16.5 7.15 13.95 4.75 10 4.75C6.05 4.75 3.5 7.15 3.5 10.25C3.5 11.65 3.95 12.75 4.75 13.5C5.3 14 6.05 14.45 7 14.75M13 14.75C13.95 14.45 14.7 14 15.25 13.5M8 15.25C8.75 15.55 9.35 15.65 10 15.65C10.65 15.65 11.25 15.55 12 15.25" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+    <circle cx="7.4" cy="9.2" r="0.7" fill="currentColor" />
+    <circle cx="12.6" cy="9.2" r="0.7" fill="currentColor" />
+  </svg>
+);
+const YouTubeGlyphIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="none" style={{ width: 16, height: 16 }}>
+    <rect x="3.25" y="5.75" width="13.5" height="8.5" rx="2.8" stroke="currentColor" strokeWidth="1.35" />
+    <path d="M9 8.35L11.95 10L9 11.65V8.35Z" fill="currentColor" />
+  </svg>
+);
 
+const getPackItemPrimaryUrl = (task) => (
+  task?.primaryUrl
+  || task?.videoUrl
+  || task?.mapUrl
+  || task?.redirectUrl
+  || extractPrimaryUrl(task?.text || '')
+  || ''
+);
 
+const getPackItemSourceMeta = (task, labels) => {
+  const cardType = normalizeCardType(task?.cardType);
+  const primaryUrl = getPackItemPrimaryUrl(task);
+  const subtitle = deriveTaskDisplaySubtitle(task, labels) || 'Item';
 
+  let host = '';
+  let domain = '';
+  try {
+    if (primaryUrl) {
+      const parsed = new URL(primaryUrl.startsWith('http') ? primaryUrl : `https://${primaryUrl}`);
+      host = parsed.hostname.toLowerCase();
+      domain = host.replace(/^www\./, '');
+    }
+  } catch {
+    host = '';
+    domain = '';
+  }
 
+  if (host.includes('youtube.com') || host.includes('youtu.be')) {
+    return { key: 'youtube', label: 'YouTube', domain: 'youtube.com' };
+  }
+  if (host.includes('chatgpt.com') || host.includes('openai.com')) {
+    return { key: 'gpt', label: 'ChatGPT', domain: 'chatgpt.com' };
+  }
+  if (host.includes('notion.so') || host.includes('notion.site')) {
+    return { key: 'notion', label: 'Notion', domain: 'notion.so' };
+  }
+  if (host.includes('github.com')) {
+    return { key: 'github', label: 'GitHub', domain: 'github.com' };
+  }
+  if (host.includes('spotify.com') || host.includes('spoti.fi')) {
+    return { key: 'spotify', label: 'Spotify', domain: 'spotify.com' };
+  }
+  if (host.includes('instagram.com')) {
+    return { key: 'link', label: 'Instagram', domain: 'instagram.com' };
+  }
+  if (host.includes('twitter.com') || host.includes('x.com')) {
+    return { key: 'link', label: 'X (Twitter)', domain: 'x.com' };
+  }
+  if (host.includes('tiktok.com')) {
+    return { key: 'video', label: 'TikTok', domain: 'tiktok.com' };
+  }
+  if (host.includes('reddit.com')) {
+    return { key: 'link', label: 'Reddit', domain: 'reddit.com' };
+  }
+  if (domain) {
+    // generic website — use favicon
+    return { key: 'link', label: domain, domain };
+  }
 
+  switch (cardType) {
+    case 'photo':
+      return { key: 'photo', label: labels?.photo || 'Photo', domain: null };
+    case 'video':
+      return { key: 'video', label: subtitle, domain: null };
+    case 'document':
+      return { key: 'document', label: subtitle, domain: null };
+    case 'ai_tool':
+      return { key: 'gpt', label: subtitle, domain: null };
+    case 'text':
+      return { key: 'text', label: subtitle, domain: null };
+    default:
+      return { key: 'link', label: subtitle, domain: null };
+  }
+};
+const PACK_EXPORT_SECTION_ORDER = [
+  { role: 'Context', heading: 'Context' },
+  { role: 'Code', heading: 'Tech' },
+  { role: 'Notes', heading: 'Notes' },
+  { role: 'Reference', heading: 'Reference' },
+];
+const PACK_FILTER_ORDER = ['All', 'Context', 'Code', 'Notes', 'Reference'];
+const getPackRoleHeading = (role) => PACK_EXPORT_SECTION_ORDER.find((entry) => entry.role === role)?.heading || role;
+const getPackFilterLabel = (filter) => (filter === 'Code' ? 'Tech' : filter);
 
+const getPackTaskRoles = (task, labels) => {
+  const q = (task?.text || '').toLowerCase();
+  const title = (deriveTaskDisplayTitle(task) || '').toLowerCase();
+  const sourceMeta = getPackItemSourceMeta(task, labels);
+  const source = sourceMeta.key.toLowerCase();
+  const sourceLabel = String(sourceMeta.label || '').toLowerCase();
+  const sourceDomain = String(sourceMeta.domain || '').toLowerCase();
+  const tags = Array.isArray(task?.tags) ? task.tags.map((tag) => String(tag).toLowerCase()) : [];
+  const cardType = normalizeCardType(task?.cardType);
+  const roles = [];
 
+  if (
+    ['gpt'].includes(source)
+    || q.includes('chat.openai.com')
+    || q.includes('chatgpt.com')
+    || q.includes('gemini.google.com')
+    || q.includes('claude.ai')
+    || q.includes('perplexity.ai')
+    || tags.some((tag) => ['context', 'prompt', 'ai'].includes(tag))
+    || ['context', 'background', 'summary', 'description', 'prompt'].some((keyword) => q.includes(keyword) || title.includes(keyword))
+  ) {
+    roles.push('Context');
+  }
 
+  if (
+    ['github'].includes(source)
+    || sourceLabel.includes('github')
+    || sourceDomain.includes('github.com')
+    || q.includes('github.com')
+    || title.includes('github')
+    || q.includes('```')
+    || tags.some((tag) => ['code', 'dev', 'api', 'technical'].includes(tag))
+    || ['code', 'dev', 'api', 'implementation', 'technical'].some((keyword) => q.includes(keyword) || title.includes(keyword))
+  ) {
+    roles.push('Code');
+  }
 
+  if (
+    cardType === CARD_TYPES.TEXT
+    || tags.some((tag) => ['note', 'memo', 'reminder', 'thoughts'].includes(tag))
+  ) {
+    if (!roles.includes('Code') && !roles.includes('Context')) {
+      roles.push('Notes');
+    }
+  }
 
+  if (['link', 'video', 'shopping', 'social', 'financial', 'location', 'document', 'meeting', 'music', 'podcast', 'photo'].includes(cardType)) {
+    if (!roles.includes('Code') && !roles.includes('Context')) {
+      roles.push('Reference');
+    }
+  }
 
+  if (roles.length === 0) {
+    if (cardType === CARD_TYPES.LINK) roles.push('Reference');
+    else roles.push('Notes');
+  }
 
+  return roles;
+};
 
+const getPrimaryPackTaskRole = (task, labels) => {
+  const roles = getPackTaskRoles(task, labels);
+  return PACK_EXPORT_SECTION_ORDER.find(({ role }) => roles.includes(role))?.role || null;
+};
 
+const getPackTasksByRole = (tasks, labels, role) => (
+  tasks.filter((task) => getPrimaryPackTaskRole(task, labels) === role)
+);
 
+const sanitizePackFilename = (value) => {
+  const normalized = String(value || '')
+    .replace(/[\\/:*?"<>|]+/g, ' ')
+    .trim()
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '')
+    .toLowerCase();
+  return normalized || 'untitled-pack';
+};
+
+const getPackExportBodyText = (task) => {
+  const title = deriveTaskDisplayTitle(task).trim();
+  const primaryUrl = getPackItemPrimaryUrl(task).trim();
+  const candidates = [
+    task?.content,
+    task?.body,
+    task?.previewText,
+    task?.preview,
+    task?.description,
+    task?.summary,
+    task?.note,
+    task?.text,
+  ];
+
+  for (const candidate of candidates) {
+    if (typeof candidate !== 'string') continue;
+    const trimmed = candidate.trim();
+    if (!trimmed) continue;
+    if (title && trimmed === title) continue;
+    if (primaryUrl && trimmed === primaryUrl) continue;
+    return trimmed;
+  }
+
+  return '';
+};
+
+const isCodeLikeContent = (value) => {
+  const text = String(value || '').trim();
+  if (!text) return false;
+  if (text.includes('```')) return false;
+  if (/[{};]/.test(text) && /\b(const|let|var|function|return|import|export|class|if|else|await|async)\b/.test(text)) return true;
+  if (/<[A-Za-z][\s\S]*>/.test(text)) return true;
+  if (/^\s{2,}\S/m.test(text)) return true;
+  if (/=>/.test(text)) return true;
+  return false;
+};
+const shouldIncludePackExportUrl = (value) => /^(https?:\/\/|www\.)/i.test(String(value || '').trim());
+const isBundleExportableUploadedAsset = (task) => (
+  Boolean(task?.uploadedFileStorageKey)
+  && ['pdf', 'word', 'image'].includes(String(task?.uploadedFileType || '').toLowerCase())
+);
+const isDataUrl = (value) => /^data:/i.test(String(value || '').trim());
+const dataUrlToBlob = async (value) => {
+  const response = await fetch(value);
+  return response.blob();
+};
+const sanitizeAssetFilename = (value, fallback = 'file') => {
+  const trimmed = String(value || '').trim();
+  const extensionMatch = /\.([a-z0-9]+)$/i.exec(trimmed);
+  const extension = extensionMatch ? `.${extensionMatch[1].toLowerCase()}` : '';
+  const baseName = (extension ? trimmed.slice(0, -extension.length) : trimmed) || fallback;
+  const sanitizedBase = baseName
+    .replace(/[\\/:*?"<>|]+/g, ' ')
+    .trim()
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '')
+    || fallback;
+  const sanitizedExtension = extension.replace(/[^.a-z0-9]+/gi, '').toLowerCase();
+  return `${sanitizedBase}${sanitizedExtension}`.toLowerCase();
+};
+const ensureUniqueAssetFilename = (fileName, usedNames) => {
+  const extensionMatch = /(\.[a-z0-9]+)$/i.exec(fileName);
+  const extension = extensionMatch ? extensionMatch[1] : '';
+  const baseName = extension ? fileName.slice(0, -extension.length) : fileName;
+  let candidate = fileName;
+  let suffix = 2;
+  while (usedNames.has(candidate)) {
+    candidate = `${baseName}-${suffix}${extension}`;
+    suffix += 1;
+  }
+  usedNames.add(candidate);
+  return candidate;
+};
+const collectPackAssets = async (tasks) => {
+  const usedNames = new Set();
+  const assetPathByStorageKey = new Map();
+  const assetPathByTaskId = new Map();
+  const assets = [];
+
+  for (const task of tasks) {
+    if (isBundleExportableUploadedAsset(task)) {
+      const storageKey = task.uploadedFileStorageKey;
+      if (assetPathByStorageKey.has(storageKey)) {
+        assetPathByTaskId.set(task.id, assetPathByStorageKey.get(storageKey));
+        continue;
+      }
+
+      try {
+        const record = await getUploadedFileRecord(storageKey);
+        if (!record?.blob) continue;
+
+        const safeName = ensureUniqueAssetFilename(
+          sanitizeAssetFilename(
+            task.uploadedOriginalFileName
+            || record.originalFileName
+            || `${deriveTaskDisplayTitle(task) || 'file'}`
+          ),
+          usedNames,
+        );
+        const relativePath = `assets/${safeName}`;
+        assetPathByStorageKey.set(storageKey, relativePath);
+        assetPathByTaskId.set(task.id, relativePath);
+        assets.push({
+          storageKey,
+          path: relativePath,
+          blob: record.blob,
+        });
+      } catch (error) {
+        console.error('Failed to collect uploaded asset for export bundle:', error);
+      }
+      continue;
+    }
+
+    if (normalizeCardType(task?.cardType) !== CARD_TYPES.PHOTO) continue;
+
+    const photoReference = task?.photoDataUrl || task?.photoUrl || '';
+    if (!isDataUrl(photoReference)) continue;
+
+    try {
+      const blob = await dataUrlToBlob(photoReference);
+      const mimeType = blob.type || task?.photoMimeType || 'image/png';
+      const extension = mimeType.includes('jpeg') ? '.jpg' : mimeType.includes('webp') ? '.webp' : '.png';
+      const safeName = ensureUniqueAssetFilename(
+        sanitizeAssetFilename(
+          task?.photoFileName || `${deriveTaskDisplayTitle(task) || 'image'}${extension}`
+        ),
+        usedNames,
+      );
+      const relativePath = `assets/${safeName}`;
+      assetPathByTaskId.set(task.id, relativePath);
+      assets.push({
+        storageKey: null,
+        path: relativePath,
+        blob,
+      });
+    } catch (error) {
+      console.error('Failed to collect legacy photo asset for export bundle:', error);
+    }
+  }
+
+  return {
+    assets,
+    assetPathByStorageKey,
+    assetPathByTaskId,
+  };
+};
+
+const buildPackExportItemMarkdown = (task, labels, role, options = {}) => {
+  const title = deriveTaskDisplayTitle(task).trim() || task?.text?.trim() || 'Untitled item';
+  const sourceMeta = getPackItemSourceMeta(task, labels);
+  const primaryUrl = getPackItemPrimaryUrl(task).trim();
+  const bodyText = getPackExportBodyText(task);
+  const cardType = normalizeCardType(task?.cardType);
+  const isPhotoCard = cardType === CARD_TYPES.PHOTO;
+  const assetReferencePath = (
+    (task?.uploadedFileStorageKey
+      ? options.assetPathByStorageKey?.get(task.uploadedFileStorageKey)
+      : null)
+    || options.assetPathByTaskId?.get(task?.id)
+    || null
+  );
+  const lines = [`### ${title}`];
+
+  if (sourceMeta?.label) {
+    lines.push('');
+    lines.push(`Source: ${sourceMeta.label}`);
+  }
+
+  if (assetReferencePath && !isPhotoCard) {
+    lines.push(`File: ${assetReferencePath}`);
+  }
+
+  if (shouldIncludePackExportUrl(primaryUrl)) {
+    lines.push(`URL: ${primaryUrl}`);
+  }
+
+  if (bodyText) {
+    lines.push('');
+    if (role === 'Code' && isCodeLikeContent(bodyText)) {
+      lines.push('```');
+      lines.push(bodyText);
+      lines.push('```');
+    } else {
+      lines.push(bodyText);
+    }
+  }
+
+  return lines.join('\n');
+};
+
+const buildPackSectionMarkdown = (tasks, labels, role, heading, options = {}) => {
+  const sectionTasks = getPackTasksByRole(tasks, labels, role);
+  if (!sectionTasks.length) return '';
+
+  const lines = [`## ${heading}`, ''];
+  sectionTasks.forEach((task, index) => {
+    lines.push(buildPackExportItemMarkdown(task, labels, role, options));
+    if (index < sectionTasks.length - 1) {
+      lines.push('');
+    }
+    lines.push('');
+  });
+
+  return `${lines.join('\n').trim()}\n`;
+};
+
+const buildPackExportHeaderLines = (tasks, title) => {
+  const updatedLabel = getPackMetadataTextFromItems(tasks);
+  const tags = getDesktopGroupDisplayTags(tasks);
+  const activeDuration = getPackActiveDurationFromTasks(tasks);
+  const activeDurationLabel = getPackActiveLabel(activeDuration);
+  const lines = [`# ${title}`, ''];
+
+  lines.push(`- Updated: ${updatedLabel || 'Not available'}`);
+  if (tags.length) {
+    lines.push(`- Tags: ${tags.join(', ')}`);
+  }
+  if (activeDuration?.activeDurationType) {
+    lines.push(`- Active duration: ${activeDurationLabel}`);
+  }
+
+  return lines;
+};
+
+const buildRoleMarkdown = (tasks, labels, role) => {
+  const roleConfig = PACK_EXPORT_SECTION_ORDER.find((entry) => entry.role === role);
+  if (!roleConfig) return '';
+
+  const sectionTasks = getPackTasksByRole(tasks, labels, role);
+  if (!sectionTasks.length) return '';
+
+  const packTitle = getDesktopGroupDisplayName(tasks) || 'Untitled pack';
+  const lines = buildPackExportHeaderLines(tasks, `${packTitle} — ${roleConfig.heading}`);
+  lines.push('');
+  lines.push(`## ${roleConfig.heading}`);
+  lines.push('');
+
+  sectionTasks.forEach((task, index) => {
+    lines.push(buildPackExportItemMarkdown(task, labels, role));
+    if (index < sectionTasks.length - 1) {
+      lines.push('');
+    }
+    lines.push('');
+  });
+
+  return `${lines.join('\n').trim()}\n`;
+};
+
+const buildCopyForAIText = (tasks, labels, exportType) => {
+  const packTitle = getDesktopGroupDisplayName(tasks) || 'Untitled pack';
+
+  if (exportType === 'all') {
+    const sectionBlocks = PACK_EXPORT_SECTION_ORDER
+      .map(({ role, heading }) => buildPackSectionMarkdown(tasks, labels, role, heading))
+      .filter(Boolean);
+
+    if (!sectionBlocks.length) return '';
+
+    return [
+      'Here is the context for my current task.',
+      '',
+      `# ${packTitle}`,
+      '',
+      sectionBlocks.join('\n'),
+      '',
+      'Please use the information above to help me with the next step.',
+    ].join('\n').trim();
+  }
+
+  const roleMap = {
+    context: 'Context',
+    code: 'Code',
+    notes: 'Notes',
+    reference: 'Reference',
+  };
+  const role = roleMap[exportType];
+  const heading = getPackRoleHeading(role);
+  if (!role || !heading) return '';
+
+  const sectionBlock = buildPackSectionMarkdown(tasks, labels, role, heading);
+  if (!sectionBlock) return '';
+
+  return [
+    `Here is the ${heading.toLowerCase()} for my current task.`,
+    '',
+    `# ${packTitle} — ${heading}`,
+    '',
+    sectionBlock.trim(),
+    '',
+    'Please use the information above to help me.',
+  ].join('\n').trim();
+};
+
+const buildWholePackMarkdown = (tasks, labels, options = {}) => {
+  const packTitle = getDesktopGroupDisplayName(tasks) || 'Untitled pack';
+  const sectionMap = new Map(PACK_EXPORT_SECTION_ORDER.map(({ role }) => [role, []]));
+
+  tasks.forEach((task) => {
+    const role = getPrimaryPackTaskRole(task, labels);
+    if (!role || !sectionMap.has(role)) return;
+    sectionMap.get(role).push(task);
+  });
+
+  const lines = buildPackExportHeaderLines(tasks, packTitle);
+
+  PACK_EXPORT_SECTION_ORDER.forEach(({ role, heading }) => {
+    const sectionTasks = sectionMap.get(role) || [];
+    if (!sectionTasks.length) return;
+    lines.push('');
+    lines.push(`## ${heading}`);
+    lines.push('');
+    sectionTasks.forEach((task, index) => {
+      lines.push(buildPackExportItemMarkdown(task, labels, role, options));
+      if (index < sectionTasks.length - 1) {
+        lines.push('');
+      }
+      lines.push('');
+    });
+    while (lines[lines.length - 1] === '') {
+      if (lines[lines.length - 2]?.startsWith('## ')) break;
+      lines.pop();
+    }
+  });
+
+  return `${lines.join('\n').trim()}\n`;
+};
+const downloadBlob = (filename, blob) => {
+  const objectUrl = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = objectUrl;
+  anchor.download = filename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  document.body.removeChild(anchor);
+  window.setTimeout(() => URL.revokeObjectURL(objectUrl), 0);
+};
+
+const downloadMarkdown = (filename, markdown) => {
+  const blob = new Blob([markdown], { type: 'text/markdown;charset=utf-8' });
+  downloadBlob(filename, blob);
+};
+
+const copyTextToClipboard = async (text) => {
+  await navigator.clipboard.writeText(text);
+};
+
+const FALLBACK_TYPE_ICONS = {
+  photo: <img src="/photo.svg" alt="" width={16} height={16} style={{ objectFit: 'contain' }} />,
+  text: <DocumentTextIcon />,
+  document: <DocumentTextIcon />,
+  video: <VideoGlyphIcon />,
+  link: <LinkGlobeIcon />,
+  gpt: <SparkRosetteIcon />,
+};
 
 const PackItemSourceIcon = ({ task, appearance, labels }) => {
   const [imgError, setImgError] = useState(false);
@@ -121,17 +1761,17 @@ const PackItemSourceIcon = ({ task, appearance, labels }) => {
 
   if (normalizeCardType(task?.cardType) === CARD_TYPES.PHOTO && photoPreview) {
     return (
-      <span className="desktop-pack-page-item-leading desktop-pack-page-item-leading-photo-preview" aria-hidden="true">
-        <img
-          src={photoPreview}
-          alt=""
-          width={36}
-          height={36}
-          draggable={false}
-          onDragStart={(event) => event.preventDefault()}
-          style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 10 }}
-        />
-      </span>
+        <span className="desktop-pack-page-item-leading desktop-pack-page-item-leading-photo-preview" aria-hidden="true">
+          <img
+            src={photoPreview}
+            alt=""
+            width={36}
+            height={36}
+            draggable={false}
+            onDragStart={(event) => event.preventDefault()}
+            style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 10 }}
+          />
+        </span>
     );
   }
 
@@ -180,8 +1820,60 @@ const PackItemSourceIcon = ({ task, appearance, labels }) => {
   );
 };
 
+const ZoomChevronIcon = ({ open = false, color = 'currentColor' }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 12 12" fill="none" style={{ width: 12, height: 12, transform: open ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.18s ease' }}>
+    <path d="M3 4.5L6 7.5L9 4.5" stroke={color} strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
 
-
+const DesktopZoomControl = ({
+  zoomScale,
+  isZoomMenuOpen,
+  onToggleZoomMenu,
+  onZoomPresetSelect,
+}) => (
+  <div className="desktop-zoom-menu-anchor">
+    <button
+      type="button"
+      className={`desktop-zoom-trigger ${isZoomMenuOpen ? 'is-open' : ''}`}
+      onClick={onToggleZoomMenu}
+      aria-haspopup="menu"
+      aria-expanded={isZoomMenuOpen}
+    >
+      <span>{Math.round(zoomScale * 100)}%</span>
+      <ZoomChevronIcon open={isZoomMenuOpen} color={isZoomMenuOpen ? '#0B72E7' : '#171717'} />
+    </button>
+    {isZoomMenuOpen ? (
+      <div className="desktop-zoom-menu" role="menu" aria-label="Zoom menu">
+        <div className="desktop-zoom-menu-input">{Math.round(zoomScale * 100)}%</div>
+        <div className="desktop-zoom-menu-list">
+          <button type="button" className="desktop-zoom-menu-item" onClick={() => onZoomPresetSelect('in')}>
+            <span>Zoom in</span>
+            <span>+</span>
+          </button>
+          <button type="button" className="desktop-zoom-menu-item" onClick={() => onZoomPresetSelect('out')}>
+            <span>Zoom out</span>
+            <span>-</span>
+          </button>
+          <button type="button" className="desktop-zoom-menu-item" onClick={() => onZoomPresetSelect('fit')}>
+            <span>Zoom to fit</span>
+            <span>Shift+1</span>
+          </button>
+          <button type="button" className="desktop-zoom-menu-item" onClick={() => onZoomPresetSelect(0.5)}>
+            <span>Zoom to 50%</span>
+          </button>
+          <button type="button" className="desktop-zoom-menu-item" onClick={() => onZoomPresetSelect(1)}>
+            <span>Zoom to 100%</span>
+            <span>0</span>
+          </button>
+          <button type="button" className="desktop-zoom-menu-item" onClick={() => onZoomPresetSelect(2)}>
+            <span>Zoom to 200%</span>
+          </button>
+        </div>
+      </div>
+    ) : null}
+  </div>
+);
 
 const TaskCardFaviconIcon = ({ task, appearance, cfg, faviconUrl: propFaviconUrl }) => {
   const [imgError, setImgError] = useState(false);
@@ -192,17 +1884,17 @@ const TaskCardFaviconIcon = ({ task, appearance, cfg, faviconUrl: propFaviconUrl
 
   if (normalizeCardType(task?.cardType) === CARD_TYPES.PHOTO && photoPreview) {
     return (
-      <div style={{ width: 32, height: 32, borderRadius: 8, overflow: 'hidden', background: '#f3f3f3', border: iconBorder, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-        <img
-          src={photoPreview}
-          alt=""
-          width={32}
-          height={32}
-          draggable={false}
-          onDragStart={(event) => event.preventDefault()}
-          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-        />
-      </div>
+        <div style={{ width: 32, height: 32, borderRadius: 8, overflow: 'hidden', background: '#f3f3f3', border: iconBorder, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+          <img
+            src={photoPreview}
+            alt=""
+            width={32}
+            height={32}
+            draggable={false}
+            onDragStart={(event) => event.preventDefault()}
+            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+          />
+        </div>
     );
   }
 
@@ -291,13 +1983,13 @@ const TaskCardContent = ({ task, appearance, labels }) => {
             flexShrink: 0,
           }}
         >
-          <img
-            src={photoPreview}
-            alt={contentTitle || 'Photo'}
-            draggable={false}
-            onDragStart={(event) => event.preventDefault()}
-            style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
-          />
+            <img
+              src={photoPreview}
+              alt={contentTitle || 'Photo'}
+              draggable={false}
+              onDragStart={(event) => event.preventDefault()}
+              style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+            />
         </div>
         <div style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
           <div style={{ display: '-webkit-box', WebkitBoxOrient: 'vertical', WebkitLineClamp: 2, overflow: 'hidden', wordBreak: 'break-word', color: 'var(--desktop-card-title)', fontSize: 13, fontWeight: 590, lineHeight: '18px' }}>
@@ -336,19 +2028,19 @@ const TaskCard = (props) => {
     onPointerDown,
     onPointerMove,
     onPointerUp,
-    onPointerCancel,
-    isDragging,
-    isSelected,
-    editLabel,
-    deleteLabel,
-  } = props;
+      onPointerCancel,
+      isDragging,
+      isSelected,
+      editLabel,
+      deleteLabel,
+    } = props;
   const taskCardLabels = props?.labels;
 
   const isPast = task.dateString < dateKey(getLogicalToday());
   const isPhotoCard = normalizeCardType(task?.cardType) === CARD_TYPES.PHOTO;
 
   return (
-    <div id={`desktop-task-wrapper-${task.id}`} className={`desktop-task-wrapper ${isDragging ? 'is-dragging' : ''} ${isSelected ? 'is-selected' : ''} ${isPast ? 'is-past' : ''}`}>
+      <div id={`desktop-task-wrapper-${task.id}`} className={`desktop-task-wrapper ${isDragging ? 'is-dragging' : ''} ${isSelected ? 'is-selected' : ''} ${isPast ? 'is-past' : ''}`}>
       <button
         id={`desktop-task-card-${task.id}`}
         type="button"
@@ -434,13 +2126,12 @@ const GroupedTaskCard = ({
   onPointerUp,
   onPointerCancel,
 }) => {
-  if (!tasks || tasks.length === 0) return null;
   const leadTask = tasks[0];
   const [isExpanded, setIsExpanded] = useState(false);
   const groupTitle = getDesktopGroupDisplayName(tasks);
   const groupMetadataText = getPackMetadataTextFromItems(tasks);
   const groupChips = getDesktopGroupDisplayTags(tasks);
-  const groupIcon = getPackIconFromTasks(tasks);
+  const groupIcon = getDesktopGroupIcon(tasks);
   const groupTask = {
     ...leadTask,
     groupTaskIds: tasks.map((task) => task.id),
@@ -453,92 +2144,80 @@ const GroupedTaskCard = ({
   // If we are dragging a single item out of this group, hide it from the group preview
   const isDraggingGroup = isDragging && isGroupDragActive;
   const filteredTasks = tasks.filter((t) => isDraggingGroup || t.id !== draggedTaskId);
-
-  const getTaskHeightInGroup = (t) => {
-    if (normalizeCardType(t?.cardType) === CARD_TYPES.PHOTO) return 210;
-    const title = t.photoTitle || t.linkTitle || t.videoTitle || t.musicTitle || t.mapTitle || t.title || t.text || '';
-    const isLongTitle = title.length > 28 || title.includes('\n');
-    return isLongTitle ? 80 : 54;
-  };
-
   const collapsedVisibleCount = Math.min(filteredTasks.length, DESKTOP_GROUP_CARD_VISIBLE_ITEMS);
   const expandedVisibleCount = Math.min(filteredTasks.length, DESKTOP_GROUP_CARD_EXPANDED_VISIBLE_ITEMS);
   const visibleItemCount = isExpanded ? expandedVisibleCount : collapsedVisibleCount;
   const hiddenTaskCount = Math.max(0, filteredTasks.length - collapsedVisibleCount);
-
-  // Sum up actual heights of visible tasks to provide a precise card height
-  const actualContentHeight = filteredTasks.slice(0, visibleItemCount).reduce((sum, t) => sum + getTaskHeightInGroup(t) + 6, 70);
-
-  const groupCardMinHeight = getDesktopGroupCardHeight(filteredTasks.length, visibleItemCount, actualContentHeight);
-  const groupListMaxHeight = isExpanded ? 500 : (actualContentHeight - 70);
-  const canScrollExpandedList = isExpanded && actualContentHeight > 550;
+  const groupCardMinHeight = getDesktopGroupCardHeight(filteredTasks.length, visibleItemCount);
+  const groupListMaxHeight = (visibleItemCount * DESKTOP_GROUP_CARD_ITEM_HEIGHT) + (Math.max(0, visibleItemCount - 1) * 6);
+  const canScrollExpandedList = isExpanded && filteredTasks.length > expandedVisibleCount;
 
   return (
-    <div id={`desktop-task-wrapper-${leadTask.id}`} className={`desktop-task-wrapper desktop-task-group-wrapper ${isDragging ? 'is-dragging' : ''} ${isSelected ? 'is-selected' : ''}`}>
-      <div
-        id={`desktop-group-card-${leadTask.id}`}
-        className={`desktop-task-card desktop-task-group-card ${isDragging ? 'is-dragging' : ''} ${isExpanded ? 'is-expanded' : ''}`}
-        onPointerDown={(event) => onPointerDown(groupTask, event)}
-        onPointerMove={(event) => onPointerMove(groupTask, event)}
-        onPointerUp={(event) => onPointerUp(groupTask, event)}
-        onPointerCancel={(event) => onPointerCancel(groupTask, event)}
-        onMouseLeave={() => setIsExpanded(false)}
-        style={{ width: '100%', minHeight: groupCardMinHeight, touchAction: 'none', userSelect: 'none' }}
-      >
-        <button
-          type="button"
-          className="desktop-task-group-summary-button"
-          aria-label="Open full view"
-          onMouseDown={(event) => event.stopPropagation()}
-          onPointerDown={(event) => {
-            event.stopPropagation();
-            onPointerDown?.(groupTask, event);
-          }}
-          onClick={(event) => {
-            event.stopPropagation();
-            onOpenFullView?.(event);
-          }}
+      <div id={`desktop-task-wrapper-${leadTask.id}`} className={`desktop-task-wrapper desktop-task-group-wrapper ${isDragging ? 'is-dragging' : ''} ${isSelected ? 'is-selected' : ''}`}>
+        <div
+          id={`desktop-group-card-${leadTask.id}`}
+          className={`desktop-task-card desktop-task-group-card ${isDragging ? 'is-dragging' : ''} ${isExpanded ? 'is-expanded' : ''}`}
+          onPointerDown={(event) => onPointerDown(groupTask, event)}
+          onPointerMove={(event) => onPointerMove(groupTask, event)}
+          onPointerUp={(event) => onPointerUp(groupTask, event)}
+          onPointerCancel={(event) => onPointerCancel(groupTask, event)}
+          onMouseLeave={() => setIsExpanded(false)}
+          style={{ width: '100%', minHeight: groupCardMinHeight, touchAction: 'none', userSelect: 'none' }}
         >
-          <div className="desktop-task-group-header">
-            <div className="desktop-task-group-title-wrap">
-              {groupIcon ? (
-                <span className="desktop-task-group-title-icon">{groupIcon}</span>
-              ) : (
-                <span className="desktop-task-group-title-dot" />
-              )}
-              <div className="desktop-task-group-title-block">
-                <span
-                  className="desktop-task-group-title"
-                  onDragStart={(e) => e.preventDefault()}
-                  style={{ userSelect: 'none', WebkitUserSelect: 'none' }}
-                >
-                  {groupTitle}
-                </span>
-                {groupMetadataText ? (
+          <button
+            type="button"
+            className="desktop-task-group-summary-button"
+            aria-label="Open full view"
+            onMouseDown={(event) => event.stopPropagation()}
+            onPointerDown={(event) => {
+              event.stopPropagation();
+              onPointerDown?.(groupTask, event);
+            }}
+            onClick={(event) => {
+              event.stopPropagation();
+              onOpenFullView?.(event);
+            }}
+          >
+            <div className="desktop-task-group-header">
+              <div className="desktop-task-group-title-wrap">
+                {groupIcon ? (
+                  <span className="desktop-task-group-title-icon">{groupIcon}</span>
+                ) : (
+                  <span className="desktop-task-group-title-dot" />
+                )}
+                <div className="desktop-task-group-title-block">
                   <span
-                    className="desktop-task-group-metadata"
+                    className="desktop-task-group-title"
+                    onDragStart={(e) => e.preventDefault()}
                     style={{ userSelect: 'none', WebkitUserSelect: 'none' }}
                   >
-                    {groupMetadataText}
+                    {groupTitle}
                   </span>
-                ) : null}
+                  {groupMetadataText ? (
+                    <span
+                      className="desktop-task-group-metadata"
+                      style={{ userSelect: 'none', WebkitUserSelect: 'none' }}
+                    >
+                      {groupMetadataText}
+                    </span>
+                  ) : null}
+                </div>
+              </div>
+              <div className="desktop-task-group-header-actions">
+                <span className="desktop-task-group-open-icon" aria-hidden="true">
+                  <OpenFullViewIcon />
+                </span>
               </div>
             </div>
-            <div className="desktop-task-group-header-actions">
-              <span className="desktop-task-group-open-icon" aria-hidden="true">
-                <OpenFullViewIcon />
-              </span>
-            </div>
-          </div>
-          {groupChips.length > 0 ? (
-            <div className="desktop-task-group-chip-row">
-              {groupChips.map((chip) => (
-                <span key={chip} className="desktop-task-group-chip">{chip}</span>
-              ))}
-            </div>
-          ) : null}
-        </button>
-        <div className="desktop-task-group-divider" />
+            {groupChips.length > 0 ? (
+              <div className="desktop-task-group-chip-row">
+                {groupChips.map((chip) => (
+                  <span key={chip} className="desktop-task-group-chip">{chip}</span>
+                ))}
+              </div>
+            ) : null}
+          </button>
+          <div className="desktop-task-group-divider" />
         <div
           className="desktop-task-group-list"
           style={{ maxHeight: groupListMaxHeight, overflowY: canScrollExpandedList ? 'auto' : 'hidden' }}
@@ -630,7 +2309,7 @@ const DesktopPackPageHeader = ({
   onDeleteSelected,
 }) => {
   const groupTitle = getDesktopGroupDisplayName(tasks);
-  const groupIcon = getPackIconFromTasks(tasks);
+  const groupIcon = getDesktopGroupIcon(tasks);
   const groupTags = getDesktopGroupDisplayTags(tasks);
   const packActiveDuration = getPackActiveDurationFromTasks(tasks);
   const activeDurationLabel = getPackActiveLabel(packActiveDuration);
@@ -944,7 +2623,7 @@ const DesktopGroupFullViewModal = ({
   const shellRef = useRef(null);
   const openContentTimerRef = useRef(null);
   const closeTimerRef = useRef(null);
-
+  
   const tasks = view?.tasks || [];
   const open = Boolean(view);
 
@@ -1019,7 +2698,21 @@ const DesktopGroupFullViewModal = ({
 
   useEffect(() => {
     const existingIds = new Set(tasks.map((task) => task.id));
-    setSelectedItemIds((current) => current.filter((taskId) => existingIds.has(taskId)));
+    console.debug('[desktop-group-modal] prune selected items effect', {
+      open,
+      taskCount: tasks.length,
+      taskIds: tasks.map((task) => task.id),
+    });
+    setSelectedItemIds((current) => {
+      const next = current.filter((taskId) => existingIds.has(taskId));
+      const changed = next.length !== current.length;
+      console.debug('[desktop-group-modal] prune selected items setState', {
+        previous: current,
+        next,
+        changed,
+      });
+      return changed ? next : current;
+    });
   }, [tasks]);
 
   useEffect(() => {
@@ -1063,7 +2756,7 @@ const DesktopGroupFullViewModal = ({
       window.clearTimeout(clearTimer);
     };
   }, [open, view?.focusTaskId]);
-
+  
   const filteredTasks = useMemo(() => {
     let list = [...tasks];
 
@@ -1090,7 +2783,7 @@ const DesktopGroupFullViewModal = ({
         );
       });
     }
-
+    
     return list;
   }, [tasks, itemSearchQuery, activeFilter, labels]);
 
@@ -1322,209 +3015,254 @@ const DesktopGroupFullViewModal = ({
         style={shellMotionStyle}
       >
         <div className={`desktop-pack-page-shell-inner ${isContentVisible ? 'is-visible' : ''}`}>
-          <div className="desktop-pack-page-topbar">
-            <button
-              type="button"
-              onClick={handleRequestClose}
-              aria-label={labels.close}
-              className="desktop-pack-page-close"
-            >
-              <CloseIcon />
-            </button>
-          </div>
+        <div className="desktop-pack-page-topbar">
+          <button
+            type="button"
+            onClick={handleRequestClose}
+            aria-label={labels.close}
+            className="desktop-pack-page-close"
+          >
+            <CloseIcon />
+          </button>
+        </div>
 
-          <DesktopPackPageHeader
-            tasks={tasks}
-            onUpdateGroup={onUpdateGroup}
-            appearance={appearance}
-            language={language}
-            isSelectMode={isSelectMode}
-            selectedCount={selectedCount}
-            onEnterSelectMode={enterSelectMode}
-            onExitSelectMode={exitSelectMode}
-            onDeleteSelected={handleDeleteSelected}
-          />
+        <DesktopPackPageHeader
+          tasks={tasks}
+          onUpdateGroup={onUpdateGroup}
+          appearance={appearance}
+          language={language}
+          isSelectMode={isSelectMode}
+          selectedCount={selectedCount}
+          onEnterSelectMode={enterSelectMode}
+          onExitSelectMode={exitSelectMode}
+          onDeleteSelected={handleDeleteSelected}
+        />
 
-          <div className="desktop-pack-page-content">
-            <div className="desktop-pack-page-controls">
-              <div className="desktop-pack-page-controls-bar">
-                <div className="desktop-pack-page-filters" role="tablist" aria-label="Pack filters">
-                  {filters.map((filter) => (
+        <div className="desktop-pack-page-content">
+          <div className="desktop-pack-page-controls">
+            <div className="desktop-pack-page-controls-bar">
+              <div className="desktop-pack-page-filters" role="tablist" aria-label="Pack filters">
+                {filters.map((filter) => (
+                  <button
+                    key={filter}
+                    type="button"
+                    className={`desktop-pack-page-filter-btn ${activeFilter === filter ? 'is-active' : ''}`}
+                    onClick={() => {
+                      setActiveFilter(filter);
+                      setIsSearchVisible(false);
+                      setIsExportMenuOpen(false);
+                    }}
+                  >
+                    {getPackFilterLabel(filter)}
+                  </button>
+                ))}
+              </div>
+              <div className={`desktop-pack-page-control-actions ${isSelectMode ? 'is-select-mode' : ''}`}>
+                {isSelectMode ? (
+                  <button
+                    type="button"
+                    className="desktop-pack-page-toolbar-action desktop-pack-page-toolbar-text-action is-active"
+                    onClick={exitSelectMode}
+                  >
+                    <PackSelectIcon />
+                    <span>Select</span>
+                  </button>
+                ) : (
+                  <>
                     <button
-                      key={filter}
                       type="button"
-                      className={`desktop-pack-page-filter-btn ${activeFilter === filter ? 'is-active' : ''}`}
+                      className={`desktop-pack-page-toolbar-action desktop-pack-page-search-toggle ${isSearchVisible ? 'is-active' : ''}`}
                       onClick={() => {
-                        setActiveFilter(filter);
-                        setIsSearchVisible(false);
+                        setIsSearchVisible((current) => !current);
                         setIsExportMenuOpen(false);
                       }}
+                      aria-label="Search items"
+                      aria-expanded={isSearchVisible}
                     >
-                      {getPackFilterLabel(filter)}
+                      <SearchIcon />
                     </button>
-                  ))}
-                </div>
-                <div className={`desktop-pack-page-control-actions ${isSelectMode ? 'is-select-mode' : ''}`}>
-                  {isSelectMode ? (
+                    <span className="desktop-pack-page-toolbar-divider" aria-hidden="true" />
                     <button
                       type="button"
-                      className="desktop-pack-page-toolbar-action desktop-pack-page-toolbar-text-action is-active"
-                      onClick={exitSelectMode}
+                      className="desktop-pack-page-toolbar-action desktop-pack-page-toolbar-text-action"
+                      onClick={enterSelectMode}
                     >
                       <PackSelectIcon />
                       <span>Select</span>
                     </button>
-                  ) : (
-                    <>
+                    <div className="desktop-pack-page-toolbar-menu-anchor" ref={exportMenuRef}>
                       <button
                         type="button"
-                        className={`desktop-pack-page-toolbar-action desktop-pack-page-search-toggle ${isSearchVisible ? 'is-active' : ''}`}
-                        onClick={() => {
-                          setIsSearchVisible((current) => !current);
-                          setIsExportMenuOpen(false);
-                        }}
-                        aria-label="Search items"
-                        aria-expanded={isSearchVisible}
+                        className={`desktop-pack-page-toolbar-action desktop-pack-page-toolbar-text-action ${isExportMenuOpen ? 'is-active' : ''}`}
+                        aria-haspopup="menu"
+                        aria-expanded={isExportMenuOpen}
+                        onClick={() => setIsExportMenuOpen((current) => !current)}
                       >
-                        <SearchIcon />
+                        <PackExportIcon />
+                        <span>Export</span>
                       </button>
-                      <span className="desktop-pack-page-toolbar-divider" aria-hidden="true" />
-                      <button
-                        type="button"
-                        className="desktop-pack-page-toolbar-action desktop-pack-page-toolbar-text-action"
-                        onClick={enterSelectMode}
-                      >
-                        <PackSelectIcon />
-                        <span>Select</span>
-                      </button>
-                      <div className="desktop-pack-page-toolbar-menu-anchor" ref={exportMenuRef}>
-                        <button
-                          type="button"
-                          className={`desktop-pack-page-toolbar-action desktop-pack-page-toolbar-text-action ${isExportMenuOpen ? 'is-active' : ''}`}
-                          aria-haspopup="menu"
-                          aria-expanded={isExportMenuOpen}
-                          onClick={() => setIsExportMenuOpen((current) => !current)}
-                        >
-                          <PackExportIcon />
-                          <span>Export</span>
-                        </button>
-                        {isExportMenuOpen ? (
-                          <div className="desktop-pack-page-toolbar-menu" role="menu" aria-label="Export pack">
-                            {exportMenuOptions.map(({ id, label }) => (
-                              <button
-                                key={id}
-                                type="button"
-                                role="menuitem"
-                                className="desktop-pack-page-toolbar-menu-item"
-                                onClick={() => handleExportMenuAction(id)}
-                              >
-                                {label}
-                              </button>
-                            ))}
-                          </div>
-                        ) : null}
-                      </div>
-                    </>
-                  )}
-                </div>
-              </div>
-              {isSearchVisible && (
-                <div className="desktop-pack-page-search-wrapper is-revealed">
-                  <SearchIcon />
-                  <input
-                    type="text"
-                    placeholder="Search in pack..."
-                    value={itemSearchQuery}
-                    onChange={(e) => setItemSearchQuery(e.target.value)}
-                    className="desktop-pack-page-search-input"
-                    autoFocus
-                  />
-                </div>
-              )}
-            </div>
-
-            <div className="desktop-pack-page-item-list">
-              {filteredTasks.length === 0 ? (
-                <div className="desktop-pack-page-empty">No items found</div>
-              ) : (
-                filteredTasks.map((task) => (
-                  <div
-                    key={task.id}
-                    id={`desktop-pack-page-item-${task.id}`}
-                    className={`desktop-pack-page-item ${highlightedTaskId === task.id ? 'is-highlighted' : ''}`}
-                  >
-                    {isSelectMode ? (
-                      <button
-                        type="button"
-                        className={`desktop-pack-page-item-checkbox ${selectedItemIds.includes(task.id) ? 'is-selected' : ''}`}
-                        aria-pressed={selectedItemIds.includes(task.id)}
-                        aria-label={`${selectedItemIds.includes(task.id) ? 'Deselect' : 'Select'} ${task.text || 'item'}`}
-                        onClick={() => toggleSelectItem(task.id)}
-                      >
-                        <span className="desktop-pack-page-item-checkbox-mark" aria-hidden="true">
-                          {selectedItemIds.includes(task.id) ? '✓' : ''}
-                        </span>
-                      </button>
-                    ) : null}
-                    {(() => {
-                      const { label } = getPackItemSourceMeta(task, labels);
-                      const { displayTitle } = getTaskCardPresentation(task, labels);
-                      return (
-                        <>
-                          <PackItemSourceIcon task={task} appearance={appearance} labels={labels} />
-                          <button
-                            type="button"
-                            onClick={() => {
-                              if (isSelectMode) {
-                                toggleSelectItem(task.id);
-                                return;
-                              }
-                              onTaskOpen(task);
-                            }}
-                            className="desktop-pack-page-item-main"
-                          >
-                            <div className="desktop-pack-page-item-title">
-                              {displayTitle || task.text || 'Untitled item'}
-                            </div>
-                            <div className="desktop-pack-page-item-subtitle">
+                      {isExportMenuOpen ? (
+                        <div className="desktop-pack-page-toolbar-menu" role="menu" aria-label="Export pack">
+                          {exportMenuOptions.map(({ id, label }) => (
+                            <button
+                              key={id}
+                              type="button"
+                              role="menuitem"
+                              className="desktop-pack-page-toolbar-menu-item"
+                              onClick={() => handleExportMenuAction(id)}
+                            >
                               {label}
-                            </div>
-                          </button>
-                        </>
-                      );
-                    })()}
-                    {!isSelectMode ? (
-                      <div className="desktop-pack-page-item-actions">
+                            </button>
+                          ))}
+                        </div>
+                      ) : null}
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+            {isSearchVisible && (
+              <div className="desktop-pack-page-search-wrapper is-revealed">
+                <SearchIcon />
+                <input
+                  type="text"
+                  placeholder="Search in pack..."
+                  value={itemSearchQuery}
+                  onChange={(e) => setItemSearchQuery(e.target.value)}
+                  className="desktop-pack-page-search-input"
+                  autoFocus
+                />
+              </div>
+            )}
+          </div>
+          
+          <div className="desktop-pack-page-item-list">
+            {filteredTasks.length === 0 ? (
+              <div className="desktop-pack-page-empty">No items found</div>
+            ) : (
+              filteredTasks.map((task) => (
+                <div
+                  key={task.id}
+                  id={`desktop-pack-page-item-${task.id}`}
+                  className={`desktop-pack-page-item ${highlightedTaskId === task.id ? 'is-highlighted' : ''}`}
+                >
+                  {isSelectMode ? (
+                    <button
+                      type="button"
+                      className={`desktop-pack-page-item-checkbox ${selectedItemIds.includes(task.id) ? 'is-selected' : ''}`}
+                      aria-pressed={selectedItemIds.includes(task.id)}
+                      aria-label={`${selectedItemIds.includes(task.id) ? 'Deselect' : 'Select'} ${task.text || 'item'}`}
+                      onClick={() => toggleSelectItem(task.id)}
+                    >
+                      <span className="desktop-pack-page-item-checkbox-mark" aria-hidden="true">
+                        {selectedItemIds.includes(task.id) ? '✓' : ''}
+                      </span>
+                    </button>
+                  ) : null}
+                  {(() => {
+                    const { label } = getPackItemSourceMeta(task, labels);
+                    const { displayTitle } = getTaskCardPresentation(task, labels);
+                    return (
+                      <>
+                        <PackItemSourceIcon task={task} appearance={appearance} labels={labels} />
                         <button
                           type="button"
-                          className="desktop-pack-page-item-action"
-                          aria-label={`Edit ${task.text || 'item'}`}
-                          onClick={() => onTaskEdit?.(task)}
+                          onClick={() => {
+                            if (isSelectMode) {
+                              toggleSelectItem(task.id);
+                              return;
+                            }
+                            onTaskOpen(task);
+                          }}
+                          className="desktop-pack-page-item-main"
                         >
-                          <EditIcon />
+                          <div className="desktop-pack-page-item-title">
+                            {displayTitle || task.text || 'Untitled item'}
+                          </div>
+                          <div className="desktop-pack-page-item-subtitle">
+                            {label}
+                          </div>
                         </button>
-                      </div>
-                    ) : null}
-                  </div>
-                ))
-              )}
-            </div>
+                      </>
+                    );
+                  })()}
+                  {!isSelectMode ? (
+                    <div className="desktop-pack-page-item-actions">
+                      <button
+                        type="button"
+                        className="desktop-pack-page-item-action"
+                        aria-label={`Edit ${task.text || 'item'}`}
+                        onClick={() => onTaskEdit?.(task)}
+                      >
+                        <EditIcon />
+                      </button>
+                    </div>
+                  ) : null}
+                </div>
+              ))
+            )}
           </div>
-          <DesktopDeleteConfirmModal
-            open={isDeleteConfirmOpen}
-            title={`Delete ${selectedCount} ${selectedCount === 1 ? 'item' : 'items'} from this pack?`}
-            onCancel={() => setIsDeleteConfirmOpen(false)}
-            onConfirm={confirmDeleteSelected}
-          />
+        </div>
+        <DesktopDeleteConfirmModal
+          open={isDeleteConfirmOpen}
+          title={`Delete ${selectedCount} ${selectedCount === 1 ? 'item' : 'items'} from this pack?`}
+          onCancel={() => setIsDeleteConfirmOpen(false)}
+          onConfirm={confirmDeleteSelected}
+        />
         </div>
       </div>
     </div>
   );
 };
 
-// GroupDragPreview removed (replaced by inline GroupedTaskCard in drag overlay)
+const GroupDragPreview = ({ tasks, appearance, labels }) => {
+  const groupTitle = getDesktopGroupDisplayName(tasks);
+  const groupIcon = getDesktopGroupIcon(tasks);
+  const metadataText = getPackMetadataTextFromItems(tasks);
+  const groupChips = getDesktopGroupDisplayTags(tasks);
+  const displayTasks = tasks.slice(0, 4); // Display up to 4 items matching the card
 
+  return (
+    <div className="desktop-task-card desktop-task-group-card is-drag-preview" style={{ width: '100%', height: '100%', transform: 'none', padding: '14px 0 0 0' }}>
+      <div className="desktop-task-group-header" style={{ marginBottom: 10, padding: '0 14px' }}>
+        <div className="desktop-task-group-title-wrap">
+          {groupIcon ? (
+            <span className="desktop-task-group-title-icon">{groupIcon}</span>
+          ) : (
+            <span className="desktop-task-group-title-dot" />
+          )}
+          <div className="desktop-task-group-title-block">
+            <span className="desktop-task-group-title">{groupTitle}</span>
+            {metadataText && <span className="desktop-task-group-metadata">{metadataText}</span>}
+          </div>
+        </div>
+      </div>
 
+      {groupChips.length > 0 && (
+        <div className="desktop-task-group-chip-row" style={{ padding: '0 14px', marginBottom: 10 }}>
+          {groupChips.map((chip, idx) => (
+            <div key={idx} className="desktop-task-group-chip">
+              {chip}
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="desktop-task-group-list" style={{ padding: 0 }}>
+        {displayTasks.map((task) => (
+          <div key={task.id} className="desktop-task-group-row" style={{ minHeight: 40, padding: '4px 8px' }}>
+            <TaskCardContent task={task} appearance={appearance} labels={labels} />
+          </div>
+        ))}
+        {tasks.length > 4 && (
+          <div className="desktop-task-group-more-label">
+            {tasks.length} tasks
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
 
 
 
@@ -1611,8 +3349,34 @@ const DesktopGroupPrompt = ({
   );
 };
 
-
-
+const DragDayFeedbackOverlay = ({
+  direction,
+  previousLabel,
+  nextLabel,
+  zones,
+  isConfirming,
+}) => (
+  <div className={`desktop-drag-day-feedback ${direction ? 'is-visible' : ''} ${isConfirming ? 'is-confirming' : ''}`} aria-hidden="true">
+    <div
+      className={`desktop-drag-day-feedback-edge desktop-drag-day-feedback-edge-previous ${direction === 'previous' ? 'is-active' : ''}`}
+      style={zones ? { width: Math.max(0, zones.previousEnd - zones.previousStart) } : undefined}
+    >
+      <div className="desktop-drag-day-feedback-chip">
+        <span className="desktop-drag-day-feedback-arrow desktop-drag-day-feedback-arrow-previous">{'←'}</span>
+        <span className="desktop-drag-day-feedback-label">{previousLabel}</span>
+      </div>
+    </div>
+    <div
+      className={`desktop-drag-day-feedback-edge desktop-drag-day-feedback-edge-next ${direction === 'next' ? 'is-active' : ''}`}
+      style={zones ? { width: Math.max(0, zones.nextEnd - zones.nextStart) } : undefined}
+    >
+      <div className="desktop-drag-day-feedback-chip">
+        <span className="desktop-drag-day-feedback-label">{nextLabel}</span>
+        <span className="desktop-drag-day-feedback-arrow desktop-drag-day-feedback-arrow-next">{'→'}</span>
+      </div>
+    </div>
+  </div>
+);
 
 const DragDayFeedbackOverlayV2 = ({
   direction,
@@ -1627,7 +3391,7 @@ const DragDayFeedbackOverlayV2 = ({
 
     return (
       <div
-        className={`desktop - drag - day - feedback - edge desktop - drag - day - feedback - edge - ${edgeDirection} ${isActive ? 'is-active' : ''} ${stateClass} `}
+        className={`desktop-drag-day-feedback-edge desktop-drag-day-feedback-edge-${edgeDirection} ${isActive ? 'is-active' : ''} ${stateClass}`}
         style={typeof width === 'number' ? { width } : undefined}
       >
         <div className="desktop-drag-day-feedback-chip">
@@ -1651,16 +3415,90 @@ const DragDayFeedbackOverlayV2 = ({
   };
 
   return (
-    <div className={`desktop - drag - day - feedback ${direction ? 'is-visible' : ''} ${isConfirming ? 'is-confirming' : ''} `} aria-hidden="true">
+    <div className={`desktop-drag-day-feedback ${direction ? 'is-visible' : ''} ${isConfirming ? 'is-confirming' : ''}`} aria-hidden="true">
       {renderEdge('previous', previousLabel, '<', zones ? Math.max(0, zones.previousEnd - zones.previousStart) : undefined)}
       {renderEdge('next', nextLabel, '>', zones ? Math.max(0, zones.nextEnd - zones.nextStart) : undefined)}
     </div>
   );
 };
 
+const ScheduleSection = ({
+  section,
+  appearance,
+  language,
+  labels,
+  renderSlots,
+  markerStyle,
+  onTaskClick,
+  onTaskEdit,
+  onTaskDelete,
+  onTaskPointerDown,
+  onTaskPointerMove,
+  onTaskPointerUp,
+  onTaskPointerCancel,
+  draggedTaskId,
+  isDragOver,
+}) => {
+  const pillStyle = getDesktopSectionPillStyle(section, appearance);
+  const t = getTranslationsForLanguage(language);
+  const desktopRowCount = Math.max(2, Math.ceil(renderSlots.length / 2));
+  const timelineColumnMinHeight = (desktopRowCount * DESKTOP_SLOT_MIN_HEIGHT) + ((desktopRowCount - 1) * DESKTOP_SLOT_GAP);
 
-
-
+  return (
+    <section style={{ borderBottom: '1px solid var(--desktop-divider)', background: 'var(--desktop-section-bg)' }}>
+      <div style={{ width: 'min(1008px, calc(100% - 72px))', margin: '0 auto', padding: '22px 0 24px' }}>
+        <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minWidth: 72, padding: '6px 14px', borderRadius: 999, fontFamily: 'DM Serif Display, serif', fontSize: 14, fontStyle: 'italic', ...pillStyle }}>{t[section.labelKey]}</span>
+        <div style={{ display: 'grid', gridTemplateColumns: '110px minmax(0, 1fr)', gap: 24, marginTop: 18, alignItems: 'stretch' }}>
+          <div style={{ position: 'relative', minHeight: timelineColumnMinHeight, height: '100%' }}>
+            <div style={{ color: 'var(--desktop-root-text)', fontSize: 15, fontWeight: 500 }}>{section.start}</div>
+            <div style={{ position: 'absolute', left: 5, top: DESKTOP_TIME_AXIS_LINE_TOP, bottom: DESKTOP_TIME_AXIS_LINE_BOTTOM, width: 1, background: 'var(--desktop-time-axis-line)' }} />
+            {markerStyle ? <div style={{ position: 'absolute', left: 2, width: DESKTOP_TIME_MARKER_SIZE, height: DESKTOP_TIME_MARKER_SIZE, borderRadius: '50%', background: 'var(--desktop-accent)', ...markerStyle }} /> : null}
+            <div style={{ position: 'absolute', left: 0, bottom: 0, color: 'var(--desktop-root-text)', fontSize: 15, fontWeight: 500 }}>{section.end}</div>
+          </div>
+          <div
+            data-desktop-block-id={section.mobileId}
+            className={`desktop-schedule-task-grid ${isDragOver ? 'is-drag-over' : ''}`}
+            style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(260px, 1fr))', gap: DESKTOP_SLOT_GAP, alignItems: 'stretch' }}
+          >
+            {renderSlots.map((item, slotIndex) => (
+              <div
+                key={`${section.mobileId}-${slotIndex}`}
+                data-desktop-slot-id={`${section.mobileId}-${slotIndex}`}
+                data-desktop-slot-section={section.mobileId}
+                data-desktop-slot-index={slotIndex}
+                className="desktop-schedule-slot"
+              >
+                {item.type === 'task' ? (
+                  <div data-desktop-layout-id={`task-${item.task.id}`}>
+                <TaskCard
+                  task={item.task}
+                  appearance={appearance}
+                  labels={labels}
+                  isDragging={draggedTaskId === item.task.id}
+                      onClick={(event) => onTaskClick(item.task, event)}
+                  onEdit={() => onTaskEdit(item.task)}
+                  onDelete={() => onTaskDelete(item.task)}
+                      onPointerDown={(event) => onTaskPointerDown(item.task, event)}
+                      onPointerMove={(event) => onTaskPointerMove(item.task, event)}
+                      onPointerUp={(event) => onTaskPointerUp(item.task, event)}
+                      onPointerCancel={(event) => onTaskPointerCancel(item.task, event)}
+                      editLabel={labels.edit}
+                      deleteLabel={labels.delete}
+                    />
+                  </div>
+                ) : item.type === 'placeholder' ? (
+                  <div data-desktop-layout-id="desktop-drag-placeholder" className="desktop-drag-placeholder" aria-hidden="true" />
+                ) : (
+                  <div className="desktop-empty-slot" aria-hidden="true" />
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+};
 
 const DailyTaskList = ({
   entries,
@@ -1693,9 +3531,9 @@ const DailyTaskList = ({
           ? (draggedTaskId === dragTask.id && isGroupDragActive) // Only hide whole card if lead task (group drag) is active
           : (draggedTaskId === entry.task.id && !isGroupDragActive);
         return (
-          <div key={entry.type === 'group' ? `group-${entry.id}` : entry.task.id} id={`desktop-canvas-entry-${dragTask.id}`} data-desktop-layout-id={`task-${dragTask.id}`} className="desktop-canvas-card-node" style={{ left: entry.x, top: entry.y, width: DESKTOP_CANVAS_CARD_WIDTH }}>
-            <div className={`desktop-canvas-card-shell ${isGroupReady ? 'desktop-canvas-card-shell--group-ready' : ''} ${isDragging ? 'is-dragging' : ''}`}>
-              {entry.type === 'group' ? (
+        <div key={entry.type === 'group' ? `group-${entry.id}` : entry.task.id} id={`desktop-canvas-entry-${dragTask.id}`} data-desktop-layout-id={`task-${dragTask.id}`} className="desktop-canvas-card-node" style={{ left: entry.x, top: entry.y, width: DESKTOP_CANVAS_CARD_WIDTH }}>
+          <div className={`desktop-canvas-card-shell ${isGroupReady ? 'desktop-canvas-card-shell--group-ready' : ''} ${isDragging ? 'is-dragging' : ''}`}>
+            {entry.type === 'group' ? (
                 <GroupedTaskCard
                   tasks={entry.tasks}
                   appearance={appearance}
@@ -1706,13 +3544,13 @@ const DailyTaskList = ({
                   isGroupReady={isGroupReady}
                   draggedTaskId={draggedTaskId}
                   onOpenItem={onTaskClick}
-                  onOpenFullView={(event) => onGroupOpenFullView(entry.tasks, event)}
-                  onPointerDown={onTaskPointerDown}
-                  onPointerMove={onTaskPointerMove}
-                  onPointerUp={onTaskPointerUp}
-                  onPointerCancel={onTaskPointerCancel}
-                />
-              ) : (
+                onOpenFullView={(event) => onGroupOpenFullView(entry.tasks, event)}
+                onPointerDown={onTaskPointerDown}
+                onPointerMove={onTaskPointerMove}
+                onPointerUp={onTaskPointerUp}
+                onPointerCancel={onTaskPointerCancel}
+              />
+            ) : (
                 <TaskCard
                   task={entry.task}
                   appearance={appearance}
@@ -1731,11 +3569,10 @@ const DailyTaskList = ({
                   editLabel={labels.edit}
                   deleteLabel={labels.delete}
                 />
-              )}
-            </div>
+            )}
           </div>
-        )
-      })
+        </div>
+      )})
     ) : (
       <div
         aria-hidden="true"
@@ -1745,27 +3582,22 @@ const DailyTaskList = ({
           border: appearance === 'dark' ? 'none' : '1px dashed var(--desktop-divider)',
           background: appearance === 'dark' ? 'transparent' : 'var(--desktop-section-bg)',
         }}
-      />
-    )}
-    {selectionRect ? (
-      <div
-        className="desktop-canvas-selection-rect"
-        aria-hidden="true"
-        style={{
-          left: selectionRect.x,
-          top: selectionRect.y,
-          width: selectionRect.width,
-          height: selectionRect.height,
-        }}
-      />
-    ) : null}
-  </div>
-);
-
-
-
-
-
+        />
+      )}
+      {selectionRect ? (
+        <div
+          className="desktop-canvas-selection-rect"
+          aria-hidden="true"
+          style={{
+            left: selectionRect.x,
+            top: selectionRect.y,
+            width: selectionRect.width,
+            height: selectionRect.height,
+          }}
+        />
+      ) : null}
+    </div>
+  );
 
 const InlineMiniCalendar = ({
   language,
@@ -1867,34 +3699,157 @@ const AddPanel = ({
   fileAttachments,
   onAddFiles,
   onRemoveFile,
+  onShowToast,
   onClose,
   onSubmit,
 }) => {
+  const createInitialConvertState = () => ({
+    selectedFile: null,
+    status: 'idle',
+    markdown: '',
+    error: '',
+  });
   const [mode, setMode] = useState('add');
   const [isFileDragActive, setIsFileDragActive] = useState(false);
   const [isConvertDragActive, setIsConvertDragActive] = useState(false);
-  const [convertFileName, setConvertFileName] = useState('');
+  const [convertState, setConvertState] = useState(createInitialConvertState);
   const fileInputRef = useRef(null);
   const convertFileInputRef = useRef(null);
+  const previousModeRef = useRef('add');
   const t = getTranslationsForLanguage(language);
 
+  const resetConvertState = useCallback(() => {
+    console.debug('[add-panel] resetConvertState invoked');
+    setIsConvertDragActive(false);
+    setConvertState((current) => {
+      const isAlreadyInitial = (
+        current.selectedFile === null
+        && current.status === 'idle'
+        && !current.markdown
+        && !current.error
+      );
+      console.debug('[add-panel] resetConvertState setConvertState', {
+        current,
+        isAlreadyInitial,
+      });
+      return isAlreadyInitial ? current : createInitialConvertState();
+    });
+    if (convertFileInputRef.current) {
+      convertFileInputRef.current.value = '';
+    }
+  }, []);
+
   useEffect(() => {
+    console.debug('[add-panel] open reset effect', {
+      open,
+      mode,
+      isFileDragActive,
+      convertState,
+    });
     if (!open) {
+      console.debug('[add-panel] open reset effect setState', {
+        nextMode: 'add',
+        nextIsFileDragActive: false,
+        action: 'resetConvertState',
+      });
       setMode('add');
       setIsFileDragActive(false);
-      setIsConvertDragActive(false);
-      setConvertFileName('');
+      resetConvertState();
     }
-  }, [open]);
+  }, [open, mode, isFileDragActive, convertState, resetConvertState]);
 
-  if (!open) return null;
+  useEffect(() => {
+    const previousMode = previousModeRef.current;
+    console.debug('[add-panel] mode sync effect', {
+      previousMode,
+      mode,
+      convertStatus: convertState.status,
+      hasMarkdown: Boolean(convertState.markdown),
+      error: convertState.error,
+    });
+    if (previousMode === 'convert' && mode !== 'convert') {
+      console.debug('[add-panel] mode sync effect setState', {
+        action: 'resetConvertState',
+      });
+      resetConvertState();
+    }
+    previousModeRef.current = mode;
+  }, [mode, convertState.status, convertState.markdown, convertState.error, resetConvertState]);
 
   const handleConvertFiles = (files) => {
     const selectedFiles = Array.from(files || []);
     const firstSupportedFile = selectedFiles.find((file) => isSupportedConvertFile(file));
-    if (!firstSupportedFile) return;
-    setConvertFileName(firstSupportedFile.name || 'Untitled document');
+    if (!firstSupportedFile) {
+      setConvertState({
+        selectedFile: null,
+        status: 'error',
+        markdown: '',
+        error: 'Please choose a PDF, DOCX, HTML, or TXT-based file.',
+      });
+      return;
+    }
+
+    setConvertState({
+      selectedFile: firstSupportedFile,
+      status: 'ready',
+      markdown: '',
+      error: '',
+    });
   };
+
+  const handleUseMarkdownInAdd = useCallback((markdown) => {
+    const nextMarkdown = String(markdown || '').trim();
+    console.debug('[add-panel] handleUseMarkdownInAdd', {
+      markdownLength: nextMarkdown.length,
+      willSetInputText: Boolean(nextMarkdown),
+    });
+    if (!nextMarkdown) return;
+    setInputText(nextMarkdown);
+    onShowToast?.('Markdown added to draft');
+    setMode('add');
+  }, [onShowToast, setInputText]);
+
+  const handleRunConvert = async () => {
+    if (!convertState.selectedFile || convertState.status === 'converting') return;
+
+    setConvertState((current) => ({
+      ...current,
+      status: 'converting',
+      markdown: '',
+      error: '',
+    }));
+
+    try {
+      const markdown = await convertDocumentFileToMarkdown(convertState.selectedFile);
+      setConvertState((current) => ({
+        ...current,
+        status: 'success',
+        markdown,
+        error: '',
+      }));
+      handleUseMarkdownInAdd(markdown);
+    } catch (error) {
+      setConvertState((current) => ({
+        ...current,
+        status: 'error',
+        markdown: '',
+        error: error instanceof Error ? error.message : 'Unable to convert this file.',
+      }));
+    }
+  };
+
+  const convertActionLabel = (() => {
+    if (convertState.status === 'converting') return 'Converting...';
+    if (convertState.status === 'success') return 'Converted';
+    if (convertState.status === 'error' && convertState.selectedFile) return 'Retry';
+    return 'Convert';
+  })();
+
+  const handlePrimaryConvertAction = () => {
+    handleRunConvert();
+  };
+
+  if (!open) return null;
 
   return (
     <div role="dialog" className="desktop-add-panel">
@@ -2049,18 +4004,18 @@ const AddPanel = ({
             <>
               <div className="desktop-add-panel-copy">
                 <h2 className="desktop-add-panel-title">Convert to Markdown</h2>
-                <p className="desktop-add-panel-support">Drop a PDF or DOCX file to turn it into reusable markdown</p>
+                <p className="desktop-add-panel-support">Drop a PDF, DOCX, HTML, or TXT-based file to turn it into reusable markdown</p>
               </div>
               <div
                 className={`desktop-convert-panel-dropzone ${isConvertDragActive ? 'drag-active' : ''}`}
                 onClick={() => convertFileInputRef.current?.click()}
                 onDragEnter={(event) => {
-                  if (!Array.from(event.dataTransfer?.files || []).some((file) => isSupportedConvertFile(file))) return;
+                  if (!hasSupportedConvertFiles(event.dataTransfer)) return;
                   event.preventDefault();
                   setIsConvertDragActive(true);
                 }}
                 onDragOver={(event) => {
-                  if (!Array.from(event.dataTransfer?.files || []).some((file) => isSupportedConvertFile(file))) return;
+                  if (!hasSupportedConvertFiles(event.dataTransfer)) return;
                   event.preventDefault();
                   if (event.dataTransfer) {
                     event.dataTransfer.dropEffect = 'copy';
@@ -2098,16 +4053,55 @@ const AddPanel = ({
                 </div>
                 <div className="desktop-convert-panel-drop-copy">
                   <div className="desktop-convert-panel-drop-title">
-                    {convertFileName || 'Click or drag a file here'}
+                    {convertState.selectedFile?.name || 'Click or drag a PDF, DOCX, HTML, or TXT-based file here'}
                   </div>
-                  {convertFileName ? (
-                    <div className="desktop-convert-panel-drop-subtitle">Frontend preview only</div>
+                  {convertState.selectedFile ? (
+                    <div className="desktop-convert-panel-drop-subtitle">
+                      {convertState.status === 'success'
+                        ? 'Markdown added to Add so you can review and save'
+                        : convertState.status === 'converting'
+                          ? 'Extracting text and formatting markdown'
+                          : 'Ready to convert'}
+                    </div>
                   ) : null}
                 </div>
               </div>
+              {convertState.error ? (
+                <div className="desktop-convert-panel-feedback error">{convertState.error}</div>
+              ) : null}
+              {convertState.markdown ? (
+                <div className="desktop-convert-panel-preview">
+                  <div className="desktop-convert-panel-preview-header">
+                    <span>Markdown preview</span>
+                    <span>{convertState.markdown.length} chars</span>
+                  </div>
+                  <textarea
+                    value={convertState.markdown}
+                    readOnly
+                    className="desktop-convert-panel-preview-textarea"
+                  />
+                </div>
+              ) : null}
               <div className="desktop-convert-panel-meta">
-                <span>Supports PDF, DOCX</span>
+                <span>Supports PDF, DOCX, HTML, TXT</span>
                 <span>Up to 10MB</span>
+              </div>
+              <div className="desktop-convert-panel-actions">
+                <button
+                  type="button"
+                  onClick={() => convertFileInputRef.current?.click()}
+                  className="desktop-add-panel-files-button"
+                >
+                  {convertState.selectedFile ? 'Choose another file' : 'Choose file'}
+                </button>
+                <button
+                  type="button"
+                  onClick={handlePrimaryConvertAction}
+                  disabled={!convertState.selectedFile || convertState.status === 'converting' || convertState.status === 'success'}
+                  className="desktop-add-panel-submit-button"
+                >
+                  {convertActionLabel}
+                </button>
               </div>
             </>
           )}
@@ -2116,6 +4110,7 @@ const AddPanel = ({
     </div>
   );
 };
+
 const DesktopDeleteConfirmModal = ({
   open,
   title,
@@ -2167,12 +4162,36 @@ const DesktopDeleteConfirmModal = ({
   );
 };
 
+const WorkspaceChevronIcon = ({ open = false }) => (
+  <svg width="14" height="14" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+    <path
+      d={open ? 'M5 12.5 10 7.5 15 12.5' : 'M5 7.5 10 12.5 15 7.5'}
+      stroke="currentColor"
+      strokeWidth="1.7"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </svg>
+);
 
+const WorkspaceMoreIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+    <circle cx="5" cy="10" r="1.2" fill="currentColor" />
+    <circle cx="10" cy="10" r="1.2" fill="currentColor" />
+    <circle cx="15" cy="10" r="1.2" fill="currentColor" />
+  </svg>
+);
 
+const WorkspacePlusIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+    <path d="M10 4.5v11M4.5 10h11" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
 
-function App({ session }) {
-  const user = session?.user;
-
+function App() {
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
+  
   // Track retention on Desktop app wide open
   useEffect(() => {
     if (user?.id) {
@@ -2203,6 +4222,8 @@ function App({ session }) {
     setProfileOpenState(val);
   }, []);
   const [panelOpen, setPanelOpen] = useState(false);
+  const [showAddPreview, setShowAddPreview] = useState(false);
+  const hoverAddTimeoutRef = useRef(null);
   const [inputText, setInputText] = useState('');
   const [addPanelAttachments, setAddPanelAttachments] = useState([]);
   const [editingTaskId, setEditingTaskId] = useState(null);
@@ -2212,6 +4233,8 @@ function App({ session }) {
   const [isGroupDragActive, setIsGroupDragActive] = useState(false);
   const [selectedTaskIds, setSelectedTaskIds] = useState([]);
   const [desktopSelectionRect, setDesktopSelectionRect] = useState(null);
+  const [dragOverSection, setDragOverSection] = useState(null);
+  const [dragOverSlot, setDragOverSlot] = useState(null);
   const [isCanvasFileDragActive, setIsCanvasFileDragActive] = useState(false);
   const [desktopDragDayFeedback, setDesktopDragDayFeedback] = useState(null);
   const [desktopDragDayZones, setDesktopDragDayZones] = useState(null);
@@ -2260,9 +4283,9 @@ function App({ session }) {
   const desktopDragSelectionPositionsRef = useRef(new Map());
   const desktopDragAnchorStartPositionRef = useRef(null);
   const desktopDragAnchorSizeRef = useRef({ width: DESKTOP_CANVAS_CARD_WIDTH, height: DESKTOP_CANVAS_CARD_HEIGHT });
-  // Canvas-space pointer position at the moment drag mode was entered.
-  // Used to compute a grab-point offset (no center-lock, no jump).
-  const desktopDragPointerCanvasStartRef = useRef(null);
+  const desktopDragAnchorPointerOffsetRef = useRef(null);
+  const desktopDragSourceRectRef = useRef(null);
+  const desktopDragDetachedFromGroupRef = useRef(false);
   const desktopDragVisualRafRef = useRef(null);
   const desktopDragVisualPendingRef = useRef(null);
   const desktopDragSourceDateKeyRef = useRef(null);
@@ -2276,6 +4299,8 @@ function App({ session }) {
   const previousUploadedFileKeysRef = useRef(new Set());
   const selectedDayEntriesRef = useRef([]);
   const desktopSelectionStateRef = useRef({ pointerId: null, origin: null });
+  const dragOverSectionRef = useRef(null);
+  const dragOverSlotRef = useRef(null);
   const desktopDayFlipTimerRef = useRef(null);
   const desktopDayFlipDirectionRef = useRef(0);
   const desktopDayFlipCooldownUntilRef = useRef(0);
@@ -2336,7 +4361,20 @@ function App({ session }) {
   }, [tasks]);
   useEffect(() => {
     const existingIds = new Set(currentWorkspaceTasks.map((task) => task.id));
-    setSelectedTaskIds((current) => current.filter((taskId) => existingIds.has(taskId)));
+    console.debug('[desktop-workspace] prune selected tasks effect', {
+      taskCount: currentWorkspaceTasks.length,
+      taskIds: currentWorkspaceTasks.map((task) => task.id),
+    });
+    setSelectedTaskIds((current) => {
+      const next = current.filter((taskId) => existingIds.has(taskId));
+      const changed = next.length !== current.length;
+      console.debug('[desktop-workspace] prune selected tasks setState', {
+        previous: current,
+        next,
+        changed,
+      });
+      return changed ? next : current;
+    });
   }, [currentWorkspaceTasks]);
   useEffect(() => {
     if (!workspaceMenuOpen) return undefined;
@@ -2451,6 +4489,30 @@ function App({ session }) {
     window.addEventListener('storage', handleStorageChange);
     return () => window.removeEventListener('storage', handleStorageChange);
   }, []);
+  useEffect(() => {
+    const timeout = setTimeout(() => setLoading(false), 5000);
+    if (!supabase) {
+      setLoading(false);
+      clearTimeout(timeout);
+      return undefined;
+    }
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null);
+      setLoading(false);
+      clearTimeout(timeout);
+    }).catch(() => {
+      setLoading(false);
+      clearTimeout(timeout);
+    });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+      setLoading(false);
+    });
+    return () => {
+      subscription.unsubscribe();
+      clearTimeout(timeout);
+    };
+  }, []);
 
   const logicalToday = getLogicalToday();
   const todaySelected = sameDay(selectedDate, logicalToday);
@@ -2489,6 +4551,27 @@ function App({ session }) {
     return getCanvasPointFromClient(clientX, clientY);
   }, [getCanvasPointFromClient]);
 
+  const getDesktopDragAnchorPosition = useCallback((canvasPoint) => {
+    if (!canvasPoint) return null;
+
+    const pointerOffset = desktopDragAnchorPointerOffsetRef.current;
+    if (pointerOffset) {
+      return {
+        x: canvasPoint.x - pointerOffset.x,
+        y: canvasPoint.y - pointerOffset.y,
+      };
+    }
+
+    const anchorSize = desktopDragAnchorSizeRef.current || {
+      width: DESKTOP_CANVAS_CARD_WIDTH,
+      height: DESKTOP_CANVAS_CARD_HEIGHT,
+    };
+    return {
+      x: canvasPoint.x - (anchorSize.width / 2),
+      y: canvasPoint.y - (anchorSize.height / 2),
+    };
+  }, []);
+
   const updateDesktopSelectionFromRect = useCallback((selectionRect) => {
     const nextSelectedTaskIds = selectedDayEntriesRef.current.flatMap((entry) => {
       const entryRect = {
@@ -2513,8 +4596,8 @@ function App({ session }) {
     if (!container || Math.abs(clampedZoom - current.zoom) < 0.001) return;
 
     const containerRect = container.getBoundingClientRect();
-    const screenAnchorX = anchor ? (anchor.clientX - containerRect.left) / DESKTOP_APP_WINDOW_SCALE : container.clientWidth / 2;
-    const screenAnchorY = anchor ? (anchor.clientY - containerRect.top) / DESKTOP_APP_WINDOW_SCALE : container.clientHeight / 2;
+    const screenAnchorX = anchor ? anchor.clientX - containerRect.left : container.clientWidth / 2;
+    const screenAnchorY = anchor ? anchor.clientY - containerRect.top : container.clientHeight / 2;
     const { x: canvasAnchorX, y: canvasAnchorY } = screenToCanvas(screenAnchorX, screenAnchorY, current);
     const nextPanX = screenAnchorX - canvasAnchorX * clampedZoom;
     const nextPanY = screenAnchorY - canvasAnchorY * clampedZoom;
@@ -2584,8 +4667,8 @@ function App({ session }) {
 
     if (!desktopCanvasPanActive || desktopCanvasPanStateRef.current.pointerId !== event.pointerId) return;
 
-    const dx = (event.clientX - desktopCanvasPanStateRef.current.startX) / DESKTOP_APP_WINDOW_SCALE;
-    const dy = (event.clientY - desktopCanvasPanStateRef.current.startY) / DESKTOP_APP_WINDOW_SCALE;
+    const dx = event.clientX - desktopCanvasPanStateRef.current.startX;
+    const dy = event.clientY - desktopCanvasPanStateRef.current.startY;
     const nextPanX = desktopCanvasPanStateRef.current.startPanX + dx;
     const nextPanY = desktopCanvasPanStateRef.current.startPanY + dy;
     const nextVp = { ...viewportRef.current, panX: nextPanX, panY: nextPanY };
@@ -2714,6 +4797,115 @@ function App({ session }) {
     setDesktopDragOverlapTargetId(null);
   }, []);
 
+  const getCanvasRectFromClientRect = useCallback((rect) => {
+    if (!rect) return null;
+    const topLeft = getCanvasPointFromClient(rect.left, rect.top);
+    const bottomRight = getCanvasPointFromClient(rect.right, rect.bottom);
+    if (!topLeft || !bottomRight) return null;
+    return {
+      x: topLeft.x,
+      y: topLeft.y,
+      width: Math.max(0, bottomRight.x - topLeft.x),
+      height: Math.max(0, bottomRight.y - topLeft.y),
+    };
+  }, [getCanvasPointFromClient]);
+
+  const getActiveDraggedCanvasRect = useCallback((taskId) => {
+    const activeNode = desktopDragOverlayNodeRef.current
+      || document.getElementById(`desktop-canvas-entry-${taskId}`);
+    if (!activeNode) return null;
+    return getCanvasRectFromClientRect(activeNode.getBoundingClientRect());
+  }, [getCanvasRectFromClientRect]);
+
+  const getDesktopCanvasOverlapEntryFromDom = useCallback((tasks, dateString, movingTaskIds, taskId, fallbackNextPosition, threshold = DESKTOP_GROUP_OVERLAP_THRESHOLD) => {
+    const entries = resolveDesktopCanvasEntries(tasks, dateString);
+    const movingRect = getActiveDraggedCanvasRect(taskId) || (
+      fallbackNextPosition
+        ? {
+          x: fallbackNextPosition.x,
+          y: fallbackNextPosition.y,
+          width: DESKTOP_CANVAS_CARD_WIDTH,
+          height: DESKTOP_CANVAS_CARD_HEIGHT,
+        }
+        : null
+    );
+    if (!movingRect) {
+      return fallbackNextPosition
+        ? getDesktopCanvasOverlapEntry(tasks, dateString, movingTaskIds, fallbackNextPosition, threshold)
+        : null;
+    }
+
+    const movingHitRect = expandDesktopCanvasRect(movingRect);
+    const movingCenter = getRectCenterPoint(movingRect);
+    const movingArea = Math.max(1, movingRect.width * movingRect.height);
+    let bestMatch = null;
+    let bestRatio = 0;
+
+    entries.forEach((entry) => {
+      const entryTaskIds = getDesktopCanvasEntryTaskIds(entry);
+      const isMovingExactSameItems = entryTaskIds.length === movingTaskIds.size && entryTaskIds.every((id) => movingTaskIds.has(id));
+      if (isMovingExactSameItems) return;
+
+      const entryNode = document.getElementById(`desktop-canvas-entry-${entry.task.id}`);
+      const targetRect = entryNode
+        ? getCanvasRectFromClientRect(entryNode.getBoundingClientRect())
+        : {
+          x: entry.x,
+          y: entry.y,
+          width: DESKTOP_CANVAS_CARD_WIDTH,
+          height: getDesktopCanvasEntryHeight(entry),
+        };
+      if (!targetRect) return;
+
+      const targetHitRect = expandDesktopCanvasRect(targetRect);
+      const targetCenter = getRectCenterPoint(targetRect);
+      const overlapArea = getDesktopCanvasRectIntersectionArea(movingHitRect, targetHitRect);
+      const movingCenterInsideTarget = isDesktopCanvasPointInsideRect(movingCenter, targetHitRect);
+      const targetCenterInsideMoving = isDesktopCanvasPointInsideRect(targetCenter, movingHitRect);
+      if (overlapArea <= 0 && !movingCenterInsideTarget && !targetCenterInsideMoving) return;
+
+      const targetArea = Math.max(1, targetRect.width * targetRect.height);
+      const movingCoverageRatio = overlapArea / movingArea;
+      const targetCoverageRatio = overlapArea / targetArea;
+      const overlapRatio = Math.max(movingCoverageRatio, targetCoverageRatio);
+      const qualifies = (
+        movingCoverageRatio >= threshold
+        || targetCoverageRatio >= threshold
+        || movingCenterInsideTarget
+        || targetCenterInsideMoving
+      );
+      if (qualifies && overlapRatio >= bestRatio) {
+        bestRatio = overlapRatio;
+        bestMatch = entry;
+      }
+    });
+
+    const centerAligned = bestMatch
+      ? (() => {
+        const entryNode = document.getElementById(`desktop-canvas-entry-${bestMatch.task.id}`);
+        const targetRect = entryNode
+          ? getCanvasRectFromClientRect(entryNode.getBoundingClientRect())
+          : {
+            x: bestMatch.x,
+            y: bestMatch.y,
+            width: DESKTOP_CANVAS_CARD_WIDTH,
+            height: getDesktopCanvasEntryHeight(bestMatch),
+          };
+        if (!targetRect) return false;
+        const movingCenterPoint = getRectCenterPoint(movingRect);
+        const targetCenterPoint = getRectCenterPoint(targetRect);
+        const targetHitRect = expandDesktopCanvasRect(targetRect);
+        const movingHitRect = expandDesktopCanvasRect(movingRect);
+        return (
+          isDesktopCanvasPointInsideRect(movingCenterPoint, targetHitRect)
+          || isDesktopCanvasPointInsideRect(targetCenterPoint, movingHitRect)
+        );
+      })()
+      : false;
+
+    return bestMatch ? { entry: bestMatch, ratio: bestRatio, rect: movingRect, centerAligned } : null;
+  }, [getActiveDraggedCanvasRect, getCanvasRectFromClientRect]);
+
   const setDesktopDragSourceHidden = useCallback((hidden) => {
     const sourceId = desktopDragSourceEntryIdRef.current;
     if (!sourceId) return;
@@ -2754,7 +4946,8 @@ function App({ session }) {
   }, [resetDesktopDragInteraction]);
 
   const updateDesktopDragOverlapTarget = useCallback((clientX, clientY, taskId) => {
-    const nextPosition = getDragCanvasPointFromClient(clientX, clientY);
+    const currentPoint = getDragCanvasPointFromClient(clientX, clientY);
+    const nextPosition = getDesktopDragAnchorPosition(currentPoint);
     if (!nextPosition) return;
 
     const movingTaskIds = new Set(
@@ -2763,10 +4956,11 @@ function App({ session }) {
         : [taskId],
     );
 
-    const overlapResult = getDesktopCanvasOverlapEntry(
+    const overlapResult = getDesktopCanvasOverlapEntryFromDom(
       tasksRef.current,
       dateKey(selectedDateRef.current),
       movingTaskIds,
+      taskId,
       nextPosition,
     );
 
@@ -2779,10 +4973,11 @@ function App({ session }) {
     // If we have a current target and a new candidate, only switch if the new 
     // candidate is meaningfully better (e.g. 10% higher ratio).
     if (currentTargetId && nextTargetId) {
-      const currentOverlap = getDesktopCanvasOverlapEntry(
+      const currentOverlap = getDesktopCanvasOverlapEntryFromDom(
         tasksRef.current,
         dateKey(selectedDateRef.current),
         movingTaskIds,
+        taskId,
         nextPosition,
         0.01, // Use low threshold to get actual ratio even if below 0.6
       );
@@ -2799,7 +4994,7 @@ function App({ session }) {
     }
 
     setDesktopDragOverlapTargetId(nextTargetId);
-  }, [getDragCanvasPointFromClient]);
+  }, [getDesktopCanvasOverlapEntryFromDom, getDesktopDragAnchorPosition, getDragCanvasPointFromClient]);
 
   const flushDesktopDragOverlapUpdate = useCallback(() => {
     desktopDragOverlapRafRef.current = null;
@@ -2829,20 +5024,43 @@ function App({ session }) {
     }
   }, [flushDesktopDragOverlapUpdate]);
 
+  const getNearestDesktopDropTarget = useCallback((clientX, clientY) => {
+    const slots = document.querySelectorAll('[data-desktop-slot-id]');
+    let nearest = null;
+    let nearestScore = Number.POSITIVE_INFINITY;
 
+    slots.forEach((slot) => {
+      const rect = slot.getBoundingClientRect();
+      const clampedX = Math.max(rect.left, Math.min(clientX, rect.right));
+      const clampedY = Math.max(rect.top, Math.min(clientY, rect.bottom));
+      const edgeDistance = Math.hypot(clientX - clampedX, clientY - clampedY);
+      const centerDistance = Math.hypot(clientX - (rect.left + (rect.width / 2)), clientY - (rect.top + (rect.height / 2)));
+      const score = (edgeDistance * 1000) + centerDistance;
+      if (score < nearestScore) {
+        nearestScore = score;
+        nearest = {
+          section: slot.getAttribute('data-desktop-slot-section'),
+          slot: Number(slot.getAttribute('data-desktop-slot-index')),
+        };
+      }
+    });
+
+    return nearest;
+  }, []);
 
 
   const syncDesktopDraggedTaskPosition = useCallback((clientX, clientY) => {
     const currentPt = getDragCanvasPointFromClient(clientX, clientY);
     if (!currentPt) return;
 
-    // Grab-point offset: move by canvas delta from where the pointer first entered drag mode.
-    // This preserves the exact visual position of the card at drag start — no jump, no center-lock.
-    const pointerStart = desktopDragPointerCanvasStartRef.current;
-    if (!pointerStart) return;
-
-    const dx = currentPt.x - pointerStart.x;
-    const dy = currentPt.y - pointerStart.y;
+    const anchorStart = desktopDragAnchorStartPositionRef.current;
+    if (!anchorStart) return;
+    const nextAnchor = getDesktopDragAnchorPosition(currentPt);
+    if (!nextAnchor) return;
+    const nextAnchorX = nextAnchor.x;
+    const nextAnchorY = nextAnchor.y;
+    const dx = nextAnchorX - anchorStart.x;
+    const dy = nextAnchorY - anchorStart.y;
 
     const overlayNode = desktopDragOverlayNodeRef.current;
     if (overlayNode) {
@@ -2863,7 +5081,7 @@ function App({ session }) {
         node.style.zIndex = '999';
       }
     });
-  }, [getDragCanvasPointFromClient]);
+  }, [getDesktopDragAnchorPosition, getDragCanvasPointFromClient]);
 
   const flushDesktopDragVisualUpdate = useCallback(() => {
     desktopDragVisualRafRef.current = null;
@@ -2889,6 +5107,19 @@ function App({ session }) {
     const currentDate = selectedDateRef.current;
     if (sameDay(currentDate, nextDate)) return;
 
+    const draggedTask = tasksRef.current.find((task) => task.id === taskId);
+    const preservedSection = dragOverSectionRef.current || draggedTask?.timeOfDay || 'Morning';
+    const nextDateKey = dateKey(nextDate);
+    const nextSlot = getDesktopSectionTaskOrder(
+      tasksRef.current.filter((task) => task.id !== taskId),
+      nextDateKey,
+      preservedSection,
+    ).length;
+
+    dragOverSectionRef.current = preservedSection;
+    dragOverSlotRef.current = nextSlot;
+    setDragOverSection(preservedSection);
+    setDragOverSlot(nextSlot);
     selectedDateRef.current = nextDate;
     setSelectedDate(nextDate);
   }, []);
@@ -2992,6 +5223,8 @@ function App({ session }) {
     const movingTaskIds = desktopDragSelectedTaskIdsRef.current.size > 0
       ? [...desktopDragSelectedTaskIdsRef.current]
       : getDesktopDragTaskIds(task);
+    const isDetachedGroupTask = !desktopDragIsGroupRef.current && !!task.desktopGroupId && movingTaskIds.length === 1;
+    desktopDragDetachedFromGroupRef.current = isDetachedGroupTask;
 
     // Record original canvas positions of all moving tasks for multi-drag delta math
     const entryPositionMap = new Map();
@@ -3001,7 +5234,11 @@ function App({ session }) {
         entryPositionMap.set(entryTaskId, { x: entry.x, y: entry.y });
       });
     });
-    const anchorPosition = entryPositionMap.get(taskId) || { x: 0, y: 0 };
+    const sourceRect = desktopDragSourceRectRef.current;
+    const sourceCanvasPoint = sourceRect
+      ? getCanvasPointFromClient(sourceRect.left, sourceRect.top)
+      : null;
+    const anchorPosition = sourceCanvasPoint || entryPositionMap.get(taskId) || { x: 0, y: 0 };
     const nextPositions = new Map();
     movingTaskIds.forEach((movingTaskId) => {
       const movingPosition = entryPositionMap.get(movingTaskId) || anchorPosition;
@@ -3011,32 +5248,11 @@ function App({ session }) {
     desktopDragAnchorStartPositionRef.current = anchorPosition;
 
     const anchorEntry = selectedDayEntriesRef.current.find((entry) => getDesktopCanvasEntryTaskIds(entry).includes(taskId)) || null;
-
-    // If lifting a single task out of a group, force the overlay immediately.
-    const isLiftingFromGroup = !desktopDragIsGroupRef.current && anchorEntry?.type === 'group';
-    let liftOffsetY = 0;
-
-    if (isLiftingFromGroup) {
-      // Calculate the approximate vertical offset of the task within the group card
-      // to avoid jumping to the top of the group when the drag starts.
-      const idx = anchorEntry.tasks.findIndex((t) => t.id === taskId);
-      if (idx !== -1) {
-        liftOffsetY = 76; // Header height + gap
-        for (let i = 0; i < idx; i += 1) {
-          const t = anchorEntry.tasks[i];
-          const title = t.photoTitle || t.title || t.text || '';
-          const isLongTitle = title.length > 28 || title.includes('\n');
-          const h = (normalizeCardType(t.cardType) === CARD_TYPES.PHOTO) ? 210 : (isLongTitle ? 80 : 54);
-          liftOffsetY += h + 6;
-        }
-      }
-    }
-
     const overlaySnapshot = {
       taskId,
       type: desktopDragIsGroupRef.current ? 'group' : 'task',
       baseX: anchorPosition.x,
-      baseY: anchorPosition.y + liftOffsetY,
+      baseY: anchorPosition.y,
       task: null,
       tasks: null,
     };
@@ -3053,27 +5269,11 @@ function App({ session }) {
 
     desktopDragOverlaySnapshotRef.current = overlaySnapshot;
     setDesktopDragOverlaySnapshot(overlaySnapshot);
-    setDesktopDragOverlayActive(isLiftingFromGroup);
-
-    if (isLiftingFromGroup) {
-      // Prevent hiding the group entry node when lifting an item out of it.
-      // The individual row is hidden by visibility logic inside GroupedTaskCard.
-      desktopDragSourceEntryIdRef.current = null;
-    }
-
+    setDesktopDragOverlayActive(isDetachedGroupTask);
     desktopDragAnchorSizeRef.current = {
       width: DESKTOP_CANVAS_CARD_WIDTH,
       height: anchorEntry ? getDesktopCanvasEntryHeight(anchorEntry) : DESKTOP_CANVAS_CARD_HEIGHT,
     };
-
-    // Record the canvas-space pointer position at the *initial* mouse down.
-    // This serves as the grab-point origin. Since it matches the snapshot baseX/baseY
-    // at t=0, the card never jumps or snaps when drag mode activates.
-    const pointerCanvasStart = getDragCanvasPointFromClient(
-      desktopDragStateRef.current.startX,
-      desktopDragStateRef.current.startY,
-    );
-    desktopDragPointerCanvasStartRef.current = pointerCanvasStart;
 
     desktopDragModeRef.current = true;
     document.body.classList.add('desktop-task-dragging');
@@ -3088,10 +5288,10 @@ function App({ session }) {
     setDraggedTaskId(taskId);
     setIsGroupDragActive(!!task.isGroupInitiator);
 
-    // Force a visual sync immediately when drag mode begins (delta is 0, so no jump).
+    // Center-locked snap: force a visual sync immediately when drag mode begins.
     syncDesktopDraggedTaskPosition(desktopDragPointerRef.current.x, desktopDragPointerRef.current.y);
     scheduleDesktopDragVisualUpdate(desktopDragPointerRef.current.x, desktopDragPointerRef.current.y, taskId);
-  }, [getDragCanvasPointFromClient, scheduleDesktopDragVisualUpdate, setDesktopDragSourceHidden, setHistoryOpen, syncDesktopDraggedTaskPosition]);
+  }, [getCanvasPointFromClient, scheduleDesktopDragVisualUpdate, setDesktopDragSourceHidden, setHistoryOpen, syncDesktopDraggedTaskPosition]);
 
   const finishDesktopTaskDrag = useCallback((task, pointerTarget, pointerId) => {
     clearDesktopDayFlipTimer();
@@ -3116,34 +5316,26 @@ function App({ session }) {
       ? [...desktopDragSelectedTaskIdsRef.current]
       : getDesktopDragTaskIds(task);
 
-    // Reset live transform and class on every dragged canvas entry node
-    movingTaskIds.forEach((movingTaskId) => {
-      const node = document.getElementById(`desktop-canvas-entry-${movingTaskId}`);
-      if (node) {
-        node.style.transform = '';
-        node.style.zIndex = '';
-        const shell = node.querySelector('.desktop-canvas-card-shell');
-        if (shell) shell.classList.remove('is-dragging');
-      }
-    });
-
-    document.body.classList.remove('desktop-task-dragging');
-
     if (desktopDragModeRef.current) {
       suppressNextTaskClick(task.id);
 
-      // Grab-point drop: compute final position using the same offset used during visual drag.
+      const liveDraggedRect = getActiveDraggedCanvasRect(task.id);
       const currentPt = getDragCanvasPointFromClient(
         desktopDragPointerRef.current.x,
         desktopDragPointerRef.current.y,
       );
 
-      if (currentPt) {
+      if (currentPt || liveDraggedRect) {
         const anchorStart = desktopDragAnchorStartPositionRef.current || { x: 0, y: 0 };
-        const pointerStart = desktopDragPointerCanvasStartRef.current || anchorStart;
-        const deltaX = currentPt.x - pointerStart.x;
-        const deltaY = currentPt.y - pointerStart.y;
-        const nextPosition = { x: anchorStart.x + deltaX, y: anchorStart.y + deltaY };
+        const nextPosition = liveDraggedRect
+          ? { x: liveDraggedRect.x, y: liveDraggedRect.y }
+          : getDesktopDragAnchorPosition(currentPt);
+        if (!nextPosition) {
+          desktopDragModeRef.current = false;
+          return;
+        }
+        const deltaX = nextPosition.x - anchorStart.x;
+        const deltaY = nextPosition.y - anchorStart.y;
 
         flushSync(() => {
           setTasks((prev) => {
@@ -3156,11 +5348,41 @@ function App({ session }) {
             const activeDateKey = selectedDateRef.current ? dateKey(selectedDateRef.current) : task.dateString;
             const overlapResult = searchDragSeparateRef.current
               ? null
-              : getDesktopCanvasOverlapEntry(prev, activeDateKey, movingTaskIds, nextPosition);
+              : getDesktopCanvasOverlapEntryFromDom(prev, activeDateKey, movingTaskIds, task.id, nextPosition);
             const overlapEntry = overlapResult?.entry;
             const timestamp = Date.now();
+            const isMultiDrag = desktopDragSelectedTaskIdsRef.current.size > 1;
+            const isDetachedGroupTask = desktopDragDetachedFromGroupRef.current && !isMultiDrag && movingTaskIds.size === 1;
+            const shouldAllowMergePrompt = !overlapEntry
+              ? false
+              : !isGroupDrag || !!overlapResult?.centerAligned;
+            const applyDroppedPosition = (tasksToMap) => tasksToMap.map((item) => {
+              if (!movingTaskIds.has(item.id)) return item;
+              const itemStartPosition = desktopDragSelectionPositionsRef.current.get(item.id) || anchorStart;
+              const shouldResetGroup = !isGroupDrag && !isMultiDrag;
+              const resetGroupProps = shouldResetGroup ? {
+                desktopGroupId: null,
+                desktopGroupName: null,
+                desktopGroupIcon: null,
+                desktopGroupTags: [],
+                desktopGroupCover: null,
+                desktopGroupActiveDurationType: null,
+                desktopGroupActiveFrom: null,
+                desktopGroupActiveUntil: null,
+              } : {};
 
-            if (overlapEntry) {
+              return normalizeTask({
+                ...item,
+                ...resetGroupProps,
+                dateString: activeDateKey,
+                desktopSlot: null,
+                desktopCanvasX: Number((isDetachedGroupTask ? nextPosition.x : (itemStartPosition.x + deltaX)).toFixed(1)),
+                desktopCanvasY: Number((isDetachedGroupTask ? nextPosition.y : (itemStartPosition.y + deltaY)).toFixed(1)),
+                desktopZ: timestamp,
+              });
+            });
+
+            if (overlapEntry && shouldAllowMergePrompt) {
               const movingTasks = prev.filter((item) => movingTaskIds.has(item.id));
 
               // Put Back Logic: If the target group is the group this task is already in, merge instantly
@@ -3196,56 +5418,49 @@ function App({ session }) {
                 }),
               });
               setPendingGroupName(getSuggestedDesktopGroupName(movingTasks, overlapEntry));
-              return prev;
+              return applyDroppedPosition(prev);
             }
 
             setPendingGroupPrompt(null);
-            return prev.map((item) => {
-              if (!movingTaskIds.has(item.id)) return item;
-              const itemStartPosition = desktopDragSelectionPositionsRef.current.get(item.id) || anchorStart;
-
-              const isMultiDrag = desktopDragSelectedTaskIdsRef.current.size > 1;
-              const shouldResetGroup = !isGroupDrag && !isMultiDrag;
-              const resetGroupProps = shouldResetGroup ? {
-                desktopGroupId: null,
-                desktopGroupName: null,
-                desktopGroupIcon: null,
-                desktopGroupTags: [],
-                desktopGroupCover: null,
-                desktopGroupActiveDurationType: null,
-                desktopGroupActiveFrom: null,
-                desktopGroupActiveUntil: null,
-              } : {};
-
-              return normalizeTask({
-                ...item,
-                ...resetGroupProps,
-                dateString: activeDateKey,
-                desktopSlot: null,
-                desktopCanvasX: Number((itemStartPosition.x + deltaX).toFixed(1)),
-                desktopCanvasY: Number((itemStartPosition.y + deltaY).toFixed(1)),
-                desktopZ: timestamp,
-              });
-            });
+            return applyDroppedPosition(prev);
           });
         });
       }
     }
+
+    // Reset live transform and class on every dragged canvas entry node
+    movingTaskIds.forEach((movingTaskId) => {
+      const node = document.getElementById(`desktop-canvas-entry-${movingTaskId}`);
+      if (node) {
+        node.style.transform = '';
+        node.style.zIndex = '';
+        const shell = node.querySelector('.desktop-canvas-card-shell');
+        if (shell) shell.classList.remove('is-dragging');
+      }
+    });
+
+    document.body.classList.remove('desktop-task-dragging');
 
     desktopDragModeRef.current = false;
     desktopDragStateRef.current = { pointerId: null, taskId: null, startX: 0, startY: 0 };
     desktopDragSelectionPositionsRef.current = new Map();
     desktopDragAnchorStartPositionRef.current = null;
     desktopDragAnchorSizeRef.current = { width: DESKTOP_CANVAS_CARD_WIDTH, height: DESKTOP_CANVAS_CARD_HEIGHT };
-    desktopDragPointerCanvasStartRef.current = null;
+    desktopDragAnchorPointerOffsetRef.current = null;
+    desktopDragSourceRectRef.current = null;
     desktopDragSourceDateKeyRef.current = null;
+    desktopDragDetachedFromGroupRef.current = false;
     desktopDragIsGroupRef.current = false;
     desktopDragOverlaySnapshotRef.current = null;
     desktopDragSourceEntryIdRef.current = null;
     desktopDragOverlapStateLastTsRef.current = 0;
     desktopDayFlipCooldownUntilRef.current = 0;
+    dragOverSectionRef.current = null;
+    dragOverSlotRef.current = null;
     desktopDragSelectedTaskIdsRef.current = new Set();
     searchDragSeparateRef.current = false;
+    setDragOverSection(null);
+    setDragOverSlot(null);
     setDraggedTaskId(null);
     setIsGroupDragActive(false);
     setDesktopDragOverlayActive(false);
@@ -3258,7 +5473,7 @@ function App({ session }) {
         // Pointer capture may already be released.
       }
     }
-  }, [clearDesktopDayFlipTimer, getDragCanvasPointFromClient, setDesktopDragSourceHidden, setTasks, suppressNextTaskClick]);
+  }, [clearDesktopDayFlipTimer, getActiveDraggedCanvasRect, getDesktopCanvasOverlapEntryFromDom, getDesktopDragAnchorPosition, getDragCanvasPointFromClient, setDesktopDragSourceHidden, setTasks, suppressNextTaskClick]);
 
 
   const handleTaskPointerDown = useCallback((task, event) => {
@@ -3282,8 +5497,28 @@ function App({ session }) {
       startY: event.clientY,
     };
     desktopDragPointerRef.current = { x: event.clientX, y: event.clientY };
+    if (event.currentTarget instanceof HTMLElement) {
+      const isDetachedGroupTask = !!task.desktopGroupId && !task.isGroupInitiator;
+      const sourceNode = isDetachedGroupTask
+        ? event.currentTarget.closest('.desktop-task-wrapper') || event.currentTarget
+        : event.currentTarget.closest('.desktop-canvas-card-node') || event.currentTarget.closest('.desktop-task-wrapper') || event.currentTarget;
+      const rect = sourceNode.getBoundingClientRect();
+      const sourceCanvasPoint = getCanvasPointFromClient(rect.left, rect.top);
+      const pointerCanvasPoint = getCanvasPointFromClient(event.clientX, event.clientY);
+      desktopDragSourceRectRef.current = rect;
+      desktopDragAnchorPointerOffsetRef.current = sourceCanvasPoint && pointerCanvasPoint
+        ? {
+          x: pointerCanvasPoint.x - sourceCanvasPoint.x,
+          y: pointerCanvasPoint.y - sourceCanvasPoint.y,
+        }
+        : null;
+    } else {
+      desktopDragSourceRectRef.current = null;
+      desktopDragAnchorPointerOffsetRef.current = null;
+    }
+    desktopDragDetachedFromGroupRef.current = false;
     event.currentTarget.setPointerCapture?.(event.pointerId);
-  }, []);
+  }, [getCanvasPointFromClient]);
 
   const processDesktopDragMove = useCallback((task, clientX, clientY, nativeEvent = null) => {
     desktopDragPointerRef.current = { x: clientX, y: clientY };
@@ -3322,6 +5557,9 @@ function App({ session }) {
 
     desktopDragStateRef.current = { pointerId: null, taskId: null, startX: 0, startY: 0 };
     activePointerTaskRef.current = null;
+    desktopDragAnchorPointerOffsetRef.current = null;
+    desktopDragSourceRectRef.current = null;
+    desktopDragDetachedFromGroupRef.current = false;
     if (event.currentTarget?.hasPointerCapture?.(event.pointerId)) {
       try {
         event.currentTarget.releasePointerCapture(event.pointerId);
@@ -3341,6 +5579,9 @@ function App({ session }) {
 
     desktopDragStateRef.current = { pointerId: null, taskId: null, startX: 0, startY: 0 };
     activePointerTaskRef.current = null;
+    desktopDragAnchorPointerOffsetRef.current = null;
+    desktopDragSourceRectRef.current = null;
+    desktopDragDetachedFromGroupRef.current = false;
     if (event.currentTarget?.hasPointerCapture?.(event.pointerId)) {
       try {
         event.currentTarget.releasePointerCapture(event.pointerId);
@@ -3367,6 +5608,9 @@ function App({ session }) {
         finishDesktopTaskDrag(activeTask, null, event.pointerId);
       } else {
         desktopDragStateRef.current = { pointerId: null, taskId: null, startX: 0, startY: 0 };
+        desktopDragAnchorPointerOffsetRef.current = null;
+        desktopDragSourceRectRef.current = null;
+        desktopDragDetachedFromGroupRef.current = false;
         clearDesktopDayFlipTimer();
       }
       activePointerTaskRef.current = null;
@@ -3389,6 +5633,9 @@ function App({ session }) {
         finishDesktopTaskDrag(activeTask, null, null);
       } else {
         desktopDragStateRef.current = { pointerId: null, taskId: null, startX: 0, startY: 0 };
+        desktopDragAnchorPointerOffsetRef.current = null;
+        desktopDragSourceRectRef.current = null;
+        desktopDragDetachedFromGroupRef.current = false;
         clearDesktopDayFlipTimer();
       }
       activePointerTaskRef.current = null;
@@ -3422,9 +5669,51 @@ function App({ session }) {
     () => resolveDesktopCanvasEntries(currentWorkspaceTasks, selectedDateKey),
     [currentWorkspaceTasks, selectedDateKey],
   );
+  const desktopVisibilityDiagnostics = useMemo(() => {
+    const workspaceTaskCount = currentWorkspaceTasks.length;
+    const dateMatchedTasks = currentWorkspaceTasks.filter((task) => task.dateString === selectedDateKey);
+    const activeVisibleTasks = currentWorkspaceTasks.filter((task) => isPackActiveOnDate(task, selectedDateKey));
+    const hiddenByPackDurationTasks = dateMatchedTasks.filter((task) => (
+      !!task.desktopGroupId && !isPackActiveOnDate(task, selectedDateKey)
+    ));
+
+    return {
+      totalTaskCount: tasks.length,
+      workspaceTaskCount,
+      dateMatchedCount: dateMatchedTasks.length,
+      activeVisibleCount: activeVisibleTasks.length,
+      hiddenByPackDurationCount: hiddenByPackDurationTasks.length,
+      shouldShow: selectedDayEntries.length === 0 && (
+        tasks.length > 0
+        || workspaceTaskCount > 0
+        || dateMatchedTasks.length > 0
+        || hiddenByPackDurationTasks.length > 0
+      ),
+    };
+  }, [currentWorkspaceTasks, selectedDateKey, selectedDayEntries.length, tasks.length]);
   useEffect(() => {
     selectedDayEntriesRef.current = selectedDayEntries;
   }, [selectedDayEntries]);
+  useEffect(() => {
+    if (tasks.length === 0 || selectedDayEntries.length > 0) return;
+
+    if (currentWorkspaceTasks.length === 0) {
+      const fallbackTask = tasks[0];
+      const fallbackWorkspaceId = getTaskWorkspaceId(fallbackTask);
+      if (fallbackWorkspaceId && fallbackWorkspaceId !== activeWorkspaceId) {
+        setActiveWorkspaceId(fallbackWorkspaceId);
+        return;
+      }
+    }
+
+    const recoveryTask = currentWorkspaceTasks[0] || tasks[0];
+    const recoveryDateKey = normalizePackActiveDate(recoveryTask?.desktopGroupActiveFrom)
+      || normalizePackActiveDate(recoveryTask?.dateString);
+    const recoveryDate = parseSharedSelectedDate(recoveryDateKey);
+    if (recoveryDate && dateKey(recoveryDate) !== selectedDateKey) {
+      setSelectedDate(recoveryDate);
+    }
+  }, [activeWorkspaceId, currentWorkspaceTasks, selectedDateKey, selectedDayEntries.length, tasks]);
 
   useEffect(() => {
     if (!draggedTaskId || !desktopDragModeRef.current) {
@@ -3438,17 +5727,18 @@ function App({ session }) {
     const sourceKey = desktopDragSourceDateKeyRef.current;
     if (!sourceKey) return;
 
-    const shouldOverlay = desktopDragOverlayActive || desktopDragIsGroupRef.current || selectedDateKey !== sourceKey;
+    const shouldOverlay = (
+      desktopDragOverlayActive
+      || desktopDragDetachedFromGroupRef.current
+      || selectedDateKey !== sourceKey
+    );
+    const shouldHideSource = !desktopDragDetachedFromGroupRef.current && selectedDateKey !== sourceKey;
     if (!desktopDragOverlayActive && shouldOverlay) {
       setDesktopDragOverlayActive(true);
     }
-    setDesktopDragSourceHidden(shouldOverlay);
+    setDesktopDragSourceHidden(shouldHideSource);
   }, [desktopDragOverlayActive, draggedTaskId, selectedDateKey, setDesktopDragSourceHidden]);
 
-  // Apply the initial grab-point transform synchronously (before paint) when the group
-  // overlay first becomes active, so it never flashes at (baseX, baseY) before the RAF fires.
-  // All refs (desktopDragPointerCanvasStartRef, desktopDragPointerRef) are set synchronously
-  // inside startDesktopTaskDrag before any renders happen, so they are safe to read here.
   useLayoutEffect(() => {
     if (!desktopDragOverlayActive || !desktopDragOverlaySnapshot) return;
     syncDesktopDraggedTaskPosition(desktopDragPointerRef.current.x, desktopDragPointerRef.current.y);
@@ -3671,10 +5961,19 @@ function App({ session }) {
     });
   }, [activeGroupView?.groupId, currentWorkspaceTasks]);
 
-  const draggedTask = draggedTaskId
-    ? (tasks.find((task) => task.id === draggedTaskId)
-      ? { ...tasks.find((task) => task.id === draggedTaskId), isGroupInitiator: isGroupDragActive }
-      : null)
+  if (loading) {
+    return (
+      <div style={{ width: '100vw', height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: appearance === 'dark' ? '#121212' : '#ffffff' }}>
+        <div style={{ width: 42, height: 42, borderRadius: '50%', border: `4px solid ${appearance === 'dark' ? '#333333' : '#e8e0d6'}`, borderTop: '4px solid #ED1F1F', animation: 'desktop-spin 1s linear infinite' }} />
+        <style>{`@keyframes desktop-spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}</style>
+      </div>
+    );
+  }
+  if (!user) return <DesktopLogin />;
+  const draggedTask = draggedTaskId 
+    ? (tasks.find((task) => task.id === draggedTaskId) 
+        ? { ...tasks.find((task) => task.id === draggedTaskId), isGroupInitiator: isGroupDragActive } 
+        : null)
     : null;
   const closePanel = () => {
     setInputText('');
@@ -4326,314 +6625,331 @@ function App({ session }) {
             transformOrigin: 'top left',
           }}
         >
-          <div className={`desktop-app ${appearance === 'dark' ? 'desktop-app-dark dark-theme' : 'desktop-app-light'}`} style={{ width: '100%', height: '100%', overflow: 'hidden', background: 'var(--desktop-root-bg)', color: 'var(--desktop-root-text)', fontFamily: 'Inter, sans-serif', display: 'flex', flexDirection: 'column' }}>
-            <header className="desktop-minimal-header">
-              <div className="desktop-minimal-brand" ref={workspaceMenuRef}>
-                <div className={`desktop-workspace-shell ${workspaceMenuOpen ? 'is-open' : ''} ${isWorkspaceNameEditing ? 'is-editing' : ''}`}>
-                  {isWorkspaceNameEditing ? (
-                    <input
-                      ref={workspaceNameInputRef}
-                      type="text"
-                      value={workspaceNameDraft}
-                      onChange={(event) => setWorkspaceNameDraft(event.target.value)}
-                      onBlur={handleCommitWorkspaceRename}
-                      onKeyDown={(event) => {
-                        if (event.key === 'Enter') {
-                          event.preventDefault();
-                          handleCommitWorkspaceRename();
-                        }
-                        if (event.key === 'Escape') {
-                          event.preventDefault();
-                          handleCancelWorkspaceRename();
-                        }
-                      }}
-                      className="desktop-workspace-name-input"
-                      aria-label="Workspace name"
-                    />
-                  ) : (
-                    <button
-                      type="button"
-                      className="desktop-workspace-name-button"
-                      onClick={handleStartWorkspaceRename}
-                    >
-                      <span className="desktop-workspace-trigger-label">{activeWorkspace?.name || 'Untitled'}</span>
-                    </button>
-                  )}
-                  <button
-                    type="button"
-                    className="desktop-workspace-menu-button"
-                    onClick={() => {
-                      if (isWorkspaceNameEditing) {
-                        handleCommitWorkspaceRename();
-                      }
-                      setWorkspaceMenuOpen((current) => !current);
-                    }}
-                    aria-haspopup="menu"
-                    aria-expanded={workspaceMenuOpen}
-                  >
-                    <span className="desktop-workspace-trigger-chevron">
-                      <WorkspaceChevronIcon open={workspaceMenuOpen} />
-                    </span>
-                  </button>
-                </div>
-                {workspaceMenuOpen ? (
-                  <div className="desktop-workspace-menu" role="menu" aria-label="Workspace menu">
-                    <div className="desktop-workspace-menu-header">Switch Workspace</div>
-                    <div className="desktop-workspace-menu-list">
-                      {workspaces.map((workspace) => {
-                        const isActive = workspace.id === activeWorkspace?.id;
-                        const isActionsOpen = workspaceActionMenuId === workspace.id;
-                        return (
-                          <div
-                            key={workspace.id}
-                            className={`desktop-workspace-menu-row ${isActive ? 'is-active' : ''} ${isActionsOpen ? 'is-actions-open' : ''}`}
-                          >
-                            <button
-                              type="button"
-                              className="desktop-workspace-menu-item"
-                              onClick={() => handleSelectWorkspace(workspace.id)}
-                              role="menuitemradio"
-                              aria-checked={isActive}
-                            >
-                              <span className="desktop-workspace-menu-item-label">{workspace.name}</span>
-                            </button>
-                            <div className="desktop-workspace-menu-item-actions">
-                              <button
-                                type="button"
-                                className="desktop-workspace-menu-item-more"
-                                onClick={(event) => handleWorkspaceActionsToggle(workspace.id, event)}
-                                aria-label={`Workspace actions for ${workspace.name}`}
-                                aria-expanded={isActionsOpen}
-                              >
-                                <WorkspaceMoreIcon />
-                              </button>
-                              {isActionsOpen ? (
-                                <div className="desktop-workspace-menu-item-popover" role="menu" aria-label="Workspace actions">
-                                  <button
-                                    type="button"
-                                    className="desktop-workspace-menu-item-delete"
-                                    onClick={(event) => handleWorkspaceDeleteRequest(workspace, event)}
-                                    disabled={workspaces.length <= 1}
-                                  >
-                                    Delete workspace
-                                  </button>
-                                </div>
-                              ) : null}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                    <button
-                      type="button"
-                      className="desktop-workspace-menu-add"
-                      onClick={handleAddWorkspace}
-                      disabled={!canAddWorkspace}
-                    >
-                      <WorkspacePlusIcon />
-                      <span>Add workspace</span>
-                    </button>
-                  </div>
-                ) : null}
-              </div>
-              <div className="desktop-minimal-date-nav-wrap">
-                {!todaySelected && (
-                  <button
-                    type="button"
-                    className="desktop-minimal-today-button"
-                    onClick={() => {
-                      setSelectedDate(getLogicalToday());
-                      setProfileOpen(false);
-                    }}
-                  >
-                    Today
-                  </button>
-                )}
-                <div className="desktop-minimal-date-nav" role="group" aria-label="Date navigation">
-                  <button
-                    type="button"
-                    className="desktop-minimal-date-nav-button"
-                    onClick={() => {
-                      setSelectedDate(shiftDateByDays(selectedDate, -1));
-                      setProfileOpen(false);
-                    }}
-                    aria-label={t.previousDay || 'Previous day'}
-                  >
-                    <HeaderChevronIcon direction="left" />
-                  </button>
-                  <button
-                    type="button"
-                    className={`desktop-minimal-date-nav-label ${todaySelected ? 'is-today' : ''}`}
-                    onClick={() => {
-                      setSelectedDate(logicalToday);
-                      setProfileOpen(false);
-                    }}
-                    aria-label={t.backToToday}
-                  >
-                    {panelLabel(selectedDate, language)}
-                  </button>
-                  <button
-                    type="button"
-                    className="desktop-minimal-date-nav-button"
-                    onClick={() => {
-                      setSelectedDate(shiftDateByDays(selectedDate, 1));
-                      setProfileOpen(false);
-                    }}
-                    aria-label={t.nextDay || 'Next day'}
-                  >
-                    <HeaderChevronIcon direction="right" />
-                  </button>
-                </div>
-              </div>
-              <div className="desktop-topbar-actions">
+      <div className={`desktop-app ${appearance === 'dark' ? 'desktop-app-dark dark-theme' : 'desktop-app-light'}`} style={{ width: '100%', height: '100%', overflow: 'hidden', background: 'var(--desktop-root-bg)', color: 'var(--desktop-root-text)', fontFamily: 'Inter, sans-serif', display: 'flex', flexDirection: 'column' }}>
+        <header className="desktop-minimal-header">
+          <div className="desktop-minimal-brand" ref={workspaceMenuRef}>
+            <div className={`desktop-workspace-shell ${workspaceMenuOpen ? 'is-open' : ''} ${isWorkspaceNameEditing ? 'is-editing' : ''}`}>
+              {isWorkspaceNameEditing ? (
+                <input
+                  ref={workspaceNameInputRef}
+                  type="text"
+                  value={workspaceNameDraft}
+                  onChange={(event) => setWorkspaceNameDraft(event.target.value)}
+                  onBlur={handleCommitWorkspaceRename}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') {
+                      event.preventDefault();
+                      handleCommitWorkspaceRename();
+                    }
+                    if (event.key === 'Escape') {
+                      event.preventDefault();
+                      handleCancelWorkspaceRename();
+                    }
+                  }}
+                  className="desktop-workspace-name-input"
+                  aria-label="Workspace name"
+                />
+              ) : (
                 <button
                   type="button"
-                  onClick={() => setHistoryOpen(true)}
-                  className="desktop-header-icon-button"
+                  className="desktop-workspace-name-button"
+                  onClick={handleStartWorkspaceRename}
                 >
-                  <svg width="19" height="19" viewBox="0 0 19 19" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M16.625 16.625L13.1812 13.1812M15.0417 8.70833C15.0417 12.2061 12.2061 15.0417 8.70833 15.0417C5.21053 15.0417 2.375 12.2061 2.375 8.70833C2.375 5.21053 5.21053 2.375 8.70833 2.375C12.2061 2.375 15.0417 5.21053 15.0417 8.70833Z" stroke={appearance === 'dark' ? '#E1E1E1' : '#1E1E1E'} strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
+                  <span className="desktop-workspace-trigger-label">{activeWorkspace?.name || 'Untitled'}</span>
                 </button>
-                <button type="button" className="desktop-profile-trigger desktop-header-avatar-button" onClick={() => setProfileOpen(true)}>
-                  {userProfile.avatarUrl ? (
-                    <img src={userProfile.avatarUrl} alt={userProfile.fullName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                  ) : (
-                    <span style={{ fontFamily: 'DM Serif Display, serif', fontSize: 18, color: 'var(--desktop-root-text)' }}>{userProfile.initial}</span>
-                  )}
+              )}
+              <button
+                type="button"
+                className="desktop-workspace-menu-button"
+                onClick={() => {
+                  if (isWorkspaceNameEditing) {
+                    handleCommitWorkspaceRename();
+                  }
+                  setWorkspaceMenuOpen((current) => !current);
+                }}
+                aria-haspopup="menu"
+                aria-expanded={workspaceMenuOpen}
+              >
+                <span className="desktop-workspace-trigger-chevron">
+                  <WorkspaceChevronIcon open={workspaceMenuOpen} />
+                </span>
+              </button>
+            </div>
+            {workspaceMenuOpen ? (
+              <div className="desktop-workspace-menu" role="menu" aria-label="Workspace menu">
+                <div className="desktop-workspace-menu-header">Switch Workspace</div>
+                <div className="desktop-workspace-menu-list">
+                  {workspaces.map((workspace) => {
+                    const isActive = workspace.id === activeWorkspace?.id;
+                    const isActionsOpen = workspaceActionMenuId === workspace.id;
+                    return (
+                      <div
+                        key={workspace.id}
+                        className={`desktop-workspace-menu-row ${isActive ? 'is-active' : ''} ${isActionsOpen ? 'is-actions-open' : ''}`}
+                      >
+                        <button
+                          type="button"
+                          className="desktop-workspace-menu-item"
+                          onClick={() => handleSelectWorkspace(workspace.id)}
+                          role="menuitemradio"
+                          aria-checked={isActive}
+                        >
+                          <span className="desktop-workspace-menu-item-label">{workspace.name}</span>
+                        </button>
+                        <div className="desktop-workspace-menu-item-actions">
+                          <button
+                            type="button"
+                            className="desktop-workspace-menu-item-more"
+                            onClick={(event) => handleWorkspaceActionsToggle(workspace.id, event)}
+                            aria-label={`Workspace actions for ${workspace.name}`}
+                            aria-expanded={isActionsOpen}
+                          >
+                            <WorkspaceMoreIcon />
+                          </button>
+                          {isActionsOpen ? (
+                            <div className="desktop-workspace-menu-item-popover" role="menu" aria-label="Workspace actions">
+                              <button
+                                type="button"
+                                className="desktop-workspace-menu-item-delete"
+                                onClick={(event) => handleWorkspaceDeleteRequest(workspace, event)}
+                                disabled={workspaces.length <= 1}
+                              >
+                                Delete workspace
+                              </button>
+                            </div>
+                          ) : null}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                <button
+                  type="button"
+                  className="desktop-workspace-menu-add"
+                  onClick={handleAddWorkspace}
+                  disabled={!canAddWorkspace}
+                >
+                  <WorkspacePlusIcon />
+                  <span>Add workspace</span>
                 </button>
               </div>
-            </header>
-
-            <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
-              <div
-                ref={desktopDragViewportRef}
-                className={`desktop-main-stage ${desktopDragDayFeedback ? `desktop-main-stage-feedback-${desktopDragDayFeedback}` : ''} ${desktopDragDayConfirming ? 'desktop-main-stage-feedback-armed' : ''}`}
-                style={{ flex: 1, minWidth: 0, minHeight: 0, position: 'relative', overflow: 'hidden' }}
+            ) : null}
+          </div>
+          <div className="desktop-minimal-date-nav-wrap">
+            {!todaySelected && (
+              <button
+                type="button"
+                className="desktop-minimal-today-button"
+                onClick={() => {
+                  setSelectedDate(getLogicalToday());
+                  setProfileOpen(false);
+                }}
               >
-                <div className="desktop-main-stage-inner" style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', background: 'var(--desktop-main-gradient)' }}>
-                  <main
-                    ref={viewportContainerRef}
-                    className={`desktop-canvas-scroll ${desktopCanvasPanReady ? 'is-pan-ready' : ''} ${desktopCanvasPanActive ? 'is-panning' : ''} ${isCanvasFileDragActive ? 'is-file-drag-active' : ''}`}
-                    onWheel={handleDesktopCanvasWheel}
-                    onPointerDownCapture={handleDesktopCanvasPointerDown}
-                    onPointerMove={handleDesktopCanvasPointerMove}
-                    onPointerUp={handleDesktopCanvasPointerEnd}
-                    onPointerCancel={handleDesktopCanvasPointerEnd}
-                    onDragEnter={handleCanvasFileDragEnter}
-                    onDragOver={handleCanvasFileDragOver}
-                    onDragLeave={handleCanvasFileDragLeave}
-                    onDrop={handleCanvasFileDrop}
-                    style={{ flex: 1, minHeight: 0, overflow: 'hidden', position: 'relative', background: 'var(--desktop-root-bg)' }}
-                  >
+                Today
+              </button>
+            )}
+            <div className="desktop-minimal-date-nav" role="group" aria-label="Date navigation">
+            <button
+              type="button"
+              className="desktop-minimal-date-nav-button"
+              onClick={() => {
+                setSelectedDate(shiftDateByDays(selectedDate, -1));
+                setProfileOpen(false);
+              }}
+              aria-label={t.previousDay || 'Previous day'}
+            >
+              <HeaderChevronIcon direction="left" />
+            </button>
+            <button
+              type="button"
+              className={`desktop-minimal-date-nav-label ${todaySelected ? 'is-today' : ''}`}
+              onClick={() => {
+                setSelectedDate(logicalToday);
+                setProfileOpen(false);
+              }}
+              aria-label={t.backToToday}
+            >
+              {panelLabel(selectedDate, language)}
+            </button>
+            <button
+              type="button"
+              className="desktop-minimal-date-nav-button"
+              onClick={() => {
+                setSelectedDate(shiftDateByDays(selectedDate, 1));
+                setProfileOpen(false);
+              }}
+              aria-label={t.nextDay || 'Next day'}
+            >
+              <HeaderChevronIcon direction="right" />
+            </button>
+           </div>
+          </div>
+          <div className="desktop-topbar-actions">
+            <button
+              type="button"
+              onClick={() => setHistoryOpen(true)}
+              className="desktop-header-icon-button"
+            >
+              <svg width="19" height="19" viewBox="0 0 19 19" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M16.625 16.625L13.1812 13.1812M15.0417 8.70833C15.0417 12.2061 12.2061 15.0417 8.70833 15.0417C5.21053 15.0417 2.375 12.2061 2.375 8.70833C2.375 5.21053 5.21053 2.375 8.70833 2.375C12.2061 2.375 15.0417 5.21053 15.0417 8.70833Z" stroke={appearance === 'dark' ? '#E1E1E1' : '#1E1E1E'} strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </button>
+            <button type="button" className="desktop-profile-trigger desktop-header-avatar-button" onClick={() => setProfileOpen(true)}>
+              {userProfile.avatarUrl ? (
+                <img src={userProfile.avatarUrl} alt={userProfile.fullName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              ) : (
+                <span style={{ fontFamily: 'DM Serif Display, serif', fontSize: 18, color: 'var(--desktop-root-text)' }}>{userProfile.initial}</span>
+              )}
+            </button>
+          </div>
+        </header>
+
+        <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
+          <div
+            ref={desktopDragViewportRef}
+            className={`desktop-main-stage ${desktopDragDayFeedback ? `desktop-main-stage-feedback-${desktopDragDayFeedback}` : ''} ${desktopDragDayConfirming ? 'desktop-main-stage-feedback-armed' : ''}`}
+            style={{ flex: 1, minWidth: 0, minHeight: 0, position: 'relative', overflow: 'hidden' }}
+          >
+            <div className="desktop-main-stage-inner" style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', background: 'var(--desktop-main-gradient)' }}>
+              {desktopVisibilityDiagnostics.shouldShow ? (
+                <div
+                  style={{
+                    margin: '14px 18px 0',
+                    padding: '10px 14px',
+                    borderRadius: 14,
+                    border: '1px solid var(--desktop-edit-input-border)',
+                    background: appearance === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.82)',
+                    color: 'var(--desktop-root-text)',
+                    fontSize: 12,
+                    lineHeight: 1.45,
+                    boxShadow: '0 10px 24px rgba(17, 17, 17, 0.06)',
+                  }}
+                >
+                  {`Debug visibility: total ${desktopVisibilityDiagnostics.totalTaskCount}, workspace ${desktopVisibilityDiagnostics.workspaceTaskCount}, date-match ${desktopVisibilityDiagnostics.dateMatchedCount}, visible-today ${desktopVisibilityDiagnostics.activeVisibleCount}, hidden-by-pack-duration ${desktopVisibilityDiagnostics.hiddenByPackDurationCount}.`}
+                </div>
+              ) : null}
+              <main
+                ref={viewportContainerRef}
+                className={`desktop-canvas-scroll ${desktopCanvasPanReady ? 'is-pan-ready' : ''} ${desktopCanvasPanActive ? 'is-panning' : ''} ${isCanvasFileDragActive ? 'is-file-drag-active' : ''}`}
+                onWheel={handleDesktopCanvasWheel}
+                onPointerDownCapture={handleDesktopCanvasPointerDown}
+                onPointerMove={handleDesktopCanvasPointerMove}
+                onPointerUp={handleDesktopCanvasPointerEnd}
+                onPointerCancel={handleDesktopCanvasPointerEnd}
+                onDragEnter={handleCanvasFileDragEnter}
+                onDragOver={handleCanvasFileDragOver}
+                onDragLeave={handleCanvasFileDragLeave}
+                onDrop={handleCanvasFileDrop}
+                style={{ flex: 1, minHeight: 0, overflow: 'hidden', position: 'relative', background: 'var(--desktop-root-bg)' }}
+              >
+                <div
+                  ref={desktopCanvasContentRef}
+                  className="desktop-canvas-content"
+                  style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    width: DESKTOP_MAIN_CONTENT_MAX_WIDTH,
+                    transformOrigin: '0 0',
+                    transform: `translate(${viewport.panX}px, ${viewport.panY}px) scale(${viewport.zoom})`,
+                    paddingTop: 110,
+                  }}
+                >
+                    <DailyTaskList
+                      entries={selectedDayEntries}
+                      canvasHeight={selectedDayCanvasHeight}
+                      appearance={appearance}
+                      labels={t}
+                      onTaskClick={handleTaskClick}
+                      onGroupOpenFullView={handleGroupCardOpen}
+                      onTaskEdit={handleTaskEdit}
+                      onTaskDelete={handleTaskDelete}
+                      onTaskPointerDown={handleTaskPointerDown}
+                      onTaskPointerMove={handleTaskPointerMove}
+                      onTaskPointerUp={handleTaskPointerUp}
+                    onTaskPointerCancel={handleTaskPointerCancel}
+                    draggedTaskId={draggedTaskId}
+                    selectedTaskIds={selectedTaskIds}
+                    selectionRect={desktopSelectionRect}
+                    dragOverlapTargetId={desktopDragOverlapTargetId}
+                    layoutWidth={DESKTOP_MAIN_CONTENT_MAX_WIDTH}
+                  />
+                  {desktopDragOverlayActive && desktopDragOverlaySnapshot ? (
                     <div
-                      ref={desktopCanvasContentRef}
-                      className="desktop-canvas-content"
+                      aria-hidden="true"
                       style={{
                         position: 'absolute',
-                        top: 0,
-                        left: 0,
-                        width: DESKTOP_MAIN_CONTENT_MAX_WIDTH,
-                        transformOrigin: '0 0',
-                        transform: `translate(${viewport.panX}px, ${viewport.panY}px) scale(${viewport.zoom})`,
-                        paddingTop: 110,
+                        inset: 0,
+                        pointerEvents: 'none',
+                        zIndex: 9999,
                       }}
                     >
-                      <DailyTaskList
-                        entries={selectedDayEntries}
-                        canvasHeight={selectedDayCanvasHeight}
-                        appearance={appearance}
-                        labels={t}
-                        onTaskClick={handleTaskClick}
-                        onGroupOpenFullView={handleGroupCardOpen}
-                        onTaskEdit={handleTaskEdit}
-                        onTaskDelete={handleTaskDelete}
-                        onTaskPointerDown={handleTaskPointerDown}
-                        onTaskPointerMove={handleTaskPointerMove}
-                        onTaskPointerUp={handleTaskPointerUp}
-                        onTaskPointerCancel={handleTaskPointerCancel}
-                        draggedTaskId={draggedTaskId}
-                        selectedTaskIds={selectedTaskIds}
-                        selectionRect={desktopSelectionRect}
-                        dragOverlapTargetId={desktopDragOverlapTargetId}
-                        layoutWidth={DESKTOP_MAIN_CONTENT_MAX_WIDTH}
-                      />
-                      {desktopDragOverlayActive && desktopDragOverlaySnapshot ? (
-                        <div
-                          aria-hidden="true"
-                          style={{
-                            position: 'absolute',
-                            inset: 0,
-                            pointerEvents: 'none',
-                            zIndex: 9999,
-                          }}
-                        >
-                          <div
-                            ref={desktopDragOverlayNodeRef}
-                            className="desktop-canvas-card-node"
-                            style={{
-                              left: desktopDragOverlaySnapshot.baseX,
-                              top: desktopDragOverlaySnapshot.baseY,
-                              width: DESKTOP_CANVAS_CARD_WIDTH,
-                            }}
-                          >
-                            <div className="desktop-canvas-card-shell is-dragging">
-                              {desktopDragOverlaySnapshot.type === 'group' && Array.isArray(desktopDragOverlaySnapshot.tasks) ? (
-                                <GroupedTaskCard
-                                  tasks={desktopDragOverlaySnapshot.tasks}
-                                  appearance={appearance}
-                                  labels={t}
-                                  isDragging={true}
-                                  isGroupDragActive={true}
-                                  isSelected={false}
-                                  isGroupReady={false}
-                                  draggedTaskId={desktopDragOverlaySnapshot.taskId}
-                                  onOpenItem={null}
-                                  onOpenFullView={null}
-                                  onPointerDown={null}
-                                  onPointerMove={null}
-                                  onPointerUp={null}
-                                  onPointerCancel={null}
-                                />
-                              ) : desktopDragOverlaySnapshot.type === 'task' && desktopDragOverlaySnapshot.task ? (
-                                <TaskCard
-                                  task={desktopDragOverlaySnapshot.task}
-                                  appearance={appearance}
-                                  labels={t}
-                                  isDragging={true}
-                                  isSelected={false}
-                                  isGroupReady={false}
-                                  draggedTaskId={desktopDragOverlaySnapshot.taskId}
-                                  onClick={null}
-                                  onEdit={null}
-                                  onDelete={null}
-                                  onPointerDown={null}
-                                  onPointerMove={null}
-                                  onPointerUp={null}
-                                  onPointerCancel={null}
-                                  editLabel={t.edit}
-                                  deleteLabel={t.delete}
-                                />
-                              ) : null}
-                            </div>
-                          </div>
+                      <div
+                        ref={desktopDragOverlayNodeRef}
+                        className="desktop-canvas-card-node"
+                        style={{
+                          left: desktopDragOverlaySnapshot.baseX,
+                          top: desktopDragOverlaySnapshot.baseY,
+                          width: DESKTOP_CANVAS_CARD_WIDTH,
+                        }}
+                      >
+                        <div className="desktop-canvas-card-shell is-dragging">
+                          {desktopDragOverlaySnapshot.type === 'group' && Array.isArray(desktopDragOverlaySnapshot.tasks) ? (
+                            <GroupedTaskCard
+                              tasks={desktopDragOverlaySnapshot.tasks}
+                              appearance={appearance}
+                              labels={t}
+                              isDragging={true}
+                              isGroupDragActive={true}
+                              isSelected={false}
+                              isGroupReady={false}
+                              draggedTaskId={desktopDragOverlaySnapshot.taskId}
+                              onOpenItem={null}
+                              onOpenFullView={null}
+                              onPointerDown={null}
+                              onPointerMove={null}
+                              onPointerUp={null}
+                              onPointerCancel={null}
+                            />
+                          ) : desktopDragOverlaySnapshot.type === 'task' && desktopDragOverlaySnapshot.task ? (
+                            <TaskCard
+                              task={desktopDragOverlaySnapshot.task}
+                              appearance={appearance}
+                              labels={t}
+                              isDragging={true}
+                              isSelected={false}
+                              isGroupReady={false}
+                              draggedTaskId={desktopDragOverlaySnapshot.taskId}
+                              onClick={null}
+                              onEdit={null}
+                              onDelete={null}
+                              onPointerDown={null}
+                              onPointerMove={null}
+                              onPointerUp={null}
+                              onPointerCancel={null}
+                              editLabel={t.edit}
+                              deleteLabel={t.delete}
+                            />
+                          ) : null}
                         </div>
-                      ) : null}
-                      {isCanvasFileDragActive ? (
-                        <div className="desktop-canvas-file-drop-indicator">
-                          <span>Drop image to create a photo card</span>
-                        </div>
-                      ) : null}
+                      </div>
                     </div>
-                  </main>
+                  ) : null}
+                  {isCanvasFileDragActive ? (
+                    <div className="desktop-canvas-file-drop-indicator">
+                      <span>Drop image to create a photo card</span>
+                    </div>
+                  ) : null}
                 </div>
-                <DragDayFeedbackOverlayV2
-                  direction={desktopDragDayFeedback}
-                  previousLabel={desktopPreviousDayLabel}
-                  nextLabel={desktopNextDayLabel}
-                  zones={desktopDragDayZones}
-                  isConfirming={desktopDragDayConfirming}
-                />
+              </main>
+            </div>
+            <DragDayFeedbackOverlayV2
+              direction={desktopDragDayFeedback}
+              previousLabel={desktopPreviousDayLabel}
+              nextLabel={desktopNextDayLabel}
+              zones={desktopDragDayZones}
+              isConfirming={desktopDragDayConfirming}
+            />
           </div>
         </div>
 
@@ -4647,9 +6963,16 @@ function App({ session }) {
           fileAttachments={addPanelAttachments}
           onAddFiles={handleAddPanelFilesSelected}
           onRemoveFile={handleRemoveAddPanelAttachment}
+          onShowToast={showToast}
           onClose={closePanel}
           onSubmit={saveTask}
         />
+
+        {(!panelOpen && showAddPreview) ? (
+          <div style={{ position: 'fixed', right: 104, bottom: 38, background: 'var(--desktop-floating-bg)', color: 'var(--desktop-floating-text)', padding: '6px 14px', borderRadius: 16, border: '1px solid var(--desktop-floating-border)', boxShadow: '0 4px 12px rgba(0,0,0,0.08)', zIndex: 19, fontSize: 13, fontWeight: 500, pointerEvents: 'none', animation: 'fadeIn 0.2s ease-out' }}>
+            Add task...
+          </div>
+        ) : null}
 
         {!panelOpen ? (
           <button 
@@ -4659,7 +6982,16 @@ function App({ session }) {
               closeEditModal(); 
               setInputText(''); 
               setPanelOpen(true); 
+              setShowAddPreview(false);
+              if (hoverAddTimeoutRef.current) clearTimeout(hoverAddTimeoutRef.current);
             }} 
+            onMouseEnter={() => {
+              hoverAddTimeoutRef.current = setTimeout(() => setShowAddPreview(true), 500);
+            }}
+            onMouseLeave={() => {
+              if (hoverAddTimeoutRef.current) clearTimeout(hoverAddTimeoutRef.current);
+              setShowAddPreview(false);
+            }}
             aria-label={t.addTaskAria} 
             style={{ position: 'fixed', right: 42, bottom: 30, width: 50, height: 50, borderRadius: '50%', border: '1px solid var(--desktop-floating-border)', background: 'var(--desktop-floating-bg)', color: 'var(--desktop-floating-text)', boxShadow: 'var(--desktop-floating-shadow)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', zIndex: 20 }}
           >
@@ -4667,303 +6999,303 @@ function App({ session }) {
           </button>
         ) : null}
 
-            {editingTask ? (
-              <div
-                role="presentation"
-                onClick={closeEditModal}
-                style={{
-                  position: 'fixed',
-                  inset: 0,
-                  zIndex: 40,
-                  background: 'var(--desktop-modal-backdrop)',
-                  backdropFilter: 'blur(8px)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  padding: 28,
-                }}
-              >
-                <div
-                  role="dialog"
-                  aria-modal="true"
-                  aria-labelledby="desktop-edit-modal-title"
-                  onClick={(event) => event.stopPropagation()}
-                  style={{
-                    width: 'min(100%, 560px)',
-                    maxHeight: 'min(640px, calc(100vh - 56px))',
-                    background: 'var(--desktop-edit-bg)',
-                    border: '1px solid var(--desktop-edit-border)',
-                    borderRadius: 24,
-                    boxShadow: 'var(--desktop-edit-shadow)',
-                    display: 'grid',
-                    gridTemplateRows: 'auto minmax(0, 1fr) auto',
-                    overflow: 'hidden',
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, padding: '22px 24px 16px', borderBottom: '1px solid var(--desktop-edit-border)' }}>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                      <IntoDayLogo
-                        showWordmark={false}
-                        className="desktop-edit-modal-logo"
-                        iconClassName="desktop-edit-modal-logo-icon"
-                      />
-                      <h2 id="desktop-edit-modal-title" style={{ margin: 0, fontFamily: 'DM Serif Display, serif', fontSize: 28, fontStyle: 'italic', lineHeight: 1, color: 'var(--desktop-root-text)' }}>
-                        {t.editTaskTitle}
-                      </h2>
+        {editingTask ? (
+          <div
+            role="presentation"
+            onClick={closeEditModal}
+            style={{
+              position: 'fixed',
+              inset: 0,
+              zIndex: 40,
+              background: 'var(--desktop-modal-backdrop)',
+              backdropFilter: 'blur(8px)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: 28,
+            }}
+          >
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="desktop-edit-modal-title"
+              onClick={(event) => event.stopPropagation()}
+              style={{
+                width: 'min(100%, 560px)',
+                maxHeight: 'min(640px, calc(100vh - 56px))',
+                background: 'var(--desktop-edit-bg)',
+                border: '1px solid var(--desktop-edit-border)',
+                borderRadius: 24,
+                boxShadow: 'var(--desktop-edit-shadow)',
+                display: 'grid',
+                gridTemplateRows: 'auto minmax(0, 1fr) auto',
+                overflow: 'hidden',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, padding: '22px 24px 16px', borderBottom: '1px solid var(--desktop-edit-border)' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  <IntoDayLogo
+                    showWordmark={false}
+                    className="desktop-edit-modal-logo"
+                    iconClassName="desktop-edit-modal-logo-icon"
+                  />
+                  <h2 id="desktop-edit-modal-title" style={{ margin: 0, fontFamily: 'DM Serif Display, serif', fontSize: 28, fontStyle: 'italic', lineHeight: 1, color: 'var(--desktop-root-text)' }}>
+                    {t.editTaskTitle}
+                  </h2>
+                </div>
+                <button type="button" onClick={closeEditModal} aria-label={t.close} style={{ width: 32, height: 32, borderRadius: '50%', background: 'var(--desktop-modal-close-bg)', border: '1px solid var(--desktop-edit-border)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: 0, color: 'var(--desktop-modal-close-text)' }}>
+                  <CloseIcon />
+                </button>
+              </div>
+              <div style={{ minHeight: 0, padding: 24 }}>
+                <div style={{ position: 'relative', height: '100%' }}>
+                  {normalizeCardType(editingTask.cardType) === CARD_TYPES.PHOTO && editingTask.photoDataUrl ? (
+                    <div
+                      style={{
+                        marginBottom: 14,
+                        borderRadius: 18,
+                        overflow: 'hidden',
+                        border: '1px solid var(--desktop-edit-input-border)',
+                        background: 'rgba(255,255,255,0.66)',
+                      }}
+                    >
+                        <img
+                          src={editingTask.photoDataUrl}
+                          alt={editingTask.photoTitle || editingTask.text || 'Photo'}
+                          draggable={false}
+                          onDragStart={(event) => event.preventDefault()}
+                          style={{ display: 'block', width: '100%', maxHeight: 220, objectFit: 'cover' }}
+                        />
                     </div>
-                    <button type="button" onClick={closeEditModal} aria-label={t.close} style={{ width: 32, height: 32, borderRadius: '50%', background: 'var(--desktop-modal-close-bg)', border: '1px solid var(--desktop-edit-border)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: 0, color: 'var(--desktop-modal-close-text)' }}>
-                      <CloseIcon />
-                    </button>
-                  </div>
-                  <div style={{ minHeight: 0, padding: 24 }}>
-                    <div style={{ position: 'relative', height: '100%' }}>
-                      {normalizeCardType(editingTask.cardType) === CARD_TYPES.PHOTO && editingTask.photoDataUrl ? (
-                        <div
-                          style={{
-                            marginBottom: 14,
-                            borderRadius: 18,
-                            overflow: 'hidden',
-                            border: '1px solid var(--desktop-edit-input-border)',
-                            background: 'rgba(255,255,255,0.66)',
-                          }}
-                        >
-                          <img
-                            src={editingTask.photoDataUrl}
-                            alt={editingTask.photoTitle || editingTask.text || 'Photo'}
-                            draggable={false}
-                            onDragStart={(event) => event.preventDefault()}
-                            style={{ display: 'block', width: '100%', maxHeight: 220, objectFit: 'cover' }}
-                          />
-                        </div>
-                      ) : null}
-                      <button
-                        type="button"
-                        onClick={handleEditCopy}
-                        disabled={!editText.trim()}
-                        style={{
-                          position: 'absolute',
-                          top: 12,
-                          right: 12,
-                          zIndex: 1,
-                          minWidth: 72,
-                          height: 32,
-                          padding: '0 12px',
-                          borderRadius: 999,
-                          border: '1px solid var(--desktop-edit-border)',
-                          background: 'var(--desktop-modal-close-bg)',
-                          color: 'var(--desktop-root-text)',
-                          fontSize: 13,
-                          fontWeight: 600,
-                          cursor: editText.trim() ? 'pointer' : 'not-allowed',
-                          opacity: editText.trim() ? 1 : 0.45,
-                        }}
-                      >
-                        {editCopied ? 'Copied' : 'Copy'}
-                      </button>
-                      <textarea
-                        value={editText}
-                        onChange={(event) => setEditText(event.target.value)}
-                        onKeyDown={(event) => {
-                          if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
-                            event.preventDefault();
-                            handleEditSave();
-                          }
-                        }}
-                        autoFocus
-                        rows={10}
-                        placeholder={t.editTaskPlaceholder}
-                        style={{
-                          width: '100%',
-                          height: '100%',
-                          minHeight: normalizeCardType(editingTask.cardType) === CARD_TYPES.PHOTO ? 180 : 280,
-                          border: '1px solid var(--desktop-edit-input-border)',
-                          background: 'var(--desktop-edit-input-bg)',
-                          borderRadius: 18,
-                          padding: '52px 18px 18px',
-                          fontSize: 16,
-                          lineHeight: 1.6,
-                          color: 'var(--desktop-root-text)',
-                          resize: 'none',
-                          outline: 'none',
-                          fontFamily: 'Inter, sans-serif',
-                        }}
-                      />
-                    </div>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, padding: '16px 24px 24px', borderTop: '1px solid var(--desktop-edit-border)' }}>
-                    <button type="button" onClick={closeEditModal} style={{ minWidth: 96, height: 44, padding: '0 18px', borderRadius: 14, border: '1px solid var(--desktop-cancel-border)', background: 'var(--desktop-cancel-bg)', color: 'var(--desktop-cancel-text)', fontSize: 15, fontWeight: 600, cursor: 'pointer' }}>
-                      {t.cancel}
-                    </button>
-                    <button type="button" onClick={handleEditSave} disabled={!canSaveEdit} style={{ minWidth: 136, height: 44, padding: '0 20px', background: canSaveEdit ? 'var(--desktop-save-bg)' : 'var(--desktop-save-disabled-bg)', color: canSaveEdit ? 'var(--desktop-save-text)' : 'var(--desktop-save-disabled-text)', border: 'none', borderRadius: 14, fontSize: 15, fontWeight: 600, cursor: canSaveEdit ? 'pointer' : 'not-allowed' }}>
-                      {t.save}
-                    </button>
-                  </div>
+                  ) : null}
+                  <button
+                    type="button"
+                    onClick={handleEditCopy}
+                    disabled={!editText.trim()}
+                    style={{
+                      position: 'absolute',
+                      top: 12,
+                      right: 12,
+                      zIndex: 1,
+                      minWidth: 72,
+                      height: 32,
+                      padding: '0 12px',
+                      borderRadius: 999,
+                      border: '1px solid var(--desktop-edit-border)',
+                      background: 'var(--desktop-modal-close-bg)',
+                      color: 'var(--desktop-root-text)',
+                      fontSize: 13,
+                      fontWeight: 600,
+                      cursor: editText.trim() ? 'pointer' : 'not-allowed',
+                      opacity: editText.trim() ? 1 : 0.45,
+                    }}
+                  >
+                    {editCopied ? 'Copied' : 'Copy'}
+                  </button>
+                  <textarea
+                    value={editText}
+                    onChange={(event) => setEditText(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
+                        event.preventDefault();
+                        handleEditSave();
+                      }
+                    }}
+                    autoFocus
+                    rows={10}
+                    placeholder={t.editTaskPlaceholder}
+                    style={{
+                      width: '100%',
+                      height: '100%',
+                      minHeight: normalizeCardType(editingTask.cardType) === CARD_TYPES.PHOTO ? 180 : 280,
+                      border: '1px solid var(--desktop-edit-input-border)',
+                      background: 'var(--desktop-edit-input-bg)',
+                      borderRadius: 18,
+                      padding: '52px 18px 18px',
+                      fontSize: 16,
+                      lineHeight: 1.6,
+                      color: 'var(--desktop-root-text)',
+                      resize: 'none',
+                      outline: 'none',
+                      fontFamily: 'Inter, sans-serif',
+                    }}
+                  />
                 </div>
               </div>
-            ) : null}
-
-            <DesktopProfilePage
-              open={profileOpen}
-              onClose={() => setProfileOpen(false)}
-              user={user}
-              language={language}
-              setLanguage={setLanguage}
-              appearance={appearance}
-              setAppearance={setAppearance}
-              onSignOut={handleSignOut}
-            />
-            <DesktopHistoryModal
-              open={historyOpen}
-              tasks={currentWorkspaceTasks}
-              appearance={appearance}
-              language={language}
-              t={t}
-              onClose={() => setHistoryOpen(false)}
-              onTaskClick={(task) => {
-                if (!task.id) return;
-                const { redirectUrl } = getTaskCardPresentation(task, t);
-                if (task.uploadedFileStorageKey) {
-                  setHistoryOpen(false);
-                  void openUploadedFileTask(task);
-                  return;
-                }
-                if (redirectUrl) {
-                  if (normalizeCardType(task.cardType) === CARD_TYPES.PHOTO) {
-                    setFullscreenImage(task.photoUrl || task.photoDataUrl || redirectUrl);
-                    return;
-                  }
-                  window.open(redirectUrl, '_blank', 'noopener,noreferrer');
-                  return;
-                }
-                setHistoryOpen(false);
-                openTaskEditor(task, false);
-              }}
-              onPackClick={handleHistoryPackOpen}
-              onPackItemClick={handleHistoryPackItemOpen}
-              onTaskPointerDown={handleTaskPointerDown}
-              onTaskLongPress={handleHistorySearchLongPress}
-            />
-
-            <DesktopGroupPrompt
-              prompt={pendingGroupPrompt}
-              groupName={pendingGroupName}
-              setGroupName={setPendingGroupName}
-              onConfirm={handleConfirmGroupPrompt}
-              onCancel={handleCancelGroupPrompt}
-            />
-            <DesktopGroupFullViewModal
-              view={activeGroupView}
-              appearance={appearance}
-              labels={t}
-              language={language}
-              onClose={closeActiveGroupView}
-              onTaskEdit={(task) => {
-                closeActiveGroupView();
-                handleTaskEdit(task);
-              }}
-              onDeleteTasks={deleteTasksByIds}
-              onUpdateGroup={updateActiveGroupMetadata}
-              onToast={showToast}
-              onTaskOpen={(task) => {
-                closeActiveGroupView();
-                handleTaskClick(task);
-              }}
-            />
-            <DesktopDeleteConfirmModal
-              open={Boolean(pendingCanvasDeletion)}
-              title={pendingCanvasDeletion?.title || 'Delete selected objects?'}
-              onCancel={cancelCanvasDeletion}
-              onConfirm={confirmCanvasDeletion}
-            />
-            <DesktopDeleteConfirmModal
-              open={Boolean(pendingWorkspaceDeletion)}
-              title={pendingWorkspaceDeletion?.title || 'Delete workspace?'}
-              description={pendingWorkspaceDeletion?.description || null}
-              onCancel={cancelWorkspaceDeletion}
-              onConfirm={confirmWorkspaceDeletion}
-            />
-
-            {toastMessage && (
-              <div style={{
-                position: 'fixed',
-                bottom: 32,
-                left: '50%',
-                transform: 'translateX(-50%)',
-                background: appearance === 'dark' ? '#333' : '#333',
-                color: '#FFF',
-                padding: '10px 20px',
-                borderRadius: 999,
-                fontSize: 14,
-                fontWeight: 500,
-                zIndex: 99999,
-                boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-                animation: 'fadeInOut 3s forwards'
-              }}>
-                {toastMessage}
-              </div>
-            )}
-
-            {fullscreenImage && (
-              <div
-                style={{
-                  position: 'fixed',
-                  top: 0,
-                  left: 0,
-                  right: 0,
-                  bottom: 0,
-                  backgroundColor: 'rgba(0, 0, 0, 0.95)',
-                  zIndex: 100000,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  animation: 'fadeIn 0.2s ease-out',
-                  cursor: 'zoom-out'
-                }}
-                onClick={() => setFullscreenImage(null)}
-              >
-                <button
-                  onClick={(e) => { e.stopPropagation(); setFullscreenImage(null); }}
-                  style={{
-                    position: 'absolute',
-                    top: 40,
-                    right: 40,
-                    background: 'rgba(255, 255, 255, 0.15)',
-                    border: 'none',
-                    borderRadius: '50%',
-                    width: 48,
-                    height: 48,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    color: 'white',
-                    cursor: 'pointer',
-                    zIndex: 100001,
-                    backdropFilter: 'blur(10px)',
-                    WebkitBackdropFilter: 'blur(10px)',
-                    transition: 'background 0.2s'
-                  }}
-                  onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255, 255, 255, 0.25)'; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255, 255, 255, 0.15)'; }}
-                >
-                  <X size={24} />
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, padding: '16px 24px 24px', borderTop: '1px solid var(--desktop-edit-border)' }}>
+                <button type="button" onClick={closeEditModal} style={{ minWidth: 96, height: 44, padding: '0 18px', borderRadius: 14, border: '1px solid var(--desktop-cancel-border)', background: 'var(--desktop-cancel-bg)', color: 'var(--desktop-cancel-text)', fontSize: 15, fontWeight: 600, cursor: 'pointer' }}>
+                  {t.cancel}
                 </button>
-                <img
-                  src={fullscreenImage}
-                  alt="Fullscreen"
-                  style={{
-                    maxWidth: '90%',
-                    maxHeight: '90%',
-                    objectFit: 'contain',
-                    boxShadow: '0 20px 60px rgba(0,0,0,0.5)',
-                    userSelect: 'none',
-                    WebkitUserDrag: 'none'
-                  }}
-                  onClick={(e) => e.stopPropagation()}
-                />
+                <button type="button" onClick={handleEditSave} disabled={!canSaveEdit} style={{ minWidth: 136, height: 44, padding: '0 20px', background: canSaveEdit ? 'var(--desktop-save-bg)' : 'var(--desktop-save-disabled-bg)', color: canSaveEdit ? 'var(--desktop-save-text)' : 'var(--desktop-save-disabled-text)', border: 'none', borderRadius: 14, fontSize: 15, fontWeight: 600, cursor: canSaveEdit ? 'pointer' : 'not-allowed' }}>
+                  {t.save}
+                </button>
               </div>
-            )}
+            </div>
           </div>
-        </div>
+        ) : null}
+
+        <DesktopProfilePage
+          open={profileOpen}
+          onClose={() => setProfileOpen(false)}
+          user={user}
+          language={language}
+          setLanguage={setLanguage}
+          appearance={appearance}
+          setAppearance={setAppearance}
+          onSignOut={handleSignOut}
+        />
+        <DesktopHistoryModal
+          open={historyOpen}
+          tasks={currentWorkspaceTasks}
+          appearance={appearance}
+          language={language}
+          t={t}
+          onClose={() => setHistoryOpen(false)}
+          onTaskClick={(task) => {
+            if (!task.id) return;
+            const { redirectUrl } = getTaskCardPresentation(task, t);
+            if (task.uploadedFileStorageKey) {
+              setHistoryOpen(false);
+              void openUploadedFileTask(task);
+              return;
+            }
+            if (redirectUrl) {
+              if (normalizeCardType(task.cardType) === CARD_TYPES.PHOTO) {
+                setFullscreenImage(task.photoUrl || task.photoDataUrl || redirectUrl);
+                return;
+              }
+              window.open(redirectUrl, '_blank', 'noopener,noreferrer');
+              return;
+            }
+            setHistoryOpen(false);
+            openTaskEditor(task, false);
+          }}
+          onPackClick={handleHistoryPackOpen}
+          onPackItemClick={handleHistoryPackItemOpen}
+          onTaskPointerDown={handleTaskPointerDown}
+          onTaskLongPress={handleHistorySearchLongPress}
+        />
+
+        <DesktopGroupPrompt
+          prompt={pendingGroupPrompt}
+          groupName={pendingGroupName}
+          setGroupName={setPendingGroupName}
+          onConfirm={handleConfirmGroupPrompt}
+          onCancel={handleCancelGroupPrompt}
+        />
+        <DesktopGroupFullViewModal
+          view={activeGroupView}
+          appearance={appearance}
+          labels={t}
+          language={language}
+          onClose={closeActiveGroupView}
+          onTaskEdit={(task) => {
+            closeActiveGroupView();
+            handleTaskEdit(task);
+          }}
+          onDeleteTasks={deleteTasksByIds}
+          onUpdateGroup={updateActiveGroupMetadata}
+          onToast={showToast}
+          onTaskOpen={(task) => {
+            closeActiveGroupView();
+            handleTaskClick(task);
+          }}
+        />
+        <DesktopDeleteConfirmModal
+          open={Boolean(pendingCanvasDeletion)}
+          title={pendingCanvasDeletion?.title || 'Delete selected objects?'}
+          onCancel={cancelCanvasDeletion}
+          onConfirm={confirmCanvasDeletion}
+        />
+        <DesktopDeleteConfirmModal
+          open={Boolean(pendingWorkspaceDeletion)}
+          title={pendingWorkspaceDeletion?.title || 'Delete workspace?'}
+          description={pendingWorkspaceDeletion?.description || null}
+          onCancel={cancelWorkspaceDeletion}
+          onConfirm={confirmWorkspaceDeletion}
+        />
+        
+        {toastMessage && (
+          <div style={{
+            position: 'fixed',
+            bottom: 32,
+            left: '50%',
+            transform: 'translateX(-50%)',
+            background: appearance === 'dark' ? '#333' : '#333',
+            color: '#FFF',
+            padding: '10px 20px',
+            borderRadius: 999,
+            fontSize: 14,
+            fontWeight: 500,
+            zIndex: 99999,
+            boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+            animation: 'fadeInOut 3s forwards'
+          }}>
+            {toastMessage}
+          </div>
+        )}
+
+        {fullscreenImage && (
+          <div 
+            style={{
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              backgroundColor: 'rgba(0, 0, 0, 0.95)',
+              zIndex: 100000,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              animation: 'fadeIn 0.2s ease-out',
+              cursor: 'zoom-out'
+            }}
+            onClick={() => setFullscreenImage(null)}
+          >
+            <button
+              onClick={(e) => { e.stopPropagation(); setFullscreenImage(null); }}
+              style={{
+                position: 'absolute',
+                top: 40,
+                right: 40,
+                background: 'rgba(255, 255, 255, 0.15)',
+                border: 'none',
+                borderRadius: '50%',
+                width: 48,
+                height: 48,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: 'white',
+                cursor: 'pointer',
+                zIndex: 100001,
+                backdropFilter: 'blur(10px)',
+                WebkitBackdropFilter: 'blur(10px)',
+                transition: 'background 0.2s'
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255, 255, 255, 0.25)'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255, 255, 255, 0.15)'; }}
+            >
+              <X size={24} />
+            </button>
+            <img
+              src={fullscreenImage}
+              alt="Fullscreen"
+              style={{
+                maxWidth: '90%',
+                maxHeight: '90%',
+                objectFit: 'contain',
+                boxShadow: '0 20px 60px rgba(0,0,0,0.5)',
+                userSelect: 'none',
+                WebkitUserDrag: 'none'
+              }}
+              onClick={(e) => e.stopPropagation()}
+            />
+          </div>
+        )}
+      </div>
+      </div>
       </div>
     </>
   );

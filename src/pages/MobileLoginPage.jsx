@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { supabase, isSupabaseConfigured } from '../supabase';
+import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { getInitialLanguage, LANGUAGE_STORAGE_KEY, LOGIN_LANGUAGE_OPTIONS } from '../lib/language';
 import { translations } from '../lib/translations';
 
