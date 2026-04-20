@@ -164,8 +164,11 @@ const SUPPORTED_CONVERT_ACCEPT = '.pdf,.docx,.html,.htm,.txt,.md,.csv,.tsv,.xml,
 const DESKTOP_CANVAS_MIN_HEIGHT = 560;
 const DESKTOP_GROUP_CARD_MIN_HEIGHT = 176;
 const DESKTOP_GROUP_CARD_ITEM_HEIGHT = 60;
-const DESKTOP_GROUP_CARD_VISIBLE_ITEMS = 3;
-const DESKTOP_GROUP_CARD_EXPANDED_VISIBLE_ITEMS = 5;
+const DESKTOP_GROUP_CARD_ROW_GAP = 6;
+const DESKTOP_GROUP_CARD_COLLAPSED_LIST_MAX_HEIGHT = 320;
+const DESKTOP_GROUP_CARD_EXPANDED_LIST_MAX_HEIGHT = 680;
+const DESKTOP_GROUP_CARD_BASE_HEIGHT = 82;
+const DESKTOP_GROUP_CARD_MORE_LABEL_HEIGHT = 48;
 const DESKTOP_CANVAS_HITBOX_HORIZONTAL_PADDING = 10;
 const DESKTOP_CANVAS_HITBOX_VERTICAL_PADDING = 18;
 // Pure coordinate utility functions (no DOM refs, no closures)
@@ -405,16 +408,49 @@ const isEditableElement = (target) => (
   && Boolean(target.closest('input, textarea, button, select, [contenteditable="true"], [role="dialog"]'))
 );
 const isFiniteCanvasCoordinate = (value) => Number.isFinite(value) && value >= 0;
-const getDesktopCollapsedGroupVisibleCount = (itemCount) => (
-  Math.min(itemCount, DESKTOP_GROUP_CARD_VISIBLE_ITEMS)
+const getDesktopEstimatedGroupRowHeight = (task) => (
+  normalizeCardType(task?.cardType) === CARD_TYPES.PHOTO ? 232 : DESKTOP_GROUP_CARD_ITEM_HEIGHT
 );
-const getDesktopGroupCardHeight = (itemCount, visibleItemCount = itemCount) => {
-  const visibleCount = Math.max(1, Math.min(visibleItemCount, itemCount));
+const getDesktopVisibleGroupTaskCount = (tasks, maxHeight) => {
+  if (!Array.isArray(tasks) || tasks.length === 0) return 0;
+
+  let totalHeight = 0;
+  let visibleCount = 0;
+  for (let index = 0; index < tasks.length; index += 1) {
+    const task = tasks[index];
+    const rowHeight = getDesktopEstimatedGroupRowHeight(task);
+    const nextHeight = totalHeight + (index > 0 ? DESKTOP_GROUP_CARD_ROW_GAP : 0) + rowHeight;
+    if (visibleCount > 0 && nextHeight > maxHeight) {
+      break;
+    }
+    if (visibleCount === 0 || nextHeight <= maxHeight) {
+      totalHeight = nextHeight;
+      visibleCount += 1;
+    }
+  }
+
+  return Math.max(1, Math.min(visibleCount, tasks.length));
+};
+const getDesktopGroupListHeight = (tasks, visibleItemCount = tasks.length) => {
+  if (!Array.isArray(tasks) || tasks.length === 0 || visibleItemCount <= 0) return 0;
+  const visibleTasks = tasks.slice(0, visibleItemCount);
+  return visibleTasks.reduce((total, task, index) => (
+    total + getDesktopEstimatedGroupRowHeight(task) + (index > 0 ? DESKTOP_GROUP_CARD_ROW_GAP : 0)
+  ), 0);
+};
+const getDesktopCollapsedGroupVisibleCount = (tasks) => (
+  getDesktopVisibleGroupTaskCount(tasks, DESKTOP_GROUP_CARD_COLLAPSED_LIST_MAX_HEIGHT)
+);
+const getDesktopGroupCardHeight = (tasks, visibleItemCount = tasks?.length ?? 0) => {
+  const itemCount = Array.isArray(tasks) ? tasks.length : 0;
+  const visibleCount = Math.max(1, Math.min(visibleItemCount, itemCount || 1));
   const hasExtra = itemCount > visibleCount;
-  const padding = hasExtra ? 20 : 12;
+  const listHeight = getDesktopGroupListHeight(tasks, visibleCount);
   return Math.max(
     DESKTOP_GROUP_CARD_MIN_HEIGHT,
-    70 + (visibleCount * DESKTOP_GROUP_CARD_ITEM_HEIGHT) + padding,
+    DESKTOP_GROUP_CARD_BASE_HEIGHT
+      + listHeight
+      + (hasExtra ? DESKTOP_GROUP_CARD_MORE_LABEL_HEIGHT : 12),
   );
 };
 const getDesktopCanvasTaskHeight = (task) => (
@@ -431,7 +467,7 @@ const getDesktopDragTaskIds = (task) => (
 );
 const getDesktopCanvasEntryHeight = (entry) => (
   entry?.type === 'group'
-    ? getDesktopGroupCardHeight(entry.tasks.length, getDesktopCollapsedGroupVisibleCount(entry.tasks.length))
+    ? getDesktopGroupCardHeight(entry.tasks, getDesktopCollapsedGroupVisibleCount(entry.tasks))
     : getDesktopCanvasTaskHeight(entry?.task)
 );
 const getDesktopCanvasEntryTaskIds = (entry) => (
@@ -624,7 +660,7 @@ const getDesktopCanvasOverlapEntry = (tasks, dateString, movingTaskIds, nextPosi
   if (movingTasks.length === 0) return null;
 
   const movingHeight = movingTasks.length > 1
-    ? getDesktopGroupCardHeight(movingTasks.length, getDesktopCollapsedGroupVisibleCount(movingTasks.length))
+    ? getDesktopGroupCardHeight(movingTasks, getDesktopCollapsedGroupVisibleCount(movingTasks))
     : DESKTOP_CANVAS_CARD_HEIGHT;
   const movingRect = {
     x: nextPosition.x,
@@ -692,7 +728,7 @@ const getDesktopCanvasResolvedPosition = (tasks, dateString, movingTaskIds, pref
   if (movingTasks.length === 0) return preferredPosition;
 
   const movingHeight = movingTasks.length > 1
-    ? getDesktopGroupCardHeight(movingTasks.length, getDesktopCollapsedGroupVisibleCount(movingTasks.length))
+    ? getDesktopGroupCardHeight(movingTasks, getDesktopCollapsedGroupVisibleCount(movingTasks))
     : DESKTOP_CANVAS_CARD_HEIGHT;
   const maxX = Math.max(0, DESKTOP_MAIN_CONTENT_MAX_WIDTH - DESKTOP_CANVAS_CARD_WIDTH);
   const clampedX = Math.max(0, Math.min(maxX, preferredPosition.x));
@@ -2144,13 +2180,14 @@ const GroupedTaskCard = ({
   // If we are dragging a single item out of this group, hide it from the group preview
   const isDraggingGroup = isDragging && isGroupDragActive;
   const filteredTasks = tasks.filter((t) => isDraggingGroup || t.id !== draggedTaskId);
-  const collapsedVisibleCount = Math.min(filteredTasks.length, DESKTOP_GROUP_CARD_VISIBLE_ITEMS);
-  const expandedVisibleCount = Math.min(filteredTasks.length, DESKTOP_GROUP_CARD_EXPANDED_VISIBLE_ITEMS);
+  const collapsedVisibleCount = getDesktopVisibleGroupTaskCount(filteredTasks, DESKTOP_GROUP_CARD_COLLAPSED_LIST_MAX_HEIGHT);
+  const expandedVisibleCount = getDesktopVisibleGroupTaskCount(filteredTasks, DESKTOP_GROUP_CARD_EXPANDED_LIST_MAX_HEIGHT);
   const visibleItemCount = isExpanded ? expandedVisibleCount : collapsedVisibleCount;
-  const hiddenTaskCount = Math.max(0, filteredTasks.length - collapsedVisibleCount);
-  const groupCardMinHeight = getDesktopGroupCardHeight(filteredTasks.length, visibleItemCount);
-  const groupListMaxHeight = (visibleItemCount * DESKTOP_GROUP_CARD_ITEM_HEIGHT) + (Math.max(0, visibleItemCount - 1) * 6);
-  const canScrollExpandedList = isExpanded && filteredTasks.length > expandedVisibleCount;
+  const collapsedHiddenTaskCount = Math.max(0, filteredTasks.length - collapsedVisibleCount);
+  const hiddenTaskCount = Math.max(0, filteredTasks.length - visibleItemCount);
+  const groupCardMinHeight = getDesktopGroupCardHeight(filteredTasks, visibleItemCount);
+  const groupListMaxHeight = getDesktopGroupListHeight(filteredTasks, visibleItemCount);
+  const canScrollExpandedList = isExpanded && hiddenTaskCount > 0;
 
   return (
       <div id={`desktop-task-wrapper-${leadTask.id}`} className={`desktop-task-wrapper desktop-task-group-wrapper ${isDragging ? 'is-dragging' : ''} ${isSelected ? 'is-selected' : ''}`}>
@@ -2278,7 +2315,7 @@ const GroupedTaskCard = ({
             );
           })}
         </div>
-        {hiddenTaskCount > 0 && (
+        {(collapsedHiddenTaskCount > 0 || (isExpanded && hiddenTaskCount > 0)) && (
           <button
             type="button"
             className="desktop-task-group-more-label"
@@ -2289,7 +2326,7 @@ const GroupedTaskCard = ({
             onPointerDown={(event) => event.stopPropagation()}
             onClick={(event) => event.preventDefault()}
           >
-            + {hiddenTaskCount} more
+            {isExpanded && hiddenTaskCount > 0 ? `Scroll for ${hiddenTaskCount} more` : `+ ${collapsedHiddenTaskCount} more`}
           </button>
         )}
       </div>
