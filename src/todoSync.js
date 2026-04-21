@@ -38,12 +38,17 @@ const readLocalTodos = (normalizeTodo) => {
   return mergeById(sharedTodos, legacyTodos);
 };
 
-const toCloudRow = (userId, todo) => ({
-  user_id: userId,
-  todo_id: Number(todo.id),
-  payload: todo,
-  is_deleted: false,
-});
+const toCloudRow = (userId, todo) => {
+  const isDeleted = todo.is_deleted === true;
+  const payload = { ...todo };
+  if ('is_deleted' in payload) delete payload.is_deleted;
+  return {
+    user_id: userId,
+    todo_id: Number(todo.id),
+    payload,
+    is_deleted: isDeleted,
+  };
+};
 
 const loadCloudTodos = async (userId, normalizeTodo) => {
   const { data, error } = await supabase
@@ -68,35 +73,85 @@ const loadCloudTodos = async (userId, normalizeTodo) => {
   });
 };
 
-const persistCloudTodos = async (userId, todos) => {
-  const rows = todos.map((todo) => toCloudRow(userId, todo));
+const pendingPatches = new Map();
+let syncTimeoutRef = null;
 
-  if (rows.length > 0) {
+const flushPendingTaskPatches = async (userId) => {
+  if (pendingPatches.size === 0 || !supabase || !userId) return;
+
+  const patches = Array.from(pendingPatches.values());
+  pendingPatches.clear();
+
+  // Read full local tasks to ensure patches are upgraded to full JSONB payloads
+  // preventing accidental data loss if a partial patch is flushed via upsert.
+  const localTodos = readStorageList(TODOS_STORAGE_KEY);
+  const localTaskMap = new Map();
+  localTodos.forEach(t => localTaskMap.set(t.id, t));
+
+  const rows = patches.map((patch) => {
+    const isDeleted = patch.is_deleted === true;
+    
+    // Upgrade patch to a full normalized task object
+    const existingTask = localTaskMap.get(patch.id) || {};
+    const fullPayload = { ...existingTask, ...patch };
+    
+    if ('is_deleted' in fullPayload) delete fullPayload.is_deleted;
+    
+    return {
+      user_id: userId,
+      todo_id: Number(patch.id),
+      payload: fullPayload,
+      is_deleted: isDeleted,
+    };
+  });
+
+  try {
     const { error: upsertError } = await supabase
       .from(TODOS_TABLE)
       .upsert(rows, { onConflict: 'user_id,todo_id' });
 
     if (upsertError) throw upsertError;
+  } catch (error) {
+    console.error('Failed to sync task patches to Supabase:', error);
   }
+};
 
-  if (rows.length === 0) {
-    const { error: softDeleteAllError } = await supabase
-      .from(TODOS_TABLE)
-      .update({ is_deleted: true })
-      .eq('user_id', userId);
+const scheduleFlush = (userId) => {
+  if (syncTimeoutRef) clearTimeout(syncTimeoutRef);
+  syncTimeoutRef = setTimeout(() => {
+    syncTimeoutRef = null;
+    flushPendingTaskPatches(userId);
+  }, 350);
+};
 
-    if (softDeleteAllError) throw softDeleteAllError;
-    return;
+export const enqueueTaskPatch = (userId, taskId, fields) => {
+  if (!userId) return;
+  if (!pendingPatches.has(taskId)) {
+    pendingPatches.set(taskId, { id: taskId });
   }
+  Object.assign(pendingPatches.get(taskId), fields);
+  scheduleFlush(userId);
+};
 
-  const ids = rows.map((row) => row.todo_id).join(',');
-  const { error: softDeleteMissingError } = await supabase
-    .from(TODOS_TABLE)
-    .update({ is_deleted: true })
-    .eq('user_id', userId)
-    .not('todo_id', 'in', `(${ids})`);
+export const enqueueTaskBatchPatch = (userId, tasks) => {
+  if (!userId) return;
+  tasks.forEach((task) => {
+    if (!pendingPatches.has(task.id)) {
+      pendingPatches.set(task.id, { id: task.id });
+    }
+    // We expect tasks to be full payload objects or partials
+    Object.assign(pendingPatches.get(task.id), task);
+  });
+  scheduleFlush(userId);
+};
 
-  if (softDeleteMissingError) throw softDeleteMissingError;
+export const softDeleteTask = (userId, taskId) => {
+  if (!userId) return;
+  if (!pendingPatches.has(taskId)) {
+    pendingPatches.set(taskId, { id: taskId });
+  }
+  Object.assign(pendingPatches.get(taskId), { is_deleted: true });
+  scheduleFlush(userId);
 };
 
 export const useSyncedTodos = ({ userId, normalizeTodo }) => {
@@ -139,7 +194,7 @@ export const useSyncedTodos = ({ userId, normalizeTodo }) => {
         const nextTodos = shouldSeedCloud ? localTodos : cloudTodos;
 
         if (shouldSeedCloud) {
-          await persistCloudTodos(userId, nextTodos.map(normalizeTodo));
+          enqueueTaskBatchPatch(userId, nextTodos.map(normalizeTodo));
           if (cancelled) return;
         }
 
@@ -159,28 +214,7 @@ export const useSyncedTodos = ({ userId, normalizeTodo }) => {
     };
   }, [normalizeTodo, userId]);
 
-  useEffect(() => {
-    if (!userId || !supabase || !cloudLoaded) return undefined;
 
-    if (syncTimeoutRef.current) {
-      clearTimeout(syncTimeoutRef.current);
-    }
-
-    syncTimeoutRef.current = setTimeout(() => {
-      persistCloudTodos(userId, todos.map(normalizeTodo)).catch((error) => {
-        console.error('Failed to sync todos to Supabase:', error);
-      }).finally(() => {
-        syncTimeoutRef.current = null;
-      });
-    }, 350);
-
-    return () => {
-      if (syncTimeoutRef.current) {
-        clearTimeout(syncTimeoutRef.current);
-        syncTimeoutRef.current = null;
-      }
-    };
-  }, [cloudLoaded, normalizeTodo, todos, userId]);
 
   useEffect(() => {
     if (!userId || !supabase || !cloudLoaded) return undefined;

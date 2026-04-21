@@ -5,7 +5,7 @@ import JSZip from 'jszip';
 import { PenLine, Trash2, X } from 'lucide-react';
 import { supabase } from '../supabase';
 import DesktopLogin from '../DesktopLogin';
-import { useSyncedTodos } from '../todoSync';
+import { useSyncedTodos, enqueueTaskBatchPatch, softDeleteTask } from '../todoSync';
 import { getUserProfile } from '../userProfile';
 import DesktopProfilePage from '../components/DesktopProfilePage';
 import DesktopHistoryModal from '../components/DesktopHistoryModal';
@@ -401,7 +401,7 @@ const isEditableElement = (target) => (
   target instanceof HTMLElement
   && Boolean(target.closest('input, textarea, button, select, [contenteditable="true"], [role="dialog"]'))
 );
-const isFiniteCanvasCoordinate = (value) => Number.isFinite(value) && value >= 0;
+const isFiniteCanvasCoordinate = (value) => Number.isFinite(value);
 const getDesktopEstimatedGroupRowHeight = (task) => (
   normalizeCardType(task?.cardType) === CARD_TYPES.PHOTO ? 232 : DESKTOP_GROUP_CARD_ITEM_HEIGHT
 );
@@ -5381,6 +5381,8 @@ function App() {
         const deltaX = nextPosition.x - anchorStart.x;
         const deltaY = nextPosition.y - anchorStart.y;
 
+        let finalModifiedTasks = [];
+
         flushSync(() => {
           setTasks((prev) => {
             const isGroupDrag = !!task.isGroupInitiator;
@@ -5430,7 +5432,7 @@ function App() {
               const isPutBack = overlapEntry.type === 'group' && movingTasks.every(t => t.desktopGroupId === overlapEntry.id);
 
               if (isPutBack) {
-                return prev.map((item) => {
+                const nextTasks = prev.map((item) => {
                   if (!movingTaskIds.has(item.id)) return item;
                   return normalizeTask({
                     ...item,
@@ -5440,6 +5442,10 @@ function App() {
                     desktopZ: timestamp,
                   });
                 });
+                for (const updatedItem of nextTasks) {
+                  if (movingTaskIds.has(updatedItem.id)) finalModifiedTasks.push(updatedItem);
+                }
+                return nextTasks;
               }
 
               setPendingGroupPrompt({
@@ -5459,13 +5465,25 @@ function App() {
                 }),
               });
               setPendingGroupName(getSuggestedDesktopGroupName(movingTasks, overlapEntry));
-              return applyDroppedPosition(prev);
+              const nextTasks = applyDroppedPosition(prev);
+              for (const updatedItem of nextTasks) {
+                if (movingTaskIds.has(updatedItem.id)) finalModifiedTasks.push(updatedItem);
+              }
+              return nextTasks;
             }
 
             setPendingGroupPrompt(null);
-            return applyDroppedPosition(prev);
+            const nextTasks = applyDroppedPosition(prev);
+            for (const updatedItem of nextTasks) {
+              if (movingTaskIds.has(updatedItem.id)) finalModifiedTasks.push(updatedItem);
+            }
+            return nextTasks;
           });
         });
+
+        if (finalModifiedTasks.length > 0) {
+          enqueueTaskBatchPatch(user?.id, finalModifiedTasks);
+        }
       }
     }
 
@@ -5810,8 +5828,9 @@ function App() {
         ));
       return cleanupDesktopGroupMetadata(remainingTasks);
     });
+    taskIds.forEach((id) => softDeleteTask(user?.id, id));
     setSelectedTaskIds((current) => current.filter((taskId) => !taskIdSet.has(taskId)));
-  }, [setTasks]);
+  }, [setTasks, user?.id]);
 
   const handleTaskDelete = useCallback((task) => {
     deleteTasksByIds([task.id]);
@@ -5939,15 +5958,19 @@ function App() {
     if (!Object.keys(nextFields).length) return;
 
     const nextUpdatedAt = createUpdatedTimestamp();
-    setTasks((prev) => prev.map((task) => (
-      task.desktopGroupId === groupId
-        ? normalizeTask({
-          ...task,
-          ...nextFields,
-          updatedAt: nextUpdatedAt,
-        })
-        : task
-    )));
+    setTasks((prev) => {
+      const nextTasks = prev.map((task) => (
+        task.desktopGroupId === groupId
+          ? normalizeTask({
+            ...task,
+            ...nextFields,
+            updatedAt: nextUpdatedAt,
+          })
+          : task
+      ));
+      enqueueTaskBatchPatch(user?.id, nextTasks.filter((task) => task.desktopGroupId === groupId));
+      return nextTasks;
+    });
     setActiveGroupView((prev) => {
       if (!prev || prev.groupId !== groupId) return prev;
       const nextTasks = prev.tasks.map((task) => normalizeTask({
@@ -6203,20 +6226,36 @@ function App() {
   const applyAsyncMetadata = (taskId, cardType, videoUrl, mapUrl, primaryUrl, updatedAt = null) => {
     if (cardType === 'video' && videoUrl) {
       fetchVideoMeta(videoUrl).then((meta) => {
-        setTasks((prev) => prev.map((task) => (task.id === taskId ? normalizeTask({ ...task, ...meta, ...(updatedAt ? { updatedAt } : {}) }) : task)));
+        setTasks((prev) => {
+          const nextTasks = prev.map((task) => (task.id === taskId ? normalizeTask({ ...task, ...meta, ...(updatedAt ? { updatedAt } : {}) }) : task));
+          enqueueTaskBatchPatch(user?.id, nextTasks.filter(t => t.id === taskId));
+          return nextTasks;
+        });
       });
     } else if (cardType === 'place' && mapUrl) {
       fetchMapMeta(mapUrl).then((meta) => {
-        setTasks((prev) => prev.map((task) => (task.id === taskId ? normalizeTask({ ...task, ...meta, ...(updatedAt ? { updatedAt } : {}) }) : task)));
+        setTasks((prev) => {
+          const nextTasks = prev.map((task) => (task.id === taskId ? normalizeTask({ ...task, ...meta, ...(updatedAt ? { updatedAt } : {}) }) : task));
+          enqueueTaskBatchPatch(user?.id, nextTasks.filter(t => t.id === taskId));
+          return nextTasks;
+        });
       });
     } else if ((cardType === 'music' || cardType === 'podcast') && primaryUrl) {
       fetchSpotifyMeta(primaryUrl).then((meta) => {
-        setTasks((prev) => prev.map((task) => (task.id === taskId ? normalizeTask({ ...task, ...meta, ...(updatedAt ? { updatedAt } : {}) }) : task)));
+        setTasks((prev) => {
+          const nextTasks = prev.map((task) => (task.id === taskId ? normalizeTask({ ...task, ...meta, ...(updatedAt ? { updatedAt } : {}) }) : task));
+          enqueueTaskBatchPatch(user?.id, nextTasks.filter(t => t.id === taskId));
+          return nextTasks;
+        });
       });
     } else if (primaryUrl && (!cardType || cardType === 'link' || cardType === 'text' || cardType === 'ai_tool' || cardType === 'social' || cardType === 'shopping' || cardType === 'financial' || cardType === 'document')) {
       fetchLinkPreviewMeta(primaryUrl).then((meta) => {
         if (meta) {
-          setTasks((prev) => prev.map((task) => (task.id === taskId ? normalizeTask({ ...task, ...meta, ...(updatedAt ? { updatedAt } : {}) }) : task)));
+          setTasks((prev) => {
+            const nextTasks = prev.map((task) => (task.id === taskId ? normalizeTask({ ...task, ...meta, ...(updatedAt ? { updatedAt } : {}) }) : task));
+            enqueueTaskBatchPatch(user?.id, nextTasks.filter(t => t.id === taskId));
+            return nextTasks;
+          });
         }
       });
     }
@@ -6353,6 +6392,8 @@ function App() {
         })];
       });
 
+      const addedTasks = nextTasks.filter((task) => task.id >= taskId && task.id <= taskId + preparedAttachments.length + 1);
+      enqueueTaskBatchPatch(user?.id, addedTasks);
       return nextTasks;
     });
 
@@ -6374,11 +6415,15 @@ function App() {
 
     const typeFields = getDerivedTaskFields(rawText);
     const operationUpdatedAt = createUpdatedTimestamp();
-    setTasks((prev) => prev.map((task) => (
-      task.id === editingTask.id
-        ? normalizeTask({ ...task, text: rawText, updatedAt: operationUpdatedAt, ...typeFields })
-        : task
-    )));
+    setTasks((prev) => {
+      const nextTasks = prev.map((task) => (
+        task.id === editingTask.id
+          ? normalizeTask({ ...task, text: rawText, updatedAt: operationUpdatedAt, ...typeFields })
+          : task
+      ));
+      enqueueTaskBatchPatch(user?.id, nextTasks.filter((task) => task.id === editingTask.id));
+      return nextTasks;
+    });
     applyAsyncMetadata(editingTask.id, typeFields.cardType, typeFields.videoUrl, typeFields.mapUrl, typeFields.primaryUrl, operationUpdatedAt);
     closeEditModal();
   };
@@ -6617,7 +6662,12 @@ function App() {
     const fallbackWorkspaceId = remainingWorkspaces[0]?.id || DEFAULT_DESKTOP_WORKSPACE_ID;
 
     setWorkspaces(remainingWorkspaces);
-    setTasks((prev) => prev.filter((task) => !taskBelongsToWorkspace(task, deletedWorkspaceId)));
+    setTasks((prev) => {
+      const remainingTasks = prev.filter((task) => !taskBelongsToWorkspace(task, deletedWorkspaceId));
+      const deletedTasks = prev.filter((task) => taskBelongsToWorkspace(task, deletedWorkspaceId));
+      deletedTasks.forEach((task) => softDeleteTask(user?.id, task.id));
+      return remainingTasks;
+    });
     if (activeWorkspaceId === deletedWorkspaceId) {
       setActiveWorkspaceId(fallbackWorkspaceId);
     }
@@ -6641,7 +6691,7 @@ function App() {
     setTasks((prev) => {
       const groupedTasks = prev.filter((task) => groupedTaskIds.has(task.id));
       const nextGroupTags = getDesktopGroupDisplayTags(groupedTasks);
-      return prev.map((task) => (
+      const nextTasks = prev.map((task) => (
         groupedTaskIds.has(task.id)
           ? normalizeTask({
             ...task,
@@ -6657,6 +6707,8 @@ function App() {
           })
           : task
       ));
+      enqueueTaskBatchPatch(user?.id, nextTasks.filter((task) => groupedTaskIds.has(task.id)));
+      return nextTasks;
     });
     closePendingGroupPrompt();
   };
