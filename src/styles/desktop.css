@@ -1591,7 +1591,7 @@ body.desktop-task-dragging * {
 .desktop-canvas-scroll {
   position: relative;
   isolation: isolate;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .desktop-canvas-scroll::before {

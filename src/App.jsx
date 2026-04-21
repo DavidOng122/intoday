@@ -86,27 +86,8 @@ function App() {
     return (
       <>
         <Analytics />
-        {isDesktop ? <DesktopAuthLoading /> : <MobileAuthLoading />}
+        <DesktopAuthLoading />
       </>
-    );
-  }
-
-  if (isDesktop) {
-    return (
-      <>
-        <Analytics />
-        <InstallPrompt />
-        {session ? <DesktopApp session={session} /> : <DesktopLoginPage />}
-      </>
-    );
-  }
-
-  if (!session) {
-    return (
-      <div className={`app-container platform-${platform} ${isNativePlatform ? 'native-shell' : 'web-shell'}`}>
-        <Analytics />
-        <MobileLoginPage platform={platform} />
-      </div>
     );
   }
 
@@ -114,7 +95,7 @@ function App() {
     <>
       <Analytics />
       <InstallPrompt />
-      <MobileApp session={session} platformInfo={platformInfo} />
+      {session ? <DesktopApp session={session} /> : <DesktopLoginPage />}
     </>
   );
 }

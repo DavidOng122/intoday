@@ -15,16 +15,10 @@ import { getInitialLanguage } from '../lib/language';
 import { createUpdatedTimestamp, getPackMetadataTextFromItems } from '../lib/packMetadata';
 import { deleteUploadedFileBlob, getUploadedFileRecord, saveUploadedFileBlob } from '../lib/uploadedFileStorage';
 import {
-  createPackActiveDurationFields,
-  getPackActiveBaseDateFromTasks,
-  getPackActiveDurationFromTasks,
   getPackActiveLabel,
   getPackIconFromTasks,
-  isPackActiveOnDate,
-  PACK_ACTIVE_DURATION_OPTIONS,
   getPackTagsFromTasks,
   normalizePackActiveDate,
-  normalizePackActiveDurationType,
   normalizePackCover,
   normalizePackIcon,
   normalizePackTags,
@@ -509,7 +503,7 @@ const normalizeDesktopWorkspaces = (value) => {
 const areTaskIdSelectionsEqual = (currentIds, nextIds) => (
   currentIds.length === nextIds.length && nextIds.every((taskId) => currentIds.includes(taskId))
 );
-const getCanvasDeletionSummary = (tasks, selectedTaskIds) => {
+const getCanvasDeletionSummary = (labels, tasks, selectedTaskIds) => {
   const selectedTaskIdSet = new Set(selectedTaskIds);
   const selectedTasks = tasks.filter((task) => selectedTaskIdSet.has(task.id));
   if (!selectedTasks.length) return null;
@@ -541,19 +535,19 @@ const getCanvasDeletionSummary = (tasks, selectedTaskIds) => {
     looseItemCount += 1;
   });
 
-  let title = 'Delete selected objects?';
+  let title = labels.deleteObjectQuestion || 'Delete selected objects?';
   if (packCount === 0) {
     title = looseItemCount === 1
-      ? 'Delete this item?'
-      : `Delete ${looseItemCount} selected items?`;
+      ? labels.deleteItemQuestion
+      : labels.deleteMultipleItemsQuestion.replace('{count}', looseItemCount);
   } else if (looseItemCount === 0) {
     title = packCount === 1
-      ? 'Delete this pack and its contents?'
-      : `Delete ${packCount} selected packs and their contents?`;
+      ? labels.deletePackQuestion
+      : labels.deleteMultiplePacksQuestion.replace('{count}', packCount);
   } else {
-    const itemLabel = `${looseItemCount} ${looseItemCount === 1 ? 'item' : 'items'}`;
-    const packLabel = `${packCount} ${packCount === 1 ? 'pack' : 'packs'}`;
-    title = `Delete ${itemLabel} and ${packLabel}?`;
+    const itemLabel = (looseItemCount === 1 ? labels.itemLabel : labels.itemsLabel).replace('{count}', looseItemCount);
+    const packLabel = (packCount === 1 ? labels.packLabel : labels.packsLabel).replace('{count}', packCount);
+    title = labels.deleteItemsAndPacksQuestion.replace('{itemLabel}', itemLabel).replace('{packLabel}', packLabel);
   }
 
   return {
@@ -579,7 +573,7 @@ const getDefaultDesktopCanvasPosition = (index) => {
 };
 const resolveDesktopCanvasEntries = (tasks, dateString) => {
   const selectedTasks = tasks
-    .filter((task) => isPackActiveOnDate(task, dateString))
+    .filter((task) => task.dateString === dateString)
     .sort((a, b) => {
       const layerA = Number.isFinite(a.desktopZ) ? a.desktopZ : 0;
       const layerB = Number.isFinite(b.desktopZ) ? b.desktopZ : 0;
@@ -1032,9 +1026,6 @@ const normalizeTask = (task) => {
     desktopGroupIcon: normalizePackIcon(task.desktopGroupIcon),
     desktopGroupCover: normalizePackCover(task.desktopGroupCover),
     desktopGroupTags: normalizePackTags(task.desktopGroupTags),
-    desktopGroupActiveDurationType: normalizePackActiveDurationType(task.desktopGroupActiveDurationType),
-    desktopGroupActiveFrom: normalizePackActiveDate(task.desktopGroupActiveFrom),
-    desktopGroupActiveUntil: normalizePackActiveDate(task.desktopGroupActiveUntil),
     photoDataUrl: typeof task.photoDataUrl === 'string' && task.photoDataUrl.trim() ? task.photoDataUrl : null,
     photoFileName: typeof task.photoFileName === 'string' && task.photoFileName.trim() ? task.photoFileName : null,
     photoMimeType: typeof task.photoMimeType === 'string' && task.photoMimeType.trim() ? task.photoMimeType : null,
@@ -1902,8 +1893,8 @@ const DesktopZoomControl = ({
             <span>Zoom to 100%</span>
             <span>0</span>
           </button>
-          <button type="button" className="desktop-zoom-menu-item" onClick={() => onZoomPresetSelect(2)}>
-            <span>Zoom to 200%</span>
+          <button type="button" className="desktop-zoom-menu-item" onClick={() => onZoomPresetSelect(1.6)}>
+            <span>Zoom to 160%</span>
           </button>
         </div>
       </div>
@@ -2121,6 +2112,9 @@ const TaskCard = (props) => {
           aria-label={editLabel}
           onMouseDown={(event) => event.stopPropagation()}
           onPointerDown={(event) => event.stopPropagation()}
+          onPointerDownCapture={(event) => event.stopPropagation()}
+          onPointerUp={(event) => event.stopPropagation()}
+          onPointerUpCapture={(event) => event.stopPropagation()}
           onClick={(event) => {
             event.stopPropagation();
             onEdit?.(task);
@@ -2134,6 +2128,9 @@ const TaskCard = (props) => {
           aria-label={deleteLabel}
           onMouseDown={(event) => event.stopPropagation()}
           onPointerDown={(event) => event.stopPropagation()}
+          onPointerDownCapture={(event) => event.stopPropagation()}
+          onPointerUp={(event) => event.stopPropagation()}
+          onPointerUpCapture={(event) => event.stopPropagation()}
           onClick={(event) => {
             event.stopPropagation();
             onDelete?.(task);
@@ -2348,9 +2345,6 @@ const DesktopPackPageHeader = ({
   const groupTitle = getDesktopGroupDisplayName(tasks);
   const groupIcon = getDesktopGroupIcon(tasks);
   const groupTags = getDesktopGroupDisplayTags(tasks);
-  const packActiveDuration = getPackActiveDurationFromTasks(tasks);
-  const activeDurationLabel = getPackActiveLabel(packActiveDuration);
-  const activeDurationBaseDate = getPackActiveBaseDateFromTasks(tasks);
   const updatedLabel = getPackMetadataTextFromItems(tasks);
   const metadataParts = [
     `${tasks.length} ${tasks.length === 1 ? 'item' : 'items'}`,
@@ -2360,13 +2354,7 @@ const DesktopPackPageHeader = ({
   const [draftTitle, setDraftTitle] = useState('');
   const [isIconPickerOpen, setIsIconPickerOpen] = useState(false);
   const [isTagInputOpen, setIsTagInputOpen] = useState(false);
-  const [isDurationMenuOpen, setIsDurationMenuOpen] = useState(false);
-  const [draftCustomUntil, setDraftCustomUntil] = useState(packActiveDuration.activeUntil || activeDurationBaseDate);
   const [draftTag, setDraftTag] = useState('');
-
-  useEffect(() => {
-    setDraftCustomUntil(packActiveDuration.activeUntil || activeDurationBaseDate);
-  }, [activeDurationBaseDate, packActiveDuration.activeUntil]);
 
   const commitTitle = useCallback(() => {
     const nextTitle = draftTitle.trim();
@@ -2400,13 +2388,6 @@ const DesktopPackPageHeader = ({
     setIsTagInputOpen(false);
   }, [draftTag, groupTags, onUpdateGroup]);
 
-  const applyDuration = useCallback((nextType, customUntil = null) => {
-    onUpdateGroup(createPackActiveDurationFields(nextType, {
-      activeFrom: activeDurationBaseDate,
-      activeUntil: customUntil,
-    }));
-    setIsDurationMenuOpen(false);
-  }, [activeDurationBaseDate, onUpdateGroup]);
 
   return (
     <div className="desktop-pack-page-header">
@@ -2549,58 +2530,6 @@ const DesktopPackPageHeader = ({
               Add tag
             </button>
           )}
-          <span className="desktop-pack-page-property-divider" aria-hidden="true" />
-          <div className="desktop-pack-page-property-control">
-            <button
-              type="button"
-              className={`desktop-pack-page-inline-action is-inline desktop-pack-page-duration-trigger ${packActiveDuration.activeDurationType ? 'has-value' : ''}`}
-              onClick={() => setIsDurationMenuOpen((current) => !current)}
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                <circle cx="12" cy="12" r="8.5" stroke="currentColor" strokeWidth="1.7" />
-                <path d="M12 7.8v4.6l3.2 1.9" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-              <span>{activeDurationLabel}</span>
-              <svg width="12" height="12" viewBox="0 0 20 20" fill="none" aria-hidden="true">
-                <path d="M5 7.5 10 12.5 15 7.5" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            </button>
-            {isDurationMenuOpen ? (
-              <div className="desktop-pack-page-duration-menu">
-                {PACK_ACTIVE_DURATION_OPTIONS.map((option) => (
-                  <button
-                    key={option.value}
-                    type="button"
-                    className={`desktop-pack-page-duration-option ${packActiveDuration.activeDurationType === option.value ? 'is-active' : ''}`}
-                    onClick={() => {
-                      if (option.value === 'custom') {
-                        return;
-                      }
-                      applyDuration(option.value);
-                    }}
-                  >
-                    <span>{option.label}</span>
-                  </button>
-                ))}
-                <div className="desktop-pack-page-duration-custom-row">
-                  <input
-                    type="date"
-                    value={draftCustomUntil || activeDurationBaseDate}
-                    min={activeDurationBaseDate}
-                    className="desktop-pack-page-duration-date-input"
-                    onChange={(event) => setDraftCustomUntil(event.target.value)}
-                  />
-                  <button
-                    type="button"
-                    className="desktop-pack-page-duration-apply"
-                    onClick={() => applyDuration('custom', draftCustomUntil || activeDurationBaseDate)}
-                  >
-                    Apply
-                  </button>
-                </div>
-              </div>
-            ) : null}
-          </div>
         </div>
       </div>
       {isSelectMode ? (
@@ -3899,7 +3828,7 @@ const AddPanel = ({
             className={`desktop-add-panel-segment ${mode === 'add' ? 'active' : ''}`}
             onClick={() => setMode('add')}
           >
-            Add
+            {t.addPanelAdd || 'Add'}
           </button>
           <button
             type="button"
@@ -3908,7 +3837,7 @@ const AddPanel = ({
             className={`desktop-add-panel-segment ${mode === 'convert' ? 'active' : ''}`}
             onClick={() => setMode('convert')}
           >
-            Convert
+            {t.addPanelConvert || 'Convert'}
           </button>
         </div>
         <button type="button" onClick={onClose} aria-label={t.close} className="desktop-add-panel-close"><CloseIcon /></button>
@@ -3918,8 +3847,8 @@ const AddPanel = ({
           {mode === 'add' ? (
             <>
               <div className="desktop-add-panel-copy">
-                <h2 className="desktop-add-panel-title">Add to workspace</h2>
-                <p className="desktop-add-panel-support">Type a note, paste a link, or drop an image</p>
+                <h2 className="desktop-add-panel-title">{t.addPanelTitle || 'Add to workspace'}</h2>
+                <p className="desktop-add-panel-support">{t.addPanelSupport || 'Type a note, paste a link, or drop an image'}</p>
               </div>
               <div
                 className={`desktop-add-panel-surface ${isFileDragActive ? 'drag-active' : ''}`}
@@ -4016,12 +3945,12 @@ const AddPanel = ({
                       onSubmit();
                     }
                   }}
-                  placeholder="Start typing or drop something here..."
+                  placeholder={t.placeholder}
                   className="desktop-add-panel-textarea"
                 />
                 {isFileDragActive ? (
                   <div className="desktop-add-panel-drop-overlay">
-                    Drop PDF, Word, or image to attach
+                    {t.dropToAttach || 'Drop PDF, Word, or image to attach'}
                   </div>
                 ) : null}
               </div>
@@ -4032,16 +3961,16 @@ const AddPanel = ({
                   className="desktop-add-panel-files-button"
                 >
                   <AttachFileIcon />
-                  <span>Files</span>
+                  <span>{t.document || 'Files'}</span>
                 </button>
-                <button type="button" onClick={onSubmit} className="desktop-add-panel-submit-button">Add</button>
+                <button type="button" onClick={onSubmit} className="desktop-add-panel-submit-button">{t.add || 'Add'}</button>
               </div>
             </>
           ) : (
             <>
               <div className="desktop-add-panel-copy">
-                <h2 className="desktop-add-panel-title">Convert to Markdown</h2>
-                <p className="desktop-add-panel-support">Drop a PDF, DOCX, HTML, or TXT-based file to turn it into reusable markdown</p>
+                <h2 className="desktop-add-panel-title">{t.convertPanelTitle || 'Convert to Markdown'}</h2>
+                <p className="desktop-add-panel-support">{t.convertPanelSupport || 'Drop a PDF, DOCX, HTML, or TXT-based file to turn it into reusable markdown'}</p>
               </div>
               <div
                 className={`desktop-convert-panel-dropzone ${isConvertDragActive ? 'drag-active' : ''}`}
@@ -4090,7 +4019,7 @@ const AddPanel = ({
                 </div>
                 <div className="desktop-convert-panel-drop-copy">
                   <div className="desktop-convert-panel-drop-title">
-                    {convertState.selectedFile?.name || 'Click or drag a PDF, DOCX, HTML, or TXT-based file here'}
+                    {convertState.selectedFile?.name || (t.convertPanelSupport || 'Click or drag a PDF, DOCX, HTML, or TXT-based file here')}
                   </div>
                   {convertState.selectedFile ? (
                     <div className="desktop-convert-panel-drop-subtitle">
@@ -4626,32 +4555,69 @@ function App() {
     setSelectedTaskIds([...new Set(nextSelectedTaskIds)]);
   }, []);
 
-  const updateDesktopCanvasZoom = useCallback((nextZoom, anchor = null) => {
+  // Clamp panX/panY so the canvas content is always at least MIN_VISIBLE px
+  // inside the viewport — prevents tasks from floating completely off-screen.
+  const clampViewportPan = useCallback((vp) => {
+    const container = viewportContainerRef.current;
+    if (!container) return vp;
+    const MIN_VISIBLE = 128; // px — minimum overlap required on each axis
+    const cw = container.clientWidth;
+    const ch = container.clientHeight;
+    const contentW = DESKTOP_MAIN_CONTENT_MAX_WIDTH * vp.zoom;
+    // Horizontal: canvas right edge must be at least MIN_VISIBLE from the left;
+    //             canvas left edge must be at most (cw - MIN_VISIBLE) from the left.
+    const minPanX = MIN_VISIBLE - contentW;  // canvas almost entirely right of viewport
+    const maxPanX = cw - MIN_VISIBLE;         // canvas almost entirely left of viewport
+    // Vertical: keep top of canvas reachable (panY should not exceed containerHeight - MIN_VISIBLE).
+    //           Infinite height downward is fine, but don't push top too far down.
+    const minPanY = -(ch * 4);               // generous — allow lots of vertical canvas
+    const maxPanY = ch - MIN_VISIBLE;
+    return {
+      panX: Math.min(maxPanX, Math.max(minPanX, vp.panX)),
+      panY: Math.min(maxPanY, Math.max(minPanY, vp.panY)),
+      zoom: vp.zoom,
+    };
+  }, []);
+
+  // Zoom while anchoring a specific screen point (used for wheel/pinch so the canvas
+  // point under the cursor stays fixed on screen).
+  const updateDesktopCanvasZoomAnchored = useCallback((nextZoom, anchor) => {
     const container = viewportContainerRef.current;
     const current = viewportRef.current;
     const clampedZoom = clampDesktopCanvasScale(Number(nextZoom.toFixed(3)));
     if (!container || Math.abs(clampedZoom - current.zoom) < 0.001) return;
 
     const containerRect = container.getBoundingClientRect();
-    const screenAnchorX = anchor ? anchor.clientX - containerRect.left : container.clientWidth / 2;
-    const screenAnchorY = anchor ? anchor.clientY - containerRect.top : container.clientHeight / 2;
+    const screenAnchorX = anchor.clientX - containerRect.left;
+    const screenAnchorY = anchor.clientY - containerRect.top;
     const { x: canvasAnchorX, y: canvasAnchorY } = screenToCanvas(screenAnchorX, screenAnchorY, current);
     const nextPanX = screenAnchorX - canvasAnchorX * clampedZoom;
     const nextPanY = screenAnchorY - canvasAnchorY * clampedZoom;
-    const nextVp = { panX: nextPanX, panY: nextPanY, zoom: clampedZoom };
+    const nextVp = clampViewportPan({ panX: nextPanX, panY: nextPanY, zoom: clampedZoom });
     viewportRef.current = nextVp;
     setViewport(nextVp);
-  }, []);
+  }, [clampViewportPan]);
+
+  // Zoom without moving pan — tasks stay at the same absolute position on screen.
+  // Used by the zoom menu presets and keyboard shortcuts.
+  const updateDesktopCanvasZoom = useCallback((nextZoom) => {
+    const current = viewportRef.current;
+    const clampedZoom = clampDesktopCanvasScale(Number(nextZoom.toFixed(3)));
+    if (Math.abs(clampedZoom - current.zoom) < 0.001) return;
+    const nextVp = clampViewportPan({ panX: current.panX, panY: current.panY, zoom: clampedZoom });
+    viewportRef.current = nextVp;
+    setViewport(nextVp);
+  }, [clampViewportPan]);
 
   const handleDesktopCanvasWheel = useCallback((event) => {
     if (!(event.ctrlKey || event.metaKey)) return;
     event.preventDefault();
     const direction = event.deltaY > 0 ? -1 : 1;
-    updateDesktopCanvasZoom(
+    updateDesktopCanvasZoomAnchored(
       viewportRef.current.zoom + (direction * DESKTOP_CANVAS_SCALE_STEP),
       { clientX: event.clientX, clientY: event.clientY },
     );
-  }, [updateDesktopCanvasZoom]);
+  }, [updateDesktopCanvasZoomAnchored]);
 
   const handleDesktopCanvasPointerDown = useCallback((event) => {
     if (event.button !== 0 || isEditableElement(event.target)) return;
@@ -4708,10 +4674,10 @@ function App() {
     const dy = event.clientY - desktopCanvasPanStateRef.current.startY;
     const nextPanX = desktopCanvasPanStateRef.current.startPanX + dx;
     const nextPanY = desktopCanvasPanStateRef.current.startPanY + dy;
-    const nextVp = { ...viewportRef.current, panX: nextPanX, panY: nextPanY };
+    const nextVp = clampViewportPan({ ...viewportRef.current, panX: nextPanX, panY: nextPanY });
     viewportRef.current = nextVp;
     setViewport(nextVp);
-  }, [desktopCanvasPanActive, getCanvasPointFromClient, updateDesktopSelectionFromRect]);
+  }, [clampViewportPan, desktopCanvasPanActive, getCanvasPointFromClient, updateDesktopSelectionFromRect]);
 
   const handleDesktopCanvasPointerEnd = useCallback((event) => {
     if (desktopSelectionStateRef.current.pointerId === event.pointerId) {
@@ -4744,7 +4710,7 @@ function App() {
       if ((event.key === 'Delete' || event.key === 'Backspace') && !activeGroupView && !editingTaskId && !panelOpen) {
         if (selectedTaskIdsRef.current.size > 0) {
           event.preventDefault();
-          const summary = getCanvasDeletionSummary(tasksRef.current, [...selectedTaskIdsRef.current]);
+          const summary = getCanvasDeletionSummary(t, tasksRef.current, [...selectedTaskIdsRef.current]);
           if (summary) {
             setPendingCanvasDeletion(summary);
           }
@@ -5403,9 +5369,6 @@ function App() {
                 desktopGroupIcon: null,
                 desktopGroupTags: [],
                 desktopGroupCover: null,
-                desktopGroupActiveDurationType: null,
-                desktopGroupActiveFrom: null,
-                desktopGroupActiveUntil: null,
               } : {};
 
               return normalizeTask({
@@ -5709,22 +5672,15 @@ function App() {
   const desktopVisibilityDiagnostics = useMemo(() => {
     const workspaceTaskCount = currentWorkspaceTasks.length;
     const dateMatchedTasks = currentWorkspaceTasks.filter((task) => task.dateString === selectedDateKey);
-    const activeVisibleTasks = currentWorkspaceTasks.filter((task) => isPackActiveOnDate(task, selectedDateKey));
-    const hiddenByPackDurationTasks = dateMatchedTasks.filter((task) => (
-      !!task.desktopGroupId && !isPackActiveOnDate(task, selectedDateKey)
-    ));
 
     return {
       totalTaskCount: tasks.length,
       workspaceTaskCount,
       dateMatchedCount: dateMatchedTasks.length,
-      activeVisibleCount: activeVisibleTasks.length,
-      hiddenByPackDurationCount: hiddenByPackDurationTasks.length,
       shouldShow: selectedDayEntries.length === 0 && (
         tasks.length > 0
         || workspaceTaskCount > 0
         || dateMatchedTasks.length > 0
-        || hiddenByPackDurationTasks.length > 0
       ),
     };
   }, [currentWorkspaceTasks, selectedDateKey, selectedDayEntries.length, tasks.length]);
@@ -5732,25 +5688,15 @@ function App() {
     selectedDayEntriesRef.current = selectedDayEntries;
   }, [selectedDayEntries]);
   useEffect(() => {
-    if (tasks.length === 0 || selectedDayEntries.length > 0) return;
-
+    if (tasks.length === 0) return;
     if (currentWorkspaceTasks.length === 0) {
       const fallbackTask = tasks[0];
       const fallbackWorkspaceId = getTaskWorkspaceId(fallbackTask);
       if (fallbackWorkspaceId && fallbackWorkspaceId !== activeWorkspaceId) {
         setActiveWorkspaceId(fallbackWorkspaceId);
-        return;
       }
     }
-
-    const recoveryTask = currentWorkspaceTasks[0] || tasks[0];
-    const recoveryDateKey = normalizePackActiveDate(recoveryTask?.desktopGroupActiveFrom)
-      || normalizePackActiveDate(recoveryTask?.dateString);
-    const recoveryDate = parseSharedSelectedDate(recoveryDateKey);
-    if (recoveryDate && dateKey(recoveryDate) !== selectedDateKey) {
-      setSelectedDate(recoveryDate);
-    }
-  }, [activeWorkspaceId, currentWorkspaceTasks, selectedDateKey, selectedDayEntries.length, tasks]);
+  }, [activeWorkspaceId, currentWorkspaceTasks.length, tasks]);
 
   useEffect(() => {
     if (!draggedTaskId || !desktopDragModeRef.current) {
@@ -6692,7 +6638,7 @@ function App() {
                   className="desktop-workspace-name-button"
                   onClick={handleStartWorkspaceRename}
                 >
-                  <span className="desktop-workspace-trigger-label">{activeWorkspace?.name || 'Untitled'}</span>
+                  <span className="desktop-workspace-trigger-label">{activeWorkspace?.name || t.untitledWorkspace}</span>
                 </button>
               )}
               <button
@@ -6713,8 +6659,8 @@ function App() {
               </button>
             </div>
             {workspaceMenuOpen ? (
-              <div className="desktop-workspace-menu" role="menu" aria-label="Workspace menu">
-                <div className="desktop-workspace-menu-header">Switch Workspace</div>
+              <div className="desktop-workspace-menu" role="menu" aria-label={t.workspaceMenu || 'Workspace menu'}>
+                <div className="desktop-workspace-menu-header">{t.switchWorkspace || 'Switch Workspace'}</div>
                 <div className="desktop-workspace-menu-list">
                   {workspaces.map((workspace) => {
                     const isActive = workspace.id === activeWorkspace?.id;
@@ -6738,7 +6684,7 @@ function App() {
                             type="button"
                             className="desktop-workspace-menu-item-more"
                             onClick={(event) => handleWorkspaceActionsToggle(workspace.id, event)}
-                            aria-label={`Workspace actions for ${workspace.name}`}
+                            aria-label={`${t.workspaceActions || 'Workspace actions'} for ${workspace.name}`}
                             aria-expanded={isActionsOpen}
                           >
                             <WorkspaceMoreIcon />
@@ -6751,7 +6697,7 @@ function App() {
                                 onClick={(event) => handleWorkspaceDeleteRequest(workspace, event)}
                                 disabled={workspaces.length <= 1}
                               >
-                                Delete workspace
+                                {t.deleteWorkspace || 'Delete workspace'}
                               </button>
                             </div>
                           ) : null}
@@ -6767,7 +6713,7 @@ function App() {
                   disabled={!canAddWorkspace}
                 >
                   <WorkspacePlusIcon />
-                  <span>Add workspace</span>
+                  <span>{t.addWorkspace || 'Add workspace'}</span>
                 </button>
               </div>
             ) : null}
@@ -6782,7 +6728,7 @@ function App() {
                   setProfileOpen(false);
                 }}
               >
-                Today
+                {t.today}
               </button>
             )}
             <div className="desktop-minimal-date-nav" role="group" aria-label="Date navigation">
@@ -7240,13 +7186,13 @@ function App() {
         />
         <DesktopDeleteConfirmModal
           open={Boolean(pendingCanvasDeletion)}
-          title={pendingCanvasDeletion?.title || 'Delete selected objects?'}
+          title={pendingCanvasDeletion?.title || t.deleteObjectQuestion}
           onCancel={cancelCanvasDeletion}
           onConfirm={confirmCanvasDeletion}
         />
         <DesktopDeleteConfirmModal
           open={Boolean(pendingWorkspaceDeletion)}
-          title={pendingWorkspaceDeletion?.title || 'Delete workspace?'}
+          title={pendingWorkspaceDeletion?.title || t.deleteWorkspace}
           description={pendingWorkspaceDeletion?.description || null}
           onCancel={cancelWorkspaceDeletion}
           onConfirm={confirmWorkspaceDeletion}

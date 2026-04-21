@@ -113,7 +113,7 @@ export const DESKTOP_CANVAS_DEFAULT_ZOOM = 0.8;
 
 export const DESKTOP_CANVAS_MIN_SCALE = 0.15;
 
-export const DESKTOP_CANVAS_MAX_SCALE = 2;
+export const DESKTOP_CANVAS_MAX_SCALE = 1.6;
 
 export const DESKTOP_CANVAS_SCALE_STEP = 0.12;
 

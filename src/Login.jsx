@@ -1,7 +1,12 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { supabase, isSupabaseConfigured, supabaseConfigError } from './supabase';
+import { translations } from './lib/translations';
+import { getInitialLanguage } from './lib/language';
 
 function Login({ onClose }) {
+    const [language] = useState(getInitialLanguage);
+    const t = translations[language] || translations.EN;
+
     const handleGoogleLogin = async () => {
         if (!supabase) return;
         await supabase.auth.signInWithOAuth({
@@ -89,7 +94,7 @@ function Login({ onClose }) {
                         letterSpacing: '-1.5px',
                         marginBottom: 2,
                     }}>
-                        Organize<br />your day
+                        {t.loginOrganizeDay}
                     </div>
 
                     {/* Lighter subtitle with dash */}
@@ -111,7 +116,7 @@ function Login({ onClose }) {
                             fontWeight: '400',
                             color: '#B8B8B8',
                             letterSpacing: '-1px',
-                        }}>with ease</span>
+                        }}>{t.loginWithEase}</span>
                     </div>
                 </div>
             </div>
@@ -176,7 +181,7 @@ function Login({ onClose }) {
                         fontWeight: '500',
                         color: '#1A1A1A',
                         letterSpacing: '-0.2px',
-                    }}>Continue with Google</span>
+                    }}>{t.continueWithGoogle}</span>
                 </button>
             </div>
         </div>
