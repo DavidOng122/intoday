@@ -1339,8 +1339,25 @@ const PACK_EXPORT_SECTION_ORDER = [
   { role: 'Reference', heading: 'Reference' },
 ];
 const PACK_FILTER_ORDER = ['All', 'Context', 'Code', 'Notes', 'Reference'];
-const getPackRoleHeading = (role) => PACK_EXPORT_SECTION_ORDER.find((entry) => entry.role === role)?.heading || role;
-const getPackFilterLabel = (filter) => (filter === 'Code' ? 'Tech' : filter);
+const getPackRoleHeading = (role, labels = {}) => {
+  const roleMap = {
+    Context: labels.contextFilter || 'Context',
+    Code: labels.techFilter || 'Tech',
+    Notes: labels.notesFilter || 'Notes',
+    Reference: labels.referenceFilter || 'Reference',
+  };
+  return roleMap[role] || role;
+};
+const getPackFilterLabel = (filter, labels = {}) => {
+  const filterMap = {
+    All: labels.allFilter || 'All',
+    Context: labels.contextFilter || 'Context',
+    Code: labels.techFilter || 'Tech',
+    Notes: labels.notesFilter || 'Notes',
+    Reference: labels.referenceFilter || 'Reference',
+  };
+  return filterMap[filter] || filter;
+};
 
 const getPackTaskRoles = (task, labels) => {
   const q = (task?.text || '').toLowerCase();
@@ -1699,7 +1716,7 @@ const buildCopyForAIText = (tasks, labels, exportType) => {
     reference: 'Reference',
   };
   const role = roleMap[exportType];
-  const heading = getPackRoleHeading(role);
+  const heading = getPackRoleHeading(role, labels);
   if (!role || !heading) return '';
 
   const sectionBlock = buildPackSectionMarkdown(tasks, labels, role, heading);
@@ -2323,7 +2340,9 @@ const GroupedTaskCard = ({
             onPointerDown={(event) => event.stopPropagation()}
             onClick={(event) => event.preventDefault()}
           >
-            {isExpanded && hiddenTaskCount > 0 ? `Scroll for ${hiddenTaskCount} more` : `+ ${collapsedHiddenTaskCount} more`}
+            {isExpanded && hiddenTaskCount > 0 
+              ? (labels.scrollForMore || 'Scroll for {count} more').replace('{count}', hiddenTaskCount) 
+              : (labels.plusMore || '+ {count} more').replace('{count}', collapsedHiddenTaskCount)}
           </button>
         )}
       </div>
@@ -2336,6 +2355,7 @@ const DesktopPackPageHeader = ({
   onUpdateGroup,
   appearance,
   language,
+  labels = {},
   isSelectMode = false,
   selectedCount = 0,
   onEnterSelectMode,
@@ -2408,7 +2428,7 @@ const DesktopPackPageHeader = ({
               className="desktop-pack-page-inline-action"
               onClick={() => setIsIconPickerOpen((current) => !current)}
             >
-              Add icon
+              {labels.addIcon || 'Add icon'}
             </button>
           )}
           {!groupTags.length && !isTagInputOpen ? (
@@ -2417,7 +2437,7 @@ const DesktopPackPageHeader = ({
               className="desktop-pack-page-inline-action"
               onClick={() => setIsTagInputOpen(true)}
             >
-              Add tag
+              {labels.addTag || 'Add tag'}
             </button>
           ) : null}
         </div>
@@ -2452,7 +2472,7 @@ const DesktopPackPageHeader = ({
                   setIsIconPickerOpen(false);
                 }}
               >
-                Remove icon
+                {labels.removeIcon || 'Remove icon'}
               </button>
             ) : null}
           </div>
@@ -2518,7 +2538,7 @@ const DesktopPackPageHeader = ({
                 }
               }}
               className="desktop-pack-page-tag-input"
-              placeholder="Add tag"
+              placeholder={labels.addTag || 'Add tag'}
               autoFocus
             />
           ) : (
@@ -2527,7 +2547,7 @@ const DesktopPackPageHeader = ({
               className="desktop-pack-page-inline-action is-inline"
               onClick={() => setIsTagInputOpen(true)}
             >
-              Add tag
+              {labels.addTag || 'Add tag'}
             </button>
           )}
         </div>
@@ -2539,10 +2559,10 @@ const DesktopPackPageHeader = ({
             className="desktop-pack-page-selection-action"
             onClick={onExitSelectMode}
           >
-            Cancel
+            {labels.cancel || 'Cancel'}
           </button>
           <div className="desktop-pack-page-selection-count">
-            {selectedCount} selected
+            {(labels.selectionCount || '{count} selected').replace('{count}', selectedCount)}
           </div>
           <button
             type="button"
@@ -2550,7 +2570,7 @@ const DesktopPackPageHeader = ({
             onClick={onDeleteSelected}
             disabled={selectedCount === 0}
           >
-            Delete selected
+            {labels.deleteSelectedCount || 'Delete selected'}
           </button>
         </div>
       ) : null}
@@ -2912,30 +2932,30 @@ const DesktopGroupFullViewModal = ({
     switch (activeFilter) {
       case 'Context':
         return [
-          { id: 'copy-context', label: 'Copy for AI' },
-          { id: 'context', label: 'Export Context' },
+          { id: 'copy-context', label: labels.copyForAI || 'Copy for AI' },
+          { id: 'context', label: labels.exportContext || 'Export Context' },
         ];
       case 'Code':
         return [
-          { id: 'copy-code', label: 'Copy for AI' },
-          { id: 'code', label: 'Export Tech' },
+          { id: 'copy-code', label: labels.copyForAI || 'Copy for AI' },
+          { id: 'code', label: labels.exportTech || 'Export Tech' },
         ];
       case 'Notes':
         return [
-          { id: 'copy-notes', label: 'Copy for AI' },
-          { id: 'notes', label: 'Export Notes' },
+          { id: 'copy-notes', label: labels.copyForAI || 'Copy for AI' },
+          { id: 'notes', label: labels.exportNotes || 'Export Notes' },
         ];
       case 'Reference':
         return [
-          { id: 'copy-reference', label: 'Copy for AI' },
-          { id: 'reference', label: 'Export Reference' },
+          { id: 'copy-reference', label: labels.copyForAI || 'Copy for AI' },
+          { id: 'reference', label: labels.exportReference || 'Export Reference' },
         ];
       case 'All':
       default:
         return [
-          { id: 'copy-for-ai', label: 'Copy for AI' },
-          { id: 'whole-pack', label: 'Export whole pack' },
-          { id: 'pack-bundle', label: 'Export Pack Bundle (.zip)' },
+          { id: 'copy-for-ai', label: labels.copyForAI || 'Copy for AI' },
+          { id: 'whole-pack', label: labels.exportWholePack || 'Export whole pack' },
+          { id: 'pack-bundle', label: labels.exportPackBundle || 'Export Pack Bundle (.zip)' },
         ];
     }
   })();
@@ -2997,6 +3017,7 @@ const DesktopGroupFullViewModal = ({
           onUpdateGroup={onUpdateGroup}
           appearance={appearance}
           language={language}
+          labels={labels}
           isSelectMode={isSelectMode}
           selectedCount={selectedCount}
           onEnterSelectMode={enterSelectMode}
@@ -3019,7 +3040,7 @@ const DesktopGroupFullViewModal = ({
                       setIsExportMenuOpen(false);
                     }}
                   >
-                    {getPackFilterLabel(filter)}
+                    {getPackFilterLabel(filter, labels)}
                   </button>
                 ))}
               </div>
@@ -3031,7 +3052,7 @@ const DesktopGroupFullViewModal = ({
                     onClick={exitSelectMode}
                   >
                     <PackSelectIcon />
-                    <span>Select</span>
+                    <span>{labels.select || 'Select'}</span>
                   </button>
                 ) : (
                   <>
@@ -3054,7 +3075,7 @@ const DesktopGroupFullViewModal = ({
                       onClick={enterSelectMode}
                     >
                       <PackSelectIcon />
-                      <span>Select</span>
+                      <span>{labels.select || 'Select'}</span>
                     </button>
                     <div className="desktop-pack-page-toolbar-menu-anchor" ref={exportMenuRef}>
                       <button
@@ -3065,7 +3086,7 @@ const DesktopGroupFullViewModal = ({
                         onClick={() => setIsExportMenuOpen((current) => !current)}
                       >
                         <PackExportIcon />
-                        <span>Export</span>
+                        <span>{labels.exportPack || 'Export'}</span>
                       </button>
                       {isExportMenuOpen ? (
                         <div className="desktop-pack-page-toolbar-menu" role="menu" aria-label="Export pack">
@@ -3092,7 +3113,7 @@ const DesktopGroupFullViewModal = ({
                 <SearchIcon />
                 <input
                   type="text"
-                  placeholder="Search in pack..."
+                  placeholder={labels.searchInPack || 'Search in pack...'}
                   value={itemSearchQuery}
                   onChange={(e) => setItemSearchQuery(e.target.value)}
                   className="desktop-pack-page-search-input"
@@ -3104,7 +3125,7 @@ const DesktopGroupFullViewModal = ({
           
           <div className="desktop-pack-page-item-list">
             {filteredTasks.length === 0 ? (
-              <div className="desktop-pack-page-empty">No items found</div>
+              <div className="desktop-pack-page-empty">{labels.noItemsFound || 'No items found'}</div>
             ) : (
               filteredTasks.map((task) => (
                 <div
@@ -3171,7 +3192,9 @@ const DesktopGroupFullViewModal = ({
         </div>
         <DesktopDeleteConfirmModal
           open={isDeleteConfirmOpen}
-          title={`Delete ${selectedCount} ${selectedCount === 1 ? 'item' : 'items'} from this pack?`}
+          title={selectedCount === 1 
+            ? (labels.deleteItemQuestion || 'Delete this item?') 
+            : (labels.deleteMultipleItemsQuestion || 'Delete {count} selected items?').replace('{count}', selectedCount)}
           onCancel={() => setIsDeleteConfirmOpen(false)}
           onConfirm={confirmDeleteSelected}
         />
@@ -4489,10 +4512,28 @@ function App() {
     if (!container) return;
     const vw = container.clientWidth;
     const zoom = clampDesktopCanvasScale(Math.min(vw / DESKTOP_MAIN_CONTENT_MAX_WIDTH, DESKTOP_CANVAS_DEFAULT_ZOOM));
-    const nextVp = { panX: 0, panY: 0, zoom };
+    const contentW = DESKTOP_MAIN_CONTENT_MAX_WIDTH * zoom;
+    const nextPanX = vw > contentW ? (vw - contentW) / 2 : 0;
+    const nextVp = { panX: nextPanX, panY: 0, zoom };
     viewportRef.current = nextVp;
     setViewport(nextVp);
   }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+    const attemptFit = () => {
+      if (!isMounted) return;
+      if (viewportContainerRef.current && viewportContainerRef.current.clientWidth > 0) {
+        if (viewportRef.current.panX === 0 && viewportRef.current.panY === 0) {
+          fitDesktopCanvas();
+        }
+      } else {
+        setTimeout(attemptFit, 50);
+      }
+    };
+    attemptFit();
+    return () => { isMounted = false; };
+  }, [fitDesktopCanvas]);
 
   const getCanvasPointFromClient = useCallback((clientX, clientY) => {
     const container = viewportContainerRef.current;
@@ -5970,10 +6011,8 @@ function App() {
     }, 2200);
   };
   const openUploadedFileTask = async (task) => {
-    const storageKey = typeof task?.uploadedFileStorageKey === 'string' && task.uploadedFileStorageKey.trim()
-      ? task.uploadedFileStorageKey
-      : null;
-    const uploadedType = typeof task?.uploadedFileType === 'string' ? task.uploadedFileType : null;
+    const storageKey = task.uploadedFileStorageKey;
+    const uploadedType = String(task.uploadedFileType || '').toLowerCase();
 
     if (uploadedType === 'image' && (task?.photoUrl || task?.photoDataUrl)) {
       setFullscreenImage(task.photoUrl || task.photoDataUrl);
@@ -5983,34 +6022,54 @@ function App() {
     if (!storageKey) {
       return false;
     }
+    
+    // For non-images, open a blank window synchronously before 'await' to bypass popup blockers
+    let newWin = null;
+    if (uploadedType !== 'image') {
+      newWin = window.open('', '_blank');
+      if (newWin) {
+        newWin.document.title = 'Loading...';
+        newWin.document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;color:#666;">Opening file...</div>';
+      }
+    }
 
     try {
       const record = await getUploadedFileRecord(storageKey);
       if (!record?.blob) {
+        if (newWin) newWin.close();
         showToast('File is no longer available on this device');
         return true;
       }
 
-      const objectUrl = URL.createObjectURL(record.blob);
-      window.open(objectUrl, '_blank', 'noopener,noreferrer');
-      window.setTimeout(() => {
-        URL.revokeObjectURL(objectUrl);
-      }, 60_000);
+      if (uploadedType === 'image') {
+        const objectUrl = URL.createObjectURL(record.blob);
+        setFullscreenImage(objectUrl);
+      } else if (newWin) {
+        const objectUrl = URL.createObjectURL(record.blob);
+        newWin.location.href = objectUrl;
+      } else {
+        // Fallback if popup blocker aggressively blocked the synch open
+        const objectUrl = URL.createObjectURL(record.blob);
+        window.open(objectUrl, '_blank');
+      }
       return true;
     } catch (error) {
       console.error('Failed to open uploaded file:', error);
+      if (newWin) newWin.close();
       showToast('Unable to open file');
       return true;
     }
   };
   const handleCanvasFileDragEnter = (event) => {
-    if (!hasImageFiles(event.dataTransfer)) return;
+    // Allow if it's a file drag OR if an internal task is being dragged
+    if (!hasSupportedUploadFiles(event.dataTransfer) && !draggedTaskId) return;
     event.preventDefault();
     canvasFileDragDepthRef.current += 1;
     setIsCanvasFileDragActive(true);
   };
   const handleCanvasFileDragOver = (event) => {
-    if (!hasImageFiles(event.dataTransfer)) return;
+    // Allow if it's a file drag OR if an internal task is being dragged
+    if (!hasSupportedUploadFiles(event.dataTransfer) && !draggedTaskId) return;
     event.preventDefault();
     if (event.dataTransfer) {
       event.dataTransfer.dropEffect = 'copy';
@@ -6020,7 +6079,7 @@ function App() {
     }
   };
   const handleCanvasFileDragLeave = (event) => {
-    if (!hasImageFiles(event.dataTransfer)) return;
+    if (!hasSupportedUploadFiles(event.dataTransfer) && !draggedTaskId) return;
     event.preventDefault();
     canvasFileDragDepthRef.current = Math.max(0, canvasFileDragDepthRef.current - 1);
     if (canvasFileDragDepthRef.current === 0) {
@@ -6028,14 +6087,23 @@ function App() {
     }
   };
   const handleCanvasFileDrop = async (event) => {
-    if (!hasImageFiles(event.dataTransfer)) return;
+    // We only prevent default and proceed if there are files.
+    // If it's an internal task drag (draggedTaskId), we clear the overlay and let internal logic handle it.
+    if (!hasSupportedUploadFiles(event.dataTransfer)) {
+      if (draggedTaskId) {
+        setIsCanvasFileDragActive(false);
+        canvasFileDragDepthRef.current = 0;
+      }
+      return;
+    }
+
     event.preventDefault();
     event.stopPropagation();
     canvasFileDragDepthRef.current = 0;
     setIsCanvasFileDragActive(false);
 
-    const imageFiles = Array.from(event.dataTransfer?.files || []).filter((file) => file.type?.startsWith('image/'));
-    if (!imageFiles.length) return;
+    const supportedFiles = Array.from(event.dataTransfer?.files || []).filter((file) => isSupportedUploadFile(file));
+    if (!supportedFiles.length) return;
 
     const droppedDateKey = selectedDateRef.current ? dateKey(selectedDateRef.current) : selectedDateKey;
     const dropCenter = getCanvasPointFromClient(event.clientX, event.clientY);
@@ -6044,49 +6112,55 @@ function App() {
       : null;
 
     try {
-      const imageTasks = await Promise.all(imageFiles.map(async (file, index) => {
-        const photoFields = await serializeDroppedImageFile(file);
-        const storageKey = createUploadedFileStorageKey(file.name);
+      const serializedAttachments = await Promise.all(supportedFiles.map((file) => serializeUploadAttachment(file)));
+      const operationUpdatedAt = createUpdatedTimestamp();
+      
+      const fileTasks = await Promise.all(serializedAttachments.map(async (attachment, index) => {
+        const storageKey = createUploadedFileStorageKey(attachment.originalFileName);
         await saveUploadedFileBlob({
           storageKey,
-          blob: file,
+          blob: attachment.file,
           metadata: {
-            originalFileName: file.name,
-            mimeType: file.type || getUploadedFileFallbackMimeType('image'),
-            size: Number.isFinite(file.size) ? file.size : 0,
-            uploadedFileType: 'image',
-            createdAt: createUpdatedTimestamp(),
-            updatedAt: createUpdatedTimestamp(),
+            originalFileName: attachment.originalFileName,
+            mimeType: attachment.mimeType,
+            size: attachment.size,
+            uploadedFileType: attachment.uploadKind,
+            createdAt: operationUpdatedAt,
+            updatedAt: operationUpdatedAt,
           },
         });
+        
         const taskId = Date.now() + index + Math.floor(Math.random() * 1000);
-        const title = getDroppedImageTitle(file.name);
+        const isImageAttachment = attachment.uploadKind === 'image';
+        
         return normalizeTask({
           id: taskId,
-          text: title,
-          title,
+          text: attachment.title,
+          title: attachment.title,
           completed: false,
           desktopWorkspaceId: activeWorkspaceId,
           timeOfDay: 'Morning',
           dateString: droppedDateKey,
-          updatedAt: createUpdatedTimestamp(),
-          cardType: CARD_TYPES.PHOTO,
+          updatedAt: operationUpdatedAt,
+          cardType: isImageAttachment ? CARD_TYPES.PHOTO : CARD_TYPES.DOCUMENT,
           primaryUrl: null,
           source: UPLOADED_FILE_SOURCE_LABEL,
           uploadedSourceLabel: UPLOADED_FILE_SOURCE_LABEL,
           uploadedFileStorageKey: storageKey,
-          uploadedFileType: 'image',
-          uploadedOriginalFileName: file.name,
-          uploadedMimeType: file.type || getUploadedFileFallbackMimeType('image'),
-          uploadedFileSize: Number.isFinite(file.size) ? file.size : 0,
-          uploadedCreatedAt: createUpdatedTimestamp(),
-          uploadedUpdatedAt: createUpdatedTimestamp(),
+          uploadedFileType: attachment.uploadKind,
+          uploadedOriginalFileName: attachment.originalFileName,
+          uploadedMimeType: attachment.mimeType,
+          uploadedFileSize: attachment.size,
+          uploadedCreatedAt: attachment.createdAt,
+          uploadedUpdatedAt: operationUpdatedAt,
           extractedText: null,
-          redirectUrl: photoFields.photoDataUrl || null,
-          photoUrl: photoFields.photoDataUrl || null,
-          photoTitle: title,
-          photoFileName: file.name,
-          ...photoFields,
+          redirectUrl: isImageAttachment ? (attachment.previewUrl || attachment.photoDataUrl || null) : null,
+          photoUrl: isImageAttachment ? (attachment.previewUrl || attachment.photoDataUrl || null) : null,
+          photoTitle: isImageAttachment ? attachment.title : null,
+          photoFileName: isImageAttachment ? attachment.originalFileName : null,
+          photoDataUrl: isImageAttachment ? attachment.photoDataUrl : null,
+          photoWidth: isImageAttachment ? attachment.photoWidth : null,
+          photoHeight: isImageAttachment ? attachment.photoHeight : null,
           desktopSlot: null,
           desktopZ: Date.now() + index,
         });
@@ -6094,7 +6168,7 @@ function App() {
 
       setTasks((prev) => {
         let nextTasks = [...prev];
-        imageTasks.forEach((task, index) => {
+        fileTasks.forEach((task, index) => {
           const workspaceTasks = nextTasks.filter((item) => taskBelongsToWorkspace(item, activeWorkspaceId));
           const preferredPosition = dropBasePosition
             ? {
@@ -6120,10 +6194,10 @@ function App() {
         return nextTasks;
       });
 
-      showToast(imageFiles.length === 1 ? 'Photo added' : `${imageFiles.length} photos added`);
+      showToast(supportedFiles.length === 1 ? 'File added' : `${supportedFiles.length} files added`);
     } catch (error) {
-      console.error('Failed to import dropped image files:', error);
-      showToast('Unable to import image');
+      console.error('Failed to import dropped files:', error);
+      showToast('Unable to import files');
     }
   };
   const applyAsyncMetadata = (taskId, cardType, videoUrl, mapUrl, primaryUrl, updatedAt = null) => {
@@ -6794,23 +6868,7 @@ function App() {
             style={{ flex: 1, minWidth: 0, minHeight: 0, position: 'relative', overflow: 'hidden' }}
           >
             <div className="desktop-main-stage-inner" style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', background: 'var(--desktop-main-gradient)' }}>
-              {desktopVisibilityDiagnostics.shouldShow ? (
-                <div
-                  style={{
-                    margin: '14px 18px 0',
-                    padding: '10px 14px',
-                    borderRadius: 14,
-                    border: '1px solid var(--desktop-edit-input-border)',
-                    background: appearance === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.82)',
-                    color: 'var(--desktop-root-text)',
-                    fontSize: 12,
-                    lineHeight: 1.45,
-                    boxShadow: '0 10px 24px rgba(17, 17, 17, 0.06)',
-                  }}
-                >
-                  {`Debug visibility: total ${desktopVisibilityDiagnostics.totalTaskCount}, workspace ${desktopVisibilityDiagnostics.workspaceTaskCount}, date-match ${desktopVisibilityDiagnostics.dateMatchedCount}, visible-today ${desktopVisibilityDiagnostics.activeVisibleCount}, hidden-by-pack-duration ${desktopVisibilityDiagnostics.hiddenByPackDurationCount}.`}
-                </div>
-              ) : null}
+
               <main
                 ref={viewportContainerRef}
                 className={`desktop-canvas-scroll ${desktopCanvasPanReady ? 'is-pan-ready' : ''} ${desktopCanvasPanActive ? 'is-panning' : ''} ${isCanvasFileDragActive ? 'is-file-drag-active' : ''}`}
@@ -6835,7 +6893,7 @@ function App() {
                     width: DESKTOP_MAIN_CONTENT_MAX_WIDTH,
                     transformOrigin: '0 0',
                     transform: `translate(${viewport.panX}px, ${viewport.panY}px) scale(${viewport.zoom})`,
-                    paddingTop: 110,
+                    paddingTop: 180,
                   }}
                 >
                     <DailyTaskList
@@ -6920,7 +6978,7 @@ function App() {
                   ) : null}
                   {isCanvasFileDragActive ? (
                     <div className="desktop-canvas-file-drop-indicator">
-                      <span>Drop image to create a photo card</span>
+                      <span>{draggedTaskId ? 'Drop to place task' : 'Drop file to create card'}</span>
                     </div>
                   ) : null}
                 </div>
