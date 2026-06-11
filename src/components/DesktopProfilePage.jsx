@@ -3,7 +3,21 @@ import { getLanguageLabel, PROFILE_LANGUAGE_OPTIONS } from '../lib/language';
 import { translations } from '../lib/translations';
 import { getUserProfile } from '../userProfile';
 
-const APPEARANCE_OPTIONS = ['light', 'dark'];
+const APPEARANCE_OPTIONS = ['system', 'dark', 'light'];
+
+const SYSTEM_LABELS = {
+  EN: 'System',
+  ZH: '系统',
+  MS: 'Sistem',
+  JA: 'システム',
+  TH: 'ระบบ',
+};
+
+const getAppearanceOptionLabel = (option, language, t) => {
+  if (option === 'system') return SYSTEM_LABELS[language] || SYSTEM_LABELS.EN;
+  if (option === 'dark') return t.dark;
+  return t.light;
+};
 
 const CloseIcon = () => (
   <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -15,6 +29,12 @@ const CloseIcon = () => (
 const ChevronRightIcon = () => (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
     <path d="M9 6L15 12L9 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+
+const CheckIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+    <path d="M20 6L9 17L4 12" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
   </svg>
 );
 
@@ -61,6 +81,7 @@ const SettingsRow = ({
   expanded,
   onClick,
   children,
+  panelClassName = '',
 }) => (
   <div className={`desktop-profile-setting ${expanded ? 'is-expanded' : ''}`}>
     <button type="button" className="desktop-profile-setting-trigger" onClick={onClick}>
@@ -75,7 +96,7 @@ const SettingsRow = ({
         </span>
       </span>
     </button>
-    {expanded ? <div className="desktop-profile-setting-panel">{children}</div> : null}
+    {expanded ? <div className={`desktop-profile-setting-panel ${panelClassName}`.trim()}>{children}</div> : null}
   </div>
 );
 
@@ -86,6 +107,7 @@ function DesktopProfilePage({
   language,
   setLanguage,
   appearance,
+  appearancePreference = appearance,
   setAppearance,
   onSignOut,
 }) {
@@ -176,22 +198,24 @@ function DesktopProfilePage({
             <SettingsRow
               icon={<SunIcon />}
               label={t.appearance}
-              value={appearance === 'dark' ? t.dark : t.light}
+              value={getAppearanceOptionLabel(appearancePreference, language, t)}
               expanded={expandedSection === 'appearance'}
               onClick={() => setExpandedSection((current) => (current === 'appearance' ? null : 'appearance'))}
+              panelClassName="desktop-profile-setting-panel-popover"
             >
-              <div className="desktop-profile-choice-grid desktop-profile-choice-grid-compact">
+              <div className="desktop-profile-appearance-menu">
                 {APPEARANCE_OPTIONS.map((option) => (
                   <button
                     key={option}
                     type="button"
-                    className={`desktop-profile-choice ${appearance === option ? 'is-active' : ''}`}
+                    className={`desktop-profile-appearance-option ${appearancePreference === option ? 'is-active' : ''}`}
                     onClick={() => {
                       setAppearance(option);
                       setExpandedSection(null);
                     }}
                   >
-                    {option === 'dark' ? t.dark : t.light}
+                    <span>{getAppearanceOptionLabel(option, language, t)}</span>
+                    {appearancePreference === option ? <CheckIcon /> : null}
                   </button>
                 ))}
               </div>

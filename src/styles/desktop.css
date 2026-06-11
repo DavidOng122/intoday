@@ -1265,7 +1265,7 @@ body.desktop-task-dragging * {
   border-radius: 19px;
   border: 1px solid var(--desktop-profile-border);
   background: var(--desktop-profile-surface);
-  overflow: hidden;
+  overflow: visible;
 }
 
 .desktop-profile-card-single {
@@ -1274,6 +1274,10 @@ body.desktop-task-dragging * {
 
 .desktop-profile-setting+.desktop-profile-setting {
   border-top: 1px solid var(--desktop-profile-border);
+}
+
+.desktop-profile-setting {
+  position: relative;
 }
 
 .desktop-profile-setting-trigger,
@@ -1343,6 +1347,15 @@ body.desktop-task-dragging * {
   padding: 0 14px 14px;
 }
 
+.desktop-profile-setting-panel-popover {
+  position: absolute;
+  top: calc(100% - 7px);
+  right: 14px;
+  z-index: 40;
+  width: 210px;
+  padding: 0;
+}
+
 .desktop-profile-choice-grid {
   display: flex;
   flex-wrap: wrap;
@@ -1380,6 +1393,49 @@ body.desktop-task-dragging * {
 .desktop-profile-choice.is-active {
   background: var(--desktop-profile-chip-active);
   color: var(--desktop-profile-chip-active-ink);
+}
+
+.desktop-profile-appearance-menu {
+  width: 100%;
+  padding: 11px;
+  border-radius: 18px;
+  border: 1px solid rgba(17, 17, 17, 0.08);
+  background: #ffffff;
+  box-shadow: 0 18px 42px rgba(15, 23, 42, 0.14), 0 1px 0 rgba(255, 255, 255, 0.9) inset;
+  color: #0f1115;
+}
+
+.desktop-profile-appearance-option {
+  width: 100%;
+  min-height: 42px;
+  padding: 0 10px 0 12px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: #0f1115;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  font-size: 0.88rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    background 0.16s ease,
+    color 0.16s ease;
+}
+
+.desktop-profile-appearance-option:hover {
+  background: #f4f4f5;
+}
+
+.desktop-profile-appearance-option.is-active {
+  font-weight: 600;
+}
+
+.desktop-profile-appearance-option svg {
+  flex: 0 0 auto;
+  color: #111111;
 }
 
 .desktop-profile-signout {
