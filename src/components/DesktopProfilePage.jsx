@@ -82,6 +82,7 @@ const SettingsRow = ({
   onClick,
   children,
   panelClassName = '',
+  chevronVariant = 'right',
 }) => (
   <div className={`desktop-profile-setting ${expanded ? 'is-expanded' : ''}`}>
     <button type="button" className="desktop-profile-setting-trigger" onClick={onClick}>
@@ -91,7 +92,7 @@ const SettingsRow = ({
       </span>
       <span className="desktop-profile-setting-end">
         <span className="desktop-profile-setting-value">{value}</span>
-        <span className="desktop-profile-setting-chevron">
+        <span className={`desktop-profile-setting-chevron desktop-profile-setting-chevron-${chevronVariant}`}>
           <ChevronRightIcon />
         </span>
       </span>
@@ -202,6 +203,7 @@ function DesktopProfilePage({
               expanded={expandedSection === 'appearance'}
               onClick={() => setExpandedSection((current) => (current === 'appearance' ? null : 'appearance'))}
               panelClassName="desktop-profile-setting-panel-popover"
+              chevronVariant="down"
             >
               <div className="desktop-profile-appearance-menu">
                 {APPEARANCE_OPTIONS.map((option) => (
