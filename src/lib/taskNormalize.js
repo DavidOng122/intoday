@@ -8,10 +8,18 @@ import { normalizePackIcon, normalizePackCover, normalizePackTags, normalizePack
 
 export const normalizeTask = (task) => {
   const derivedFields = getDerivedTaskFields(task.text || '');
+  const {
+    isDragging,
+    isSelected,
+    dragOverlapTargetId,
+    animatingGroupEntry,
+    isHovered,
+    ...cleanTask
+  } = task;
 
   return {
     ...derivedFields,
-    ...task,
+    ...cleanTask,
     text: task.text || '',
     completed: task.completed ?? false,
     dateString: task.dateString || dateKey(getLogicalToday()),
