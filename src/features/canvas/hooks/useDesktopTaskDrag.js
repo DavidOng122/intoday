@@ -25,12 +25,15 @@ import {
 import { dateKey } from '../../../lib/dateUtils';
 import { normalizeTask } from '../../../lib/taskNormalize';
 
-const clampDesktopCanvasPosition = (position) => ({
+const clampDesktopCanvasPosition = (position, bounds, height = DESKTOP_CANVAS_CARD_HEIGHT) => ({
   x: Math.min(
-    DESKTOP_MAIN_CONTENT_MAX_WIDTH - DESKTOP_CANVAS_CARD_WIDTH,
+    Math.max(0, (bounds?.width || DESKTOP_MAIN_CONTENT_MAX_WIDTH) - DESKTOP_CANVAS_CARD_WIDTH),
     Math.max(0, position.x),
   ),
-  y: Math.max(0, position.y),
+  y: Math.min(
+    Math.max(0, (bounds?.height || DESKTOP_CANVAS_CARD_HEIGHT) - height),
+    Math.max(0, position.y),
+  ),
 });
 const getDesktopDragTaskIds = (task) => (
   Array.isArray(task?.groupTaskIds) && task.groupTaskIds.length > 0
@@ -73,11 +76,15 @@ export const useDesktopTaskDrag = ({
   desktopDragSourceRectRef,
   desktopDragStateRef,
   desktopDragVisualPendingRef,
+  canvasBoundsRef,
   desktopDragVisualRafRef,
   desktopSelectionStateRef,
   getCanvasPointFromClient,
   getDesktopDragAnchorPosition,
   getDragCanvasPointFromClient,
+  closeExternalDragSource,
+  isExternalDragTask,
+  onExternalDrop,
   searchDragSeparateRef,
   selectedDateRef,
   selectedDayEntriesRef,
@@ -260,7 +267,10 @@ const updateDesktopDragOverlapTarget = useCallback((clientX, clientY, taskId) =>
     nextPosition,
   );
 
-  const nextTargetId = overlapResult?.entry?.id || null;
+  const isExternalDrag = isExternalDragTask?.(activePointerTaskRef.current) === true;
+  const nextTargetId = isExternalDrag && overlapResult?.entry?.type !== 'group'
+    ? null
+    : overlapResult?.entry?.id || null;
   const currentTargetId = desktopDragOverlapTargetIdRef.current;
 
   if (nextTargetId === currentTargetId) return;
@@ -289,7 +299,7 @@ const updateDesktopDragOverlapTarget = useCallback((clientX, clientY, taskId) =>
   }
 
   setDesktopDragOverlapTargetId(nextTargetId);
-}, [getDesktopCanvasOverlapEntryFromDom, getDesktopDragAnchorPosition, getDragCanvasPointFromClient]);
+}, [getDesktopCanvasOverlapEntryFromDom, getDesktopDragAnchorPosition, getDragCanvasPointFromClient, isExternalDragTask]);
 
 const flushDesktopDragOverlapUpdate = useCallback(() => {
   desktopDragOverlapRafRef.current = null;
@@ -371,13 +381,10 @@ const scheduleDesktopDragVisualUpdate = useCallback((clientX, clientY, taskId) =
   }
 }, [flushDesktopDragVisualUpdate]);
 
-/* Obsolete edge-zone interaction removed.
-  // Pointer left edge zones — full reset
-*/
-
-
 const startDesktopTaskDrag = useCallback((task) => {
   setHistoryOpen(false); // Ensure modal closes when drag starts
+  const isExternalDrag = isExternalDragTask?.(task) === true;
+  if (isExternalDrag) closeExternalDragSource?.();
 
   const taskId = task.id;
   desktopDragSourceEntryIdRef.current = taskId;
@@ -432,7 +439,7 @@ const startDesktopTaskDrag = useCallback((task) => {
 
   desktopDragOverlaySnapshotRef.current = overlaySnapshot;
   setDesktopDragOverlaySnapshot(overlaySnapshot);
-  setDesktopDragOverlayActive(isDetachedGroupTask);
+  setDesktopDragOverlayActive(isDetachedGroupTask || isExternalDrag);
   desktopDragAnchorSizeRef.current = {
     width: DESKTOP_CANVAS_CARD_WIDTH,
     height: anchorEntry ? getDesktopCanvasEntryHeight(anchorEntry) : DESKTOP_CANVAS_CARD_HEIGHT,
@@ -454,7 +461,7 @@ const startDesktopTaskDrag = useCallback((task) => {
   // Center-locked snap: force a visual sync immediately when drag mode begins.
   syncDesktopDraggedTaskPosition(desktopDragPointerRef.current.x, desktopDragPointerRef.current.y);
   scheduleDesktopDragVisualUpdate(desktopDragPointerRef.current.x, desktopDragPointerRef.current.y, taskId);
-}, [getCanvasPointFromClient, scheduleDesktopDragVisualUpdate, setDesktopDragSourceHidden, setHistoryOpen, syncDesktopDraggedTaskPosition]);
+}, [closeExternalDragSource, getCanvasPointFromClient, isExternalDragTask, scheduleDesktopDragVisualUpdate, setDesktopDragSourceHidden, setHistoryOpen, syncDesktopDraggedTaskPosition]);
 
 const finishDesktopTaskDrag = useCallback((task, pointerTarget, pointerId) => {
   resetDesktopDragState();
@@ -504,18 +511,58 @@ const finishDesktopTaskDrag = useCallback((task, pointerTarget, pointerId) => {
       const minStartX = Math.min(...positionBounds.map((position) => position.x));
       const maxStartX = Math.max(...positionBounds.map((position) => position.x));
       const minStartY = Math.min(...positionBounds.map((position) => position.y));
-      const maxCanvasX = DESKTOP_MAIN_CONTENT_MAX_WIDTH - DESKTOP_CANVAS_CARD_WIDTH;
+      const maxStartY = Math.max(...positionBounds.map((position) => position.y));
+      const maxCanvasX = Math.max(
+        0,
+        (canvasBoundsRef.current?.width || DESKTOP_MAIN_CONTENT_MAX_WIDTH) - DESKTOP_CANVAS_CARD_WIDTH,
+      );
+      const movingHeight = desktopDragAnchorSizeRef.current?.height || DESKTOP_CANVAS_CARD_HEIGHT;
+      const maxCanvasY = Math.max(0, (canvasBoundsRef.current?.height || movingHeight) - movingHeight);
       const clampedDeltaX = Math.min(maxCanvasX - maxStartX, Math.max(-minStartX, rawDeltaX));
-      const clampedDeltaY = Math.max(-minStartY, rawDeltaY);
+      const clampedDeltaY = Math.min(maxCanvasY - maxStartY, Math.max(-minStartY, rawDeltaY));
       const nextPosition = clampDesktopCanvasPosition({
         x: anchorStart.x + clampedDeltaX,
         y: anchorStart.y + clampedDeltaY,
-      });
+      }, canvasBoundsRef.current, movingHeight);
       const deltaX = nextPosition.x - anchorStart.x;
       const deltaY = nextPosition.y - anchorStart.y;
 
-      flushSync(() => {
-        setTasks((prev) => {
+      if (isExternalDragTask?.(task) === true) {
+        const externalMovingTaskIds = new Set([task.id]);
+        const overlapResult = getDesktopCanvasOverlapEntryFromDom(
+          tasksRef.current,
+          externalMovingTaskIds,
+          task.id,
+          nextPosition,
+        );
+        const targetPackId = overlapResult?.entry?.type === 'group' ? overlapResult.entry.id : null;
+        const unresolvedPosition = targetPackId
+          ? nextPosition
+          : getDesktopCanvasResolvedPosition(
+            [...tasksRef.current, task],
+            externalMovingTaskIds,
+            nextPosition,
+          );
+        const resolvedPosition = clampDesktopCanvasPosition(
+          unresolvedPosition,
+          canvasBoundsRef.current,
+          movingHeight,
+        );
+
+        if (typeof onExternalDrop === 'function') {
+          void onExternalDrop({
+            itemId: task.id,
+            packId: targetPackId,
+            position: {
+              x: Number(resolvedPosition.x.toFixed(1)),
+              y: Number(resolvedPosition.y.toFixed(1)),
+              z: Date.now(),
+            },
+          }).catch(() => undefined);
+        }
+      } else {
+        flushSync(() => {
+          setTasks((prev) => {
           const isGroupDrag = !!task.isGroupInitiator;
           const movingTaskIds = new Set(
             desktopDragSelectedTaskIdsRef.current.size > 0
@@ -597,8 +644,9 @@ const finishDesktopTaskDrag = useCallback((task, pointerTarget, pointerId) => {
 
           setPendingGroupPrompt(null);
           return cleanupDesktopGroupMetadata(applyDroppedPosition(prev));
+          });
         });
-      });
+      }
     }
   }
 
@@ -643,7 +691,7 @@ const finishDesktopTaskDrag = useCallback((task, pointerTarget, pointerId) => {
       // Pointer capture may already be released.
     }
   }
-}, [cleanupDesktopGroupMetadata, getDesktopCanvasOverlapEntryFromDom, getDesktopDragAnchorPosition, getDragCanvasPointFromClient, resetDesktopDragState, setDesktopDragSourceHidden, setTasks, suppressNextTaskClick]);
+}, [cleanupDesktopGroupMetadata, getDesktopCanvasOverlapEntryFromDom, getDesktopDragAnchorPosition, getDragCanvasPointFromClient, isExternalDragTask, onExternalDrop, resetDesktopDragState, setDesktopDragSourceHidden, setTasks, suppressNextTaskClick]);
 
 
 const handleTaskPointerDown = useCallback((task, event) => {

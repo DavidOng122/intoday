@@ -23,6 +23,12 @@ export const normalizeTask = (task) => {
     desktopCanvasY: isFiniteCanvasCoordinate(task.desktopCanvasY) ? task.desktopCanvasY : null,
     desktopZ: Number.isFinite(task.desktopZ) ? task.desktopZ : null,
     desktopWorkspaceId: getTaskWorkspaceId(task),
+    desktopWorkspaceDeletedAt: typeof task.desktopWorkspaceDeletedAt === 'string' && task.desktopWorkspaceDeletedAt.trim()
+      ? task.desktopWorkspaceDeletedAt
+      : null,
+    desktopWorkspaceDeletedName: typeof task.desktopWorkspaceDeletedName === 'string' && task.desktopWorkspaceDeletedName.trim()
+      ? task.desktopWorkspaceDeletedName
+      : null,
     desktopGroupId: typeof task.desktopGroupId === 'string' && task.desktopGroupId.trim() ? task.desktopGroupId : null,
     desktopGroupName: typeof task.desktopGroupName === 'string' && task.desktopGroupName.trim() ? task.desktopGroupName : null,
     desktopGroupIcon: normalizePackIcon(task.desktopGroupIcon),

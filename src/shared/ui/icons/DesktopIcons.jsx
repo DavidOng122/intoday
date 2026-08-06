@@ -72,21 +72,6 @@ export const ArrowUpIcon = () => (
   </svg>
 );
 
-export const AttachFileIcon = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="none" aria-hidden="true" style={{ width: 16, height: 16 }}>
-    <path d="M6.75 10.25 11.5 5.5a2.5 2.5 0 1 1 3.54 3.54l-6.1 6.1a3.75 3.75 0 1 1-5.3-5.3l6.36-6.36" stroke="currentColor" strokeWidth="1.55" strokeLinecap="round" strokeLinejoin="round" />
-  </svg>
-);
-
-export const ConvertUploadIcon = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" aria-hidden="true" style={{ width: 22, height: 22 }}>
-    <path d="M12 7.25v7.5" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
-    <path d="m8.75 10.5 3.25-3.25 3.25 3.25" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
-    <path d="M7.25 15.75H6A1.75 1.75 0 0 1 4.25 14V6A1.75 1.75 0 0 1 6 4.25h8.1a1.75 1.75 0 0 1 1.24.51l2.15 2.15c.33.33.51.78.51 1.24V10.5" stroke="currentColor" strokeWidth="1.55" strokeLinecap="round" strokeLinejoin="round" />
-    <path d="M13.5 19.75h4.5" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
-  </svg>
-);
-
 export const HeaderChevronIcon = ({ direction = 'left' }) => (
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="none" style={{ width: 16, height: 16 }}>
     <path
@@ -154,12 +139,6 @@ export const YouTubeGlyphIcon = () => (
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="none" style={{ width: 16, height: 16 }}>
     <rect x="3.25" y="5.75" width="13.5" height="8.5" rx="2.8" stroke="currentColor" strokeWidth="1.35" />
     <path d="M9 8.35L11.95 10L9 11.65V8.35Z" fill="currentColor" />
-  </svg>
-);
-
-export const ZoomChevronIcon = ({ open = false, color = 'currentColor' }) => (
-  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 12 12" fill="none" style={{ width: 12, height: 12, transform: open ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.18s ease' }}>
-    <path d="M3 4.5L6 7.5L9 4.5" stroke={color} strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
   </svg>
 );
 

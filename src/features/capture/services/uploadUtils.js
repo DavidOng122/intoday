@@ -45,28 +45,6 @@ export const getSupportedUploadKind = (file) => {
 
 export const isSupportedUploadFile = (file) => Boolean(getSupportedUploadKind(file));
 
-export const isSupportedConvertFile = (file) => {
-  const mimeType = String(file?.type || '').toLowerCase();
-  const extension = getFileExtension(file?.name || '');
-  return (
-    mimeType === 'application/pdf'
-    || mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-    || mimeType === 'text/plain'
-    || mimeType === 'text/html'
-    || mimeType === 'text/markdown'
-    || mimeType === 'text/csv'
-    || extension === 'pdf'
-    || extension === 'docx'
-    || extension === 'html'
-    || extension === 'htm'
-    || extension === 'txt'
-    || extension === 'md'
-    || extension === 'csv'
-    || extension === 'tsv'
-    || extension === 'xml'
-  );
-};
-
 export const hasImageFiles = (dataTransfer) => {
   const files = Array.from(dataTransfer?.files || []);
   if (files.some((file) => getSupportedUploadKind(file) === 'image' || String(file?.type || '').toLowerCase().startsWith('image/'))) {
@@ -106,23 +84,6 @@ export const hasSupportedUploadFiles = (dataTransfer) => {
 
   const types = Array.from(dataTransfer?.types || []);
   return types.includes('Files');
-};
-
-export const hasSupportedConvertFiles = (dataTransfer) => {
-  const files = Array.from(dataTransfer?.files || []);
-  if (files.some((file) => isSupportedConvertFile(file))) return true;
-
-  const items = Array.from(dataTransfer?.items || []);
-  if (items.some((item) => {
-    if (item.kind !== 'file') return false;
-    const itemType = String(item.type || '').toLowerCase();
-    return (
-      itemType === 'application/pdf'
-      || itemType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-    );
-  })) return true;
-
-  return Array.from(dataTransfer?.types || []).includes('Files');
 };
 
 export const readFileAsDataUrl = (file) => new Promise((resolve, reject) => {

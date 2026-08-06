@@ -8,6 +8,7 @@ import {
   createInboxTask,
   getInboxCount,
   getInboxItems,
+  getInboxTargetPacks,
   getLibraryItems,
   isInboxItem,
   isLibraryItem,
@@ -130,6 +131,29 @@ test('getInboxItems + getLibraryItems: together cover all tasks', () => {
   const inbox = getInboxItems(tasks);
   const library = getLibraryItems(tasks);
   assert.equal(inbox.length + library.length, tasks.length);
+});
+
+test('getInboxTargetPacks: returns unique library packs with item counts', () => {
+  const tasks = [
+    { id: 1, collectionState: 'library', desktopGroupId: 'g2', desktopGroupName: 'Work', desktopGroupIcon: 'W' },
+    { id: 2, collectionState: 'library', desktopGroupId: 'g1', desktopGroupName: 'Ideas' },
+    { id: 3, collectionState: 'library', desktopGroupId: 'g2', desktopGroupName: 'Work' },
+    { id: 4, collectionState: 'library' },
+    { id: 5, collectionState: 'inbox', desktopGroupId: 'ignored', desktopGroupName: 'Ignored' },
+  ];
+
+  assert.deepEqual(getInboxTargetPacks(tasks), [
+    { id: 'g1', name: 'Ideas', icon: null, itemCount: 1 },
+    { id: 'g2', name: 'Work', icon: 'W', itemCount: 2 },
+  ]);
+});
+
+test('getInboxTargetPacks: falls back to task text for an unnamed pack', () => {
+  const tasks = [
+    { id: 1, collectionState: 'library', desktopGroupId: 'g1', text: 'First item' },
+  ];
+
+  assert.equal(getInboxTargetPacks(tasks)[0].name, 'First item');
 });
 
 // ---------------------------------------------------------------------------

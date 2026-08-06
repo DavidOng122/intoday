@@ -5,4 +5,4 @@ export * from '../../../entities/task/taskLayoutConstants';
 
 export const DESKTOP_GROUP_OVERLAP_THRESHOLD = 0.5;
 export const DESKTOP_MAIN_CONTENT_MAX_WIDTH = 1008;
-export const DESKTOP_MAIN_CONTENT_HORIZONTAL_PADDING = 72;
+export const DESKTOP_CANVAS_TOP_PADDING = 110;

@@ -1,9 +1,18 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { RotateCcw } from 'lucide-react';
 import { getLanguageLabel, PROFILE_LANGUAGE_OPTIONS } from '../../../lib/language';
 import { translations } from '../../../lib/translations';
 import { getUserProfile } from '../../../userProfile';
 
 const APPEARANCE_OPTIONS = ['system', 'dark', 'light'];
+
+const RESTORE_COPY = {
+  EN: { label: 'Restore', empty: 'No deleted workspaces', action: 'Restore', limit: 'Maximum 3 active workspaces' },
+  ZH: { label: '恢复', empty: '没有已删除的工作区', action: '恢复', limit: '最多只能有 3 个工作区' },
+  MS: { label: 'Pulihkan', empty: 'Tiada ruang kerja dipadam', action: 'Pulihkan', limit: 'Maksimum 3 ruang kerja aktif' },
+  JA: { label: '復元', empty: '削除されたワークスペースはありません', action: '復元', limit: '有効なワークスペースは最大3つです' },
+  TH: { label: 'กู้คืน', empty: 'ไม่มีเวิร์กสเปซที่ลบ', action: 'กู้คืน', limit: 'มีเวิร์กสเปซที่ใช้งานได้สูงสุด 3 รายการ' },
+};
 
 const SYSTEM_LABELS = {
   EN: 'System',
@@ -110,12 +119,16 @@ function DesktopProfilePage({
   appearance,
   appearancePreference = appearance,
   setAppearance,
+  deletedWorkspaces = [],
+  canRestoreWorkspace = true,
+  onRestoreWorkspace,
   onSignOut,
 }) {
   const [expandedSection, setExpandedSection] = useState(null);
   const contentRef = useRef(null);
   const profile = useMemo(() => getUserProfile(user), [user]);
   const t = translations[language] || translations.EN;
+  const restoreCopy = RESTORE_COPY[language] || RESTORE_COPY.EN;
   const handleClose = useCallback(() => {
     setExpandedSection(null);
     onClose();
@@ -197,6 +210,35 @@ function DesktopProfilePage({
             </SettingsRow>
 
             <SettingsRow
+              icon={<RotateCcw size={18} strokeWidth={1.8} />}
+              label={restoreCopy.label}
+              value={deletedWorkspaces.length > 0 ? String(deletedWorkspaces.length) : ''}
+              expanded={expandedSection === 'restore'}
+              onClick={() => setExpandedSection((current) => (current === 'restore' ? null : 'restore'))}
+            >
+              <div className="desktop-profile-restore-list">
+                {deletedWorkspaces.length === 0 ? (
+                  <div className="desktop-profile-restore-empty">{restoreCopy.empty}</div>
+                ) : deletedWorkspaces.map((workspace) => (
+                  <div key={workspace.id} className="desktop-profile-restore-item">
+                    <span className="desktop-profile-restore-name">{workspace.name || 'Untitled Workspace'}</span>
+                    <button
+                      type="button"
+                      className="desktop-profile-restore-button"
+                      disabled={!canRestoreWorkspace}
+                      onClick={() => onRestoreWorkspace?.(workspace.id)}
+                    >
+                      {restoreCopy.action}
+                    </button>
+                  </div>
+                ))}
+                {!canRestoreWorkspace && deletedWorkspaces.length > 0 ? (
+                  <div className="desktop-profile-restore-limit">{restoreCopy.limit}</div>
+                ) : null}
+              </div>
+            </SettingsRow>
+
+            <SettingsRow
               icon={<SunIcon />}
               label={t.appearance}
               value={getAppearanceOptionLabel(appearancePreference, language, t)}
@@ -249,4 +291,3 @@ function DesktopProfilePage({
 }
 
 export default DesktopProfilePage;
-

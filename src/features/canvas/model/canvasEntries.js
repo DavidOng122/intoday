@@ -2,7 +2,6 @@ import {
   DESKTOP_CANVAS_CARD_GAP,
   DESKTOP_CANVAS_CARD_HEIGHT,
   DESKTOP_CANVAS_CARD_WIDTH,
-  DESKTOP_CANVAS_MIN_HEIGHT,
   DESKTOP_MAIN_CONTENT_MAX_WIDTH,
   DESKTOP_GROUP_OVERLAP_THRESHOLD,
 } from './canvasConstants';
@@ -86,10 +85,19 @@ export const resolveDesktopCanvasEntries = (tasks) => {
   });
 };
 
-export const getDesktopCanvasHeight = (entries) => Math.max(
-  DESKTOP_CANVAS_MIN_HEIGHT,
-  entries.reduce((max, entry) => Math.max(max, entry.y + getDesktopCanvasEntryHeight(entry) + 96), 0),
-);
+export const constrainDesktopCanvasEntries = (entries, bounds) => {
+  const width = Math.max(DESKTOP_CANVAS_CARD_WIDTH, Number(bounds?.width) || DESKTOP_MAIN_CONTENT_MAX_WIDTH);
+  const height = Math.max(DESKTOP_CANVAS_CARD_HEIGHT, Number(bounds?.height) || DESKTOP_CANVAS_CARD_HEIGHT);
+
+  return entries.map((entry) => ({
+    ...entry,
+    x: Math.min(Math.max(0, width - DESKTOP_CANVAS_CARD_WIDTH), Math.max(0, entry.x)),
+    y: Math.min(
+      Math.max(0, height - getDesktopCanvasEntryHeight(entry)),
+      Math.max(0, entry.y),
+    ),
+  }));
+};
 
 export const getNextDesktopCanvasPosition = (tasks) => {
   const entries = resolveDesktopCanvasEntries(tasks);
@@ -179,4 +187,3 @@ export const getDesktopCanvasOverlapEntry = (
 
   return bestMatch ? { entry: bestMatch, ratio: bestRatio } : null;
 };
-

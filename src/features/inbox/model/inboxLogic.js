@@ -55,6 +55,35 @@ export const getInboxCount = (tasks) => tasks.reduce(
   0,
 );
 
+export const getInboxTargetPacks = (tasks) => {
+  const packs = new Map();
+
+  tasks.forEach((task) => {
+    if (!isLibraryItem(task) || !task.desktopGroupId) return;
+
+    const packId = task.desktopGroupId;
+    const storedName = typeof task.desktopGroupName === 'string' ? task.desktopGroupName.trim() : '';
+    const fallbackName = typeof task.text === 'string' ? task.text.trim() : '';
+    const existing = packs.get(packId);
+
+    if (!existing) {
+      packs.set(packId, {
+        id: packId,
+        name: storedName || fallbackName || 'Untitled pack',
+        icon: task.desktopGroupIcon || null,
+        itemCount: 1,
+      });
+      return;
+    }
+
+    existing.itemCount += 1;
+    if (storedName) existing.name = storedName;
+    if (!existing.icon && task.desktopGroupIcon) existing.icon = task.desktopGroupIcon;
+  });
+
+  return [...packs.values()].sort((a, b) => a.name.localeCompare(b.name));
+};
+
 export const createInboxTask = (task) => ({
   ...clearPackFields(task),
   collectionState: COLLECTION_STATES.INBOX,

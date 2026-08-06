@@ -28,7 +28,6 @@ import {
 import DesktopDeleteConfirmModal from '../../../shared/ui/DeleteConfirmModal';
 import {
   CloseIcon,
-  EditIcon,
   GithubGlyphIcon,
   LinkGlobeIcon,
   NotionGlyphIcon,
@@ -414,7 +413,6 @@ const DesktopGroupFullViewModal = ({
   language,
   onClose,
   onTaskOpen,
-  onTaskEdit,
   onDeleteTasks,
   onUpdateGroup,
   onToast,
@@ -1055,18 +1053,6 @@ const DesktopGroupFullViewModal = ({
                       </>
                     );
                   })()}
-                  {!isSelectMode ? (
-                    <div className="desktop-pack-page-item-actions">
-                      <button
-                        type="button"
-                        className="desktop-pack-page-item-action"
-                        aria-label={`Edit ${task.text || 'item'}`}
-                        onClick={() => onTaskEdit?.(task)}
-                      >
-                        <EditIcon />
-                      </button>
-                    </div>
-                  ) : null}
                 </div>
               ))
             )}

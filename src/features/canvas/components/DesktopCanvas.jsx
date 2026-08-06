@@ -8,8 +8,6 @@ const DesktopCanvas = ({
   labels,
   onTaskClick,
   onGroupOpenFullView,
-  onTaskEdit,
-  onTaskDelete,
   onTaskPointerDown,
   onTaskPointerMove,
   onTaskPointerUp,
@@ -67,14 +65,10 @@ const DesktopCanvas = ({
                 isGroupReady={isGroupReady}
                 draggedTaskId={draggedTaskId}
                 onClick={(event) => onTaskClick(entry.task, event)}
-                onEdit={() => onTaskEdit(entry.task)}
-                onDelete={() => onTaskDelete(entry.task)}
                 onPointerDown={(event) => onTaskPointerDown(entry.task, event)}
                 onPointerMove={(event) => onTaskPointerMove(entry.task, event)}
                 onPointerUp={(event) => onTaskPointerUp(entry.task, event)}
                 onPointerCancel={(event) => onTaskPointerCancel(entry.task, event)}
-                editLabel={labels.edit}
-                deleteLabel={labels.delete}
               />
             )}
           </div>

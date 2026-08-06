@@ -1,6 +1,8 @@
 // Public API for the inbox feature.
-// All external consumers must import from this file only —
-// never import directly from inbox/model/ or inbox/components/.
+// External consumers must import from this file rather than its internal folders.
+
+export { default as InboxPanel } from './components/InboxPanel';
+export { useInboxPanel } from './hooks/useInboxPanel';
 
 export {
   COLLECTION_STATES,
@@ -13,6 +15,7 @@ export {
   getInboxItems,
   getLibraryItems,
   getInboxCount,
+  getInboxTargetPacks,
   createInboxTask,
   placeInboxItem,
   moveInboxItemToPack,

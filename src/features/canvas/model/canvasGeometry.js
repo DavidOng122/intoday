@@ -6,11 +6,6 @@ import {
   DESKTOP_GROUP_OVERLAP_THRESHOLD,
 } from './canvasConstants';
 
-export const screenToCanvas = (screenX, screenY, viewport) => ({
-  x: (screenX - viewport.panX) / viewport.zoom,
-  y: (screenY - viewport.panY) / viewport.zoom,
-});
-
 export const doDesktopRectsIntersect = (first, second) => !(
   first.x + first.width < second.x
   || second.x + second.width < first.x
@@ -53,4 +48,3 @@ export const isDesktopCanvasPointInsideRect = (point, rect) => (
   && point.y >= rect.y
   && point.y <= rect.y + rect.height
 );
-

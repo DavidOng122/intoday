@@ -1,53 +1,34 @@
-import { useCallback, useEffect } from 'react';
+import { useCallback } from 'react';
 import { trackUserEvent } from '../lib/analytics';
 import { createUpdatedTimestamp } from '../features/pack';
 import { normalizeTask } from '../lib/taskNormalize';
 import {
   CARD_TYPES,
-  getDerivedTaskFields,
   getTaskCardPresentation,
   normalizeCardType,
 } from '../taskCardUtils';
 
 export const useDesktopTaskActions = ({
   activeWorkspace,
-  applyAsyncMetadata,
   areTaskIdSelectionsEqual,
   cleanupDesktopGroupMetadata,
   defaultWorkspaceId,
-  editCopyResetTimerRef,
-  editingTaskId,
-  editText,
   openUploadedFileTask,
   pendingCanvasDeletion,
   selectedTaskIdsRef,
   setActiveWorkspace,
-  setEditCopied,
-  setEditingTaskId,
-  setEditText,
   setFullscreenImage,
   setIsWorkspaceNameEditing,
-  setPanelOpen,
   setPendingCanvasDeletion,
-  setProfileOpen,
   setSelectedTaskIds,
   setTasks,
   setWorkspaceNameDraft,
   suppressAllTaskClicksUntilRef,
   suppressTaskClickRef,
   t,
-  tasks,
   user,
   workspaceNameDraft,
 }) => {
-  const editingTask = editingTaskId ? tasks.find((task) => task.id === editingTaskId) || null : null;
-  const canSaveEdit = editText.trim().length > 0;
-  
-  const handleTaskEdit = useCallback((task) => {
-    setEditingTaskId(task.id);
-    setEditText(task.text);
-  }, [setEditingTaskId, setEditText]);
-
   const deleteTasksByIds = useCallback((taskIds) => {
     if (!Array.isArray(taskIds) || taskIds.length === 0) return;
     const taskIdSet = new Set(taskIds);
@@ -70,10 +51,6 @@ export const useDesktopTaskActions = ({
     setSelectedTaskIds((current) => current.filter((taskId) => !taskIdSet.has(taskId)));
   }, [setTasks, cleanupDesktopGroupMetadata, setSelectedTaskIds]);
 
-  const handleTaskDelete = useCallback((task) => {
-    deleteTasksByIds([task.id]);
-  }, [deleteTasksByIds]);
-
   const confirmCanvasDeletion = useCallback(() => {
     if (!pendingCanvasDeletion?.taskIds?.length) {
       setPendingCanvasDeletion(null);
@@ -86,76 +63,6 @@ export const useDesktopTaskActions = ({
   const cancelCanvasDeletion = useCallback(() => {
     setPendingCanvasDeletion(null);
   }, [setPendingCanvasDeletion]);
-
-  const closeEditModal = useCallback(() => {
-    setEditingTaskId(null);
-    setEditText('');
-    setEditCopied(false);
-    if (editCopyResetTimerRef.current !== null) {
-      window.clearTimeout(editCopyResetTimerRef.current);
-      editCopyResetTimerRef.current = null;
-    }
-  }, [setEditingTaskId, setEditText, setEditCopied, editCopyResetTimerRef]);
-
-  const handleEditCopy = useCallback(async () => {
-    const nextText = editText.trim();
-    if (!nextText) return;
-
-    try {
-      await navigator.clipboard.writeText(editText);
-      setEditCopied(true);
-      if (editCopyResetTimerRef.current !== null) {
-        window.clearTimeout(editCopyResetTimerRef.current);
-      }
-      editCopyResetTimerRef.current = window.setTimeout(() => {
-        setEditCopied(false);
-        editCopyResetTimerRef.current = null;
-      }, 1400);
-    } catch {
-      // Ignore clipboard failures so editing is unaffected.
-    }
-  }, [editText, setEditCopied, editCopyResetTimerRef]);
-
-  useEffect(() => {
-    if (editingTaskId && !editingTask) {
-      closeEditModal();
-    }
-  }, [closeEditModal, editingTask, editingTaskId]);
-
-  useEffect(() => {
-    if (!editingTaskId) return undefined;
-
-    const handleKeyDown = (event) => {
-      if (event.key === 'Escape') {
-        closeEditModal();
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [closeEditModal, editingTaskId]);
-
-  const openTaskEditor = useCallback((task) => {
-    setProfileOpen(false);
-    setPanelOpen(false);
-    setEditingTaskId(task.id);
-    setEditText(task.text || '');
-  }, [setProfileOpen, setPanelOpen, setEditingTaskId, setEditText]);
-
-  const handleEditSave = () => {
-    const rawText = editText.trim();
-    if (!editingTask || !rawText) return;
-
-    const typeFields = getDerivedTaskFields(rawText);
-    const operationUpdatedAt = createUpdatedTimestamp();
-    setTasks((prev) => prev.map((task) => (
-      task.id === editingTask.id
-        ? normalizeTask({ ...task, text: rawText, updatedAt: operationUpdatedAt, ...typeFields })
-        : task
-    )));
-    applyAsyncMetadata(editingTask.id, typeFields.cardType, typeFields.videoUrl, typeFields.mapUrl, typeFields.primaryUrl, operationUpdatedAt);
-    closeEditModal();
-  };
 
   const updateCanvasSelection = useCallback((taskIds, event, openAction) => {
     const normalizedTaskIds = [...new Set(taskIds)];
@@ -218,7 +125,6 @@ export const useDesktopTaskActions = ({
         return;
       }
 
-      openTaskEditor(task);
     };
 
     if (!event) {
@@ -227,7 +133,7 @@ export const useDesktopTaskActions = ({
     }
 
     updateCanvasSelection([task.id], event, openTaskFromCanvas);
-  }, [suppressAllTaskClicksUntilRef, suppressTaskClickRef, t, user, openUploadedFileTask, setFullscreenImage, openTaskEditor, updateCanvasSelection]);
+  }, [suppressAllTaskClicksUntilRef, suppressTaskClickRef, t, user, openUploadedFileTask, setFullscreenImage, updateCanvasSelection]);
 
   const handleStartWorkspaceRename = () => {
     setWorkspaceNameDraft(activeWorkspace?.name || 'Untitled');
@@ -248,17 +154,9 @@ export const useDesktopTaskActions = ({
   
 
   return {
-    editingTask,
-    canSaveEdit,
     deleteTasksByIds,
-    handleTaskDelete,
-    handleTaskEdit,
     confirmCanvasDeletion,
     cancelCanvasDeletion,
-    closeEditModal,
-    handleEditCopy,
-    openTaskEditor,
-    handleEditSave,
     handleTaskClick,
     handleStartWorkspaceRename,
     handleCommitWorkspaceRename,

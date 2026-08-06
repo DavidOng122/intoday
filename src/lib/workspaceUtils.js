@@ -1,10 +1,16 @@
-import { DEFAULT_DESKTOP_WORKSPACES, LEGACY_SAMPLE_WORKSPACE_IDS, DEFAULT_DESKTOP_WORKSPACE_ID } from '../shared/config/workspaceConstants';
+import {
+  DEFAULT_DESKTOP_WORKSPACES,
+  LEGACY_SAMPLE_WORKSPACE_IDS,
+  DEFAULT_DESKTOP_WORKSPACE_ID,
+  MAX_DESKTOP_WORKSPACES,
+} from '../shared/config/workspaceConstants.js';
 
 export const normalizeDesktopWorkspaces = (value) => {
   if (!Array.isArray(value) || !value.length) return getDefaultDesktopWorkspaces();
   const normalized = value
     .filter((workspace) => workspace && !LEGACY_SAMPLE_WORKSPACE_IDS.has(workspace.id))
     .filter((workspace) => workspace && typeof workspace.id === 'string' && typeof workspace.name === 'string')
+    .slice(0, MAX_DESKTOP_WORKSPACES)
     .map((workspace, index) => ({
       id: workspace.id,
       name: workspace.name.trim() || getUntitledWorkspaceName(index + 1),
@@ -22,7 +28,9 @@ export const getTaskWorkspaceId = (task) => (
     : DEFAULT_DESKTOP_WORKSPACE_ID
 );
 
-export const taskBelongsToWorkspace = (task, workspaceId) => getTaskWorkspaceId(task) === workspaceId;
+export const taskBelongsToWorkspace = (task, workspaceId) => (
+  !task?.desktopWorkspaceDeletedAt && getTaskWorkspaceId(task) === workspaceId
+);
 
 export const getDefaultDesktopWorkspaces = () => DEFAULT_DESKTOP_WORKSPACES.map((workspace) => ({ ...workspace }));
 

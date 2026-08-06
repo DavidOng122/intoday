@@ -9,37 +9,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 // ---------------------------------------------------------------------------
-// screenToCanvas — pure formula
 // ---------------------------------------------------------------------------
-
-const screenToCanvas = (screenX, screenY, viewport) => ({
-  x: (screenX - viewport.panX) / viewport.zoom,
-  y: (screenY - viewport.panY) / viewport.zoom,
-});
-
-test('screenToCanvas: identity viewport', () => {
-  const r = screenToCanvas(100, 200, { zoom: 1, panX: 0, panY: 0 });
-  assert.equal(r.x, 100);
-  assert.equal(r.y, 200);
-});
-
-test('screenToCanvas: pan offset', () => {
-  const r = screenToCanvas(150, 250, { zoom: 1, panX: 50, panY: 50 });
-  assert.equal(r.x, 100);
-  assert.equal(r.y, 200);
-});
-
-test('screenToCanvas: zoom only', () => {
-  const r = screenToCanvas(200, 400, { zoom: 2, panX: 0, panY: 0 });
-  assert.equal(r.x, 100);
-  assert.equal(r.y, 200);
-});
-
-test('screenToCanvas: pan + zoom together', () => {
-  const r = screenToCanvas(300, 500, { zoom: 2, panX: 100, panY: 100 });
-  assert.equal(r.x, 100);
-  assert.equal(r.y, 200);
-});
 
 // ---------------------------------------------------------------------------
 // doDesktopRectsIntersect

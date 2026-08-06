@@ -119,7 +119,7 @@ export const fetchVideoMeta = async (url) => {
             }
           }
         }
-      } catch (_proxyError) {
+      } catch {
         // Silently catch proxy errors and fallback to direct
       }
 
@@ -206,7 +206,7 @@ export const fetchSpotifyMeta = async (url) => {
         };
       }
     }
-  } catch (_error) {
+  } catch {
     // 静默失败
   }
 
@@ -282,7 +282,7 @@ export const fetchMapMeta = async (url) => {
             }
           }
         }
-      } catch (_err) {
+      } catch {
         // Fetch to local /api failed, fallback to allorigins to follow redirect
       }
       
@@ -306,7 +306,7 @@ export const fetchMapMeta = async (url) => {
                }
              }
            }
-         } catch (_err) {
+         } catch {
            // Ignore
          }
       }
@@ -386,6 +386,7 @@ export const fetchLinkPreviewMeta = async (url) => {
       if (data) {
         return {
           linkTitle: data.title || null,
+          linkImage: data.image || null,
           mapTitle: data.mapTitle || null,
           resolvedUrl: data.resolvedUrl || null,
           aiPlatform: data.platform || null,
@@ -399,6 +400,7 @@ export const fetchLinkPreviewMeta = async (url) => {
   }
   return { 
     linkTitle: null, 
+    linkImage: null,
     mapTitle: null, 
     resolvedUrl: null, 
     aiPlatform: null, 
@@ -439,7 +441,7 @@ export const getTaskCardPresentation = (
     try {
       const parsedUrl = new URL(redirectUrl);
       faviconUrl = `https://www.google.com/s2/favicons?domain=${parsedUrl.hostname}&sz=128`;
-    } catch (_e) {
+    } catch {
       // invalid url, ignore
     }
   }

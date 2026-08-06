@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { PenLine, Trash2 } from 'lucide-react';
 import { OpenFullViewIcon } from '../../../shared/ui/icons/DesktopIcons';
 
 import { getTaskCardPresentation, normalizeCardType, CARD_TYPES } from '../../../entities/task/model/taskCardPresentation';
@@ -169,17 +168,13 @@ const TaskCard = (props) => {
     task,
     appearance,
     onClick,
-    onEdit,
-    onDelete,
     onPointerDown,
     onPointerMove,
     onPointerUp,
-      onPointerCancel,
-      isDragging,
-      isSelected,
-      editLabel,
-      deleteLabel,
-    } = props;
+    onPointerCancel,
+    isDragging,
+    isSelected,
+  } = props;
   const taskCardLabels = props?.labels;
 
   const isPast = task.dateString < dateKey(getLogicalToday());
@@ -224,40 +219,6 @@ const TaskCard = (props) => {
           onDragStart={(e) => e.preventDefault()}
         />
       </button>
-      <div className="desktop-task-actions">
-        <button
-          type="button"
-          className="desktop-task-action-button desktop-task-edit-button"
-          aria-label={editLabel}
-          onMouseDown={(event) => event.stopPropagation()}
-          onPointerDown={(event) => event.stopPropagation()}
-          onPointerDownCapture={(event) => event.stopPropagation()}
-          onPointerUp={(event) => event.stopPropagation()}
-          onPointerUpCapture={(event) => event.stopPropagation()}
-          onClick={(event) => {
-            event.stopPropagation();
-            onEdit?.(task);
-          }}
-        >
-          <PenLine size={14} strokeWidth={2.2} />
-        </button>
-        <button
-          type="button"
-          className="desktop-task-action-button desktop-task-delete-button"
-          aria-label={deleteLabel}
-          onMouseDown={(event) => event.stopPropagation()}
-          onPointerDown={(event) => event.stopPropagation()}
-          onPointerDownCapture={(event) => event.stopPropagation()}
-          onPointerUp={(event) => event.stopPropagation()}
-          onPointerUpCapture={(event) => event.stopPropagation()}
-          onClick={(event) => {
-            event.stopPropagation();
-            onDelete?.(task);
-          }}
-        >
-          <Trash2 size={14} strokeWidth={2.2} />
-        </button>
-      </div>
     </div>
   );
 };

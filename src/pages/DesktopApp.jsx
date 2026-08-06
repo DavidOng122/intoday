@@ -1,25 +1,36 @@
 /* eslint-disable react-hooks/set-state-in-effect */
-import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { X } from 'lucide-react';
 import DesktopLogin from '../DesktopLogin';
 import { useSyncedTodos } from '../todoSync';
 import { DesktopProfilePage, useDesktopSession } from '../features/session';
 import { DesktopSearchModal, useDesktopSearch } from '../features/search';
-import IntoDayLogo from '../components/IntoDayLogo';
+import {
+  getInboxCount,
+  getInboxItems,
+  getInboxTargetPacks,
+  getLibraryItems,
+  InboxPanel,
+  createInboxTask,
+  isInboxItem,
+  moveInboxItemToPack,
+  placeInboxItem,
+  useInboxPanel,
+} from '../features/inbox';
 import DesktopDeleteConfirmModal from '../components/desktop/DesktopDeleteConfirmModal';
 import { DesktopCanvas } from '../features/canvas';
-import { AddPanel, useDesktopCapture } from '../features/capture';
+import { useDesktopCapture } from '../features/capture';
+import { WorkspaceMenu, useDesktopWorkspaces } from '../features/workspace';
 import { GroupedTaskCard, TaskCard } from '../features/canvas';
 import {
   PackFullView,
   PackPrompt,
   cleanupDesktopGroupMetadata,
+  createUpdatedTimestamp,
   usePackActions,
 } from '../features/pack';
 import {
-  CloseIcon,
-  PlusIcon,
-  ZoomChevronIcon,
+  WorkspaceChevronIcon,
 } from '../components/icons/DesktopIcons';
 import { getLogicalToday } from '../lib/dateHelpers';
 import { getPackMetadataTextFromItems } from '../features/pack';
@@ -31,6 +42,7 @@ import {
 } from '../features/pack';
 import {
   CARD_TYPES,
+  getDerivedTaskFields,
   getTaskCardPresentation,
   normalizeCardType,
 } from '../taskCardUtils';
@@ -39,102 +51,23 @@ import { useDesktopViewport } from '../features/canvas';
 import { useDesktopTaskDrag } from '../features/canvas';
 import { useDesktopTaskActions } from '../hooks/useDesktopTaskActions';
 import { normalizeTask } from '../lib/taskNormalize';
+import { taskBelongsToWorkspace } from '../lib/workspaceUtils';
 import {
   DESKTOP_APP_WINDOW_SCALE,
-  DESKTOP_BASE_SLOT_COUNT,
   DESKTOP_CANVAS_CARD_GAP,
   DESKTOP_CANVAS_CARD_HEIGHT,
   DESKTOP_CANVAS_CARD_WIDTH,
-  DESKTOP_CANVAS_DEFAULT_ZOOM,
-  DESKTOP_CANVAS_MIN_HEIGHT,
-  DESKTOP_MAIN_CONTENT_HORIZONTAL_PADDING,
-  DESKTOP_MAIN_CONTENT_MAX_WIDTH,
+  DESKTOP_CANVAS_TOP_PADDING,
   DESKTOP_PHOTO_CARD_HEIGHT,
 } from '../features/canvas';
 import { UPLOADED_FILE_SOURCE_LABEL } from '../features/capture/config/uploadConstants';
-import { getLibraryItems } from '../lib/inboxLogic';
-import { getDesktopCanvasHeight, resolveDesktopCanvasEntries } from '../features/canvas';
+import { constrainDesktopCanvasEntries, resolveDesktopCanvasEntries } from '../features/canvas';
 
-const DESKTOP_WORKSPACES_KEY = 'desktop_workspace_items';
-const DESKTOP_ACTIVE_WORKSPACE_KEY = 'desktop_active_workspace';
-const DEFAULT_DESKTOP_WORKSPACE_ID = 'workspace-untitled';
-const LEGACY_SAMPLE_WORKSPACE_IDS = new Set(['workspace-personal-projects', 'workspace-work-setup']);
-const DEFAULT_DESKTOP_WORKSPACES = [
-  {
-    id: DEFAULT_DESKTOP_WORKSPACE_ID,
-    name: 'Untitled',
-    iconType: 'dot',
-  },
-];
 const INBOX_FEATURE_ENABLED = import.meta.env.VITE_INBOX_ENABLED === 'true';
 // Root-level app window scale (OS density scaling) — unrelated to canvas zoom.
 // The entire desktop app wrapper is scaled down to 0.8 so the UI fits a typical
 // consumer monitor pixel density. Drag overlay positions must compensate for this.
-const isValidDesktopSlot = (value) => Number.isInteger(value) && value >= 0;
-const getDesktopSlotCapacity = (tasks) => {
-  const preferredSlotCount = tasks.reduce((max, task) => (
-    isValidDesktopSlot(task.desktopSlot) ? Math.max(max, task.desktopSlot + 1) : max
-  ), 0);
-  const itemCount = Math.max(tasks.length, preferredSlotCount);
-  return Math.max(
-    DESKTOP_BASE_SLOT_COUNT,
-    itemCount <= DESKTOP_BASE_SLOT_COUNT ? DESKTOP_BASE_SLOT_COUNT : Math.ceil(itemCount / 2) * 2,
-  );
-};
-const resolveDesktopSectionSlots = (tasks) => {
-  const slots = Array.from({ length: getDesktopSlotCapacity(tasks) }, () => null);
-  const orderedTasks = tasks
-    .map((task, index) => ({
-      task,
-      index,
-      preferredSlot: isValidDesktopSlot(task.desktopSlot) ? task.desktopSlot : null,
-    }))
-    .sort((a, b) => {
-      const aHasSlot = a.preferredSlot !== null;
-      const bHasSlot = b.preferredSlot !== null;
-      if (aHasSlot && bHasSlot) {
-        return a.preferredSlot - b.preferredSlot || a.index - b.index;
-      }
-      if (aHasSlot) return -1;
-      if (bHasSlot) return 1;
-      return a.index - b.index;
-    });
-
-  orderedTasks.forEach(({ task, preferredSlot }) => {
-    let slot = preferredSlot;
-    if (slot === null || slots[slot]) {
-      slot = slots.findIndex((entry) => entry === null);
-    }
-    slots[slot] = normalizeTask({ ...task, desktopSlot: slot });
-  });
-
-  return { slots };
-};
-const getFirstAvailableDesktopSlot = (tasks, dateString, timeOfDay) => {
-  const { slots } = resolveDesktopSectionSlots(
-    tasks.filter((task) => task.dateString === dateString && task.timeOfDay === timeOfDay),
-  );
-  const index = slots.findIndex((task) => task === null);
-  return index === -1 ? null : index;
-};
 const dateKey = (date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-const getDefaultDesktopWorkspaces = () => DEFAULT_DESKTOP_WORKSPACES.map((workspace) => ({ ...workspace }));
-const getUntitledWorkspaceName = (index) => (index <= 1 ? 'Untitled' : `Untitled ${index}`);
-const normalizeDesktopWorkspaces = (value) => {
-  if (!Array.isArray(value) || !value.length) return getDefaultDesktopWorkspaces();
-  const normalized = value
-    .filter((workspace) => workspace && !LEGACY_SAMPLE_WORKSPACE_IDS.has(workspace.id))
-    .filter((workspace) => workspace && typeof workspace.id === 'string' && typeof workspace.name === 'string')
-    .map((workspace, index) => ({
-      id: workspace.id,
-      name: workspace.name.trim() || getUntitledWorkspaceName(index + 1),
-      iconType: workspace.iconType === 'letter' ? 'letter' : 'dot',
-      iconLetter: typeof workspace.iconLetter === 'string' ? workspace.iconLetter.slice(0, 1).toUpperCase() : null,
-      iconBackground: typeof workspace.iconBackground === 'string' ? workspace.iconBackground : null,
-      iconColor: typeof workspace.iconColor === 'string' ? workspace.iconColor : null,
-    }));
-  return normalized.length ? normalized : getDefaultDesktopWorkspaces();
-};
 const areTaskIdSelectionsEqual = (currentIds, nextIds) => (
   currentIds.length === nextIds.length && nextIds.every((taskId) => currentIds.includes(taskId))
 );
@@ -217,13 +150,6 @@ const getDesktopGroupChips = (tasks) => {
   }
   return [formatDesktopGroupChipLabel(uniqueTypes[0])];
 };
-const currentSection = (date = new Date()) => {
-  const hour = date.getHours();
-  if (hour >= 6 && hour < 12) return 'morning';
-  if (hour >= 12 && hour < 18) return 'afternoon';
-  if (hour >= 18 && hour < 22) return 'evening';
-  return 'night';
-};
 const GlobalStyles = ({ appearance }) => {
   useEffect(() => {
     const link = document.createElement('link');
@@ -247,55 +173,6 @@ const GlobalStyles = ({ appearance }) => {
   }, [appearance]);
   return null;
 };
-
-const DesktopZoomControl = ({
-  zoomScale,
-  isZoomMenuOpen,
-  onToggleZoomMenu,
-  onZoomPresetSelect,
-}) => (
-  <div className="desktop-zoom-menu-anchor">
-    <button
-      type="button"
-      className={`desktop-zoom-trigger ${isZoomMenuOpen ? 'is-open' : ''}`}
-      onClick={onToggleZoomMenu}
-      aria-haspopup="menu"
-      aria-expanded={isZoomMenuOpen}
-    >
-      <span>{Math.round(zoomScale * 100)}%</span>
-      <ZoomChevronIcon open={isZoomMenuOpen} color={isZoomMenuOpen ? '#0B72E7' : '#171717'} />
-    </button>
-    {isZoomMenuOpen ? (
-      <div className="desktop-zoom-menu" role="menu" aria-label="Zoom menu">
-        <div className="desktop-zoom-menu-input">{Math.round(zoomScale * 100)}%</div>
-        <div className="desktop-zoom-menu-list">
-          <button type="button" className="desktop-zoom-menu-item" onClick={() => onZoomPresetSelect('in')}>
-            <span>Zoom in</span>
-            <span>+</span>
-          </button>
-          <button type="button" className="desktop-zoom-menu-item" onClick={() => onZoomPresetSelect('out')}>
-            <span>Zoom out</span>
-            <span>-</span>
-          </button>
-          <button type="button" className="desktop-zoom-menu-item" onClick={() => onZoomPresetSelect('fit')}>
-            <span>Zoom to fit</span>
-            <span>Shift+1</span>
-          </button>
-          <button type="button" className="desktop-zoom-menu-item" onClick={() => onZoomPresetSelect(0.5)}>
-            <span>Zoom to 50%</span>
-          </button>
-          <button type="button" className="desktop-zoom-menu-item" onClick={() => onZoomPresetSelect(1)}>
-            <span>Zoom to 100%</span>
-            <span>0</span>
-          </button>
-          <button type="button" className="desktop-zoom-menu-item" onClick={() => onZoomPresetSelect(1.6)}>
-            <span>Zoom to 160%</span>
-          </button>
-        </div>
-      </div>
-    ) : null}
-  </div>
-);
 
 const GroupDragPreview = ({ tasks, appearance, labels }) => {
   const groupTitle = getDesktopGroupDisplayName(tasks);
@@ -364,25 +241,22 @@ function App() {
     userProfile,
   } = useDesktopSession();
   const selectedDate = getLogicalToday();
-  const [activeWorkspace, setActiveWorkspace] = useState(() => {
-    try {
-      return normalizeDesktopWorkspaces(JSON.parse(localStorage.getItem(DESKTOP_WORKSPACES_KEY) || 'null'))[0];
-    } catch {
-      return getDefaultDesktopWorkspaces()[0];
-    }
-  });
-  const activeWorkspaceId = DEFAULT_DESKTOP_WORKSPACE_ID;
+  const {
+    activeWorkspace,
+    activeWorkspaceId,
+    addWorkspace,
+    canAddWorkspace,
+    deleteWorkspace,
+    deletedWorkspaces,
+    restoreWorkspace,
+    selectWorkspace,
+    setActiveWorkspace,
+    workspaces,
+  } = useDesktopWorkspaces();
+  const [workspaceMenuOpen, setWorkspaceMenuOpen] = useState(false);
+  const [pendingWorkspaceDeletion, setPendingWorkspaceDeletion] = useState(null);
   const [isWorkspaceNameEditing, setIsWorkspaceNameEditing] = useState(false);
   const [workspaceNameDraft, setWorkspaceNameDraft] = useState('');
-  const [currentTime, setCurrentTime] = useState(new Date());
-  const [panelOpen, setPanelOpen] = useState(false);
-  const [showAddPreview, setShowAddPreview] = useState(false);
-  const hoverAddTimeoutRef = useRef(null);
-  const [inputText, setInputText] = useState('');
-  const [addPanelAttachments, setAddPanelAttachments] = useState([]);
-  const [editingTaskId, setEditingTaskId] = useState(null);
-  const [editText, setEditText] = useState('');
-  const [editCopied, setEditCopied] = useState(false);
   const [draggedTaskId, setDraggedTaskId] = useState(null);
   const [, setIsGroupDragActive] = useState(false);
   const [selectedTaskIds, setSelectedTaskIds] = useState([]);
@@ -398,15 +272,20 @@ function App() {
   const [pendingCanvasDeletion, setPendingCanvasDeletion] = useState(null);
   const [fullscreenImage, setFullscreenImage] = useState(null);
   const workspaceNameInputRef = useRef(null);
-  const [tasks, setTasks] = useSyncedTodos({
+  const workspaceControlRef = useRef(null);
+  const [tasks, setTasks, commitTodos] = useSyncedTodos({
     userId: user?.id || null,
     normalizeTodo: normalizeTask,
   });
   // The feature flag stays off until the Inbox UI is ready. Once enabled, the
   // existing canvas and global search receive only organized Library items.
+  const activeWorkspaceTasks = useMemo(
+    () => tasks.filter((task) => taskBelongsToWorkspace(task, activeWorkspaceId)),
+    [activeWorkspaceId, tasks],
+  );
   const currentWorkspaceTasks = useMemo(
-    () => (INBOX_FEATURE_ENABLED ? getLibraryItems(tasks) : tasks),
-    [tasks],
+    () => (INBOX_FEATURE_ENABLED ? getLibraryItems(activeWorkspaceTasks) : activeWorkspaceTasks),
+    [activeWorkspaceTasks],
   );
   const selectedDateRef = useRef(selectedDate);
   const tasksRef = useRef(currentWorkspaceTasks);
@@ -447,36 +326,100 @@ function App() {
   const suppressTaskClickRef = useRef(null);
   const suppressAllTaskClicksUntilRef = useRef(0);
   const suppressTaskClickTimeoutRef = useRef(null);
-  const desktopCanvasContentRef = useRef(null);
   const searchDragSeparateRef = useRef(false);
   const {
     handleSearchTaskLongPress,
     historyOpen,
     setHistoryOpen,
   } = useDesktopSearch({ searchDragSeparateRef });
-  const editCopyResetTimerRef = useRef(null);
+
+  const inboxItems = useMemo(() => getInboxItems(activeWorkspaceTasks), [activeWorkspaceTasks]);
+  const inboxCount = getInboxCount(activeWorkspaceTasks);
+  const inboxTargetPacks = useMemo(() => getInboxTargetPacks(activeWorkspaceTasks), [activeWorkspaceTasks]);
+  const { inboxOpen, openInbox, closeInbox } = useInboxPanel();
+  const inboxTriggerRef = useRef(null);
+  const showInboxStatus = useCallback((message) => {
+    setToastMessage(message);
+    window.setTimeout(() => {
+      setToastMessage((current) => (current === message ? null : current));
+    }, 2200);
+  }, []);
+  const commitInboxPlacement = useCallback(async ({ itemId, packId = null, position = null }) => {
+    try {
+      await commitTodos((currentTasks) => (
+        packId
+          ? moveInboxItemToPack(currentTasks, itemId, packId, createUpdatedTimestamp())
+          : placeInboxItem(currentTasks, itemId, position, createUpdatedTimestamp())
+      ));
+      const targetPack = packId ? inboxTargetPacks.find((pack) => pack.id === packId) : null;
+      showInboxStatus(packId ? `Moved to ${targetPack?.name || 'Pack'}` : 'Placed on canvas');
+    } catch (error) {
+      console.error('Failed to place Inbox item:', error);
+      showInboxStatus('Move failed. Item remains in Inbox.');
+      throw error;
+    }
+  }, [commitTodos, inboxTargetPacks, showInboxStatus]);
+  const handleMoveInboxItemToPack = useCallback((itemId, packId) => (
+    commitInboxPlacement({ itemId, packId })
+  ), [commitInboxPlacement]);
+  const confirmWorkspaceDeletion = useCallback(() => {
+    if (!pendingWorkspaceDeletion || workspaces.length <= 1) {
+      setPendingWorkspaceDeletion(null);
+      return;
+    }
+    const deletedAt = createUpdatedTimestamp();
+    setTasks((currentTasks) => currentTasks.map((task) => (
+      taskBelongsToWorkspace(task, pendingWorkspaceDeletion.id)
+        ? normalizeTask({
+          ...task,
+          desktopWorkspaceDeletedAt: deletedAt,
+          desktopWorkspaceDeletedName: pendingWorkspaceDeletion.name,
+          updatedAt: deletedAt,
+        })
+        : task
+    )));
+    deleteWorkspace(pendingWorkspaceDeletion.id);
+    setActiveGroupView(null);
+    setPendingWorkspaceDeletion(null);
+    showInboxStatus('Workspace deleted. Restore it later from Settings.');
+  }, [deleteWorkspace, pendingWorkspaceDeletion, setTasks, showInboxStatus, workspaces]);
+  const handleRestoreWorkspace = useCallback((workspaceId) => {
+    const restoredWorkspace = restoreWorkspace(workspaceId);
+    if (!restoredWorkspace) return false;
+    const restoredAt = createUpdatedTimestamp();
+    setTasks((currentTasks) => currentTasks.map((task) => (
+      task.desktopWorkspaceId === workspaceId && task.desktopWorkspaceDeletedAt
+        ? normalizeTask({
+          ...task,
+          desktopWorkspaceDeletedAt: null,
+          desktopWorkspaceDeletedName: null,
+          updatedAt: restoredAt,
+        })
+        : task
+    )));
+    showInboxStatus(`${restoredWorkspace.name} restored.`);
+    return true;
+  }, [restoreWorkspace, setTasks, showInboxStatus]);
   const canvasFileDragDepthRef = useRef(0);
   const {
     viewport,
     viewportContainerRef,
-    desktopCanvasPanReady,
-    desktopCanvasPanActive,
+    canvasBounds,
+    canvasBoundsRef,
+    clampCanvasPosition,
     getCanvasPointFromClient,
     getDragCanvasPointFromClient,
     getDesktopDragAnchorPosition,
-    handleDesktopCanvasWheel,
     handleDesktopCanvasPointerDown,
     handleDesktopCanvasPointerMove,
     handleDesktopCanvasPointerEnd,
   } = useDesktopViewport({
+    activeGroupView,
     desktopDragAnchorPointerOffsetRef,
     desktopDragAnchorSizeRef,
     desktopDragContainerRectRef,
-    desktopDragModeRef,
     desktopSelectionStateRef,
-    editingTaskId,
     getCanvasDeletionSummary,
-    panelOpen,
     selectedDayEntriesRef,
     selectedTaskIdsRef,
     setDesktopSelectionRect,
@@ -535,29 +478,12 @@ function App() {
   useEffect(() => {
     selectedTaskIdsRef.current = new Set(selectedTaskIds);
   }, [selectedTaskIds]);
-  useEffect(() => {
-    const interval = setInterval(() => setCurrentTime(new Date()), 60000);
-    return () => clearInterval(interval);
-  }, []);
   useEffect(() => () => {
     if (suppressTaskClickTimeoutRef.current !== null) {
       window.clearTimeout(suppressTaskClickTimeoutRef.current);
       suppressTaskClickTimeoutRef.current = null;
     }
-    if (editCopyResetTimerRef.current !== null) {
-      window.clearTimeout(editCopyResetTimerRef.current);
-      editCopyResetTimerRef.current = null;
-    }
   }, []);
-  useEffect(() => {
-    localStorage.setItem(DESKTOP_WORKSPACES_KEY, JSON.stringify([{ ...activeWorkspace, id: DEFAULT_DESKTOP_WORKSPACE_ID }]));
-  }, [activeWorkspace]);
-  useEffect(() => {
-    localStorage.setItem(DESKTOP_ACTIVE_WORKSPACE_KEY, DEFAULT_DESKTOP_WORKSPACE_ID);
-  }, []);
-
-  const todaySelected = true;
-  const currentBlock = currentSection(currentTime);
 
   const {
     startDesktopTaskDrag,
@@ -592,11 +518,15 @@ function App() {
     desktopDragSourceRectRef,
     desktopDragStateRef,
     desktopDragVisualPendingRef,
+    canvasBoundsRef,
     desktopDragVisualRafRef,
     desktopSelectionStateRef,
     getCanvasPointFromClient,
     getDesktopDragAnchorPosition,
     getDragCanvasPointFromClient,
+    closeExternalDragSource: closeInbox,
+    isExternalDragTask: isInboxItem,
+    onExternalDrop: commitInboxPlacement,
     searchDragSeparateRef,
     selectedDateRef,
     selectedDayEntriesRef,
@@ -619,8 +549,11 @@ function App() {
   });
   const selectedDateKey = dateKey(selectedDate);
   const selectedDayEntries = useMemo(
-    () => resolveDesktopCanvasEntries(currentWorkspaceTasks),
-    [currentWorkspaceTasks],
+    () => constrainDesktopCanvasEntries(
+      resolveDesktopCanvasEntries(currentWorkspaceTasks),
+      canvasBounds,
+    ),
+    [canvasBounds, currentWorkspaceTasks],
   );
   useEffect(() => {
     selectedDayEntriesRef.current = selectedDayEntries;
@@ -648,10 +581,6 @@ function App() {
     if (!desktopDragOverlayActive || !desktopDragOverlaySnapshot) return;
     syncDesktopDraggedTaskPosition(desktopDragPointerRef.current.x, desktopDragPointerRef.current.y);
   }, [desktopDragOverlayActive, desktopDragOverlaySnapshot, syncDesktopDraggedTaskPosition]);
-  const selectedDayCanvasHeight = useMemo(
-    () => getDesktopCanvasHeight(selectedDayEntries),
-    [selectedDayEntries],
-  );
   useEffect(() => {
     if (!draggedTaskId || !desktopDragModeRef.current) return undefined;
 
@@ -666,7 +595,6 @@ function App() {
   }, [draggedTaskId, selectedDateKey, syncDesktopDraggedTaskPosition]);
 
   const {
-    closePanel,
     showToast,
     openUploadedFileTask,
     handleCanvasFileDragEnter,
@@ -674,45 +602,80 @@ function App() {
     handleCanvasFileDragLeave,
     handleCanvasFileDrop,
     applyAsyncMetadata,
-    handleAddPanelFilesSelected,
-    handleRemoveAddPanelAttachment,
-    saveTask,
   } = useDesktopCapture({
     activeWorkspaceId,
-    addPanelAttachments,
     canvasFileDragDepthRef,
-    currentBlock,
     draggedTaskId,
     getCanvasPointFromClient,
-    getFirstAvailableDesktopSlot,
+    clampCanvasPosition,
     inboxEnabled: INBOX_FEATURE_ENABLED,
-    inputText,
     isCanvasFileDragActive,
     selectedDateKey,
     selectedDateRef,
-    setAddPanelAttachments,
     setFullscreenImage,
-    setInputText,
     setIsCanvasFileDragActive,
-    setPanelOpen,
     setTasks,
     setToastMessage,
-    todaySelected,
-    user,
   });
 
+  const handleCreateInboxItem = useCallback(async (value) => {
+    const rawText = String(value || '').trim();
+    if (!rawText) return null;
+
+    const typeFields = getDerivedTaskFields(rawText);
+    const operationUpdatedAt = createUpdatedTimestamp();
+    let createdTask = null;
+
+    try {
+      await commitTodos((currentTasks) => {
+        let taskId = Date.now();
+        const existingIds = new Set(currentTasks.map((task) => task.id));
+        while (existingIds.has(taskId)) taskId += 1;
+
+        createdTask = normalizeTask(createInboxTask({
+          id: taskId,
+          text: rawText,
+          completed: false,
+          desktopWorkspaceId: activeWorkspaceId,
+          timeOfDay: 'Morning',
+          dateString: selectedDateKey,
+          updatedAt: operationUpdatedAt,
+          ...typeFields,
+          desktopZ: Date.now(),
+        }));
+
+        return [...currentTasks, createdTask];
+      });
+
+      showInboxStatus('Added to Inbox');
+      if (createdTask) {
+        applyAsyncMetadata(
+          createdTask.id,
+          typeFields.cardType,
+          typeFields.videoUrl,
+          typeFields.mapUrl,
+          typeFields.primaryUrl,
+          operationUpdatedAt,
+        );
+      }
+      return createdTask;
+    } catch (error) {
+      console.error('Failed to add Inbox item:', error);
+      showInboxStatus('Unable to add item. Please try again.');
+      throw error;
+    }
+  }, [
+    activeWorkspaceId,
+    applyAsyncMetadata,
+    commitTodos,
+    selectedDateKey,
+    showInboxStatus,
+  ]);
+
   const {
-    editingTask,
-    canSaveEdit,
     deleteTasksByIds,
-    handleTaskDelete,
-    handleTaskEdit,
     confirmCanvasDeletion,
     cancelCanvasDeletion,
-    closeEditModal,
-    handleEditCopy,
-    openTaskEditor,
-    handleEditSave,
     handleTaskClick,
     handleStartWorkspaceRename,
     handleCommitWorkspaceRename,
@@ -720,32 +683,22 @@ function App() {
     updateCanvasSelection,
   } = useDesktopTaskActions({
     activeWorkspace,
-    applyAsyncMetadata,
     areTaskIdSelectionsEqual,
     cleanupDesktopGroupMetadata,
-    defaultWorkspaceId: DEFAULT_DESKTOP_WORKSPACE_ID,
-    editCopyResetTimerRef,
-    editingTaskId,
-    editText,
+    defaultWorkspaceId: activeWorkspaceId,
     openUploadedFileTask,
     pendingCanvasDeletion,
     selectedTaskIdsRef,
     setActiveWorkspace,
-    setEditCopied,
-    setEditingTaskId,
-    setEditText,
     setFullscreenImage,
     setIsWorkspaceNameEditing,
-    setPanelOpen,
     setPendingCanvasDeletion,
-    setProfileOpen,
     setSelectedTaskIds,
     setTasks,
     setWorkspaceNameDraft,
     suppressAllTaskClicksUntilRef,
     suppressTaskClickRef,
     t,
-    tasks,
     user,
     workspaceNameDraft,
   });
@@ -806,7 +759,8 @@ function App() {
       <div className={`desktop-app ${appearance === 'dark' ? 'desktop-app-dark dark-theme' : 'desktop-app-light'}`} style={{ width: '100%', height: '100%', overflow: 'hidden', background: 'var(--desktop-root-bg)', color: 'var(--desktop-root-text)', fontFamily: 'Inter, sans-serif', display: 'flex', flexDirection: 'column' }}>
         <header className="desktop-minimal-header">
           <div className="desktop-minimal-brand">
-            <div className={`desktop-workspace-shell ${isWorkspaceNameEditing ? 'is-editing' : ''}`}>
+            <div ref={workspaceControlRef} className="desktop-workspace-control">
+              <div className={`desktop-workspace-shell ${isWorkspaceNameEditing ? 'is-editing' : ''} ${workspaceMenuOpen ? 'is-open' : ''}`}>
               {isWorkspaceNameEditing ? (
                 <input
                   ref={workspaceNameInputRef}
@@ -831,11 +785,33 @@ function App() {
                 <button
                   type="button"
                   className="desktop-workspace-name-button"
-                  onClick={handleStartWorkspaceRename}
+                  aria-haspopup="menu"
+                  aria-expanded={workspaceMenuOpen}
+                  onClick={() => setWorkspaceMenuOpen((current) => !current)}
+                  onDoubleClick={(event) => {
+                    event.preventDefault();
+                    setWorkspaceMenuOpen(false);
+                    handleStartWorkspaceRename();
+                  }}
                 >
                   <span className="desktop-workspace-trigger-label">{activeWorkspace?.name || t.untitledWorkspace}</span>
+                  <span className="desktop-workspace-trigger-chevron" aria-hidden="true">
+                    <WorkspaceChevronIcon open={workspaceMenuOpen} />
+                  </span>
                 </button>
               )}
+              </div>
+              <WorkspaceMenu
+                activeWorkspaceId={activeWorkspaceId}
+                canAddWorkspace={canAddWorkspace}
+                controlRef={workspaceControlRef}
+                onAddWorkspace={addWorkspace}
+                onClose={() => setWorkspaceMenuOpen(false)}
+                onRequestDeleteWorkspace={setPendingWorkspaceDeletion}
+                onSelectWorkspace={selectWorkspace}
+                open={workspaceMenuOpen}
+                workspaces={workspaces}
+              />
             </div>
           </div>
           <div className="desktop-topbar-actions">
@@ -848,6 +824,25 @@ function App() {
                 <path d="M16.625 16.625L13.1812 13.1812M15.0417 8.70833C15.0417 12.2061 12.2061 15.0417 8.70833 15.0417C5.21053 15.0417 2.375 12.2061 2.375 8.70833C2.375 5.21053 5.21053 2.375 8.70833 2.375C12.2061 2.375 15.0417 5.21053 15.0417 8.70833Z" stroke={appearance === 'dark' ? '#E1E1E1' : '#1E1E1E'} strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
               </svg>
             </button>
+            {INBOX_FEATURE_ENABLED && (
+              <button
+                ref={inboxTriggerRef}
+                type="button"
+                onClick={openInbox}
+                className="desktop-inbox-trigger"
+                aria-label={`Inbox (${inboxCount})`}
+                title="Inbox"
+              >
+                <span className="desktop-inbox-trigger-icon" aria-hidden="true">
+                  <svg width="19" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.55" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="22 12 16 12 14 15 10 15 8 12 2 12" />
+                    <path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z" />
+                  </svg>
+                </span>
+                <span className="desktop-inbox-trigger-label">Inbox</span>
+                <span className="desktop-inbox-trigger-count" aria-hidden="true">{inboxCount}</span>
+              </button>
+            )}
             <button type="button" className="desktop-profile-trigger desktop-header-avatar-button" onClick={() => setProfileOpen(true)}>
               {userProfile.avatarUrl ? (
                 <img src={userProfile.avatarUrl} alt={userProfile.fullName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
@@ -868,8 +863,7 @@ function App() {
 
               <main
                 ref={viewportContainerRef}
-                className={`desktop-canvas-scroll ${desktopCanvasPanReady ? 'is-pan-ready' : ''} ${desktopCanvasPanActive ? 'is-panning' : ''} ${isCanvasFileDragActive ? 'is-file-drag-active' : ''}`}
-                onWheel={handleDesktopCanvasWheel}
+                className={`desktop-canvas-scroll ${isCanvasFileDragActive ? 'is-file-drag-active' : ''}`}
                 onPointerDownCapture={handleDesktopCanvasPointerDown}
                 onPointerMove={handleDesktopCanvasPointerMove}
                 onPointerUp={handleDesktopCanvasPointerEnd}
@@ -881,27 +875,24 @@ function App() {
                 style={{ flex: 1, minHeight: 0, overflow: 'hidden', position: 'relative', background: 'var(--desktop-root-bg)' }}
               >
                 <div
-                  ref={desktopCanvasContentRef}
                   className="desktop-canvas-content"
                   style={{
                     position: 'absolute',
                     top: 0,
                     left: 0,
-                    width: DESKTOP_MAIN_CONTENT_MAX_WIDTH,
+                    width: canvasBounds.width,
                     transformOrigin: '0 0',
                     transform: `translate(${viewport.panX}px, ${viewport.panY}px) scale(${viewport.zoom})`,
-                    paddingTop: 180,
+                    paddingTop: DESKTOP_CANVAS_TOP_PADDING,
                   }}
                 >
                     <DesktopCanvas
                       entries={selectedDayEntries}
-                      canvasHeight={selectedDayCanvasHeight}
+                      canvasHeight={canvasBounds.height}
                       appearance={appearance}
                       labels={t}
                       onTaskClick={handleTaskClick}
                       onGroupOpenFullView={handleGroupCardOpen}
-                      onTaskEdit={handleTaskEdit}
-                      onTaskDelete={handleTaskDelete}
                       onTaskPointerDown={handleTaskPointerDown}
                       onTaskPointerMove={handleTaskPointerMove}
                       onTaskPointerUp={handleTaskPointerUp}
@@ -912,7 +903,7 @@ function App() {
                       dragOverlapTargetId={desktopDragOverlapTargetId}
                       TaskCardComponent={TaskCard}
                       GroupedTaskCardComponent={GroupedTaskCard}
-                    layoutWidth={DESKTOP_MAIN_CONTENT_MAX_WIDTH}
+                    layoutWidth={canvasBounds.width}
                   />
                   {desktopDragOverlayActive && desktopDragOverlaySnapshot ? (
                     <div
@@ -961,14 +952,10 @@ function App() {
                               isGroupReady={false}
                               draggedTaskId={desktopDragOverlaySnapshot.taskId}
                               onClick={null}
-                              onEdit={null}
-                              onDelete={null}
                               onPointerDown={null}
                               onPointerMove={null}
                               onPointerUp={null}
                               onPointerCancel={null}
-                              editLabel={t.edit}
-                              deleteLabel={t.delete}
                             />
                           ) : null}
                         </div>
@@ -986,187 +973,6 @@ function App() {
           </div>
         </div>
 
-
-        {panelOpen ? <div style={{ position: 'fixed', inset: 0, zIndex: 25 }} onClick={closePanel} /> : null}
-        <AddPanel
-          open={panelOpen}
-          language={language}
-          inputText={inputText}
-          setInputText={setInputText}
-          fileAttachments={addPanelAttachments}
-          onAddFiles={handleAddPanelFilesSelected}
-          onRemoveFile={handleRemoveAddPanelAttachment}
-          onShowToast={showToast}
-          onClose={closePanel}
-          onSubmit={saveTask}
-        />
-
-        {(!panelOpen && showAddPreview) ? (
-          <div style={{ position: 'fixed', right: 104, bottom: 38, background: 'var(--desktop-floating-bg)', color: 'var(--desktop-floating-text)', padding: '6px 14px', borderRadius: 16, border: '1px solid var(--desktop-floating-border)', boxShadow: '0 4px 12px rgba(0,0,0,0.08)', zIndex: 19, fontSize: 13, fontWeight: 500, pointerEvents: 'none', animation: 'fadeIn 0.2s ease-out' }}>
-            Add task...
-          </div>
-        ) : null}
-
-        {!panelOpen ? (
-          <button 
-            type="button" 
-            onClick={() => { 
-              setProfileOpen(false); 
-              closeEditModal(); 
-              setInputText(''); 
-              setPanelOpen(true); 
-              setShowAddPreview(false);
-              if (hoverAddTimeoutRef.current) clearTimeout(hoverAddTimeoutRef.current);
-            }} 
-            onMouseEnter={() => {
-              hoverAddTimeoutRef.current = setTimeout(() => setShowAddPreview(true), 500);
-            }}
-            onMouseLeave={() => {
-              if (hoverAddTimeoutRef.current) clearTimeout(hoverAddTimeoutRef.current);
-              setShowAddPreview(false);
-            }}
-            aria-label={t.addTaskAria} 
-            style={{ position: 'fixed', right: 42, bottom: 30, width: 50, height: 50, borderRadius: '50%', border: '1px solid var(--desktop-floating-border)', background: 'var(--desktop-floating-bg)', color: 'var(--desktop-floating-text)', boxShadow: 'var(--desktop-floating-shadow)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', zIndex: 20 }}
-          >
-            <PlusIcon />
-          </button>
-        ) : null}
-
-        {editingTask ? (
-          <div
-            role="presentation"
-            onClick={closeEditModal}
-            style={{
-              position: 'fixed',
-              inset: 0,
-              zIndex: 40,
-              background: 'var(--desktop-modal-backdrop)',
-              backdropFilter: 'blur(8px)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              padding: 28,
-            }}
-          >
-            <div
-              role="dialog"
-              aria-modal="true"
-              aria-labelledby="desktop-edit-modal-title"
-              onClick={(event) => event.stopPropagation()}
-              style={{
-                width: 'min(100%, 560px)',
-                maxHeight: 'min(640px, calc(100vh - 56px))',
-                background: 'var(--desktop-edit-bg)',
-                border: '1px solid var(--desktop-edit-border)',
-                borderRadius: 24,
-                boxShadow: 'var(--desktop-edit-shadow)',
-                display: 'grid',
-                gridTemplateRows: 'auto minmax(0, 1fr) auto',
-                overflow: 'hidden',
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, padding: '22px 24px 16px', borderBottom: '1px solid var(--desktop-edit-border)' }}>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  <IntoDayLogo
-                    showWordmark={false}
-                    className="desktop-edit-modal-logo"
-                    iconClassName="desktop-edit-modal-logo-icon"
-                  />
-                  <h2 id="desktop-edit-modal-title" style={{ margin: 0, fontFamily: 'DM Serif Display, serif', fontSize: 28, fontStyle: 'italic', lineHeight: 1, color: 'var(--desktop-root-text)' }}>
-                    {t.editTaskTitle}
-                  </h2>
-                </div>
-                <button type="button" onClick={closeEditModal} aria-label={t.close} style={{ width: 32, height: 32, borderRadius: '50%', background: 'var(--desktop-modal-close-bg)', border: '1px solid var(--desktop-edit-border)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: 0, color: 'var(--desktop-modal-close-text)' }}>
-                  <CloseIcon />
-                </button>
-              </div>
-              <div style={{ minHeight: 0, padding: 24 }}>
-                <div style={{ position: 'relative', height: '100%' }}>
-                  {normalizeCardType(editingTask.cardType) === CARD_TYPES.PHOTO && editingTask.photoDataUrl ? (
-                    <div
-                      style={{
-                        marginBottom: 14,
-                        borderRadius: 18,
-                        overflow: 'hidden',
-                        border: '1px solid var(--desktop-edit-input-border)',
-                        background: 'rgba(255,255,255,0.66)',
-                      }}
-                    >
-                        <img
-                          src={editingTask.photoDataUrl}
-                          alt={editingTask.photoTitle || editingTask.text || 'Photo'}
-                          draggable={false}
-                          onDragStart={(event) => event.preventDefault()}
-                          style={{ display: 'block', width: '100%', maxHeight: 220, objectFit: 'cover' }}
-                        />
-                    </div>
-                  ) : null}
-                  <button
-                    type="button"
-                    onClick={handleEditCopy}
-                    disabled={!editText.trim()}
-                    style={{
-                      position: 'absolute',
-                      top: 12,
-                      right: 12,
-                      zIndex: 1,
-                      minWidth: 72,
-                      height: 32,
-                      padding: '0 12px',
-                      borderRadius: 999,
-                      border: '1px solid var(--desktop-edit-border)',
-                      background: 'var(--desktop-modal-close-bg)',
-                      color: 'var(--desktop-root-text)',
-                      fontSize: 13,
-                      fontWeight: 600,
-                      cursor: editText.trim() ? 'pointer' : 'not-allowed',
-                      opacity: editText.trim() ? 1 : 0.45,
-                    }}
-                  >
-                    {editCopied ? 'Copied' : 'Copy'}
-                  </button>
-                  <textarea
-                    value={editText}
-                    onChange={(event) => setEditText(event.target.value)}
-                    onKeyDown={(event) => {
-                      if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
-                        event.preventDefault();
-                        handleEditSave();
-                      }
-                    }}
-                    autoFocus
-                    rows={10}
-                    placeholder={t.editTaskPlaceholder}
-                    style={{
-                      width: '100%',
-                      height: '100%',
-                      minHeight: normalizeCardType(editingTask.cardType) === CARD_TYPES.PHOTO ? 180 : 280,
-                      border: '1px solid var(--desktop-edit-input-border)',
-                      background: 'var(--desktop-edit-input-bg)',
-                      borderRadius: 18,
-                      padding: '52px 18px 18px',
-                      fontSize: 16,
-                      lineHeight: 1.6,
-                      color: 'var(--desktop-root-text)',
-                      resize: 'none',
-                      outline: 'none',
-                      fontFamily: 'Inter, sans-serif',
-                    }}
-                  />
-                </div>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, padding: '16px 24px 24px', borderTop: '1px solid var(--desktop-edit-border)' }}>
-                <button type="button" onClick={closeEditModal} style={{ minWidth: 96, height: 44, padding: '0 18px', borderRadius: 14, border: '1px solid var(--desktop-cancel-border)', background: 'var(--desktop-cancel-bg)', color: 'var(--desktop-cancel-text)', fontSize: 15, fontWeight: 600, cursor: 'pointer' }}>
-                  {t.cancel}
-                </button>
-                <button type="button" onClick={handleEditSave} disabled={!canSaveEdit} style={{ minWidth: 136, height: 44, padding: '0 20px', background: canSaveEdit ? 'var(--desktop-save-bg)' : 'var(--desktop-save-disabled-bg)', color: canSaveEdit ? 'var(--desktop-save-text)' : 'var(--desktop-save-disabled-text)', border: 'none', borderRadius: 14, fontSize: 15, fontWeight: 600, cursor: canSaveEdit ? 'pointer' : 'not-allowed' }}>
-                  {t.save}
-                </button>
-              </div>
-            </div>
-          </div>
-        ) : null}
-
         <DesktopProfilePage
           open={profileOpen}
           onClose={() => setProfileOpen(false)}
@@ -1176,6 +982,9 @@ function App() {
           appearance={appearance}
           appearancePreference={appearancePreference}
           setAppearance={setAppearancePreference}
+          deletedWorkspaces={deletedWorkspaces}
+          canRestoreWorkspace={canAddWorkspace}
+          onRestoreWorkspace={handleRestoreWorkspace}
           onSignOut={handleSignOut}
         />
         <DesktopSearchModal
@@ -1202,12 +1011,26 @@ function App() {
               return;
             }
             setHistoryOpen(false);
-            openTaskEditor(task, false);
           }}
           onPackClick={handleHistoryPackOpen}
           onPackItemClick={handleHistoryPackItemOpen}
           onTaskPointerDown={handleTaskPointerDown}
           onTaskLongPress={(task) => handleSearchTaskLongPress(task, startDesktopTaskDrag)}
+        />
+        <InboxPanel
+          open={INBOX_FEATURE_ENABLED && inboxOpen}
+          items={inboxItems}
+          packOptions={inboxTargetPacks}
+          appearance={appearance}
+          t={t}
+          onClose={closeInbox}
+          onCreateItem={handleCreateInboxItem}
+          onMoveToPack={handleMoveInboxItemToPack}
+          onTaskPointerDown={handleTaskPointerDown}
+          onTaskPointerMove={handleTaskPointerMove}
+          onTaskPointerUp={handleTaskPointerUp}
+          onTaskPointerCancel={handleTaskPointerCancel}
+          anchorRef={inboxTriggerRef}
         />
 
         <PackPrompt
@@ -1223,10 +1046,6 @@ function App() {
           labels={t}
           language={language}
           onClose={closeActiveGroupView}
-          onTaskEdit={(task) => {
-            closeActiveGroupView();
-            handleTaskEdit(task);
-          }}
           onDeleteTasks={deleteTasksByIds}
           onUpdateGroup={updateActiveGroupMetadata}
           onToast={showToast}
@@ -1234,6 +1053,13 @@ function App() {
             closeActiveGroupView();
             handleTaskClick(task);
           }}
+        />
+        <DesktopDeleteConfirmModal
+          open={Boolean(pendingWorkspaceDeletion)}
+          title={`Delete “${pendingWorkspaceDeletion?.name || 'Workspace'}”?`}
+          description="All items in this workspace will be removed. You can restore the workspace later from Settings."
+          onCancel={() => setPendingWorkspaceDeletion(null)}
+          onConfirm={confirmWorkspaceDeletion}
         />
         <DesktopDeleteConfirmModal
           open={Boolean(pendingCanvasDeletion)}

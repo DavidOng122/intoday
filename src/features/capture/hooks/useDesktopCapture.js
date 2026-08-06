@@ -1,7 +1,6 @@
-import { trackUserEvent } from '../../../shared/lib/analytics';
 import { createInboxTask } from '../../inbox';
 import { createUpdatedTimestamp } from '../../pack/model/packMetadata';
-import { normalizeTask, sectionIdToMobileId } from '../../../lib/taskNormalize';
+import { normalizeTask } from '../../../lib/taskNormalize';
 import { getUploadedFileRecord, saveUploadedFileBlob } from '../../../shared/storage/uploadedFileStorage';
 import {
   createUploadedFileStorageKey,
@@ -15,12 +14,12 @@ import {
   fetchMapMeta,
   fetchSpotifyMeta,
   fetchVideoMeta,
-  getDerivedTaskFields,
 } from '../../../entities/task/model/taskCardPresentation';
 import { dateKey } from '../../../lib/dateUtils';
 import { getDesktopCanvasResolvedPosition, getNextDesktopCanvasPosition } from '../../canvas';
 import {
   DESKTOP_CANVAS_CARD_GAP,
+  DESKTOP_CANVAS_CARD_HEIGHT,
   DESKTOP_CANVAS_CARD_WIDTH,
   DESKTOP_PHOTO_CARD_HEIGHT,
 } from '../../canvas';
@@ -28,32 +27,19 @@ import { UPLOADED_FILE_SOURCE_LABEL } from '../config/uploadConstants';
 
 export const useDesktopCapture = ({
   activeWorkspaceId,
-  addPanelAttachments,
   canvasFileDragDepthRef,
-  currentBlock,
+  clampCanvasPosition,
   draggedTaskId,
   getCanvasPointFromClient,
-  getFirstAvailableDesktopSlot,
   inboxEnabled,
-  inputText,
   isCanvasFileDragActive,
   selectedDateKey,
   selectedDateRef,
-  setAddPanelAttachments,
   setFullscreenImage,
-  setInputText,
   setIsCanvasFileDragActive,
-  setPanelOpen,
   setTasks,
   setToastMessage,
-  todaySelected,
-  user,
 }) => {
-  const closePanel = () => {
-    setInputText('');
-    setAddPanelAttachments([]);
-    setPanelOpen(false);
-  };
   const showToast = (message) => {
     setToastMessage(message);
     window.setTimeout(() => {
@@ -230,11 +216,15 @@ export const useDesktopCapture = ({
               y: dropBasePosition.y + (index * (DESKTOP_CANVAS_CARD_GAP + 12)),
             }
             : getNextDesktopCanvasPosition(workspaceTasks);
-          const nextPosition = getDesktopCanvasResolvedPosition(
+          const resolvedPosition = getDesktopCanvasResolvedPosition(
             workspaceTasks,
             new Set([task.id]),
             preferredPosition,
           );
+          const nextPosition = clampCanvasPosition(resolvedPosition, {
+            width: DESKTOP_CANVAS_CARD_WIDTH,
+            height: task.cardType === CARD_TYPES.PHOTO ? DESKTOP_PHOTO_CARD_HEIGHT : DESKTOP_CANVAS_CARD_HEIGHT,
+          });
           nextTasks = [
             ...nextTasks,
             normalizeTask({
@@ -274,164 +264,7 @@ export const useDesktopCapture = ({
       });
     }
   };
-  const handleAddPanelFilesSelected = async (files) => {
-    if (!files?.length) return;
-  
-    const selectedFiles = Array.from(files);
-    const supportedFiles = selectedFiles.filter((file) => isSupportedUploadFile(file));
-    const rejectedCount = selectedFiles.length - supportedFiles.length;
-  
-    if (rejectedCount > 0) {
-      showToast(rejectedCount === 1 ? 'Unsupported file skipped' : `${rejectedCount} unsupported files skipped`);
-    }
-    if (!supportedFiles.length) return;
-  
-    try {
-      const serializedAttachments = await Promise.all(supportedFiles.map((file) => serializeUploadAttachment(file)));
-      setAddPanelAttachments((current) => [...current, ...serializedAttachments]);
-      showToast(serializedAttachments.length === 1 ? 'File attached' : `${serializedAttachments.length} files attached`);
-    } catch (error) {
-      console.error('Failed to attach files to add panel:', error);
-      showToast('Unable to attach files');
-    }
-  };
-  const handleRemoveAddPanelAttachment = (attachmentId) => {
-    setAddPanelAttachments((current) => current.filter((attachment) => attachment.id !== attachmentId));
-  };
-  const saveTask = async () => {
-    const rawText = inputText.trim();
-    if (!rawText && addPanelAttachments.length === 0) return;
-  
-    const resolvedTimeOfDay = todaySelected ? sectionIdToMobileId(currentBlock) : 'Morning';
-    const typeFields = rawText ? getDerivedTaskFields(rawText) : null;
-    const taskId = Date.now();
-    const operationUpdatedAt = createUpdatedTimestamp();
-    let preparedAttachments = [];
-  
-    if (addPanelAttachments.length) {
-      try {
-        preparedAttachments = await Promise.all(addPanelAttachments.map(async (attachment) => {
-          const storageKey = createUploadedFileStorageKey(attachment.originalFileName || attachment.title);
-          await saveUploadedFileBlob({
-            storageKey,
-            blob: attachment.file,
-            metadata: {
-              originalFileName: attachment.originalFileName,
-              mimeType: attachment.mimeType,
-              size: attachment.size,
-              uploadedFileType: attachment.uploadKind,
-              createdAt: attachment.createdAt,
-              updatedAt: operationUpdatedAt,
-            },
-          });
-          return {
-            ...attachment,
-            storageKey,
-          };
-        }));
-      } catch (error) {
-        console.error('Failed to store uploaded files:', error);
-        showToast('Unable to save files');
-        return;
-      }
-    }
-  
-    setTasks((prev) => {
-      let nextTasks = [...prev];
-  
-      if (rawText && typeFields) {
-        const nextTask = normalizeTask({
-          id: taskId,
-          text: rawText,
-          completed: false,
-          desktopWorkspaceId: activeWorkspaceId,
-          timeOfDay: resolvedTimeOfDay,
-          dateString: selectedDateKey,
-          updatedAt: operationUpdatedAt,
-          ...typeFields,
-          desktopSlot: null,
-          desktopZ: Date.now(),
-        });
-        if (inboxEnabled) {
-          nextTasks = [...nextTasks, normalizeTask(createInboxTask(nextTask))];
-        } else {
-          const workspaceTasks = nextTasks;
-          const nextPosition = getNextDesktopCanvasPosition(workspaceTasks);
-          const desktopSlot = getFirstAvailableDesktopSlot(workspaceTasks, selectedDateKey, nextTask.timeOfDay);
-          nextTasks = [...nextTasks, normalizeTask({
-            ...nextTask,
-            desktopSlot,
-            desktopCanvasX: nextPosition.x,
-            desktopCanvasY: nextPosition.y,
-          })];
-        }
-      }
-  
-      preparedAttachments.forEach((attachment, index) => {
-        const attachmentTaskId = taskId + index + 1;
-        const isImageAttachment = attachment.uploadKind === 'image';
-        const attachmentTask = normalizeTask({
-          id: attachmentTaskId,
-          text: attachment.title,
-          title: attachment.title,
-          completed: false,
-          desktopWorkspaceId: activeWorkspaceId,
-          timeOfDay: 'Morning',
-          dateString: selectedDateKey,
-          updatedAt: operationUpdatedAt,
-          cardType: isImageAttachment ? CARD_TYPES.PHOTO : CARD_TYPES.DOCUMENT,
-          primaryUrl: null,
-          source: UPLOADED_FILE_SOURCE_LABEL,
-          uploadedSourceLabel: UPLOADED_FILE_SOURCE_LABEL,
-          uploadedFileStorageKey: attachment.storageKey,
-          uploadedFileType: attachment.uploadKind,
-          uploadedOriginalFileName: attachment.originalFileName,
-          uploadedMimeType: attachment.mimeType,
-          uploadedFileSize: attachment.size,
-          uploadedCreatedAt: attachment.createdAt,
-          uploadedUpdatedAt: operationUpdatedAt,
-          extractedText: null,
-          redirectUrl: isImageAttachment ? (attachment.previewUrl || attachment.photoDataUrl || null) : null,
-          photoUrl: isImageAttachment ? (attachment.previewUrl || attachment.photoDataUrl || null) : null,
-          photoTitle: isImageAttachment ? attachment.title : null,
-          photoFileName: isImageAttachment ? attachment.originalFileName : null,
-          photoDataUrl: isImageAttachment ? attachment.photoDataUrl : null,
-          photoWidth: isImageAttachment ? attachment.photoWidth : null,
-          photoHeight: isImageAttachment ? attachment.photoHeight : null,
-          desktopSlot: null,
-          desktopZ: Date.now() + index + 1,
-        });
-        if (inboxEnabled) {
-          nextTasks = [...nextTasks, normalizeTask(createInboxTask(attachmentTask))];
-        } else {
-          const workspaceTasks = nextTasks;
-          const nextPosition = getNextDesktopCanvasPosition(workspaceTasks);
-          nextTasks = [...nextTasks, normalizeTask({
-            ...attachmentTask,
-            desktopCanvasX: nextPosition.x,
-            desktopCanvasY: nextPosition.y,
-          })];
-        }
-      });
-  
-      return nextTasks;
-    });
-  
-    // Track analytics 
-    if (user?.id && rawText && typeFields) {
-      trackUserEvent(user.id, 'task_added', { cardType: typeFields.cardType, platform: 'desktop' });
-    }
-  
-    setInputText('');
-    setAddPanelAttachments([]);
-    setPanelOpen(false);
-    if (rawText && typeFields) {
-      applyAsyncMetadata(taskId, typeFields.cardType, typeFields.videoUrl, typeFields.mapUrl, typeFields.primaryUrl, operationUpdatedAt);
-    }
-  };
-
   return {
-    closePanel,
     showToast,
     openUploadedFileTask,
     handleCanvasFileDragEnter,
@@ -439,8 +272,5 @@ export const useDesktopCapture = ({
     handleCanvasFileDragLeave,
     handleCanvasFileDrop,
     applyAsyncMetadata,
-    handleAddPanelFilesSelected,
-    handleRemoveAddPanelAttachment,
-    saveTask,
   };
 };

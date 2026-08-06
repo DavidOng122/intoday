@@ -1,6 +1,5 @@
 // Public API for the capture feature.
 
-export { default as AddPanel } from './components/AddPanel';
 export { useDesktopCapture } from './hooks/useDesktopCapture';
 export {
   hasSupportedUploadFiles,

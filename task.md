@@ -55,3 +55,11 @@
 - [x] Phase 5  Canvas
 - [ ] Phase 5.5 Cleanup & Regression（自动回归与拆分修复已完成；仅待人工确认按住 Space 拖动画布的 Pan）
 - [x] Phase 6  Search/Session
+
+## Next step — Inbox UI（严格分三次提交）
+
+- [x] Step 1：只读 InboxPanel（数量、打开/关闭、列表、搜索、空状态）。
+- [x] Step 2：使用 `commitTodos` 实现确认式 Move to Pack（代码、纯逻辑测试与空 Inbox UI 回归已完成；未在正式账号制造测试资料）。
+- [x] Step 3：接入 Inbox → Canvas / Pack 拖动（代码、129/129 逻辑测试、构建与空 Inbox 开关回归已完成；未在正式账号制造测试资料）。
+
+详细执行和防误改规则见 `docs/next_step_safe_inbox_ui_plan.md`。

@@ -3,7 +3,7 @@
 // by reproducing the exact same calculations inline, matching the
 // implementation in canvasEntries.js.
 //
-// Integration behaviour (resolveDesktopCanvasEntries, getDesktopCanvasHeight,
+// Integration behaviour (resolveDesktopCanvasEntries,
 // etc.) is covered by manual regression after each migration phase.
 
 import test from 'node:test';
@@ -13,7 +13,6 @@ import assert from 'node:assert/strict';
 const DESKTOP_CANVAS_CARD_WIDTH = 336;
 const DESKTOP_CANVAS_CARD_HEIGHT = 92;
 const DESKTOP_CANVAS_CARD_GAP = 20;
-const DESKTOP_CANVAS_MIN_HEIGHT = 560;
 
 // ---------------------------------------------------------------------------
 // getDefaultDesktopCanvasPosition — pure formula, no imports needed
@@ -53,28 +52,26 @@ test('getDefaultDesktopCanvasPosition: index 3 is second column, second row', ()
 });
 
 // ---------------------------------------------------------------------------
-// getDesktopCanvasHeight — min guard logic
+// finite canvas bounds
 // ---------------------------------------------------------------------------
 
-const getDesktopCanvasHeight = (entries, getEntryHeight) => Math.max(
-  DESKTOP_CANVAS_MIN_HEIGHT,
-  entries.reduce((max, entry) => Math.max(max, entry.y + getEntryHeight(entry) + 96), 0),
-);
-
-test('getDesktopCanvasHeight: empty entries returns min height', () => {
-  assert.equal(getDesktopCanvasHeight([], () => 0), DESKTOP_CANVAS_MIN_HEIGHT);
+const constrainPosition = (position, bounds, height = DESKTOP_CANVAS_CARD_HEIGHT) => ({
+  x: Math.min(bounds.width - DESKTOP_CANVAS_CARD_WIDTH, Math.max(0, position.x)),
+  y: Math.min(bounds.height - height, Math.max(0, position.y)),
 });
 
-test('getDesktopCanvasHeight: tall canvas grows beyond min height', () => {
-  const entries = [{ y: 2000 }];
-  const height = getDesktopCanvasHeight(entries, () => DESKTOP_CANVAS_CARD_HEIGHT);
-  assert.ok(height > DESKTOP_CANVAS_MIN_HEIGHT, `Expected > ${DESKTOP_CANVAS_MIN_HEIGHT}, got ${height}`);
+test('finite canvas: clamps negative positions to the top-left corner', () => {
+  assert.deepEqual(
+    constrainPosition({ x: -120, y: -40 }, { width: 1008, height: 560 }),
+    { x: 0, y: 0 },
+  );
 });
 
-test('getDesktopCanvasHeight: single card at y=0 returns at least min height', () => {
-  const entries = [{ y: 0 }];
-  const height = getDesktopCanvasHeight(entries, () => DESKTOP_CANVAS_CARD_HEIGHT);
-  assert.ok(height >= DESKTOP_CANVAS_MIN_HEIGHT);
+test('finite canvas: clamps positions to the visible right and bottom edges', () => {
+  assert.deepEqual(
+    constrainPosition({ x: 4000, y: 3000 }, { width: 1008, height: 560 }),
+    { x: 672, y: 468 },
+  );
 });
 
 // ---------------------------------------------------------------------------
