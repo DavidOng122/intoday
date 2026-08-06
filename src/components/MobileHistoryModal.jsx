@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useEffect, useRef, useCallback } from 'react';
 import { getLogicalToday } from '../lib/dateHelpers';
-import { getTaskCardPresentation, normalizeCardType } from '../taskCardUtils';
+import { getTaskCardPresentation, normalizeCardType } from '../entities/task/model/taskCardPresentation';
 import { format, isSameDay, addDays } from 'date-fns';
 
 const SearchIcon = () => (

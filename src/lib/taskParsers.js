@@ -11,4 +11,4 @@ export {
   fetchLinkPreviewMeta,
   getDerivedTaskFields,
   normalizeCardType,
-} from '../taskCardUtils';
+} from '../entities/task/model/taskCardPresentation';

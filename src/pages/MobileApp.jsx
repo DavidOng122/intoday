@@ -5,10 +5,10 @@ import { subDays, addDays, format, isSameDay } from 'date-fns';
 import { SendIntent } from 'send-intent';
 import useKeyboardOffset from '../hooks/useKeyboardOffset';
 import useSwipeDownToClose from '../hooks/useSwipeDownToClose';
-import { useSyncedTodos } from '../todoSync';
+import { useSyncedTodos } from '../entities/task/data/useSyncedTodos';
 import { supabase } from '../supabase';
 import { DAY_BOUNDARY_HOUR, getCurrentTimeBlock, getLogicalToday } from '../lib/dateHelpers';
-import { createUpdatedTimestamp } from '../lib/packMetadata';
+import { createUpdatedTimestamp } from '../features/pack/model/packMetadata';
 import {
   getInitialLanguage,
   getLanguageLabel,
@@ -16,11 +16,11 @@ import {
   PROFILE_LANGUAGE_OPTIONS,
 } from '../lib/language';
 import { fetchMapMeta, fetchVideoMeta, fetchSpotifyMeta, fetchLinkPreviewMeta, getDerivedTaskFields, normalizeCardType, CARD_TYPES } from '../lib/taskParsers';
-import { getTaskCardPresentation } from '../taskCardUtils';
+import { getTaskCardPresentation } from '../entities/task/model/taskCardPresentation';
 import { timeBlocks } from '../lib/timeBlocks';
-import { translations } from '../lib/translations';
+import { translations } from '../shared/i18n/translations';
 import { useTaskInteraction } from '../task-interactions/useTaskInteraction';
-import { trackUserEvent } from '../lib/analytics';
+import { trackUserEvent } from '../shared/lib/analytics';
 import MobileHistoryModal from '../components/MobileHistoryModal';
 
 const SheetPebbleIcon = () => (

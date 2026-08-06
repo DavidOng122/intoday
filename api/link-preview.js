@@ -87,7 +87,7 @@ export default async function handler(req, res) {
       if (oembedRes.ok) {
         const data = await oembedRes.json();
         if (data && data.title) {
-          return res.status(200).json({ title: data.title, resolvedUrl: url });
+          return res.status(200).json({ title: data.title, image: data.thumbnail_url || null, resolvedUrl: url });
         }
       } else {
         const proxyRes = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(oembedUrl)}`);
@@ -95,11 +95,12 @@ export default async function handler(req, res) {
           const proxyJson = await proxyRes.json();
           if (proxyJson.contents) {
             const data = JSON.parse(proxyJson.contents);
-            if (data && data.title) return res.status(200).json({ title: data.title, resolvedUrl: url });
+            if (data && data.title) return res.status(200).json({ title: data.title, image: data.thumbnail_url || null, resolvedUrl: url });
           }
         }
       }
-    } catch (_) {
+    } catch {
+      // Fall through to the regular page metadata request.
     }
   }
 
@@ -126,11 +127,13 @@ export default async function handler(req, res) {
             return res.status(200).json({ title: null, mapTitle: cleanPlace, resolvedUrl });
           }
         }
-      } catch (e) {
+      } catch {
+        // Keep the resolved URL when map query parsing fails.
       }
     }
 
     let titleLabel = null;
+    let imageUrl = null;
     let html = null;
 
     if (response.ok) {
@@ -139,6 +142,19 @@ export default async function handler(req, res) {
                            html.match(/content=["']([^"']+)["'][^>]*property=["']og:title["']/i);
       const twitterTitleMatch = html.match(/name=["']twitter:title["'][^>]*content=["']([^"']+)["']/i) ||
                                 html.match(/content=["']([^"']+)["'][^>]*name=["']twitter:title["']/i);
+      const ogImageMatch = html.match(/property=["']og:image(?::secure_url)?["'][^>]*content=["']([^"']+)["']/i) ||
+                           html.match(/content=["']([^"']+)["'][^>]*property=["']og:image(?::secure_url)?["']/i);
+      const twitterImageMatch = html.match(/name=["']twitter:image(?::src)?["'][^>]*content=["']([^"']+)["']/i) ||
+                                html.match(/content=["']([^"']+)["'][^>]*name=["']twitter:image(?::src)?["']/i);
+
+      const rawImageUrl = ogImageMatch?.[1] || twitterImageMatch?.[1] || null;
+      if (rawImageUrl) {
+        try {
+          imageUrl = new URL(rawImageUrl.replace(/&amp;/g, '&'), resolvedUrl).href;
+        } catch {
+          imageUrl = null;
+        }
+      }
 
       if (ogTitleMatch && ogTitleMatch[1]) {
         titleLabel = ogTitleMatch[1];
@@ -173,6 +189,7 @@ export default async function handler(req, res) {
       const resolvedTarget = resolveAiConversationTitle(html, titleLabel, platform);
       return res.status(200).json({
         title: resolvedTarget.title,
+        image: imageUrl,
         resolvedUrl,
         platform,
         source: resolvedTarget.source,
@@ -193,7 +210,8 @@ export default async function handler(req, res) {
           } else {
               title = 'GitHub Repository';
           }
-        } catch (e) {
+        } catch {
+          // Keep the page title fallback when the GitHub URL is malformed.
         }
       } else {
         if (title.startsWith('GitHub - ')) {
@@ -210,7 +228,7 @@ export default async function handler(req, res) {
       return res.status(response.status).json({ error: `Failed to fetch URL: ${response.statusText}`, title: null, resolvedUrl });
     }
 
-    return res.status(200).json({ title: title || null, resolvedUrl });
+    return res.status(200).json({ title: title || null, image: imageUrl, resolvedUrl });
 
   } catch (error) {
     console.error('Error fetching link preview:', error);

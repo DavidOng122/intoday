@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { supabase, isSupabaseConfigured, supabaseConfigError } from './supabase';
-import { translations } from './lib/translations';
+import { translations } from './shared/i18n/translations';
 import { getInitialLanguage } from './lib/language';
 
 function Login({ onClose }) {

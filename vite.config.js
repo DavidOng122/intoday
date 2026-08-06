@@ -1,31 +1,39 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
-import convertHandler from './api/convert.js'
+import linkPreviewHandler from './api/link-preview.js'
 
-const createVercelStyleResponse = (res) => {
-  res.status = (statusCode) => {
-    res.statusCode = statusCode
-    return res
-  }
-
-  res.json = (payload) => {
-    if (!res.headersSent) {
-      res.setHeader('content-type', 'application/json; charset=utf-8')
-    }
-    res.end(JSON.stringify(payload))
-    return res
-  }
-
-  return res
-}
-
-const localApiPlugin = () => ({
-  name: 'local-api-routes',
+const localLinkPreviewApi = () => ({
+  name: 'local-link-preview-api',
   configureServer(server) {
-    server.middlewares.use('/api/convert', (req, res, next) => {
-      const adaptedResponse = createVercelStyleResponse(res)
-      Promise.resolve(convertHandler(req, adaptedResponse)).catch(next)
+    server.middlewares.use('/api/link-preview', async (req, res) => {
+      const requestUrl = new URL(req.url || '/', 'http://localhost')
+      const apiRequest = {
+        query: {
+          url: requestUrl.searchParams.get('url'),
+        },
+      }
+      const apiResponse = {
+        status(statusCode) {
+          res.statusCode = statusCode
+          return this
+        },
+        json(payload) {
+          res.setHeader('Content-Type', 'application/json; charset=utf-8')
+          res.end(JSON.stringify(payload))
+          return this
+        },
+      }
+
+      try {
+        await linkPreviewHandler(apiRequest, apiResponse)
+      } catch (error) {
+        if (!res.writableEnded) {
+          res.statusCode = 500
+          res.setHeader('Content-Type', 'application/json; charset=utf-8')
+          res.end(JSON.stringify({ error: 'Failed to fetch link preview', details: error.message }))
+        }
+      }
     })
   },
 })
@@ -33,8 +41,8 @@ const localApiPlugin = () => ({
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [
-    localApiPlugin(),
     react(),
+    localLinkPreviewApi(),
     VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.ico', 'logoreal.png', 'logo_192.png', 'logo_512.png'],

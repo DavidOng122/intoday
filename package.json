@@ -9,6 +9,7 @@
     "build": "npm run build:web",
     "build:web": "vite build",
     "lint": "eslint .",
+    "test:logic": "node --test src/lib/*.test.js src/features/*/tests/*.test.js",
     "preview": "npm run preview:web",
     "preview:web": "vite preview --host 127.0.0.1 --port 4173"
   },
