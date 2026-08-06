@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { supabase, isSupabaseConfigured } from './supabase';
 import IntoDayLogo from './components/IntoDayLogo';
 import { getInitialLanguage, LANGUAGE_STORAGE_KEY, LOGIN_LANGUAGE_OPTIONS } from './lib/language';
-import { translations } from './lib/translations';
+import { translations } from './shared/i18n/translations';
 import './DesktopLogin.css';
 
 const GoogleIcon = () => (

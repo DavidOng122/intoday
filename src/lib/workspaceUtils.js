@@ -1,4 +1,4 @@
-import { DEFAULT_DESKTOP_WORKSPACES, LEGACY_SAMPLE_WORKSPACE_IDS, DEFAULT_DESKTOP_WORKSPACE_ID } from './desktopConstants';
+import { DEFAULT_DESKTOP_WORKSPACES, LEGACY_SAMPLE_WORKSPACE_IDS, DEFAULT_DESKTOP_WORKSPACE_ID } from '../shared/config/workspaceConstants';
 
 export const normalizeDesktopWorkspaces = (value) => {
   if (!Array.isArray(value) || !value.length) return getDefaultDesktopWorkspaces();

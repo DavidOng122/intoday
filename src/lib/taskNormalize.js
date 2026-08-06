@@ -1,10 +1,10 @@
-import { sections } from './desktopConstants';
-import { getDerivedTaskFields, normalizeCardType } from '../taskCardUtils';
+import { sections } from './timeBlocks';
+import { getDerivedTaskFields, normalizeCardType } from '../entities/task/model/taskCardPresentation';
 import { dateKey } from './dateUtils';
 import { getLogicalToday } from './dateHelpers';
 import { isValidDesktopSlot, isFiniteCanvasCoordinate } from './domUtils';
 import { getTaskWorkspaceId } from './workspaceUtils';
-import { normalizePackIcon, normalizePackCover, normalizePackTags, normalizePackActiveDurationType, normalizePackActiveDate } from './packPageUtils';
+import { normalizePackIcon, normalizePackCover, normalizePackTags, normalizePackActiveDurationType, normalizePackActiveDate } from '../entities/pack/model/packValueNormalizers';
 
 export const normalizeTask = (task) => {
   const derivedFields = getDerivedTaskFields(task.text || '');

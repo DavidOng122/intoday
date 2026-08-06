@@ -1,6 +1,8 @@
-import { DESKTOP_DRAG_DAY_FLIP_ZONE_PX, LANGUAGE_LOCALES } from './desktopConstants';
+import { DESKTOP_DRAG_DAY_FLIP_ZONE_PX } from '../shared/config/viewportConstants';
+import { LANGUAGE_LOCALES } from '../shared/config/dateConstants';
+import { isToday, isYesterday, isTomorrow } from 'date-fns';
+import { translations } from '../shared/i18n/translations';
 import { getLogicalToday } from './dateHelpers';
-import { translations } from './translations';
 
 export const dateKey = (date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 

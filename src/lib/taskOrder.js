@@ -1,5 +1,6 @@
-import { DESKTOP_BASE_SLOT_COUNT, DAY_TASK_TIME_ORDER, DESKTOP_PHOTO_CARD_HEIGHT, DESKTOP_CANVAS_CARD_HEIGHT } from './desktopConstants';
-import { normalizeCardType, CARD_TYPES } from '../taskCardUtils';
+import { DESKTOP_BASE_SLOT_COUNT, DESKTOP_PHOTO_CARD_HEIGHT, DESKTOP_CANVAS_CARD_HEIGHT } from '../features/canvas/model/canvasConstants';
+import { DAY_TASK_TIME_ORDER } from './timeBlocks';
+import { normalizeCardType, CARD_TYPES } from '../entities/task/model/taskCardPresentation';
 
 export const resolveDesktopSectionSlots = (tasks) => {
   const slots = Array.from({ length: getDesktopSlotCapacity(tasks) }, () => null);

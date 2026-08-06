@@ -1,4 +1,4 @@
-import { DESKTOP_CANVAS_MIN_SCALE, DESKTOP_CANVAS_MAX_SCALE } from './desktopConstants';
+import { DESKTOP_CANVAS_MIN_SCALE, DESKTOP_CANVAS_MAX_SCALE } from '../shared/config/viewportConstants';
 
 export const isValidDesktopSlot = (value) => Number.isInteger(value) && value >= 0;
 
