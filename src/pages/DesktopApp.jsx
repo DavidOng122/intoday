@@ -63,7 +63,7 @@ import {
 import { UPLOADED_FILE_SOURCE_LABEL } from '../features/capture/config/uploadConstants';
 import { constrainDesktopCanvasEntries, resolveDesktopCanvasEntries } from '../features/canvas';
 
-const INBOX_FEATURE_ENABLED = import.meta.env.VITE_INBOX_ENABLED === 'true';
+const INBOX_FEATURE_ENABLED = true;
 // Root-level app window scale (OS density scaling) — unrelated to canvas zoom.
 // The entire desktop app wrapper is scaled down to 0.8 so the UI fits a typical
 // consumer monitor pixel density. Drag overlay positions must compensate for this.
