@@ -1,21 +1,14 @@
+/* eslint-disable react-hooks/set-state-in-effect */
 import React, { useEffect, useState } from 'react';
 import { isSupabaseConfigured, supabase } from './supabase';
-import { usePostHog } from 'posthog-js/react';
-import usePlatform from './hooks/usePlatform';
 import DesktopApp from './pages/DesktopApp';
 import DesktopLoginPage from './pages/DesktopLoginPage';
-import MobileApp from './pages/MobileApp';
-import MobileLoginPage from './pages/MobileLoginPage';
-import InstallPrompt from './components/InstallPrompt';
 import { Analytics } from '@vercel/analytics/react';
-
-
-const MobileAuthLoading = () => (
-  <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#F2F2F0' }}>
-    <div style={{ width: 32, height: 32, border: '3px solid #eee', borderTop: '3px solid #000', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
-    <style>{'@keyframes spin { to { transform: rotate(360deg); } }'}</style>
-  </div>
-);
+import {
+  identifyPostHogUser,
+  initializePostHogWhenIdle,
+  resetPostHogUser,
+} from './shared/lib/posthogClient';
 
 const DesktopAuthLoading = () => (
   <div style={{ width: '100vw', height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#FDFDFD', fontFamily: "'Inter', sans-serif" }}>
@@ -25,11 +18,10 @@ const DesktopAuthLoading = () => (
 );
 
 function App() {
-  const platformInfo = usePlatform();
-  const { isDesktop, platform, isNativePlatform } = platformInfo;
   const [session, setSession] = useState(null);
   const [loadingAuth, setLoadingAuth] = useState(true);
-  const posthog = usePostHog();
+
+  useEffect(() => initializePostHogWhenIdle(), []);
 
   useEffect(() => {
     const timeout = window.setTimeout(() => {
@@ -67,11 +59,9 @@ function App() {
       setLoadingAuth(false);
 
       if (nextSession?.user) {
-        posthog.identify(nextSession.user.id, {
-          email: nextSession.user.email,
-        });
+        void identifyPostHogUser(nextSession.user);
       } else if (_event === 'SIGNED_OUT') {
-        posthog.reset();
+        void resetPostHogUser();
       }
     });
 
@@ -80,7 +70,7 @@ function App() {
       window.clearTimeout(timeout);
       subscription?.unsubscribe();
     };
-  }, [posthog]);
+  }, []);
 
   if (loadingAuth) {
     return (
@@ -94,7 +84,6 @@ function App() {
   return (
     <>
       <Analytics />
-      <InstallPrompt />
       {session ? <DesktopApp session={session} /> : <DesktopLoginPage />}
     </>
   );

@@ -23,7 +23,7 @@ const URL_EXTRACT_REGEX =
   /(?:https?:\/\/|[a-z][a-z\d+.-]*:\/\/|mailto:|tel:|sms:|geo:|maps:|spotify:|www\.)[^\s<>"']+/gi;
 
 const TRAILING_PUNCTUATION_REGEX = /[),.;!?]+$/;
-const TRAILING_BRACKETS_QUOTES_REGEX = /[\]\}"'”’）】]+$/;
+const TRAILING_BRACKETS_QUOTES_REGEX = /[\]}"'”’）】]+$/;
 
 const DOCUMENT_EXTENSIONS = ['pdf', 'doc', 'docx', 'ppt', 'pptx', 'xls', 'xlsx', 'csv', 'txt', 'md', 'rtf', 'pages', 'key', 'numbers'];
 const PHOTO_EXTENSIONS = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg', 'heic', 'heif', 'avif'];

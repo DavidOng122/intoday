@@ -1,17 +1,9 @@
 import { StrictMode, Component } from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App.jsx';
-import { CSPostHogProvider } from './providers';
-import { applyPlatformClass } from './hooks/usePlatform';
 import './styles/tokens.css';
 import './styles/index.css';
-import './styles/mobile.css';
-import './styles/timeline.css';
-import './styles/sheets.css';
-import './styles/themes.css';
 import './styles/desktop.css';
-
-applyPlatformClass();
 
 class ErrorBoundary extends Component {
   constructor(props) {
@@ -55,16 +47,10 @@ class ErrorBoundary extends Component {
   }
 }
 
-if ('virtualKeyboard' in navigator) {
-  navigator.virtualKeyboard.overlaysContent = true;
-}
-
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <ErrorBoundary>
-      <CSPostHogProvider>
-        <App />
-      </CSPostHogProvider>
+      <App />
     </ErrorBoundary>
   </StrictMode>,
 );

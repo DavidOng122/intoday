@@ -2,9 +2,9 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { X } from 'lucide-react';
 import DesktopLogin from '../DesktopLogin';
-import { useSyncedTodos } from '../todoSync';
-import { DesktopProfilePage, useDesktopSession } from '../features/session';
-import { DesktopSearchModal, useDesktopSearch } from '../features/search';
+import { useSyncedTodos } from '../entities/task/data/useSyncedTodos';
+import { useDesktopSession } from '../features/session';
+import { useDesktopSearch } from '../features/search';
 import {
   getInboxCount,
   getInboxItems,
@@ -17,13 +17,12 @@ import {
   placeInboxItem,
   useInboxPanel,
 } from '../features/inbox';
-import DesktopDeleteConfirmModal from '../components/desktop/DesktopDeleteConfirmModal';
+import DesktopDeleteConfirmModal from '../shared/ui/DeleteConfirmModal';
 import { DesktopCanvas } from '../features/canvas';
 import { useDesktopCapture } from '../features/capture';
 import { WorkspaceMenu, useDesktopWorkspaces } from '../features/workspace';
 import { GroupedTaskCard, TaskCard } from '../features/canvas';
 import {
-  PackFullView,
   PackPrompt,
   cleanupDesktopGroupMetadata,
   createUpdatedTimestamp,
@@ -31,10 +30,10 @@ import {
 } from '../features/pack';
 import {
   WorkspaceChevronIcon,
-} from '../components/icons/DesktopIcons';
+} from '../shared/ui/icons/DesktopIcons';
 import { getLogicalToday } from '../lib/dateHelpers';
 import { getPackMetadataTextFromItems } from '../features/pack';
-import { deleteUploadedFileBlob } from '../lib/uploadedFileStorage';
+import { deleteUploadedFileBlob } from '../shared/storage/uploadedFileStorage';
 import {
   getPackIconFromTasks,
   getPackTagsFromTasks,
@@ -45,7 +44,7 @@ import {
   getDerivedTaskFields,
   getTaskCardPresentation,
   normalizeCardType,
-} from '../taskCardUtils';
+} from '../entities/task/model/taskCardPresentation';
 
 import { useDesktopViewport } from '../features/canvas';
 import { useDesktopTaskDrag } from '../features/canvas';
@@ -62,6 +61,10 @@ import {
 } from '../features/canvas';
 import { UPLOADED_FILE_SOURCE_LABEL } from '../features/capture/config/uploadConstants';
 import { constrainDesktopCanvasEntries, resolveDesktopCanvasEntries } from '../features/canvas';
+
+const LazyDesktopProfilePage = React.lazy(() => import('../features/session/components/DesktopProfilePage'));
+const LazyDesktopSearchModal = React.lazy(() => import('../features/search/components/DesktopSearchModal'));
+const LazyPackFullView = React.lazy(() => import('../features/pack/components/PackFullView'));
 
 const INBOX_FEATURE_ENABLED = true;
 // Root-level app window scale (OS density scaling) — unrelated to canvas zoom.
@@ -756,7 +759,7 @@ function App() {
             transformOrigin: 'top left',
           }}
         >
-      <div className={`desktop-app ${appearance === 'dark' ? 'desktop-app-dark dark-theme' : 'desktop-app-light'}`} style={{ width: '100%', height: '100%', overflow: 'hidden', background: 'var(--desktop-root-bg)', color: 'var(--desktop-root-text)', fontFamily: 'Inter, sans-serif', display: 'flex', flexDirection: 'column' }}>
+      <div className={`desktop-app ${appearance === 'dark' ? 'desktop-app-dark' : 'desktop-app-light'}`} style={{ width: '100%', height: '100%', overflow: 'hidden', background: 'var(--desktop-root-bg)', color: 'var(--desktop-root-text)', fontFamily: 'Inter, sans-serif', display: 'flex', flexDirection: 'column' }}>
         <header className="desktop-minimal-header">
           <div className="desktop-minimal-brand">
             <div ref={workspaceControlRef} className="desktop-workspace-control">
@@ -973,50 +976,58 @@ function App() {
           </div>
         </div>
 
-        <DesktopProfilePage
-          open={profileOpen}
-          onClose={() => setProfileOpen(false)}
-          user={user}
-          language={language}
-          setLanguage={setLanguage}
-          appearance={appearance}
-          appearancePreference={appearancePreference}
-          setAppearance={setAppearancePreference}
-          deletedWorkspaces={deletedWorkspaces}
-          canRestoreWorkspace={canAddWorkspace}
-          onRestoreWorkspace={handleRestoreWorkspace}
-          onSignOut={handleSignOut}
-        />
-        <DesktopSearchModal
-          open={historyOpen}
-          tasks={currentWorkspaceTasks}
-          appearance={appearance}
-          language={language}
-          t={t}
-          onClose={() => setHistoryOpen(false)}
-          onTaskClick={(task) => {
-            if (!task.id) return;
-            const { redirectUrl } = getTaskCardPresentation(task, t);
-            if (task.uploadedFileStorageKey) {
-              setHistoryOpen(false);
-              void openUploadedFileTask(task);
-              return;
-            }
-            if (redirectUrl) {
-              if (normalizeCardType(task.cardType) === CARD_TYPES.PHOTO) {
-                setFullscreenImage(task.photoUrl || task.photoDataUrl || redirectUrl);
-                return;
-              }
-              window.open(redirectUrl, '_blank', 'noopener,noreferrer');
-              return;
-            }
-            setHistoryOpen(false);
-          }}
-          onPackClick={handleHistoryPackOpen}
-          onPackItemClick={handleHistoryPackItemOpen}
-          onTaskPointerDown={handleTaskPointerDown}
-          onTaskLongPress={(task) => handleSearchTaskLongPress(task, startDesktopTaskDrag)}
-        />
+        {profileOpen ? (
+          <React.Suspense fallback={null}>
+            <LazyDesktopProfilePage
+              open
+              onClose={() => setProfileOpen(false)}
+              user={user}
+              language={language}
+              setLanguage={setLanguage}
+              appearance={appearance}
+              appearancePreference={appearancePreference}
+              setAppearance={setAppearancePreference}
+              deletedWorkspaces={deletedWorkspaces}
+              canRestoreWorkspace={canAddWorkspace}
+              onRestoreWorkspace={handleRestoreWorkspace}
+              onSignOut={handleSignOut}
+            />
+          </React.Suspense>
+        ) : null}
+        {historyOpen ? (
+          <React.Suspense fallback={null}>
+            <LazyDesktopSearchModal
+              open
+              tasks={currentWorkspaceTasks}
+              appearance={appearance}
+              language={language}
+              t={t}
+              onClose={() => setHistoryOpen(false)}
+              onTaskClick={(task) => {
+                if (!task.id) return;
+                const { redirectUrl } = getTaskCardPresentation(task, t);
+                if (task.uploadedFileStorageKey) {
+                  setHistoryOpen(false);
+                  void openUploadedFileTask(task);
+                  return;
+                }
+                if (redirectUrl) {
+                  if (normalizeCardType(task.cardType) === CARD_TYPES.PHOTO) {
+                    setFullscreenImage(task.photoUrl || task.photoDataUrl || redirectUrl);
+                    return;
+                  }
+                  window.open(redirectUrl, '_blank', 'noopener,noreferrer');
+                  return;
+                }
+                setHistoryOpen(false);
+              }}
+              onPackClick={handleHistoryPackOpen}
+              onPackItemClick={handleHistoryPackItemOpen}
+              onTaskPointerDown={handleTaskPointerDown}
+              onTaskLongPress={(task) => handleSearchTaskLongPress(task, startDesktopTaskDrag)}
+            />
+          </React.Suspense>
+        ) : null}
         <InboxPanel
           open={INBOX_FEATURE_ENABLED && inboxOpen}
           items={inboxItems}
@@ -1040,20 +1051,24 @@ function App() {
           onConfirm={handleConfirmGroupPrompt}
           onCancel={handleCancelGroupPrompt}
         />
-        <PackFullView
-          view={activeGroupView}
-          appearance={appearance}
-          labels={t}
-          language={language}
-          onClose={closeActiveGroupView}
-          onDeleteTasks={deleteTasksByIds}
-          onUpdateGroup={updateActiveGroupMetadata}
-          onToast={showToast}
-          onTaskOpen={(task) => {
-            closeActiveGroupView();
-            handleTaskClick(task);
-          }}
-        />
+        {activeGroupView ? (
+          <React.Suspense fallback={null}>
+            <LazyPackFullView
+              view={activeGroupView}
+              appearance={appearance}
+              labels={t}
+              language={language}
+              onClose={closeActiveGroupView}
+              onDeleteTasks={deleteTasksByIds}
+              onUpdateGroup={updateActiveGroupMetadata}
+              onToast={showToast}
+              onTaskOpen={(task) => {
+                closeActiveGroupView();
+                handleTaskClick(task);
+              }}
+            />
+          </React.Suspense>
+        ) : null}
         <DesktopDeleteConfirmModal
           open={Boolean(pendingWorkspaceDeletion)}
           title={`Delete “${pendingWorkspaceDeletion?.name || 'Workspace'}”?`}

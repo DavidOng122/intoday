@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { RotateCcw } from 'lucide-react';
 import { getLanguageLabel, PROFILE_LANGUAGE_OPTIONS } from '../../../lib/language';
-import { translations } from '../../../lib/translations';
+import { translations } from '../../../shared/i18n/translations';
 import { getUserProfile } from '../../../userProfile';
 
 const APPEARANCE_OPTIONS = ['system', 'dark', 'light'];

@@ -1,3 +1,22 @@
+# Desktop-Only 与技术债基线（2026-08-08）
+
+- [x] 删除 Mobile UI、Android 原生工程与 Capacitor 依赖。
+- [x] 窄屏继续使用同一套 Desktop UI。
+- [x] 保留 Desktop PWA，删除自定义安装提示。
+- [x] 删除并忽略版本库中的 `dev-dist` 生成物。
+- [x] 将 Desktop 旧路径引用切换到 Feature、Entity 与 Shared 正式路径。
+- [x] 修复 `taskOrder` 潜在的未定义引用。
+- [x] 删除无引用的运行时与构建依赖。
+- [x] 升级 Supabase/PostHog 依赖链，使生产依赖审计为 0 漏洞。
+- [x] 将 Profile、Search、Pack Full View 改为按需加载。
+- [x] 将 PostHog 改为浏览器空闲时按需加载，避免阻塞首屏。
+- [x] 为 `DesktopCanvas` 增加稳定 props 下的渲染隔离。
+- [ ] 将 `DesktopApp.jsx` 从 1171 行继续收敛到 600–900 行。
+- [ ] 在修改 Hook dependencies 前，先对拖拽状态机做性能分析与回归保护。
+- [ ] 拆分剩余 500 行以上组件及 5074 行 Desktop 样式表。
+
+当前验收基线：126 个逻辑测试、生产构建、ESLint 0 Error、生产依赖 0 漏洞，以及 Desktop 手动交互回归。当前主入口为 989.38 kB（gzip 278.73 kB）。
+
 # DesktopApp 重构执行清单
 
 下一阶段采用 Feature-Based Architecture；完整目录规划和迁移路线见 `docs/desktop_feature_architecture_handoff.md`。

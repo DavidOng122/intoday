@@ -1,12 +1,12 @@
 import { useCallback } from 'react';
-import { trackUserEvent } from '../lib/analytics';
+import { trackUserEvent } from '../shared/lib/analytics';
 import { createUpdatedTimestamp } from '../features/pack';
 import { normalizeTask } from '../lib/taskNormalize';
 import {
   CARD_TYPES,
   getTaskCardPresentation,
   normalizeCardType,
-} from '../taskCardUtils';
+} from '../entities/task/model/taskCardPresentation';
 
 export const useDesktopTaskActions = ({
   activeWorkspace,

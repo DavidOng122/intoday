@@ -96,4 +96,4 @@ const DesktopCanvas = ({
   );
 };
 
-export default DesktopCanvas;
+export default React.memo(DesktopCanvas);

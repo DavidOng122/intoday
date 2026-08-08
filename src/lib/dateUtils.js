@@ -1,6 +1,5 @@
 import { DESKTOP_DRAG_DAY_FLIP_ZONE_PX } from '../shared/config/viewportConstants';
 import { LANGUAGE_LOCALES } from '../shared/config/dateConstants';
-import { isToday, isYesterday, isTomorrow } from 'date-fns';
 import { translations } from '../shared/i18n/translations';
 import { getLogicalToday } from './dateHelpers';
 

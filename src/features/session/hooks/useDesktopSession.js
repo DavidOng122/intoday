@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { getInitialLanguage, LANGUAGE_STORAGE_KEY } from '../../../lib/language';
-import { trackUserEvent } from '../../../lib/analytics';
-import { translations } from '../../../lib/translations';
+import { trackUserEvent } from '../../../shared/lib/analytics';
+import { translations } from '../../../shared/i18n/translations';
 import { supabase } from '../../../supabase';
 import { getUserProfile } from '../../../userProfile';
 

@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { CircleAlert, Plus, Trash2 } from 'lucide-react';
-import { WorkspaceMoreIcon } from '../../../components/icons/DesktopIcons';
+import { WorkspaceMoreIcon } from '../../../shared/ui/icons/DesktopIcons';
 import { MAX_DESKTOP_WORKSPACES } from '../../../shared/config/workspaceConstants';
 
 const WorkspaceMenu = ({

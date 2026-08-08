@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useEffect, useRef, useCallback } from 'react';
-import { getTaskCardPresentation, normalizeCardType } from '../../../taskCardUtils';
+import { getTaskCardPresentation, normalizeCardType } from '../../../entities/task/model/taskCardPresentation';
 
 const SearchIcon = () => (
   <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

@@ -439,7 +439,7 @@ const DesktopGroupFullViewModal = ({
   const openContentTimerRef = useRef(null);
   const closeTimerRef = useRef(null);
   
-  const tasks = view?.tasks || [];
+  const tasks = useMemo(() => view?.tasks || [], [view?.tasks]);
   const open = Boolean(view);
 
   useEffect(() => {

@@ -1,16 +1,22 @@
-# React + Vite App
+# IntoDay
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+IntoDay is a Desktop Web Application designed for organizing your day.
 
-Currently, two official plugins are available:
+## Product Support & Architecture
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+- **Desktop-Only UI**: The product exclusively supports the Desktop UI across all devices and screen sizes. Mobile web browsers render the same Desktop UI without viewport redirection or "unsupported device" screens.
+- **Desktop PWA Supported**: PWA capabilities (Manifest & Service Worker) are fully active. Desktop browsers can install the app natively via the address bar or browser menu without custom install popups.
+- **Native Apps Removed**: Android and iOS native wrapper projects (Capacitor) have been permanently removed.
 
-## React Compiler
+## Development
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+```bash
+# Start web dev server
+npm run dev
 
-## Expanding the ESLint configuration
+# Run logic unit tests
+npm run test:logic
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+# Production web build
+npm run build:web
+```
