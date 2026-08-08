@@ -38,8 +38,7 @@ const getFiniteViewportMetrics = () => {
 };
 
 const isEditableElement = (target) => (
-  target instanceof HTMLElement
-  && Boolean(target.closest('input, textarea, button, select, [contenteditable="true"], [role="dialog"]'))
+  target instanceof Element
 );
 
 const getDesktopSelectionRect = (start, end) => ({
@@ -173,7 +172,7 @@ export const useDesktopViewport = ({
 
   const handleDesktopCanvasPointerDown = useCallback((event) => {
     if (event.button !== 0 || isEditableElement(event.target)) return;
-    if (event.target instanceof HTMLElement && event.target.closest('.desktop-task-card, .desktop-task-group-row, .desktop-group-connector-handle')) return;
+    if (event.target instanceof Element && event.target.closest('.desktop-task-card, .desktop-task-group-row, .desktop-group-connector-handle, .desktop-canvas-connections-layer, .desktop-connection-group')) return;
 
     const point = getCanvasPointFromClient(event.clientX, event.clientY);
     if (!point) return;

@@ -31,8 +31,8 @@ const DesktopCanvasConnections = ({
         inset: 0,
         width: '100%',
         height: '100%',
-        pointerEvents: 'none',
-        zIndex: 5,
+        pointerEvents: 'auto',
+        zIndex: 0,
       }}
     >
       <defs>
@@ -54,16 +54,21 @@ const DesktopCanvasConnections = ({
         const isHovered = hoveredConnId === conn.id;
 
         return (
-          <g key={conn.id} className="desktop-connection-group" style={{ pointerEvents: 'auto' }}>
+          <g
+            key={conn.id}
+            className="desktop-connection-group"
+            style={{ pointerEvents: 'auto' }}
+            onPointerEnter={() => setHoveredConnId(conn.id)}
+            onPointerLeave={() => setHoveredConnId(null)}
+          >
             {/* Invisible wide hit area for hover detection */}
             <path
               d={pathData}
               fill="none"
               stroke="transparent"
               strokeWidth="20"
+              pointerEvents="stroke"
               style={{ cursor: 'pointer' }}
-              onPointerEnter={() => setHoveredConnId(conn.id)}
-              onPointerLeave={() => setHoveredConnId(null)}
             />
             {/* Main visible connection curve */}
             <path
@@ -79,13 +84,29 @@ const DesktopCanvasConnections = ({
             {isHovered ? (
               <g
                 transform={`translate(${midPt.x}, ${midPt.y})`}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onRemoveConnection?.(conn.id);
-                }}
+                pointerEvents="all"
                 style={{ cursor: 'pointer' }}
               >
-                <circle r="12" fill={strokeColor} />
+                <circle
+                  r="20"
+                  fill="white"
+                  fillOpacity="0"
+                  stroke="none"
+                  pointerEvents="all"
+                  onPointerDown={(e) => {
+                    e.stopPropagation();
+                    onRemoveConnection?.(conn.id);
+                  }}
+                  onPointerUp={(e) => {
+                    e.stopPropagation();
+                    onRemoveConnection?.(conn.id);
+                  }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onRemoveConnection?.(conn.id);
+                  }}
+                />
+                <circle r="12" fill={strokeColor} pointerEvents="none" />
                 <text
                   x="0"
                   y="4"
@@ -93,7 +114,7 @@ const DesktopCanvasConnections = ({
                   fill="#ffffff"
                   fontSize="12"
                   fontWeight="bold"
-                  style={{ userSelect: 'none' }}
+                  style={{ userSelect: 'none', pointerEvents: 'none' }}
                 >
                   ✕
                 </text>
