@@ -1336,6 +1336,47 @@ body.desktop-task-dragging .desktop-canvas-card-shell * {
   z-index: 32;
 }
 
+.desktop-group-connector-handle {
+  position: absolute;
+  top: 50%;
+  width: 14px;
+  height: 14px;
+  margin-top: -7px;
+  border-radius: 50%;
+  background: var(--desktop-accent, #3b82f6);
+  border: 2px solid #ffffff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+  cursor: crosshair;
+  z-index: 40;
+  opacity: 0;
+  transform: scale(0.8);
+  transition: opacity 160ms ease, transform 160ms ease, background-color 160ms ease;
+}
+
+.desktop-group-connector-handle.is-left {
+  left: -7px;
+}
+
+.desktop-group-connector-handle.is-right {
+  right: -7px;
+}
+
+.desktop-canvas-card-node:hover .desktop-group-connector-handle,
+.desktop-group-connector-handle:hover {
+  opacity: 1;
+  transform: scale(1.15);
+}
+
+.desktop-group-connector-handle:hover {
+  background: #2563eb;
+  box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.25);
+}
+
+.desktop-app-dark .desktop-group-connector-handle {
+  border-color: #1e1e1e;
+  background: var(--desktop-accent, #60a5fa);
+}
+
 .desktop-task-group-card {
   user-select: none !important;
   -webkit-user-select: none !important;

@@ -1,7 +1,7 @@
-import { DESKTOP_DRAG_DAY_FLIP_ZONE_PX } from '../shared/config/viewportConstants';
-import { LANGUAGE_LOCALES } from '../shared/config/dateConstants';
-import { translations } from '../shared/i18n/translations';
-import { getLogicalToday } from './dateHelpers';
+import { DESKTOP_DRAG_DAY_FLIP_ZONE_PX } from '../shared/config/viewportConstants.js';
+import { LANGUAGE_LOCALES } from '../shared/config/dateConstants.js';
+import { translations } from '../shared/i18n/translations.js';
+import { getLogicalToday } from './dateHelpers.js';
 
 export const dateKey = (date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 

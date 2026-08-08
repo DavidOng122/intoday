@@ -117,3 +117,16 @@ export const findDesktopDragOverlap = ({
 
   return { entry: bestMatch, ratio: bestRatio, rect: movingRect, centerAligned };
 };
+
+export const getDesktopCubicBezierPath = (sourcePt, targetPt, sourceSide = 'right', targetSide = 'left') => {
+  if (!sourcePt || !targetPt) return '';
+  const dx = Math.abs(targetPt.x - sourcePt.x);
+  const dy = Math.abs(targetPt.y - sourcePt.y);
+  const minCurve = Math.max(36, Math.min(180, dx * 0.45 + dy * 0.15));
+
+  const c1x = sourceSide === 'left' ? sourcePt.x - minCurve : sourcePt.x + minCurve;
+  const c2x = targetSide === 'left' ? targetPt.x - minCurve : targetPt.x + minCurve;
+
+  return `M ${sourcePt.x} ${sourcePt.y} C ${c1x} ${sourcePt.y}, ${c2x} ${targetPt.y}, ${targetPt.x} ${targetPt.y}`;
+};
+

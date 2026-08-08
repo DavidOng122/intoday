@@ -4,11 +4,11 @@ import {
   DESKTOP_CANVAS_CARD_WIDTH,
   DESKTOP_MAIN_CONTENT_MAX_WIDTH,
   DESKTOP_GROUP_OVERLAP_THRESHOLD,
-} from './canvasConstants';
-import { getDesktopCollapsedGroupVisibleCount, getDesktopGroupCardHeight } from '../../pack';
-import { isFiniteCanvasCoordinate } from '../../../lib/domUtils';
-import { expandDesktopCanvasRect, getRectCenterPoint, getDesktopCanvasRectIntersectionArea, isDesktopCanvasPointInsideRect } from './canvasGeometry';
-import { getDesktopCanvasTaskHeight } from '../../../lib/taskOrder';
+} from './canvasConstants.js';
+import { getDesktopCollapsedGroupVisibleCount, getDesktopGroupCardHeight } from '../../pack/model/groupMetadata.js';
+import { isFiniteCanvasCoordinate } from '../../../lib/domUtils.js';
+import { expandDesktopCanvasRect, getRectCenterPoint, getDesktopCanvasRectIntersectionArea, isDesktopCanvasPointInsideRect } from './canvasGeometry.js';
+import { getDesktopCanvasTaskHeight } from '../../../lib/taskOrder.js';
 
 export { getCanvasEntryIdentity } from './canvasEntryIdentity.js';
 

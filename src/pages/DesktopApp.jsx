@@ -19,6 +19,7 @@ import {
 } from '../features/inbox';
 import DesktopDeleteConfirmModal from '../shared/ui/DeleteConfirmModal';
 import { DesktopCanvas } from '../features/canvas';
+import { useDesktopConnections } from '../features/canvas/hooks/useDesktopConnections';
 import { useDesktopCapture } from '../features/capture';
 import { WorkspaceMenu, useDesktopWorkspaces } from '../features/workspace';
 import { GroupedTaskCard, TaskCard } from '../features/canvas';
@@ -276,6 +277,14 @@ function App() {
   const [fullscreenImage, setFullscreenImage] = useState(null);
   const workspaceNameInputRef = useRef(null);
   const workspaceControlRef = useRef(null);
+  const {
+    connections,
+    draftConnection,
+    startConnectionDrag,
+    updateConnectionDrag,
+    finishConnectionDrag,
+    removeConnection,
+  } = useDesktopConnections({ dateKey: dateKey(selectedDate) });
   const [tasks, setTasks, commitTodos] = useSyncedTodos({
     userId: user?.id || null,
     normalizeTodo: normalizeTask,
@@ -868,8 +877,14 @@ function App() {
                 ref={viewportContainerRef}
                 className={`desktop-canvas-scroll ${isCanvasFileDragActive ? 'is-file-drag-active' : ''}`}
                 onPointerDownCapture={handleDesktopCanvasPointerDown}
-                onPointerMove={handleDesktopCanvasPointerMove}
-                onPointerUp={handleDesktopCanvasPointerEnd}
+                onPointerMove={(event) => {
+                  handleDesktopCanvasPointerMove(event);
+                  if (draftConnection) updateConnectionDrag(event);
+                }}
+                onPointerUp={(event) => {
+                  handleDesktopCanvasPointerEnd(event);
+                  if (draftConnection) finishConnectionDrag(null, null, event);
+                }}
                 onPointerCancel={handleDesktopCanvasPointerEnd}
                 onDragEnter={handleCanvasFileDragEnter}
                 onDragOver={handleCanvasFileDragOver}
@@ -899,15 +914,21 @@ function App() {
                       onTaskPointerDown={handleTaskPointerDown}
                       onTaskPointerMove={handleTaskPointerMove}
                       onTaskPointerUp={handleTaskPointerUp}
-                    onTaskPointerCancel={handleTaskPointerCancel}
-                    draggedTaskId={draggedTaskId}
-                    selectedTaskIds={selectedTaskIds}
-                    selectionRect={desktopSelectionRect}
+                      onTaskPointerCancel={handleTaskPointerCancel}
+                      draggedTaskId={draggedTaskId}
+                      selectedTaskIds={selectedTaskIds}
+                      selectionRect={desktopSelectionRect}
                       dragOverlapTargetId={desktopDragOverlapTargetId}
                       TaskCardComponent={TaskCard}
                       GroupedTaskCardComponent={GroupedTaskCard}
-                    layoutWidth={canvasBounds.width}
-                  />
+                      layoutWidth={canvasBounds.width}
+                      connections={connections}
+                      draftConnection={draftConnection}
+                      getCanvasPointFromClient={getCanvasPointFromClient}
+                      onStartConnectionDrag={startConnectionDrag}
+                      onFinishConnectionDrag={finishConnectionDrag}
+                      onRemoveConnection={removeConnection}
+                    />
                   {desktopDragOverlayActive && desktopDragOverlaySnapshot ? (
                     <div
                       aria-hidden="true"

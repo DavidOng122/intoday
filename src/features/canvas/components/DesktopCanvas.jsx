@@ -1,5 +1,6 @@
 import React from 'react';
-import { DESKTOP_CANVAS_CARD_WIDTH, DESKTOP_MAIN_CONTENT_MAX_WIDTH } from '../model/canvasConstants';
+import DesktopCanvasConnections from './DesktopCanvasConnections.jsx';
+import { DESKTOP_CANVAS_CARD_WIDTH, DESKTOP_MAIN_CONTENT_MAX_WIDTH } from '../model/canvasConstants.js';
 import { getCanvasEntryIdentity } from '../model/canvasEntryIdentity.js';
 
 const DesktopCanvas = ({
@@ -21,12 +22,26 @@ const DesktopCanvas = ({
   TaskCardComponent: TaskCardView,
   GroupedTaskCardComponent: GroupedTaskCardView,
   layoutWidth = DESKTOP_MAIN_CONTENT_MAX_WIDTH,
+  connections = [],
+  draftConnection = null,
+  getCanvasPointFromClient = null,
+  onStartConnectionDrag = null,
+  onFinishConnectionDrag = null,
+  onRemoveConnection = null,
 }) => {
   // Keep explicit references for ESLint configurations that do not count JSX tags as usage.
   void TaskCardView;
   void GroupedTaskCardView;
   return (
   <div style={{ width: layoutWidth, minHeight: canvasHeight, height: canvasHeight, margin: '0 auto', position: 'relative' }}>
+    <DesktopCanvasConnections
+      connections={connections}
+      draftConnection={draftConnection}
+      entries={entries}
+      getCanvasPointFromClient={getCanvasPointFromClient}
+      onRemoveConnection={onRemoveConnection}
+      appearance={appearance}
+    />
     {entries.length > 0 ? entries.map((entry) => {
       const dragTask = entry.type === 'group'
         ? { ...entry.task, groupTaskIds: entry.tasks.map((task) => task.id), groupSize: entry.tasks.length }
@@ -41,22 +56,40 @@ const DesktopCanvas = ({
         <div key={entry.type === 'group' ? `group-${entry.id}` : entry.task.id} id={`desktop-canvas-entry-${dragTask.id}`} data-desktop-entry-id={String(entryIdentity)} data-desktop-layout-id={`task-${dragTask.id}`} className="desktop-canvas-card-node" style={{ left: entry.x, top: entry.y, width: DESKTOP_CANVAS_CARD_WIDTH }}>
           <div className={`desktop-canvas-card-shell ${isGroupReady ? 'desktop-canvas-card-shell--group-ready' : ''} ${isDragging ? 'is-dragging' : ''}`}>
             {entry.type === 'group' ? (
-              <GroupedTaskCardView
-                tasks={entry.tasks}
-                appearance={appearance}
-                labels={labels}
-                isDragging={isDragging}
-                isGroupDragActive={isGroupDragActive}
-                isSelected={entry.tasks.every((task) => selectedTaskIds.includes(task.id))}
-                isGroupReady={isGroupReady}
-                draggedTaskId={draggedTaskId}
-                onOpenItem={onTaskClick}
-                onOpenFullView={(event) => onGroupOpenFullView(entry.tasks, event)}
-                onPointerDown={onTaskPointerDown}
-                onPointerMove={onTaskPointerMove}
-                onPointerUp={onTaskPointerUp}
-                onPointerCancel={onTaskPointerCancel}
-              />
+              <>
+                <div
+                  className="desktop-group-connector-handle is-left"
+                  onPointerDown={(event) => onStartConnectionDrag?.(entry.id, 'left', event)}
+                  onPointerUp={(event) => onFinishConnectionDrag?.(entry.id, 'left', event)}
+                  title="Connect Left"
+                  role="button"
+                  tabIndex={-1}
+                />
+                <GroupedTaskCardView
+                  tasks={entry.tasks}
+                  appearance={appearance}
+                  labels={labels}
+                  isDragging={isDragging}
+                  isGroupDragActive={isGroupDragActive}
+                  isSelected={entry.tasks.every((task) => selectedTaskIds.includes(task.id))}
+                  isGroupReady={isGroupReady}
+                  draggedTaskId={draggedTaskId}
+                  onOpenItem={onTaskClick}
+                  onOpenFullView={(event) => onGroupOpenFullView(entry.tasks, event)}
+                  onPointerDown={onTaskPointerDown}
+                  onPointerMove={onTaskPointerMove}
+                  onPointerUp={onTaskPointerUp}
+                  onPointerCancel={onTaskPointerCancel}
+                />
+                <div
+                  className="desktop-group-connector-handle is-right"
+                  onPointerDown={(event) => onStartConnectionDrag?.(entry.id, 'right', event)}
+                  onPointerUp={(event) => onFinishConnectionDrag?.(entry.id, 'right', event)}
+                  title="Connect Right"
+                  role="button"
+                  tabIndex={-1}
+                />
+              </>
             ) : (
               <TaskCardView
                 task={entry.task}
@@ -69,8 +102,8 @@ const DesktopCanvas = ({
                 onClick={(event) => onTaskClick(entry.task, event)}
                 onPointerDown={(event) => onTaskPointerDown(entry.task, event)}
                 onPointerMove={(event) => onTaskPointerMove(entry.task, event)}
-                onPointerUp={(event) => onTaskPointerUp(entry.task, event)}
-                onPointerCancel={(event) => onTaskPointerCancel(entry.task, event)}
+                onPointerUp={(event) => onTaskPointerUp(event)}
+                onPointerCancel={(event) => onTaskPointerCancel(event)}
               />
             )}
           </div>

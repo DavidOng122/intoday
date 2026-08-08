@@ -5,10 +5,10 @@ import {
   DESKTOP_GROUP_CARD_MIN_HEIGHT,
   DESKTOP_GROUP_CARD_MORE_LABEL_HEIGHT,
   DESKTOP_GROUP_CARD_ROW_GAP,
-} from '../../canvas';
-import { getPackIconFromTasks, getPackTagsFromTasks } from './packPageUtils';
-import { CARD_TYPES, normalizeCardType } from '../../../entities/task/model/taskCardPresentation';
-import { normalizeTask } from '../../../lib/taskNormalize';
+} from '../../canvas/model/canvasConstants.js';
+import { getPackIconFromTasks, getPackTagsFromTasks } from './packPageUtils.js';
+import { CARD_TYPES, normalizeCardType } from '../../../entities/task/model/taskCardPresentation.js';
+import { normalizeTask } from '../../../lib/taskNormalize.js';
 
 export const getDesktopGroupDisplayName = (tasks) => (
   tasks.find((task) => typeof task.desktopGroupName === 'string' && task.desktopGroupName.trim())?.desktopGroupName
