@@ -25,6 +25,10 @@ export const getDesktopCanvasEntryHeight = (entry) => (
     : getDesktopCanvasTaskHeight(entry?.task)
 );
 
+export const getCanvasEntryIdentity = (entry) => (
+  entry?.type === 'group' ? entry.id : entry?.task?.id
+);
+
 export const getDesktopCanvasEntryTaskIds = (entry) => (
   entry?.type === 'group'
     ? entry.tasks.map((task) => task.id)

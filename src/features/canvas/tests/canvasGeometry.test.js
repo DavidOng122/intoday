@@ -9,6 +9,7 @@ import {
   expandDesktopCanvasRect,
   findDesktopDragOverlap,
 } from '../model/canvasGeometry.js';
+import { getCanvasEntryIdentity } from '../model/canvasEntries.js';
 
 // ---------------------------------------------------------------------------
 // doDesktopRectsIntersect
@@ -218,4 +219,65 @@ test('findDesktopDragOverlap: single task vs tall Pack candidate', () => {
   assert.notEqual(result, null);
   assert.equal(result.entry.id, 'group-1');
   assert.equal(result.centerAligned, true);
+});
+
+// ---------------------------------------------------------------------------
+// getCanvasEntryIdentity & Group-to-Group Overlap
+// ---------------------------------------------------------------------------
+
+test('getCanvasEntryIdentity: standalone task returns task.id', () => {
+  const taskEntry = { type: 'task', task: { id: 42 }, x: 0, y: 0 };
+  assert.equal(getCanvasEntryIdentity(taskEntry), 42);
+});
+
+test('getCanvasEntryIdentity: group entry returns entry.id', () => {
+  const groupEntry = { type: 'group', id: 'desktop-group-99', task: { id: 1 }, tasks: [{ id: 1 }], x: 0, y: 0 };
+  assert.equal(getCanvasEntryIdentity(groupEntry), 'desktop-group-99');
+});
+
+test('findDesktopDragOverlap: Group A overlapping Group B > 50% returns Group B candidate', () => {
+  const groupB = {
+    type: 'group',
+    id: 'group-B',
+    task: { id: 20 },
+    tasks: [{ id: 20 }, { id: 21 }],
+    x: 100,
+    y: 100,
+  };
+  const groupBRect = { x: 100, y: 100, width: 220, height: 200 };
+
+  const movingRect = { x: 120, y: 110, width: 220, height: 180 };
+
+  const result = findDesktopDragOverlap({
+    movingRect,
+    candidates: [{ entry: groupB, rect: groupBRect }],
+    movingTaskIds: new Set([10, 11]), // Group A moving task IDs
+    threshold: 0.5,
+  });
+
+  assert.notEqual(result, null);
+  assert.equal(result.entry.id, 'group-B');
+});
+
+test('findDesktopDragOverlap: Group A overlapping Group B < 50% returns null', () => {
+  const groupB = {
+    type: 'group',
+    id: 'group-B',
+    task: { id: 20 },
+    tasks: [{ id: 20 }, { id: 21 }],
+    x: 100,
+    y: 100,
+  };
+  const groupBRect = { x: 100, y: 100, width: 220, height: 200 };
+
+  const movingRect = { x: 400, y: 400, width: 220, height: 180 };
+
+  const result = findDesktopDragOverlap({
+    movingRect,
+    candidates: [{ entry: groupB, rect: groupBRect }],
+    movingTaskIds: new Set([10, 11]),
+    threshold: 0.5,
+  });
+
+  assert.equal(result, null);
 });

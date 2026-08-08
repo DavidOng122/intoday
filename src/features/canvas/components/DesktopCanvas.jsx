@@ -30,7 +30,8 @@ const DesktopCanvas = ({
       const dragTask = entry.type === 'group'
         ? { ...entry.task, groupTaskIds: entry.tasks.map((task) => task.id), groupSize: entry.tasks.length }
         : entry.task;
-      const isGroupReady = dragOverlapTargetId === dragTask.id;
+      const entryIdentity = entry.type === 'group' ? entry.id : entry.task.id;
+      const isGroupReady = dragOverlapTargetId === entryIdentity;
       const isDragging = entry.type === 'group'
         ? draggedTaskId === dragTask.id && isGroupDragActive
         : draggedTaskId === entry.task.id && !isGroupDragActive;

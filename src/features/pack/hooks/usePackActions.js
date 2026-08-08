@@ -185,7 +185,7 @@ export const usePackActions = ({
 
   const handleConfirmGroupPrompt = useCallback(() => {
     if (!pendingGroupPrompt) return;
-    const groupName = pendingGroupName.trim() || 'New group';
+    const isMergePacks = pendingGroupPrompt.mode === 'merge-packs';
     const groupedTaskIds = new Set([
       ...pendingGroupPrompt.movingTaskIds,
       ...pendingGroupPrompt.targetTaskIds,
@@ -194,7 +194,27 @@ export const usePackActions = ({
     const nextUpdatedAt = createUpdatedTimestamp();
     setTasks((prev) => {
       const groupedTasks = prev.filter((task) => groupedTaskIds.has(task.id));
-      const nextGroupTags = getDesktopGroupDisplayTags(groupedTasks);
+      const targetTasks = prev.filter((task) => pendingGroupPrompt.targetTaskIds.includes(task.id));
+      const targetLead = targetTasks[0] || {};
+
+      let groupName = pendingGroupName.trim() || 'New group';
+      let groupIcon = null;
+      let groupCover = null;
+      let groupTags = getDesktopGroupDisplayTags(groupedTasks);
+      let groupDurationType = null;
+      let groupActiveFrom = null;
+      let groupActiveUntil = null;
+
+      if (isMergePacks && targetLead) {
+        groupName = targetLead.desktopGroupName || getDesktopGroupDisplayName(targetTasks);
+        groupIcon = targetLead.desktopGroupIcon || null;
+        groupCover = targetLead.desktopGroupCover || null;
+        groupTags = targetLead.desktopGroupTags || getDesktopGroupDisplayTags(targetTasks);
+        groupDurationType = targetLead.desktopGroupActiveDurationType || null;
+        groupActiveFrom = targetLead.desktopGroupActiveFrom || null;
+        groupActiveUntil = targetLead.desktopGroupActiveUntil || null;
+      }
+
       return prev.map((task) => (
         groupedTaskIds.has(task.id)
           ? normalizeTask({
@@ -206,7 +226,12 @@ export const usePackActions = ({
             desktopCanvasY: Number(pendingGroupPrompt.overlapY.toFixed(1)),
             desktopGroupId: pendingGroupPrompt.groupId,
             desktopGroupName: groupName,
-            desktopGroupTags: nextGroupTags,
+            desktopGroupIcon: groupIcon,
+            desktopGroupCover: groupCover,
+            desktopGroupTags: groupTags,
+            desktopGroupActiveDurationType: groupDurationType,
+            desktopGroupActiveFrom: groupActiveFrom,
+            desktopGroupActiveUntil: groupActiveUntil,
             desktopZ: Date.now(),
           })
           : task
@@ -216,8 +241,23 @@ export const usePackActions = ({
   }, [closePendingGroupPrompt, pendingGroupName, pendingGroupPrompt, setTasks]);
 
   const handleCancelGroupPrompt = useCallback(() => {
+    if (pendingGroupPrompt?.movingTaskIds?.length && pendingGroupPrompt?.fallbackPosition) {
+      const movingIds = new Set(pendingGroupPrompt.movingTaskIds);
+      const fallbackPos = pendingGroupPrompt.fallbackPosition;
+      const timestamp = Date.now();
+      setTasks((prev) => prev.map((task) => (
+        movingIds.has(task.id)
+          ? normalizeTask({
+            ...task,
+            desktopCanvasX: Number(fallbackPos.x.toFixed(1)),
+            desktopCanvasY: Number(fallbackPos.y.toFixed(1)),
+            desktopZ: timestamp,
+          })
+          : task
+      )));
+    }
     closePendingGroupPrompt();
-  }, [closePendingGroupPrompt]);
+  }, [closePendingGroupPrompt, pendingGroupPrompt, setTasks]);
 
   return {
     updateActiveGroupMetadata,

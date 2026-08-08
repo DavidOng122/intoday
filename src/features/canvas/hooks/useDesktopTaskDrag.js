@@ -10,6 +10,7 @@ import {
   DESKTOP_MAIN_CONTENT_MAX_WIDTH,
 } from '../model/canvasConstants';
 import {
+  getCanvasEntryIdentity,
   getDesktopCanvasEntryHeight,
   getDesktopCanvasEntryTaskIds,
   getDesktopCanvasResolvedPosition,
@@ -19,6 +20,7 @@ import {
 import {
   findDesktopDragOverlap,
 } from '../model/canvasGeometry';
+import { getDesktopGroupDisplayName } from '../../pack';
 import { dateKey } from '../../../lib/dateUtils';
 import { normalizeTask } from '../../../lib/taskNormalize';
 
@@ -237,7 +239,7 @@ const updateDesktopDragOverlapTarget = useCallback((clientX, clientY, taskId) =>
   const isExternalDrag = isExternalDragTask?.(activePointerTaskRef.current) === true;
   const nextTargetId = isExternalDrag && overlapResult?.entry?.type !== 'group'
     ? null
-    : overlapResult?.entry?.id || null;
+    : (overlapResult?.entry ? getCanvasEntryIdentity(overlapResult.entry) : null);
   const currentTargetId = desktopDragOverlapTargetIdRef.current;
 
   if (nextTargetId === currentTargetId) return;
@@ -260,11 +262,6 @@ const updateDesktopDragOverlapTarget = useCallback((clientX, clientY, taskId) =>
   }
 
   desktopDragOverlapTargetIdRef.current = nextTargetId;
-
-  if (desktopDragModeRef.current && desktopDragIsGroupRef.current) {
-    return;
-  }
-
   setDesktopDragOverlapTargetId(nextTargetId);
 }, [getDesktopCanvasOverlapEntryFromDom, getDesktopDragAnchorPosition, getDragCanvasPointFromClient, isExternalDragTask]);
 
@@ -547,9 +544,7 @@ const finishDesktopTaskDrag = useCallback((task, pointerTarget, pointerId) => {
           const timestamp = Date.now();
           const isMultiDrag = desktopDragSelectedTaskIdsRef.current.size > 1;
           const isDetachedGroupTask = desktopDragDetachedFromGroupRef.current && !isMultiDrag && movingTaskIds.size === 1;
-          const shouldAllowMergePrompt = !overlapEntry
-            ? false
-            : !isGroupDrag || !!overlapResult?.centerAligned;
+          const shouldAllowMergePrompt = !!overlapEntry;
           const applyDroppedPosition = (tasksToMap) => tasksToMap.map((item) => {
             if (!movingTaskIds.has(item.id)) return item;
             const itemStartPosition = desktopDragSelectionPositionsRef.current.get(item.id) || anchorStart;
@@ -577,7 +572,7 @@ const finishDesktopTaskDrag = useCallback((task, pointerTarget, pointerId) => {
             const movingTasks = prev.filter((item) => movingTaskIds.has(item.id));
 
             // Put Back Logic: If the target group is the group this task is already in, merge instantly
-            const isPutBack = overlapEntry.type === 'group' && movingTasks.every(t => t.desktopGroupId === overlapEntry.id);
+            const isPutBack = overlapEntry.type === 'group' && movingTasks.every((t) => t.desktopGroupId === overlapEntry.id);
 
             if (isPutBack) {
               return prev.map((item) => {
@@ -592,10 +587,17 @@ const finishDesktopTaskDrag = useCallback((task, pointerTarget, pointerId) => {
               });
             }
 
+            const isMergePacks = isGroupDrag && overlapEntry.type === 'group';
+            const targetGroupName = overlapEntry.type === 'group'
+              ? getDesktopGroupDisplayName(overlapEntry.tasks)
+              : null;
+
             setPendingGroupPrompt({
+              mode: isMergePacks ? 'merge-packs' : 'create-group',
               movingTaskIds: [...movingTaskIds],
               targetTaskIds: overlapEntry.type === 'group' ? overlapEntry.tasks.map((item) => item.id) : [overlapEntry.task.id],
               groupId: overlapEntry.type === 'group' ? overlapEntry.id : `desktop-group-${timestamp}`,
+              targetGroupName,
               anchorX: desktopDragPointerRef.current.x,
               anchorY: desktopDragPointerRef.current.y,
               targetDateKey: activeDateKey,
@@ -608,7 +610,7 @@ const finishDesktopTaskDrag = useCallback((task, pointerTarget, pointerId) => {
                 y: overlapEntry.y + getDesktopCanvasEntryHeight(overlapEntry) + DESKTOP_CANVAS_CARD_GAP,
               }),
             });
-            setPendingGroupName(getSuggestedDesktopGroupName(movingTasks, overlapEntry));
+            setPendingGroupName(isMergePacks ? (targetGroupName || '') : getSuggestedDesktopGroupName(movingTasks, overlapEntry));
             return cleanupDesktopGroupMetadata(applyDroppedPosition(prev));
           }
 
