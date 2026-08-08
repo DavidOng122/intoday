@@ -4,7 +4,7 @@ import {
   DESKTOP_CANVAS_HITBOX_HORIZONTAL_PADDING,
   DESKTOP_CANVAS_HITBOX_VERTICAL_PADDING,
   DESKTOP_GROUP_OVERLAP_THRESHOLD,
-} from './canvasConstants';
+} from './canvasConstants.js';
 
 export const doDesktopRectsIntersect = (first, second) => !(
   first.x + first.width < second.x

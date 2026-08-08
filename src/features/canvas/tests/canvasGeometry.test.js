@@ -1,26 +1,18 @@
-// NOTE: canvasGeometry.js uses bare module specifiers which require a bundler.
-// These tests verify the pure mathematical functions by reproducing them
-// inline — no imports of application modules needed.
-//
-// Full integration (getDesktopCanvasOverlapEntry) is covered by manual
-// regression after each migration phase.
-
 import test from 'node:test';
 import assert from 'node:assert/strict';
-
-// ---------------------------------------------------------------------------
-// ---------------------------------------------------------------------------
+import {
+  doDesktopRectsIntersect,
+  getDesktopSelectionRect,
+  getDesktopCanvasRectIntersectionArea,
+  getRectCenterPoint,
+  isDesktopCanvasPointInsideRect,
+  expandDesktopCanvasRect,
+  findDesktopDragOverlap,
+} from '../model/canvasGeometry.js';
 
 // ---------------------------------------------------------------------------
 // doDesktopRectsIntersect
 // ---------------------------------------------------------------------------
-
-const doDesktopRectsIntersect = (a, b) => !(
-  a.x + a.width < b.x
-  || b.x + b.width < a.x
-  || a.y + a.height < b.y
-  || b.y + b.height < a.y
-);
 
 test('doDesktopRectsIntersect: overlapping rects', () => {
   assert.equal(doDesktopRectsIntersect(
@@ -54,13 +46,6 @@ test('doDesktopRectsIntersect: separate rects vertically', () => {
 // getDesktopSelectionRect
 // ---------------------------------------------------------------------------
 
-const getDesktopSelectionRect = (start, end) => ({
-  x: Math.min(start.x, end.x),
-  y: Math.min(start.y, end.y),
-  width: Math.abs(end.x - start.x),
-  height: Math.abs(end.y - start.y),
-});
-
 test('getDesktopSelectionRect: top-left to bottom-right', () => {
   const r = getDesktopSelectionRect({ x: 10, y: 20 }, { x: 110, y: 120 });
   assert.equal(r.x, 10);
@@ -87,12 +72,6 @@ test('getDesktopSelectionRect: zero-size selection', () => {
 // getDesktopCanvasRectIntersectionArea
 // ---------------------------------------------------------------------------
 
-const getDesktopCanvasRectIntersectionArea = (a, b) => {
-  const overlapWidth = Math.max(0, Math.min(a.x + a.width, b.x + b.width) - Math.max(a.x, b.x));
-  const overlapHeight = Math.max(0, Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y));
-  return overlapWidth * overlapHeight;
-};
-
 test('getDesktopCanvasRectIntersectionArea: identical rects', () => {
   const r = { x: 0, y: 0, width: 100, height: 100 };
   assert.equal(getDesktopCanvasRectIntersectionArea(r, r), 10000);
@@ -114,11 +93,6 @@ test('getDesktopCanvasRectIntersectionArea: no overlap returns 0', () => {
 // getRectCenterPoint
 // ---------------------------------------------------------------------------
 
-const getRectCenterPoint = (rect) => ({
-  x: rect.x + (rect.width / 2),
-  y: rect.y + (rect.height / 2),
-});
-
 test('getRectCenterPoint: centered at origin', () => {
   const c = getRectCenterPoint({ x: 0, y: 0, width: 100, height: 80 });
   assert.equal(c.x, 50);
@@ -134,13 +108,6 @@ test('getRectCenterPoint: offset rect', () => {
 // ---------------------------------------------------------------------------
 // isDesktopCanvasPointInsideRect
 // ---------------------------------------------------------------------------
-
-const isDesktopCanvasPointInsideRect = (point, rect) => (
-  point.x >= rect.x
-  && point.x <= rect.x + rect.width
-  && point.y >= rect.y
-  && point.y <= rect.y + rect.height
-);
 
 test('isDesktopCanvasPointInsideRect: center is inside', () => {
   assert.equal(isDesktopCanvasPointInsideRect({ x: 50, y: 50 }, { x: 0, y: 0, width: 100, height: 100 }), true);
@@ -162,13 +129,6 @@ test('isDesktopCanvasPointInsideRect: outside returns false', () => {
 // expandDesktopCanvasRect
 // ---------------------------------------------------------------------------
 
-const expandDesktopCanvasRect = (rect, horizontal, vertical) => ({
-  x: rect.x - horizontal,
-  y: rect.y - vertical,
-  width: rect.width + (horizontal * 2),
-  height: rect.height + (vertical * 2),
-});
-
 test('expandDesktopCanvasRect: expands all sides symmetrically', () => {
   const rect = { x: 100, y: 100, width: 200, height: 100 };
   const expanded = expandDesktopCanvasRect(rect, 10, 18);
@@ -184,77 +144,8 @@ test('expandDesktopCanvasRect: zero padding is identity', () => {
 });
 
 // ---------------------------------------------------------------------------
-// findDesktopDragOverlap
+// findDesktopDragOverlap (Production Import)
 // ---------------------------------------------------------------------------
-
-const getEntryTaskIds = (entry) => (
-  entry?.type === 'group'
-    ? entry.tasks.map((task) => task.id)
-    : entry?.task?.id !== undefined && entry?.task?.id !== null
-      ? [entry.task.id]
-      : []
-);
-
-const findDesktopDragOverlap = ({
-  movingRect,
-  candidates,
-  movingTaskIds,
-  threshold = 0.6,
-}) => {
-  if (!movingRect || !candidates || candidates.length === 0) return null;
-
-  const movingHitRect = expandDesktopCanvasRect(movingRect, 10, 18);
-  const movingCenter = getRectCenterPoint(movingRect);
-  const movingArea = Math.max(1, movingRect.width * movingRect.height);
-  let bestMatch = null;
-  let bestRatio = 0;
-  let bestTargetRect = null;
-
-  candidates.forEach(({ entry, rect }) => {
-    const entryTaskIds = getEntryTaskIds(entry);
-    const isMovingExactSameItems = entryTaskIds.length === movingTaskIds.size
-      && entryTaskIds.every((id) => movingTaskIds.has(id));
-    if (isMovingExactSameItems) return;
-
-    const targetRect = rect;
-    if (!targetRect) return;
-
-    const targetHitRect = expandDesktopCanvasRect(targetRect, 10, 18);
-    const targetCenter = getRectCenterPoint(targetRect);
-    const overlapArea = getDesktopCanvasRectIntersectionArea(movingHitRect, targetHitRect);
-    const movingCenterInsideTarget = isDesktopCanvasPointInsideRect(movingCenter, targetHitRect);
-    const targetCenterInsideMoving = isDesktopCanvasPointInsideRect(targetCenter, movingHitRect);
-    if (overlapArea <= 0 && !movingCenterInsideTarget && !targetCenterInsideMoving) return;
-
-    const targetArea = Math.max(1, targetRect.width * targetRect.height);
-    const movingCoverageRatio = overlapArea / movingArea;
-    const targetCoverageRatio = overlapArea / targetArea;
-    const overlapRatio = Math.max(movingCoverageRatio, targetCoverageRatio);
-    const qualifies = (
-      movingCoverageRatio >= threshold
-      || targetCoverageRatio >= threshold
-      || movingCenterInsideTarget
-      || targetCenterInsideMoving
-    );
-    if (qualifies && overlapRatio >= bestRatio) {
-      bestRatio = overlapRatio;
-      bestMatch = entry;
-      bestTargetRect = targetRect;
-    }
-  });
-
-  if (!bestMatch || !bestTargetRect) return null;
-
-  const movingCenterPoint = getRectCenterPoint(movingRect);
-  const targetCenterPoint = getRectCenterPoint(bestTargetRect);
-  const targetHitRect = expandDesktopCanvasRect(bestTargetRect, 10, 18);
-  const centerAligned = (
-    isDesktopCanvasPointInsideRect(movingCenterPoint, targetHitRect)
-    || isDesktopCanvasPointInsideRect(targetCenterPoint, movingHitRect)
-  );
-
-  return { entry: bestMatch, ratio: bestRatio, rect: movingRect, centerAligned };
-};
 
 test('findDesktopDragOverlap: no candidates returns null', () => {
   const result = findDesktopDragOverlap({
@@ -283,7 +174,7 @@ test('findDesktopDragOverlap: threshold boundary - below threshold returns null'
     movingRect: { x: 0, y: 0, width: 220, height: 120 },
     candidates: [{ entry, rect }],
     movingTaskIds: new Set([1]),
-    threshold: 0.6,
+    threshold: 0.5,
   });
   assert.equal(result, null);
 });
@@ -298,6 +189,7 @@ test('findDesktopDragOverlap: overlap above threshold returns best match', () =>
     movingRect: { x: 0, y: 0, width: 220, height: 120 },
     candidates: [{ entry: entryA, rect: rectA }, { entry: entryB, rect: rectB }],
     movingTaskIds: new Set([1]),
+    threshold: 0.5,
   });
 
   assert.notEqual(result, null);
@@ -320,6 +212,7 @@ test('findDesktopDragOverlap: single task vs tall Pack candidate', () => {
     movingRect: { x: 20, y: 20, width: 220, height: 120 },
     candidates: [{ entry: packEntry, rect: packRect }],
     movingTaskIds: new Set([99]),
+    threshold: 0.5,
   });
 
   assert.notEqual(result, null);
