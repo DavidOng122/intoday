@@ -1,5 +1,5 @@
 /* eslint-disable react-hooks/preserve-manual-memoization */
-import { useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { flushSync } from 'react-dom';
 import {
   DESKTOP_CANVAS_CARD_GAP,
@@ -17,10 +17,7 @@ import {
   getDesktopCanvasOverlapEntry,
 } from '../model/canvasEntries';
 import {
-  expandDesktopCanvasRect,
-  getDesktopCanvasRectIntersectionArea,
-  getRectCenterPoint,
-  isDesktopCanvasPointInsideRect,
+  findDesktopDragOverlap,
 } from '../model/canvasGeometry';
 import { dateKey } from '../../../lib/dateUtils';
 import { normalizeTask } from '../../../lib/taskNormalize';
@@ -119,10 +116,7 @@ const suppressNextTaskClick = useCallback((taskId) => {
   }, 250);
 }, []);
 
-const resetDesktopDragInteraction = useCallback(() => {
-  desktopDragOverlapTargetIdRef.current = null;
-  setDesktopDragOverlapTargetId(null);
-}, []);
+const targetCandidatesCacheRef = useRef(null);
 
 const getCanvasRectFromClientRect = useCallback((rect) => {
   if (!rect) return null;
@@ -137,6 +131,28 @@ const getCanvasRectFromClientRect = useCallback((rect) => {
   };
 }, [getCanvasPointFromClient]);
 
+const buildCandidatesCache = useCallback((tasks) => {
+  const entries = resolveDesktopCanvasEntries(tasks);
+  return entries.map((entry) => {
+    const entryNode = document.getElementById(`desktop-canvas-entry-${entry.task.id}`);
+    const rect = entryNode
+      ? getCanvasRectFromClientRect(entryNode.getBoundingClientRect())
+      : {
+        x: entry.x,
+        y: entry.y,
+        width: DESKTOP_CANVAS_CARD_WIDTH,
+        height: getDesktopCanvasEntryHeight(entry),
+      };
+    return { entry, rect };
+  });
+}, [getCanvasRectFromClientRect]);
+
+const resetDesktopDragInteraction = useCallback(() => {
+  targetCandidatesCacheRef.current = null;
+  desktopDragOverlapTargetIdRef.current = null;
+  setDesktopDragOverlapTargetId(null);
+}, []);
+
 const getActiveDraggedCanvasRect = useCallback((taskId) => {
   const activeNode = desktopDragOverlayNodeRef.current
     || document.getElementById(`desktop-canvas-entry-${taskId}`);
@@ -145,7 +161,6 @@ const getActiveDraggedCanvasRect = useCallback((taskId) => {
 }, [getCanvasRectFromClientRect]);
 
 const getDesktopCanvasOverlapEntryFromDom = useCallback((tasks, movingTaskIds, taskId, fallbackNextPosition, threshold = DESKTOP_GROUP_OVERLAP_THRESHOLD) => {
-  const entries = resolveDesktopCanvasEntries(tasks);
   const movingRect = getActiveDraggedCanvasRect(taskId) || (
     fallbackNextPosition
       ? {
@@ -162,76 +177,16 @@ const getDesktopCanvasOverlapEntryFromDom = useCallback((tasks, movingTaskIds, t
       : null;
   }
 
-  const movingHitRect = expandDesktopCanvasRect(movingRect);
-  const movingCenter = getRectCenterPoint(movingRect);
-  const movingArea = Math.max(1, movingRect.width * movingRect.height);
-  let bestMatch = null;
-  let bestRatio = 0;
+  const cache = targetCandidatesCacheRef.current || buildCandidatesCache(tasks);
+  targetCandidatesCacheRef.current = cache;
 
-  entries.forEach((entry) => {
-    const entryTaskIds = getDesktopCanvasEntryTaskIds(entry);
-    const isMovingExactSameItems = entryTaskIds.length === movingTaskIds.size && entryTaskIds.every((id) => movingTaskIds.has(id));
-    if (isMovingExactSameItems) return;
-
-    const entryNode = document.getElementById(`desktop-canvas-entry-${entry.task.id}`);
-    const targetRect = entryNode
-      ? getCanvasRectFromClientRect(entryNode.getBoundingClientRect())
-      : {
-        x: entry.x,
-        y: entry.y,
-        width: DESKTOP_CANVAS_CARD_WIDTH,
-        height: getDesktopCanvasEntryHeight(entry),
-      };
-    if (!targetRect) return;
-
-    const targetHitRect = expandDesktopCanvasRect(targetRect);
-    const targetCenter = getRectCenterPoint(targetRect);
-    const overlapArea = getDesktopCanvasRectIntersectionArea(movingHitRect, targetHitRect);
-    const movingCenterInsideTarget = isDesktopCanvasPointInsideRect(movingCenter, targetHitRect);
-    const targetCenterInsideMoving = isDesktopCanvasPointInsideRect(targetCenter, movingHitRect);
-    if (overlapArea <= 0 && !movingCenterInsideTarget && !targetCenterInsideMoving) return;
-
-    const targetArea = Math.max(1, targetRect.width * targetRect.height);
-    const movingCoverageRatio = overlapArea / movingArea;
-    const targetCoverageRatio = overlapArea / targetArea;
-    const overlapRatio = Math.max(movingCoverageRatio, targetCoverageRatio);
-    const qualifies = (
-      movingCoverageRatio >= threshold
-      || targetCoverageRatio >= threshold
-      || movingCenterInsideTarget
-      || targetCenterInsideMoving
-    );
-    if (qualifies && overlapRatio >= bestRatio) {
-      bestRatio = overlapRatio;
-      bestMatch = entry;
-    }
+  return findDesktopDragOverlap({
+    movingRect,
+    candidates: cache,
+    movingTaskIds,
+    threshold,
   });
-
-  const centerAligned = bestMatch
-    ? (() => {
-      const entryNode = document.getElementById(`desktop-canvas-entry-${bestMatch.task.id}`);
-      const targetRect = entryNode
-        ? getCanvasRectFromClientRect(entryNode.getBoundingClientRect())
-        : {
-          x: bestMatch.x,
-          y: bestMatch.y,
-          width: DESKTOP_CANVAS_CARD_WIDTH,
-          height: getDesktopCanvasEntryHeight(bestMatch),
-        };
-      if (!targetRect) return false;
-      const movingCenterPoint = getRectCenterPoint(movingRect);
-      const targetCenterPoint = getRectCenterPoint(targetRect);
-      const targetHitRect = expandDesktopCanvasRect(targetRect);
-      const movingHitRect = expandDesktopCanvasRect(movingRect);
-      return (
-        isDesktopCanvasPointInsideRect(movingCenterPoint, targetHitRect)
-        || isDesktopCanvasPointInsideRect(targetCenterPoint, movingHitRect)
-      );
-    })()
-    : false;
-
-  return bestMatch ? { entry: bestMatch, ratio: bestRatio, rect: movingRect, centerAligned } : null;
-}, [getActiveDraggedCanvasRect, getCanvasRectFromClientRect]);
+}, [buildCandidatesCache, getActiveDraggedCanvasRect]);
 
 const setDesktopDragSourceHidden = useCallback((hidden) => {
   const sourceId = desktopDragSourceEntryIdRef.current;
@@ -857,6 +812,18 @@ useEffect(() => {
     window.removeEventListener('pointercancel', handleWindowPointerEnd);
   };
 }, [finishDesktopTaskDrag, processDesktopDragMove, resetDesktopDragState]);
+
+useEffect(() => {
+  const handleViewportChange = () => {
+    targetCandidatesCacheRef.current = null;
+  };
+  window.addEventListener('resize', handleViewportChange);
+  window.addEventListener('scroll', handleViewportChange, true);
+  return () => {
+    window.removeEventListener('resize', handleViewportChange);
+    window.removeEventListener('scroll', handleViewportChange, true);
+  };
+}, []);
 
 
   return {

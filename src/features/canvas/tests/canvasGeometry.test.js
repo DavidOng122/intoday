@@ -182,3 +182,147 @@ test('expandDesktopCanvasRect: zero padding is identity', () => {
   const rect = { x: 50, y: 60, width: 100, height: 80 };
   assert.deepEqual(expandDesktopCanvasRect(rect, 0, 0), rect);
 });
+
+// ---------------------------------------------------------------------------
+// findDesktopDragOverlap
+// ---------------------------------------------------------------------------
+
+const getEntryTaskIds = (entry) => (
+  entry?.type === 'group'
+    ? entry.tasks.map((task) => task.id)
+    : entry?.task?.id !== undefined && entry?.task?.id !== null
+      ? [entry.task.id]
+      : []
+);
+
+const findDesktopDragOverlap = ({
+  movingRect,
+  candidates,
+  movingTaskIds,
+  threshold = 0.6,
+}) => {
+  if (!movingRect || !candidates || candidates.length === 0) return null;
+
+  const movingHitRect = expandDesktopCanvasRect(movingRect, 10, 18);
+  const movingCenter = getRectCenterPoint(movingRect);
+  const movingArea = Math.max(1, movingRect.width * movingRect.height);
+  let bestMatch = null;
+  let bestRatio = 0;
+  let bestTargetRect = null;
+
+  candidates.forEach(({ entry, rect }) => {
+    const entryTaskIds = getEntryTaskIds(entry);
+    const isMovingExactSameItems = entryTaskIds.length === movingTaskIds.size
+      && entryTaskIds.every((id) => movingTaskIds.has(id));
+    if (isMovingExactSameItems) return;
+
+    const targetRect = rect;
+    if (!targetRect) return;
+
+    const targetHitRect = expandDesktopCanvasRect(targetRect, 10, 18);
+    const targetCenter = getRectCenterPoint(targetRect);
+    const overlapArea = getDesktopCanvasRectIntersectionArea(movingHitRect, targetHitRect);
+    const movingCenterInsideTarget = isDesktopCanvasPointInsideRect(movingCenter, targetHitRect);
+    const targetCenterInsideMoving = isDesktopCanvasPointInsideRect(targetCenter, movingHitRect);
+    if (overlapArea <= 0 && !movingCenterInsideTarget && !targetCenterInsideMoving) return;
+
+    const targetArea = Math.max(1, targetRect.width * targetRect.height);
+    const movingCoverageRatio = overlapArea / movingArea;
+    const targetCoverageRatio = overlapArea / targetArea;
+    const overlapRatio = Math.max(movingCoverageRatio, targetCoverageRatio);
+    const qualifies = (
+      movingCoverageRatio >= threshold
+      || targetCoverageRatio >= threshold
+      || movingCenterInsideTarget
+      || targetCenterInsideMoving
+    );
+    if (qualifies && overlapRatio >= bestRatio) {
+      bestRatio = overlapRatio;
+      bestMatch = entry;
+      bestTargetRect = targetRect;
+    }
+  });
+
+  if (!bestMatch || !bestTargetRect) return null;
+
+  const movingCenterPoint = getRectCenterPoint(movingRect);
+  const targetCenterPoint = getRectCenterPoint(bestTargetRect);
+  const targetHitRect = expandDesktopCanvasRect(bestTargetRect, 10, 18);
+  const centerAligned = (
+    isDesktopCanvasPointInsideRect(movingCenterPoint, targetHitRect)
+    || isDesktopCanvasPointInsideRect(targetCenterPoint, movingHitRect)
+  );
+
+  return { entry: bestMatch, ratio: bestRatio, rect: movingRect, centerAligned };
+};
+
+test('findDesktopDragOverlap: no candidates returns null', () => {
+  const result = findDesktopDragOverlap({
+    movingRect: { x: 0, y: 0, width: 220, height: 120 },
+    candidates: [],
+    movingTaskIds: new Set([1]),
+  });
+  assert.equal(result, null);
+});
+
+test('findDesktopDragOverlap: ignores candidate with exact same task IDs', () => {
+  const entry = { type: 'task', task: { id: 1 }, x: 0, y: 0 };
+  const rect = { x: 0, y: 0, width: 220, height: 120 };
+  const result = findDesktopDragOverlap({
+    movingRect: { x: 0, y: 0, width: 220, height: 120 },
+    candidates: [{ entry, rect }],
+    movingTaskIds: new Set([1]),
+  });
+  assert.equal(result, null);
+});
+
+test('findDesktopDragOverlap: threshold boundary - below threshold returns null', () => {
+  const entry = { type: 'task', task: { id: 2 }, x: 300, y: 300 };
+  const rect = { x: 300, y: 300, width: 220, height: 120 };
+  const result = findDesktopDragOverlap({
+    movingRect: { x: 0, y: 0, width: 220, height: 120 },
+    candidates: [{ entry, rect }],
+    movingTaskIds: new Set([1]),
+    threshold: 0.6,
+  });
+  assert.equal(result, null);
+});
+
+test('findDesktopDragOverlap: overlap above threshold returns best match', () => {
+  const entryA = { type: 'task', task: { id: 2 }, x: 50, y: 50 };
+  const rectA = { x: 50, y: 50, width: 220, height: 120 };
+  const entryB = { type: 'task', task: { id: 3 }, x: 10, y: 10 };
+  const rectB = { x: 10, y: 10, width: 220, height: 120 };
+
+  const result = findDesktopDragOverlap({
+    movingRect: { x: 0, y: 0, width: 220, height: 120 },
+    candidates: [{ entry: entryA, rect: rectA }, { entry: entryB, rect: rectB }],
+    movingTaskIds: new Set([1]),
+  });
+
+  assert.notEqual(result, null);
+  assert.equal(result.entry.task.id, 3);
+  assert.equal(result.centerAligned, true);
+});
+
+test('findDesktopDragOverlap: single task vs tall Pack candidate', () => {
+  const packEntry = {
+    type: 'group',
+    id: 'group-1',
+    task: { id: 10 },
+    tasks: [{ id: 10 }, { id: 11 }, { id: 12 }],
+    x: 0,
+    y: 0,
+  };
+  const packRect = { x: 0, y: 0, width: 220, height: 320 }; // taller Pack height
+
+  const result = findDesktopDragOverlap({
+    movingRect: { x: 20, y: 20, width: 220, height: 120 },
+    candidates: [{ entry: packEntry, rect: packRect }],
+    movingTaskIds: new Set([99]),
+  });
+
+  assert.notEqual(result, null);
+  assert.equal(result.entry.id, 'group-1');
+  assert.equal(result.centerAligned, true);
+});

@@ -48,3 +48,72 @@ export const isDesktopCanvasPointInsideRect = (point, rect) => (
   && point.y >= rect.y
   && point.y <= rect.y + rect.height
 );
+
+const getEntryTaskIds = (entry) => (
+  entry?.type === 'group'
+    ? entry.tasks.map((task) => task.id)
+    : entry?.task?.id !== undefined && entry?.task?.id !== null
+      ? [entry.task.id]
+      : []
+);
+
+export const findDesktopDragOverlap = ({
+  movingRect,
+  candidates,
+  movingTaskIds,
+  threshold = DESKTOP_GROUP_OVERLAP_THRESHOLD,
+}) => {
+  if (!movingRect || !candidates || candidates.length === 0) return null;
+
+  const movingHitRect = expandDesktopCanvasRect(movingRect);
+  const movingCenter = getRectCenterPoint(movingRect);
+  const movingArea = Math.max(1, movingRect.width * movingRect.height);
+  let bestMatch = null;
+  let bestRatio = 0;
+  let bestTargetRect = null;
+
+  candidates.forEach(({ entry, rect }) => {
+    const entryTaskIds = getEntryTaskIds(entry);
+    const isMovingExactSameItems = entryTaskIds.length === movingTaskIds.size
+      && entryTaskIds.every((id) => movingTaskIds.has(id));
+    if (isMovingExactSameItems) return;
+
+    const targetRect = rect;
+    if (!targetRect) return;
+
+    const targetHitRect = expandDesktopCanvasRect(targetRect);
+    const targetCenter = getRectCenterPoint(targetRect);
+    const overlapArea = getDesktopCanvasRectIntersectionArea(movingHitRect, targetHitRect);
+    const movingCenterInsideTarget = isDesktopCanvasPointInsideRect(movingCenter, targetHitRect);
+    const targetCenterInsideMoving = isDesktopCanvasPointInsideRect(targetCenter, movingHitRect);
+    if (overlapArea <= 0 && !movingCenterInsideTarget && !targetCenterInsideMoving) return;
+
+    const targetArea = Math.max(1, targetRect.width * targetRect.height);
+    const movingCoverageRatio = overlapArea / movingArea;
+    const targetCoverageRatio = overlapArea / targetArea;
+    const overlapRatio = Math.max(movingCoverageRatio, targetCoverageRatio);
+    const qualifies = (
+      movingCoverageRatio >= threshold
+      || targetCoverageRatio >= threshold
+      || movingCenterInsideTarget
+      || targetCenterInsideMoving
+    );
+    if (qualifies && overlapRatio >= bestRatio) {
+      bestRatio = overlapRatio;
+      bestMatch = entry;
+      bestTargetRect = targetRect;
+    }
+  });
+
+  if (!bestMatch || !bestTargetRect) return null;
+
+  const movingCenterPoint = getRectCenterPoint(movingRect);
+  const targetCenterPoint = getRectCenterPoint(bestTargetRect);
+  const targetHitRect = expandDesktopCanvasRect(bestTargetRect);
+  const centerAligned = (
+    isDesktopCanvasPointInsideRect(movingCenterPoint, targetHitRect)
+    || isDesktopCanvasPointInsideRect(targetCenterPoint, movingHitRect)
+  );
+
+  return { entry: bestMatch, ratio: bestRatio, rect: movingRect, centerAligned };
+};
