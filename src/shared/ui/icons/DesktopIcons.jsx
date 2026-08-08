@@ -28,28 +28,7 @@ export const PackExportIcon = () => (
   </svg>
 );
 
-export const PackShareIcon = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-    <circle cx="18" cy="5" r="2.5" />
-    <circle cx="6" cy="12" r="2.5" />
-    <circle cx="18" cy="19" r="2.5" />
-    <path d="m8.25 10.9 7.5-4.6M8.25 13.1l7.5 4.6" />
-  </svg>
-);
 
-export const PackLinkIcon = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-    <path d="M10 13.5a4.25 4.25 0 0 0 6.25.25l2-2a4.25 4.25 0 0 0-6-6l-1.15 1.15" />
-    <path d="M14 10.5a4.25 4.25 0 0 0-6.25-.25l-2 2a4.25 4.25 0 0 0 6 6l1.15-1.15" />
-  </svg>
-);
-
-export const PackCopyIcon = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-    <rect x="8" y="8" width="11" height="11" rx="2" />
-    <path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2" />
-  </svg>
-);
 
 export const CloseIcon = () => (
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" style={{ width: 18, height: 18 }}>

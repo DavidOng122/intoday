@@ -31,11 +31,8 @@ import {
   GithubGlyphIcon,
   LinkGlobeIcon,
   NotionGlyphIcon,
-  PackCopyIcon,
   PackExportIcon,
-  PackLinkIcon,
   PackSelectIcon,
-  PackShareIcon,
   SearchIcon,
   SparkRosetteIcon,
   VideoGlyphIcon,
@@ -337,73 +334,6 @@ const DesktopPackPageHeader = ({
   );
 };
 
-const DesktopShareLinkModal = ({ open, title, shareUrl, labels = {}, onClose, onCopied }) => {
-  const [copied, setCopied] = useState(false);
-  const handleClose = useCallback(() => {
-    setCopied(false);
-    onClose?.();
-  }, [onClose]);
-
-  useEffect(() => {
-    if (!open) return undefined;
-
-    const handleKeyDown = (event) => {
-      if (event.key === 'Escape') handleClose();
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [handleClose, open]);
-
-  if (!open) return null;
-
-  const handleCopy = async () => {
-    try {
-      await copyTextToClipboard(shareUrl);
-      setCopied(true);
-      onCopied?.();
-    } catch {
-      setCopied(false);
-    }
-  };
-
-  return (
-    <div
-      className="desktop-share-link-modal"
-      role="presentation"
-      onClick={(event) => {
-        event.stopPropagation();
-        handleClose();
-      }}
-    >
-      <div className="desktop-share-link-backdrop" />
-      <div
-        className="desktop-share-link-dialog"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="desktop-share-link-title"
-        onClick={(event) => event.stopPropagation()}
-      >
-        <div className="desktop-share-link-header">
-          <h2 id="desktop-share-link-title">{title}</h2>
-          <button type="button" className="desktop-share-link-close" onClick={handleClose} aria-label={labels.close || 'Close'}>
-            <CloseIcon />
-          </button>
-        </div>
-        <div className="desktop-share-link-url-row">
-          <div className="desktop-share-link-url" title={shareUrl}>{shareUrl}</div>
-          <button type="button" className="desktop-share-link-copy" onClick={handleCopy}>
-            <PackCopyIcon />
-            <span>{copied ? (labels.copied || 'Copied') : (labels.copyLink || 'Copy link')}</span>
-          </button>
-        </div>
-        <div className="desktop-share-link-notice">
-          <span className="desktop-share-link-info" aria-hidden="true">i</span>
-          <p>{labels.publicShareNotice || 'Anyone with the public link can access it. Share responsibly. You can delete the link at any time. Third-party sharing is subject to that platform’s policies.'}</p>
-        </div>
-      </div>
-    </div>
-  );
-};
 
 
 const DesktopGroupFullViewModal = ({
@@ -421,8 +351,6 @@ const DesktopGroupFullViewModal = ({
   const [activeFilter, setActiveFilter] = useState('All');
   const [isSearchVisible, setIsSearchVisible] = useState(false);
   const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
-  const [isShareMenuOpen, setIsShareMenuOpen] = useState(false);
-  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [highlightedTaskId, setHighlightedTaskId] = useState(null);
   const [isSelectMode, setIsSelectMode] = useState(false);
   const [selectedItemIds, setSelectedItemIds] = useState([]);
@@ -434,7 +362,6 @@ const DesktopGroupFullViewModal = ({
   const [flipSnapshot, setFlipSnapshot] = useState(null);
   const [hasOriginTransition, setHasOriginTransition] = useState(false);
   const exportMenuRef = useRef(null);
-  const shareMenuRef = useRef(null);
   const shellRef = useRef(null);
   const openContentTimerRef = useRef(null);
   const closeTimerRef = useRef(null);
@@ -448,8 +375,6 @@ const DesktopGroupFullViewModal = ({
       setActiveFilter('All');
       setIsSearchVisible(false);
       setIsExportMenuOpen(false);
-      setIsShareMenuOpen(false);
-      setIsShareModalOpen(false);
       setHighlightedTaskId(null);
       setIsSelectMode(false);
       setSelectedItemIds([]);
@@ -533,21 +458,17 @@ const DesktopGroupFullViewModal = ({
   }, [tasks]);
 
   useEffect(() => {
-    if (!open || (!isExportMenuOpen && !isShareMenuOpen)) return undefined;
+    if (!open || !isExportMenuOpen) return undefined;
 
     const handlePointerDown = (event) => {
       if (exportMenuRef.current && !exportMenuRef.current.contains(event.target)) {
         setIsExportMenuOpen(false);
-      }
-      if (shareMenuRef.current && !shareMenuRef.current.contains(event.target)) {
-        setIsShareMenuOpen(false);
       }
     };
 
     const handleKeyDown = (event) => {
       if (event.key === 'Escape') {
         setIsExportMenuOpen(false);
-        setIsShareMenuOpen(false);
       }
     };
 
@@ -557,7 +478,7 @@ const DesktopGroupFullViewModal = ({
       window.removeEventListener('pointerdown', handlePointerDown);
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [isExportMenuOpen, isShareMenuOpen, open]);
+  }, [isExportMenuOpen, open]);
 
   useEffect(() => {
     if (!open || !view?.focusTaskId) return undefined;
@@ -613,8 +534,6 @@ const DesktopGroupFullViewModal = ({
   const filters = PACK_FILTER_ORDER;
   const isDark = appearance === 'dark';
   const selectedCount = selectedItemIds.length;
-  const groupTitle = getDesktopGroupDisplayName(tasks);
-  const shareUrl = `${window.location.origin}/share/${sanitizePackFilename(groupTitle)}`;
   const toggleSelectItem = (taskId) => {
     setSelectedItemIds((current) => (
       current.includes(taskId)
@@ -625,7 +544,6 @@ const DesktopGroupFullViewModal = ({
   const enterSelectMode = () => {
     setIsSearchVisible(false);
     setIsExportMenuOpen(false);
-    setIsShareMenuOpen(false);
     setIsSelectMode(true);
     setSelectedItemIds([]);
     setIsDeleteConfirmOpen(false);
@@ -654,8 +572,6 @@ const DesktopGroupFullViewModal = ({
     const filename = `${sanitizePackFilename(getDesktopGroupDisplayName(tasks))}.md`;
     downloadMarkdown(filename, markdown);
     setIsExportMenuOpen(false);
-    setIsShareMenuOpen(false);
-    setIsShareModalOpen(false);
   };
   const handleExportPackBundle = async () => {
     try {
@@ -807,8 +723,6 @@ const DesktopGroupFullViewModal = ({
     if (closeTimerRef.current) window.clearTimeout(closeTimerRef.current);
 
     setIsExportMenuOpen(false);
-    setIsShareMenuOpen(false);
-    setIsShareModalOpen(false);
     setIsDeleteConfirmOpen(false);
     setIsContentVisible(false);
     setIsBackdropVisible(false);
@@ -904,7 +818,6 @@ const DesktopGroupFullViewModal = ({
                       onClick={() => {
                         setIsSearchVisible((current) => !current);
                         setIsExportMenuOpen(false);
-                        setIsShareMenuOpen(false);
                       }}
                       aria-label="Search items"
                       aria-expanded={isSearchVisible}
@@ -920,40 +833,6 @@ const DesktopGroupFullViewModal = ({
                       <PackSelectIcon />
                       <span>{labels.select || 'Select'}</span>
                     </button>
-                    <div className="desktop-pack-page-toolbar-menu-anchor" ref={shareMenuRef}>
-                      <button
-                        type="button"
-                        className={`desktop-pack-page-toolbar-action desktop-pack-page-toolbar-text-action desktop-pack-page-share-button ${isShareMenuOpen ? 'is-active' : ''}`}
-                        aria-haspopup="menu"
-                        aria-expanded={isShareMenuOpen}
-                        onClick={() => {
-                          setIsShareMenuOpen((current) => !current);
-                          setIsExportMenuOpen(false);
-                        }}
-                      >
-                        <PackShareIcon />
-                        <span>{labels.share || 'Share'}</span>
-                      </button>
-                      {isShareMenuOpen ? (
-                        <div className="desktop-pack-page-toolbar-menu desktop-pack-page-share-menu" role="menu" aria-label={labels.share || 'Share'}>
-                          <button
-                            type="button"
-                            role="menuitem"
-                            className="desktop-pack-page-share-menu-item"
-                            onClick={() => {
-                              setIsShareMenuOpen(false);
-                              setIsShareModalOpen(true);
-                            }}
-                          >
-                            <span className="desktop-pack-page-share-menu-icon"><PackLinkIcon /></span>
-                            <span className="desktop-pack-page-share-menu-copy">
-                              <strong>{labels.copyShareLink || 'Copy share link'}</strong>
-                              <small>{labels.shareLinkSubtitle || 'Share this group with a link'}</small>
-                            </span>
-                          </button>
-                        </div>
-                      ) : null}
-                    </div>
                     <div className="desktop-pack-page-toolbar-menu-anchor" ref={exportMenuRef}>
                       <button
                         type="button"
@@ -962,7 +841,6 @@ const DesktopGroupFullViewModal = ({
                         aria-expanded={isExportMenuOpen}
                         onClick={() => {
                           setIsExportMenuOpen((current) => !current);
-                          setIsShareMenuOpen(false);
                         }}
                       >
                         <PackExportIcon />
@@ -1068,14 +946,6 @@ const DesktopGroupFullViewModal = ({
         />
         </div>
       </div>
-      <DesktopShareLinkModal
-        open={isShareModalOpen}
-        title={groupTitle}
-        shareUrl={shareUrl}
-        labels={labels}
-        onClose={() => setIsShareModalOpen(false)}
-        onCopied={() => onToast?.(labels.linkCopied || 'Link copied')}
-      />
     </div>
   );
 };

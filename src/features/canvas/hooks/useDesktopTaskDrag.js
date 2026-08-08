@@ -389,7 +389,7 @@ const startDesktopTaskDrag = useCallback((task) => {
   const sourceCanvasPoint = sourceRect
     ? getCanvasPointFromClient(sourceRect.left, sourceRect.top)
     : null;
-  const anchorPosition = sourceCanvasPoint || entryPositionMap.get(taskId) || { x: 0, y: 0 };
+  const anchorPosition = entryPositionMap.get(taskId) || sourceCanvasPoint || { x: 0, y: 0 };
   const nextPositions = new Map();
   movingTaskIds.forEach((movingTaskId) => {
     const movingPosition = entryPositionMap.get(movingTaskId) || anchorPosition;
@@ -647,14 +647,20 @@ const finishDesktopTaskDrag = useCallback((task, pointerTarget, pointerId) => {
     }
   }
 
-  // Reset live transform and class on every dragged canvas entry node
+  // Reset live transform and class on every dragged canvas entry node without CSS transition jump
   movingTaskIds.forEach((movingTaskId) => {
     const node = document.getElementById(`desktop-canvas-entry-${movingTaskId}`);
     if (node) {
       node.style.transform = '';
       node.style.zIndex = '';
       const shell = node.querySelector('.desktop-canvas-card-shell');
-      if (shell) shell.classList.remove('is-dragging');
+      if (shell) {
+        shell.style.transition = 'none';
+        shell.classList.remove('is-dragging');
+        window.requestAnimationFrame(() => {
+          shell.style.transition = '';
+        });
+      }
     }
   });
 
