@@ -5,9 +5,9 @@ import {
   DESKTOP_CANVAS_CARD_WIDTH,
   DESKTOP_CANVAS_TOP_PADDING,
   DESKTOP_MAIN_CONTENT_MAX_WIDTH,
-} from '../model/canvasConstants.js';
-import { getDesktopCanvasEntryHeight, getDesktopCanvasEntryTaskIds } from '../model/canvasEntries.js';
-import { doDesktopRectsIntersect } from '../model/canvasGeometry.js';
+} from '../model/canvasConstants';
+import { getDesktopCanvasEntryHeight, getDesktopCanvasEntryTaskIds } from '../model/canvasEntries';
+import { doDesktopRectsIntersect } from '../model/canvasGeometry';
 
 const DEFAULT_CANVAS_BOUNDS = {
   width: DESKTOP_MAIN_CONTENT_MAX_WIDTH,

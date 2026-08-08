@@ -4,11 +4,11 @@ import {
   DESKTOP_CANVAS_CARD_WIDTH,
   DESKTOP_MAIN_CONTENT_MAX_WIDTH,
   DESKTOP_GROUP_OVERLAP_THRESHOLD,
-} from './canvasConstants.js';
-import { getDesktopVisibleGroupTaskCount, getDesktopGroupCardHeight } from '../../pack/model/groupMetadata.js';
-import { isFiniteCanvasCoordinate } from '../../../lib/domUtils.js';
-import { expandDesktopCanvasRect, getRectCenterPoint, getDesktopCanvasRectIntersectionArea, isDesktopCanvasPointInsideRect } from './canvasGeometry.js';
-import { getDesktopCanvasTaskHeight } from '../../../lib/taskOrder.js';
+} from './canvasConstants';
+import { getDesktopCollapsedGroupVisibleCount, getDesktopGroupCardHeight } from '../../pack';
+import { isFiniteCanvasCoordinate } from '../../../lib/domUtils';
+import { expandDesktopCanvasRect, getRectCenterPoint, getDesktopCanvasRectIntersectionArea, isDesktopCanvasPointInsideRect } from './canvasGeometry';
+import { getDesktopCanvasTaskHeight } from '../../../lib/taskOrder';
 
 export const getDefaultDesktopCanvasPosition = (index) => {
   const column = index % 2;
@@ -21,7 +21,7 @@ export const getDefaultDesktopCanvasPosition = (index) => {
 
 export const getDesktopCanvasEntryHeight = (entry) => (
   entry?.type === 'group'
-    ? getDesktopGroupCardHeight(entry.tasks, getDesktopVisibleGroupTaskCount(entry.tasks))
+    ? getDesktopGroupCardHeight(entry.tasks, getDesktopCollapsedGroupVisibleCount(entry.tasks))
     : getDesktopCanvasTaskHeight(entry?.task)
 );
 
@@ -142,7 +142,7 @@ export const getDesktopCanvasOverlapEntry = (
   if (movingTasks.length === 0) return null;
 
   const movingHeight = movingTasks.length > 1
-    ? getDesktopGroupCardHeight(movingTasks, getDesktopVisibleGroupTaskCount(movingTasks))
+    ? getDesktopGroupCardHeight(movingTasks, getDesktopCollapsedGroupVisibleCount(movingTasks))
     : DESKTOP_CANVAS_CARD_HEIGHT;
   const movingRect = {
     x: nextPosition.x,

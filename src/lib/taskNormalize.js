@@ -1,10 +1,10 @@
-import { sections } from './timeBlocks.js';
-import { getDerivedTaskFields, normalizeCardType } from '../entities/task/model/taskCardPresentation.js';
-import { dateKey } from './dateUtils.js';
-import { getLogicalToday } from './dateHelpers.js';
-import { isValidDesktopSlot, isFiniteCanvasCoordinate } from './domUtils.js';
-import { getTaskWorkspaceId } from './workspaceUtils.js';
-import { normalizePackIcon, normalizePackCover, normalizePackTags, normalizePackActiveDurationType, normalizePackActiveDate } from '../entities/pack/model/packValueNormalizers.js';
+import { sections } from './timeBlocks';
+import { getDerivedTaskFields, normalizeCardType } from '../entities/task/model/taskCardPresentation';
+import { dateKey } from './dateUtils';
+import { getLogicalToday } from './dateHelpers';
+import { isValidDesktopSlot, isFiniteCanvasCoordinate } from './domUtils';
+import { getTaskWorkspaceId } from './workspaceUtils';
+import { normalizePackIcon, normalizePackCover, normalizePackTags, normalizePackActiveDurationType, normalizePackActiveDate } from '../entities/pack/model/packValueNormalizers';
 
 export const normalizeTask = (task) => {
   const derivedFields = getDerivedTaskFields(task.text || '');

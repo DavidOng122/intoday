@@ -1,4 +1,4 @@
-import { cardTypeConfig } from '../../../lib/cardTypeConfig.js';
+import { cardTypeConfig } from '../../../lib/cardTypeConfig';
 import {
   CARD_TYPES,
   detectCardType,
@@ -9,13 +9,13 @@ import {
   getDerivedTaskFields,
   isTextCardType,
   normalizeCardType,
-} from '../../../lib/cardTypeDetection.js';
-import { resolveTaskUrl } from '../../../task-interactions/taskUrlResolver.js';
+} from '../../../lib/cardTypeDetection';
+import { resolveTaskUrl } from '../../../task-interactions/taskUrlResolver';
 import {
   deriveTaskDisplayTitle,
   deriveTaskDisplaySubtitle,
   parsePlaceFromUrl
-} from '../../../lib/taskDisplayUtils.js';
+} from '../../../lib/taskDisplayUtils';
 
 export {
   CARD_TYPES,

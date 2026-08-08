@@ -7,8 +7,7 @@ import {
   normalizePackCover,
   normalizePackIcon,
   normalizePackTags,
-  resolvePackMetadata,
-} from '../../../entities/pack';
+} from '../../../entities/pack/model/packValueNormalizers';
 import {
   getDesktopGroupDisplayName,
   getDesktopGroupDisplayTags,
@@ -196,6 +195,7 @@ export const usePackActions = ({
     setTasks((prev) => {
       const groupedTasks = prev.filter((task) => groupedTaskIds.has(task.id));
       const targetTasks = prev.filter((task) => pendingGroupPrompt.targetTaskIds.includes(task.id));
+      const targetLead = targetTasks[0] || {};
 
       let groupName = pendingGroupName.trim() || 'New group';
       let groupIcon = null;
@@ -204,27 +204,22 @@ export const usePackActions = ({
       let groupDurationType = null;
       let groupActiveFrom = null;
       let groupActiveUntil = null;
-      let targetDateKey = pendingGroupPrompt.targetDateKey;
 
-      if (isMergePacks && targetTasks.length > 0) {
-        const targetMeta = resolvePackMetadata(targetTasks);
-        groupName = targetMeta.desktopGroupName;
-        groupIcon = targetMeta.desktopGroupIcon;
-        groupCover = targetMeta.desktopGroupCover;
-        groupTags = targetMeta.desktopGroupTags;
-        groupDurationType = targetMeta.desktopGroupActiveDurationType;
-        groupActiveFrom = targetMeta.desktopGroupActiveFrom;
-        groupActiveUntil = targetMeta.desktopGroupActiveUntil;
-        if (targetMeta.dateString) {
-          targetDateKey = targetMeta.dateString;
-        }
+      if (isMergePacks && targetLead) {
+        groupName = targetLead.desktopGroupName || getDesktopGroupDisplayName(targetTasks);
+        groupIcon = targetLead.desktopGroupIcon || null;
+        groupCover = targetLead.desktopGroupCover || null;
+        groupTags = targetLead.desktopGroupTags || getDesktopGroupDisplayTags(targetTasks);
+        groupDurationType = targetLead.desktopGroupActiveDurationType || null;
+        groupActiveFrom = targetLead.desktopGroupActiveFrom || null;
+        groupActiveUntil = targetLead.desktopGroupActiveUntil || null;
       }
 
       return prev.map((task) => (
         groupedTaskIds.has(task.id)
           ? normalizeTask({
             ...task,
-            dateString: targetDateKey,
+            dateString: pendingGroupPrompt.targetDateKey,
             updatedAt: nextUpdatedAt,
             desktopSlot: null,
             desktopCanvasX: Number(pendingGroupPrompt.overlapX.toFixed(1)),
@@ -246,11 +241,7 @@ export const usePackActions = ({
   }, [closePendingGroupPrompt, pendingGroupName, pendingGroupPrompt, setTasks]);
 
   const handleCancelGroupPrompt = useCallback(() => {
-    if (
-      pendingGroupPrompt?.mode === 'merge-packs'
-      && pendingGroupPrompt?.movingTaskIds?.length
-      && pendingGroupPrompt?.fallbackPosition
-    ) {
+    if (pendingGroupPrompt?.movingTaskIds?.length && pendingGroupPrompt?.fallbackPosition) {
       const movingIds = new Set(pendingGroupPrompt.movingTaskIds);
       const fallbackPos = pendingGroupPrompt.fallbackPosition;
       const timestamp = Date.now();
