@@ -15,65 +15,70 @@ export const useDesktopConnections = ({ dateKey }) => {
     saveDesktopConnections(connections);
   }, [connections]);
 
+  const removeConnection = useCallback((connectionId) => {
+    setConnections((prev) => prev.filter((conn) => conn.id !== connectionId));
+  }, []);
+
   const startConnectionDrag = useCallback((groupId, side, event) => {
-    if (!event.isPrimary || event.button !== 0) return;
+    if (event.button !== 0) return;
     event.stopPropagation();
+    event.preventDefault();
 
     const startPt = { x: event.clientX, y: event.clientY };
     const draft = {
       sourceGroupId: groupId,
       sourceSide: side,
       currentClientPt: startPt,
-      targetGroupId: null,
-      targetSide: null,
     };
     setDraftConnection(draft);
-    event.currentTarget.setPointerCapture?.(event.pointerId);
-  }, []);
 
-  const updateConnectionDrag = useCallback((event) => {
-    if (!draftRef.current) return;
-    setDraftConnection((prev) => (
-      prev ? { ...prev, currentClientPt: { x: event.clientX, y: event.clientY } } : null
-    ));
-  }, []);
+    const handlePointerMove = (moveEvt) => {
+      setDraftConnection((prev) => (
+        prev ? { ...prev, currentClientPt: { x: moveEvt.clientX, y: moveEvt.clientY } } : null
+      ));
+    };
 
-  const finishConnectionDrag = useCallback((targetGroupId, targetSide, event) => {
-    const draft = draftRef.current;
-    if (!draft) return;
-    event?.stopPropagation?.();
+    const handlePointerUp = (upEvt) => {
+      window.removeEventListener('pointermove', handlePointerMove);
+      window.removeEventListener('pointerup', handlePointerUp);
 
-    if (targetGroupId && targetGroupId !== draft.sourceGroupId) {
-      setConnections((prev) => {
-        const exists = prev.some((conn) => (
-          (conn.sourceGroupId === draft.sourceGroupId && conn.targetGroupId === targetGroupId)
-          || (conn.sourceGroupId === targetGroupId && conn.targetGroupId === draft.sourceGroupId)
-        ));
-        if (exists) return prev;
-        const newConn = createDesktopConnection({
-          sourceGroupId: draft.sourceGroupId,
-          sourceSide: draft.sourceSide,
-          targetGroupId,
-          targetSide: targetSide || (draft.sourceSide === 'right' ? 'left' : 'right'),
-          dateKey,
-        });
-        return [...prev, newConn];
-      });
-    }
+      const targetElem = document.elementFromPoint(upEvt.clientX, upEvt.clientY);
+      const targetHandle = targetElem?.closest('.desktop-group-connector-handle');
+      if (targetHandle) {
+        const targetGroupId = targetHandle.getAttribute('data-group-id');
+        const targetSide = targetHandle.getAttribute('data-connector-side') || 'left';
 
-    setDraftConnection(null);
+        if (targetGroupId && targetGroupId !== groupId) {
+          setConnections((prev) => {
+            const exists = prev.some((conn) => (
+              (conn.sourceGroupId === groupId && conn.targetGroupId === targetGroupId)
+              || (conn.sourceGroupId === targetGroupId && conn.targetGroupId === groupId)
+            ));
+            if (exists) return prev;
+
+            const newConn = createDesktopConnection({
+              sourceGroupId: groupId,
+              sourceSide: side,
+              targetGroupId,
+              targetSide,
+              dateKey,
+            });
+            return [...prev, newConn];
+          });
+        }
+      }
+
+      setDraftConnection(null);
+    };
+
+    window.addEventListener('pointermove', handlePointerMove);
+    window.addEventListener('pointerup', handlePointerUp);
   }, [dateKey]);
-
-  const removeConnection = useCallback((connectionId) => {
-    setConnections((prev) => prev.filter((conn) => conn.id !== connectionId));
-  }, []);
 
   return {
     connections,
     draftConnection,
     startConnectionDrag,
-    updateConnectionDrag,
-    finishConnectionDrag,
     removeConnection,
   };
 };

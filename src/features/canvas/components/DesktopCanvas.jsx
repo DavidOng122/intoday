@@ -59,8 +59,10 @@ const DesktopCanvas = ({
               <>
                 <div
                   className="desktop-group-connector-handle is-left"
+                  data-group-id={entry.id}
+                  data-connector-side="left"
                   onPointerDown={(event) => onStartConnectionDrag?.(entry.id, 'left', event)}
-                  onPointerUp={(event) => onFinishConnectionDrag?.(entry.id, 'left', event)}
+                  onMouseDown={(event) => event.stopPropagation()}
                   title="Connect Left"
                   role="button"
                   tabIndex={-1}
@@ -83,8 +85,10 @@ const DesktopCanvas = ({
                 />
                 <div
                   className="desktop-group-connector-handle is-right"
+                  data-group-id={entry.id}
+                  data-connector-side="right"
                   onPointerDown={(event) => onStartConnectionDrag?.(entry.id, 'right', event)}
-                  onPointerUp={(event) => onFinishConnectionDrag?.(entry.id, 'right', event)}
+                  onMouseDown={(event) => event.stopPropagation()}
                   title="Connect Right"
                   role="button"
                   tabIndex={-1}
