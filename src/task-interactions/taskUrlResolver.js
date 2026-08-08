@@ -4,7 +4,7 @@ import {
   extractMeetingUrl,
   extractPrimaryUrl,
   normalizeCardType,
-} from '../lib/cardTypeDetection';
+} from '../lib/cardTypeDetection.js';
 
 const TASK_URL_FIELD_PRIORITY = Object.freeze({
   [CARD_TYPES.MEETING]: ['meetingUrl', 'redirectUrl'],

@@ -1,4 +1,4 @@
-import { CARD_TYPES } from './cardTypeDetection';
+import { CARD_TYPES } from './cardTypeDetection.js';
 
 
 

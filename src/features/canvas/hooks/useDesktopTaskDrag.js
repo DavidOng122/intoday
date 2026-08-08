@@ -8,7 +8,7 @@ import {
   DESKTOP_DRAG_START_DISTANCE,
   DESKTOP_GROUP_OVERLAP_THRESHOLD,
   DESKTOP_MAIN_CONTENT_MAX_WIDTH,
-} from '../model/canvasConstants';
+} from '../model/canvasConstants.js';
 import {
   getCanvasEntryIdentity,
   getDesktopCanvasEntryHeight,
@@ -16,13 +16,13 @@ import {
   getDesktopCanvasResolvedPosition,
   resolveDesktopCanvasEntries,
   getDesktopCanvasOverlapEntry,
-} from '../model/canvasEntries';
+} from '../model/canvasEntries.js';
 import {
   findDesktopDragOverlap,
-} from '../model/canvasGeometry';
-import { getDesktopGroupDisplayName } from '../../pack';
-import { dateKey } from '../../../lib/dateUtils';
-import { normalizeTask } from '../../../lib/taskNormalize';
+} from '../model/canvasGeometry.js';
+import { getDesktopGroupDisplayName } from '../../../entities/pack/index.js';
+import { dateKey } from '../../../lib/dateUtils.js';
+import { normalizeTask } from '../../../lib/taskNormalize.js';
 
 const clampDesktopCanvasPosition = (position, bounds, height = DESKTOP_CANVAS_CARD_HEIGHT) => ({
   x: Math.min(

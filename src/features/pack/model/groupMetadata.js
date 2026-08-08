@@ -5,16 +5,13 @@ import {
   DESKTOP_GROUP_CARD_MIN_HEIGHT,
   DESKTOP_GROUP_CARD_MORE_LABEL_HEIGHT,
   DESKTOP_GROUP_CARD_ROW_GAP,
-} from '../../canvas';
-import { getPackIconFromTasks, getPackTagsFromTasks } from './packPageUtils';
-import { CARD_TYPES, normalizeCardType } from '../../../entities/task/model/taskCardPresentation';
-import { normalizeTask } from '../../../lib/taskNormalize';
+} from '../../canvas/model/canvasConstants.js';
+import { getPackIconFromTasks, getPackTagsFromTasks } from './packPageUtils.js';
+import { CARD_TYPES, normalizeCardType } from '../../../entities/task/model/taskCardPresentation.js';
+import { normalizeTask } from '../../../lib/taskNormalize.js';
+import { getDesktopGroupDisplayName, getPackDisplayName } from '../../../entities/pack/index.js';
 
-export const getDesktopGroupDisplayName = (tasks) => (
-  tasks.find((task) => typeof task.desktopGroupName === 'string' && task.desktopGroupName.trim())?.desktopGroupName
-  || tasks[0]?.text
-  || 'Untitled group'
-);
+export { getDesktopGroupDisplayName, getPackDisplayName };
 
 export const getDesktopGroupIcon = (tasks) => getPackIconFromTasks(tasks);
 
@@ -54,63 +51,64 @@ export const cleanupDesktopGroupMetadata = (tasks) => {
     return map;
   }, new Map());
 
-  return tasks.map((task) => (
-    task.desktopGroupId && (groupCounts.get(task.desktopGroupId) || 0) <= 1
-      ? normalizeTask({
+  return tasks.map((task) => {
+    if (!task.desktopGroupId) return task;
+    if ((groupCounts.get(task.desktopGroupId) || 0) <= 1) {
+      return normalizeTask({
         ...task,
         desktopGroupId: null,
         desktopGroupName: null,
         desktopGroupIcon: null,
         desktopGroupCover: null,
         desktopGroupTags: [],
-        desktopGroupActiveDurationType: null,
-        desktopGroupActiveFrom: null,
-        desktopGroupActiveUntil: null,
-      })
-      : task
-  ));
+      });
+    }
+    return task;
+  });
 };
 
-export const getDesktopEstimatedGroupRowHeight = (task) => (
-  normalizeCardType(task?.cardType) === 'photo' ? 232 : DESKTOP_GROUP_CARD_ITEM_HEIGHT
-);
-
-export const getDesktopVisibleGroupTaskCount = (tasks, maxHeight) => {
-  if (!Array.isArray(tasks) || tasks.length === 0) return 0;
-
-  let totalHeight = 0;
-  let visibleCount = 0;
-  for (let index = 0; index < tasks.length; index += 1) {
-    const rowHeight = getDesktopEstimatedGroupRowHeight(tasks[index]);
-    const nextHeight = totalHeight + (index > 0 ? DESKTOP_GROUP_CARD_ROW_GAP : 0) + rowHeight;
-    if (visibleCount > 0 && nextHeight > maxHeight) break;
-    totalHeight = nextHeight;
-    visibleCount += 1;
-  }
-
-  return Math.max(1, Math.min(visibleCount, tasks.length));
+export const getDesktopEstimatedGroupRowHeight = (task) => {
+  const normalizedType = normalizeCardType(task?.cardType);
+  if (normalizedType === CARD_TYPES.PHOTO) return 40;
+  return DESKTOP_GROUP_CARD_ITEM_HEIGHT;
 };
 
-export const getDesktopGroupListHeight = (tasks, visibleItemCount = tasks.length) => {
-  if (!Array.isArray(tasks) || tasks.length === 0 || visibleItemCount <= 0) return 0;
-  return tasks.slice(0, visibleItemCount).reduce((total, task, index) => (
-    total + getDesktopEstimatedGroupRowHeight(task) + (index > 0 ? DESKTOP_GROUP_CARD_ROW_GAP : 0)
-  ), 0);
+export const getDesktopGroupListHeight = (tasks, visibleItemCount = tasks?.length ?? 0) => {
+  if (!tasks || tasks.length === 0 || visibleItemCount <= 0) return 0;
+  const visibleTasks = tasks.slice(0, visibleItemCount);
+  const rowsHeight = visibleTasks.reduce((sum, task) => sum + getDesktopEstimatedGroupRowHeight(task), 0);
+  const gapsHeight = Math.max(0, visibleTasks.length - 1) * DESKTOP_GROUP_CARD_ROW_GAP;
+  return rowsHeight + gapsHeight;
 };
-
-export const getDesktopCollapsedGroupVisibleCount = (tasks) => (
-  getDesktopVisibleGroupTaskCount(tasks, DESKTOP_GROUP_CARD_COLLAPSED_LIST_MAX_HEIGHT)
-);
 
 export const getDesktopGroupCardHeight = (tasks, visibleItemCount = tasks?.length ?? 0) => {
-  const itemCount = Array.isArray(tasks) ? tasks.length : 0;
-  const visibleCount = Math.max(1, Math.min(visibleItemCount, itemCount || 1));
-  const hasExtra = itemCount > visibleCount;
-  const listHeight = getDesktopGroupListHeight(tasks, visibleCount);
-  return Math.max(
-    DESKTOP_GROUP_CARD_MIN_HEIGHT,
-    DESKTOP_GROUP_CARD_BASE_HEIGHT
-      + listHeight
-      + (hasExtra ? DESKTOP_GROUP_CARD_MORE_LABEL_HEIGHT : 12),
-  );
+  if (!tasks || tasks.length === 0) return DESKTOP_GROUP_CARD_MIN_HEIGHT;
+  const listHeight = getDesktopGroupListHeight(tasks, visibleItemCount);
+  const showMoreLabel = tasks.length > visibleItemCount;
+  const extraLabelHeight = showMoreLabel ? DESKTOP_GROUP_CARD_MORE_LABEL_HEIGHT : 0;
+  const calculatedHeight = DESKTOP_GROUP_CARD_BASE_HEIGHT + listHeight + extraLabelHeight;
+  return Math.max(DESKTOP_GROUP_CARD_MIN_HEIGHT, Math.min(DESKTOP_GROUP_CARD_COLLAPSED_LIST_MAX_HEIGHT, calculatedHeight));
+};
+
+export const getDesktopVisibleGroupTaskCount = (tasks, maxHeight = DESKTOP_GROUP_CARD_COLLAPSED_LIST_MAX_HEIGHT) => {
+  if (!tasks || tasks.length === 0) return 0;
+  let currentHeight = DESKTOP_GROUP_CARD_BASE_HEIGHT;
+  let count = 0;
+
+  for (let index = 0; index < tasks.length; index += 1) {
+    const itemHeight = getDesktopEstimatedGroupRowHeight(tasks[index]);
+    const gap = index > 0 ? DESKTOP_GROUP_CARD_ROW_GAP : 0;
+    const isLast = index === tasks.length - 1;
+    const extraLabel = isLast ? 0 : DESKTOP_GROUP_CARD_MORE_LABEL_HEIGHT;
+    const nextHeight = currentHeight + itemHeight + gap + extraLabel;
+
+    if (nextHeight <= maxHeight || count === 0) {
+      currentHeight += itemHeight + gap;
+      count += 1;
+    } else {
+      break;
+    }
+  }
+
+  return Math.max(1, Math.min(tasks.length, count));
 };

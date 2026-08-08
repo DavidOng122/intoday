@@ -7,7 +7,7 @@ import {
   normalizePackActiveDate,
   parseDateKey,
   toDateKey
-} from '../../../entities/pack/model/packValueNormalizers';
+} from '../../../entities/pack/index.js';
 
 export const PACK_ICON_SUGGESTIONS = ['📦', '🧠', '📝', '✨', '🔖', '📚', '🎯', '🌿'];
 
