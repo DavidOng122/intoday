@@ -9,7 +9,7 @@ import {
   expandDesktopCanvasRect,
   findDesktopDragOverlap,
 } from '../model/canvasGeometry.js';
-import { getCanvasEntryIdentity } from '../model/canvasEntries.js';
+import { getCanvasEntryIdentity } from '../model/canvasEntryIdentity.js';
 
 // ---------------------------------------------------------------------------
 // doDesktopRectsIntersect

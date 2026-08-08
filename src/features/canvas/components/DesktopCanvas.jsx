@@ -1,5 +1,6 @@
 import React from 'react';
 import { DESKTOP_CANVAS_CARD_WIDTH, DESKTOP_MAIN_CONTENT_MAX_WIDTH } from '../model/canvasConstants';
+import { getCanvasEntryIdentity } from '../model/canvasEntryIdentity.js';
 
 const DesktopCanvas = ({
   entries,
@@ -30,14 +31,14 @@ const DesktopCanvas = ({
       const dragTask = entry.type === 'group'
         ? { ...entry.task, groupTaskIds: entry.tasks.map((task) => task.id), groupSize: entry.tasks.length }
         : entry.task;
-      const entryIdentity = entry.type === 'group' ? entry.id : entry.task.id;
+      const entryIdentity = getCanvasEntryIdentity(entry);
       const isGroupReady = dragOverlapTargetId === entryIdentity;
       const isDragging = entry.type === 'group'
         ? draggedTaskId === dragTask.id && isGroupDragActive
         : draggedTaskId === entry.task.id && !isGroupDragActive;
 
       return (
-        <div key={entry.type === 'group' ? `group-${entry.id}` : entry.task.id} id={`desktop-canvas-entry-${dragTask.id}`} data-desktop-layout-id={`task-${dragTask.id}`} className="desktop-canvas-card-node" style={{ left: entry.x, top: entry.y, width: DESKTOP_CANVAS_CARD_WIDTH }}>
+        <div key={entry.type === 'group' ? `group-${entry.id}` : entry.task.id} id={`desktop-canvas-entry-${dragTask.id}`} data-desktop-entry-id={String(entryIdentity)} data-desktop-layout-id={`task-${dragTask.id}`} className="desktop-canvas-card-node" style={{ left: entry.x, top: entry.y, width: DESKTOP_CANVAS_CARD_WIDTH }}>
           <div className={`desktop-canvas-card-shell ${isGroupReady ? 'desktop-canvas-card-shell--group-ready' : ''} ${isDragging ? 'is-dragging' : ''}`}>
             {entry.type === 'group' ? (
               <GroupedTaskCardView

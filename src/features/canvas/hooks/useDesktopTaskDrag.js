@@ -10,17 +10,17 @@ import {
   DESKTOP_MAIN_CONTENT_MAX_WIDTH,
 } from '../model/canvasConstants';
 import {
-  getCanvasEntryIdentity,
   getDesktopCanvasEntryHeight,
   getDesktopCanvasEntryTaskIds,
   getDesktopCanvasResolvedPosition,
   resolveDesktopCanvasEntries,
   getDesktopCanvasOverlapEntry,
 } from '../model/canvasEntries';
+import { getCanvasEntryIdentity } from '../model/canvasEntryIdentity.js';
 import {
   findDesktopDragOverlap,
 } from '../model/canvasGeometry';
-import { getDesktopGroupDisplayName } from '../../pack';
+import { getPackDisplayName } from '../../../entities/pack/model/packSelectors.js';
 import { dateKey } from '../../../lib/dateUtils';
 import { normalizeTask } from '../../../lib/taskNormalize';
 
@@ -135,18 +135,16 @@ const getCanvasRectFromClientRect = useCallback((rect) => {
 
 const buildCandidatesCache = useCallback((tasks) => {
   const entries = resolveDesktopCanvasEntries(tasks);
+  const entryNodes = new Map(
+    [...document.querySelectorAll('.desktop-canvas-card-node[data-desktop-entry-id]')]
+      .map((node) => [node.dataset.desktopEntryId, node]),
+  );
   return entries.map((entry) => {
-    const entryNode = document.getElementById(`desktop-canvas-entry-${entry.task.id}`);
-    const rect = entryNode
-      ? getCanvasRectFromClientRect(entryNode.getBoundingClientRect())
-      : {
-        x: entry.x,
-        y: entry.y,
-        width: DESKTOP_CANVAS_CARD_WIDTH,
-        height: getDesktopCanvasEntryHeight(entry),
-      };
+    const entryNode = entryNodes.get(String(getCanvasEntryIdentity(entry)));
+    if (!entryNode) return null;
+    const rect = getCanvasRectFromClientRect(entryNode.getBoundingClientRect());
     return { entry, rect };
-  });
+  }).filter(Boolean);
 }, [getCanvasRectFromClientRect]);
 
 const getCandidatesCache = useCallback((tasks) => {
@@ -175,8 +173,24 @@ const getActiveDraggedCanvasRect = useCallback((taskId) => {
   return getCanvasRectFromClientRect(activeNode.getBoundingClientRect());
 }, [getCanvasRectFromClientRect]);
 
-const getDesktopCanvasOverlapEntryFromDom = useCallback((tasks, movingTaskIds, taskId, fallbackNextPosition, threshold = DESKTOP_GROUP_OVERLAP_THRESHOLD) => {
-  const movingRect = getActiveDraggedCanvasRect(taskId) || (
+const getDesktopCanvasOverlapEntryFromDom = useCallback((
+  tasks,
+  movingTaskIds,
+  taskId,
+  fallbackNextPosition,
+  threshold = DESKTOP_GROUP_OVERLAP_THRESHOLD,
+  preferFallbackPosition = false,
+) => {
+  const activeRect = getActiveDraggedCanvasRect(taskId);
+  const fallbackRect = fallbackNextPosition
+    ? {
+      x: fallbackNextPosition.x,
+      y: fallbackNextPosition.y,
+      width: activeRect?.width || DESKTOP_CANVAS_CARD_WIDTH,
+      height: activeRect?.height || DESKTOP_CANVAS_CARD_HEIGHT,
+    }
+    : null;
+  const movingRect = (preferFallbackPosition ? fallbackRect : activeRect) || (
     fallbackNextPosition
       ? {
         x: fallbackNextPosition.x,
@@ -537,9 +551,20 @@ const finishDesktopTaskDrag = useCallback((task, pointerTarget, pointerId) => {
               : (isGroupDrag ? task.groupTaskIds : [task.id]),
           );
           const activeDateKey = selectedDateRef.current ? dateKey(selectedDateRef.current) : task.dateString;
-          const overlapResult = searchDragSeparateRef.current
+          const domOverlapResult = searchDragSeparateRef.current
             ? null
-            : getDesktopCanvasOverlapEntryFromDom(prev, movingTaskIds, task.id, nextPosition);
+            : getDesktopCanvasOverlapEntryFromDom(
+              prev,
+              movingTaskIds,
+              task.id,
+              nextPosition,
+              DESKTOP_GROUP_OVERLAP_THRESHOLD,
+              true,
+            );
+          const geometryOverlapResult = searchDragSeparateRef.current
+            ? null
+            : getDesktopCanvasOverlapEntry(prev, movingTaskIds, nextPosition);
+          const overlapResult = domOverlapResult || geometryOverlapResult;
           const overlapEntry = overlapResult?.entry;
           const timestamp = Date.now();
           const isMultiDrag = desktopDragSelectedTaskIdsRef.current.size > 1;
@@ -589,7 +614,7 @@ const finishDesktopTaskDrag = useCallback((task, pointerTarget, pointerId) => {
 
             const isMergePacks = isGroupDrag && overlapEntry.type === 'group';
             const targetGroupName = overlapEntry.type === 'group'
-              ? getDesktopGroupDisplayName(overlapEntry.tasks)
+              ? getPackDisplayName(overlapEntry.tasks)
               : null;
 
             setPendingGroupPrompt({
@@ -672,9 +697,11 @@ const handleTaskPointerDown = useCallback((task, event) => {
 
   const taskSelectionIds = getDesktopDragTaskIds(task);
   const isWithinCurrentSelection = taskSelectionIds.some((taskId) => selectedTaskIdsRef.current.has(taskId));
-  const dragTaskIds = isWithinCurrentSelection && selectedTaskIdsRef.current.size > 0
-    ? [...selectedTaskIdsRef.current]
-    : taskSelectionIds;
+  const dragTaskIds = task.isGroupInitiator
+    ? taskSelectionIds
+    : isWithinCurrentSelection && selectedTaskIdsRef.current.size > 0
+      ? [...selectedTaskIdsRef.current]
+      : taskSelectionIds;
 
   desktopDragSelectedTaskIdsRef.current = new Set(dragTaskIds);
   setDesktopSelectionRect(null);

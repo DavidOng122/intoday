@@ -8,6 +8,8 @@ import {
   normalizePackIcon,
   normalizePackTags,
 } from '../../../entities/pack/model/packValueNormalizers';
+import { resolvePackMetadata } from '../../../entities/pack/model/packSelectors.js';
+import { restoreCancelledPackMerge } from '../model/packMerge.js';
 import {
   getDesktopGroupDisplayName,
   getDesktopGroupDisplayTags,
@@ -195,8 +197,6 @@ export const usePackActions = ({
     setTasks((prev) => {
       const groupedTasks = prev.filter((task) => groupedTaskIds.has(task.id));
       const targetTasks = prev.filter((task) => pendingGroupPrompt.targetTaskIds.includes(task.id));
-      const targetLead = targetTasks[0] || {};
-
       let groupName = pendingGroupName.trim() || 'New group';
       let groupIcon = null;
       let groupCover = null;
@@ -204,22 +204,25 @@ export const usePackActions = ({
       let groupDurationType = null;
       let groupActiveFrom = null;
       let groupActiveUntil = null;
+      let targetDateKey = pendingGroupPrompt.targetDateKey;
 
-      if (isMergePacks && targetLead) {
-        groupName = targetLead.desktopGroupName || getDesktopGroupDisplayName(targetTasks);
-        groupIcon = targetLead.desktopGroupIcon || null;
-        groupCover = targetLead.desktopGroupCover || null;
-        groupTags = targetLead.desktopGroupTags || getDesktopGroupDisplayTags(targetTasks);
-        groupDurationType = targetLead.desktopGroupActiveDurationType || null;
-        groupActiveFrom = targetLead.desktopGroupActiveFrom || null;
-        groupActiveUntil = targetLead.desktopGroupActiveUntil || null;
+      if (isMergePacks && targetTasks.length > 0) {
+        const targetMetadata = resolvePackMetadata(targetTasks);
+        groupName = targetMetadata.desktopGroupName;
+        groupIcon = targetMetadata.desktopGroupIcon;
+        groupCover = targetMetadata.desktopGroupCover;
+        groupTags = targetMetadata.desktopGroupTags;
+        groupDurationType = targetMetadata.desktopGroupActiveDurationType;
+        groupActiveFrom = targetMetadata.desktopGroupActiveFrom;
+        groupActiveUntil = targetMetadata.desktopGroupActiveUntil;
+        targetDateKey = targetMetadata.dateString || targetDateKey;
       }
 
       return prev.map((task) => (
         groupedTaskIds.has(task.id)
           ? normalizeTask({
             ...task,
-            dateString: pendingGroupPrompt.targetDateKey,
+            dateString: targetDateKey,
             updatedAt: nextUpdatedAt,
             desktopSlot: null,
             desktopCanvasX: Number(pendingGroupPrompt.overlapX.toFixed(1)),
@@ -241,20 +244,13 @@ export const usePackActions = ({
   }, [closePendingGroupPrompt, pendingGroupName, pendingGroupPrompt, setTasks]);
 
   const handleCancelGroupPrompt = useCallback(() => {
-    if (pendingGroupPrompt?.movingTaskIds?.length && pendingGroupPrompt?.fallbackPosition) {
-      const movingIds = new Set(pendingGroupPrompt.movingTaskIds);
-      const fallbackPos = pendingGroupPrompt.fallbackPosition;
-      const timestamp = Date.now();
-      setTasks((prev) => prev.map((task) => (
-        movingIds.has(task.id)
-          ? normalizeTask({
-            ...task,
-            desktopCanvasX: Number(fallbackPos.x.toFixed(1)),
-            desktopCanvasY: Number(fallbackPos.y.toFixed(1)),
-            desktopZ: timestamp,
-          })
-          : task
-      )));
+    if (pendingGroupPrompt?.mode === 'merge-packs') {
+      setTasks((prev) => {
+        const restoredTasks = restoreCancelledPackMerge(prev, pendingGroupPrompt);
+        return restoredTasks.map((task, index) => (
+          task === prev[index] ? task : normalizeTask(task)
+        ));
+      });
     }
     closePendingGroupPrompt();
   }, [closePendingGroupPrompt, pendingGroupPrompt, setTasks]);

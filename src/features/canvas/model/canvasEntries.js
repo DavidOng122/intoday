@@ -10,6 +10,8 @@ import { isFiniteCanvasCoordinate } from '../../../lib/domUtils';
 import { expandDesktopCanvasRect, getRectCenterPoint, getDesktopCanvasRectIntersectionArea, isDesktopCanvasPointInsideRect } from './canvasGeometry';
 import { getDesktopCanvasTaskHeight } from '../../../lib/taskOrder';
 
+export { getCanvasEntryIdentity } from './canvasEntryIdentity.js';
+
 export const getDefaultDesktopCanvasPosition = (index) => {
   const column = index % 2;
   const row = Math.floor(index / 2);
@@ -23,10 +25,6 @@ export const getDesktopCanvasEntryHeight = (entry) => (
   entry?.type === 'group'
     ? getDesktopGroupCardHeight(entry.tasks, getDesktopCollapsedGroupVisibleCount(entry.tasks))
     : getDesktopCanvasTaskHeight(entry?.task)
-);
-
-export const getCanvasEntryIdentity = (entry) => (
-  entry?.type === 'group' ? entry.id : entry?.task?.id
 );
 
 export const getDesktopCanvasEntryTaskIds = (entry) => (
