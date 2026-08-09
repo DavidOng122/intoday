@@ -8,6 +8,7 @@ import {
   findConnectionTargetAtPoint,
   getDesktopConnectionId,
   getGroupHandleCoordinates,
+  getWorkspaceConnections,
   migrateLegacyConnections,
   removeConnectionsForGroupIds,
   rewireConnectionsForPackMerge,
@@ -98,4 +99,29 @@ test('replacement operations soft-delete missing ids and upsert changed rows', (
   assert.deepEqual(operations.map((operation) => operation.type).sort(), ['delete', 'upsert']);
   const applied = applyConnectionOperations([first, second], operations, 'workspace-a');
   assert.deepEqual(applied, [changed]);
+});
+
+test('Workspace filtering hides other workspaces without deleting their links', () => {
+  const workspaceA = makeConnection('a', 'b');
+  const workspaceB = makeConnection('c', 'd', { workspaceId: 'workspace-b' });
+  const allConnections = [workspaceA, workspaceB];
+
+  assert.deepEqual(getWorkspaceConnections(allConnections, 'workspace-a'), [workspaceA]);
+  assert.deepEqual(getWorkspaceConnections(allConnections, 'workspace-b'), [workspaceB]);
+  assert.equal(allConnections.length, 2);
+});
+
+test('cloud refresh is reconciled with pending local mutations', () => {
+  const cloudConnection = makeConnection('a', 'b');
+  const localConnection = makeConnection('b', 'c', { now: 2000 });
+  const pending = createConnectionOperationsForReplacement(
+    [cloudConnection],
+    [localConnection],
+    'workspace-a',
+  );
+
+  assert.deepEqual(
+    applyConnectionOperations([cloudConnection], pending, 'workspace-a'),
+    [localConnection],
+  );
 });
