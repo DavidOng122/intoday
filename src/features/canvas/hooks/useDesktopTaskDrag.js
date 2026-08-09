@@ -17,6 +17,7 @@ import {
   getDesktopCanvasOverlapEntry,
 } from '../model/canvasEntries';
 import { getCanvasEntryIdentity } from '../model/canvasEntryIdentity.js';
+import { resolveInboxCanvasDrop } from '../model/inboxCanvasDrop.js';
 import {
   findDesktopDragOverlap,
 } from '../model/canvasGeometry';
@@ -108,7 +109,9 @@ export const useDesktopTaskDrag = ({ runtime, viewport, canvas, externalSource }
   } = canvas;
   const {
     isTask: isExternalDragTask,
+    onCancel: onExternalDropCancelled,
     onDrop: onExternalDrop,
+    onDropFailure: onExternalDropFailure,
     onOverlayReady: closeExternalDragSource,
   } = externalSource;
 const suppressNextTaskClick = useCallback((taskId) => {
@@ -369,7 +372,6 @@ const scheduleDesktopDragVisualUpdate = useCallback((clientX, clientY, taskId) =
 const startDesktopTaskDrag = useCallback((task) => {
   setHistoryOpen(false); // Ensure modal closes when drag starts
   const isExternalDrag = isExternalDragTask?.(task) === true;
-  if (isExternalDrag) closeExternalDragSource?.();
 
   // Pre-build candidate rect cache in clean untransformed state before drag transforms begin
   getCandidatesCache(tasksRef.current);
@@ -426,8 +428,16 @@ const startDesktopTaskDrag = useCallback((task) => {
   }
 
   desktopDragOverlaySnapshotRef.current = overlaySnapshot;
-  setDesktopDragOverlaySnapshot(overlaySnapshot);
-  setDesktopDragOverlayActive(isDetachedGroupTask || isExternalDrag);
+  if (isExternalDrag) {
+    flushSync(() => {
+      setDesktopDragOverlaySnapshot(overlaySnapshot);
+      setDesktopDragOverlayActive(true);
+    });
+    closeExternalDragSource?.();
+  } else {
+    setDesktopDragOverlaySnapshot(overlaySnapshot);
+    setDesktopDragOverlayActive(isDetachedGroupTask);
+  }
   desktopDragAnchorSizeRef.current = {
     width: DESKTOP_CANVAS_CARD_WIDTH,
     height: anchorEntry ? getDesktopCanvasEntryHeight(anchorEntry) : DESKTOP_CANVAS_CARD_HEIGHT,
@@ -451,7 +461,7 @@ const startDesktopTaskDrag = useCallback((task) => {
   scheduleDesktopDragVisualUpdate(desktopDragPointerRef.current.x, desktopDragPointerRef.current.y, taskId);
 }, [closeExternalDragSource, getCandidatesCache, getCanvasPointFromClient, isExternalDragTask, scheduleDesktopDragVisualUpdate, setDesktopDragSourceHidden, setHistoryOpen, syncDesktopDraggedTaskPosition]);
 
-const finishDesktopTaskDrag = useCallback((task, pointerTarget, pointerId) => {
+const finishDesktopTaskDrag = useCallback((task, pointerTarget, pointerId, wasCancelled = false) => {
   resetDesktopDragState();
   if (desktopDragOverlapRafRef.current !== null) {
     window.cancelAnimationFrame(desktopDragOverlapRafRef.current);
@@ -486,12 +496,43 @@ const finishDesktopTaskDrag = useCallback((task, pointerTarget, pointerId) => {
     );
 
     if (currentPt) {
-      const anchorStart = desktopDragAnchorStartPositionRef.current || { x: 0, y: 0 };
       const rawNextPosition = getDesktopDragAnchorPosition(currentPt);
       if (!rawNextPosition) {
+        if (isExternalDragTask?.(task) === true) onExternalDropCancelled?.();
         desktopDragModeRef.current = false;
         return;
       }
+      const movingHeight = desktopDragAnchorSizeRef.current?.height || DESKTOP_CANVAS_CARD_HEIGHT;
+
+      if (isExternalDragTask?.(task) === true) {
+        const dropOutcome = wasCancelled
+          ? { kind: 'cancelled' }
+          : resolveInboxCanvasDrop({
+            entries: selectedDayEntriesRef.current,
+            position: rawNextPosition,
+            pointerPosition: currentPt,
+            canvasBounds: canvasBoundsRef.current,
+            cardSize: {
+              width: DESKTOP_CANVAS_CARD_WIDTH,
+              height: movingHeight,
+            },
+          });
+
+        if (dropOutcome.kind === 'cancelled') {
+          onExternalDropCancelled?.();
+        } else if (typeof onExternalDrop === 'function') {
+          void onExternalDrop({
+            itemId: task.id,
+            packId: dropOutcome.kind === 'pack' ? dropOutcome.packId : null,
+            position: {
+              x: Number(dropOutcome.position.x.toFixed(1)),
+              y: Number(dropOutcome.position.y.toFixed(1)),
+              z: Date.now(),
+            },
+          }).catch(() => onExternalDropFailure?.());
+        }
+      } else {
+      const anchorStart = desktopDragAnchorStartPositionRef.current || { x: 0, y: 0 };
       const startPositions = [...desktopDragSelectionPositionsRef.current.values()];
       const positionBounds = startPositions.length > 0 ? startPositions : [anchorStart];
       const rawDeltaX = rawNextPosition.x - anchorStart.x;
@@ -504,7 +545,6 @@ const finishDesktopTaskDrag = useCallback((task, pointerTarget, pointerId) => {
         0,
         (canvasBoundsRef.current?.width || DESKTOP_MAIN_CONTENT_MAX_WIDTH) - DESKTOP_CANVAS_CARD_WIDTH,
       );
-      const movingHeight = desktopDragAnchorSizeRef.current?.height || DESKTOP_CANVAS_CARD_HEIGHT;
       const maxCanvasY = Math.max(0, (canvasBoundsRef.current?.height || movingHeight) - movingHeight);
       const clampedDeltaX = Math.min(maxCanvasX - maxStartX, Math.max(-minStartX, rawDeltaX));
       const clampedDeltaY = Math.min(maxCanvasY - maxStartY, Math.max(-minStartY, rawDeltaY));
@@ -515,40 +555,6 @@ const finishDesktopTaskDrag = useCallback((task, pointerTarget, pointerId) => {
       const deltaX = nextPosition.x - anchorStart.x;
       const deltaY = nextPosition.y - anchorStart.y;
 
-      if (isExternalDragTask?.(task) === true) {
-        const externalMovingTaskIds = new Set([task.id]);
-        const overlapResult = getDesktopCanvasOverlapEntryFromDom(
-          tasksRef.current,
-          externalMovingTaskIds,
-          task.id,
-          nextPosition,
-        );
-        const targetPackId = overlapResult?.entry?.type === 'group' ? overlapResult.entry.id : null;
-        const unresolvedPosition = targetPackId
-          ? nextPosition
-          : getDesktopCanvasResolvedPosition(
-            [...tasksRef.current, task],
-            externalMovingTaskIds,
-            nextPosition,
-          );
-        const resolvedPosition = clampDesktopCanvasPosition(
-          unresolvedPosition,
-          canvasBoundsRef.current,
-          movingHeight,
-        );
-
-        if (typeof onExternalDrop === 'function') {
-          void onExternalDrop({
-            itemId: task.id,
-            packId: targetPackId,
-            position: {
-              x: Number(resolvedPosition.x.toFixed(1)),
-              y: Number(resolvedPosition.y.toFixed(1)),
-              z: Date.now(),
-            },
-          }).catch(() => undefined);
-        }
-      } else {
         flushSync(() => {
           setTasks((prev) => {
           const isGroupDrag = !!task.isGroupInitiator;
@@ -651,6 +657,8 @@ const finishDesktopTaskDrag = useCallback((task, pointerTarget, pointerId) => {
           });
         });
       }
+    } else if (isExternalDragTask?.(task) === true) {
+      onExternalDropCancelled?.();
     }
   }
 
@@ -814,7 +822,7 @@ const handleTaskPointerCancel = useCallback((task, event) => {
   if (desktopDragStateRef.current.pointerId !== event.pointerId || desktopDragStateRef.current.taskId !== task.id) return;
   if (desktopDragModeRef.current) {
     desktopDragPointerRef.current = { x: event.clientX, y: event.clientY };
-    finishDesktopTaskDrag(task, event.currentTarget, event.pointerId);
+    finishDesktopTaskDrag(task, event.currentTarget, event.pointerId, true);
     activePointerTaskRef.current = null;
     return;
   }
@@ -848,7 +856,7 @@ useEffect(() => {
 
     if (desktopDragModeRef.current) {
       desktopDragPointerRef.current = { x: event.clientX, y: event.clientY };
-      finishDesktopTaskDrag(activeTask, null, event.pointerId);
+      finishDesktopTaskDrag(activeTask, null, event.pointerId, event.type === 'pointercancel');
     } else {
       desktopDragStateRef.current = { pointerId: null, taskId: null, startX: 0, startY: 0 };
       desktopDragAnchorPointerOffsetRef.current = null;

@@ -7,3 +7,4 @@ export { useDesktopConnections } from './hooks/useDesktopConnections';
 export * from './model/canvasEntries';
 export * from './model/canvasGeometry';
 export * from './model/canvasConstants';
+export * from './model/inboxCanvasDrop.js';
