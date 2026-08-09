@@ -38,7 +38,8 @@ const getFiniteViewportMetrics = () => {
 };
 
 const isEditableElement = (target) => (
-  target instanceof Element
+  target instanceof HTMLElement
+  && Boolean(target.closest('input, textarea, button, select, [contenteditable="true"], [role="dialog"]'))
 );
 
 const getDesktopSelectionRect = (start, end) => ({
