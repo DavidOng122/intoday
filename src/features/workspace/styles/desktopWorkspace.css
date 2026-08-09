@@ -1,0 +1,708 @@
+.desktop-minimal-header {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  isolation: isolate;
+  height: 110px;
+  padding: 0 36px;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 28px;
+  background: transparent;
+  z-index: 10;
+}
+
+.desktop-minimal-header::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: none;
+}
+
+.desktop-minimal-header::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 28px;
+  z-index: 0;
+  pointer-events: none;
+  background: none;
+}
+
+.desktop-minimal-brand {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  justify-self: start;
+  position: relative;
+  z-index: 1;
+}
+
+.desktop-minimal-brand-label {
+  font-family: "DM Serif Display", serif;
+  font-size: 29px;
+  line-height: 1;
+  color: var(--desktop-root-text);
+  letter-spacing: -0.02em;
+}
+
+.desktop-workspace-control {
+  position: relative;
+  min-width: 0;
+}
+
+.desktop-workspace-shell {
+  min-width: 0;
+  max-width: 300px;
+  height: 44px;
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+  border-radius: 12.5px;
+  border: 1px solid transparent;
+  background: rgba(255, 255, 255, 0.56);
+  box-shadow: none;
+  overflow: hidden;
+  transition: background-color 140ms ease, border-color 140ms ease, box-shadow 140ms ease;
+}
+
+.desktop-workspace-name-button,
+.desktop-workspace-menu-button,
+.desktop-workspace-name-input {
+  border: none;
+  background: transparent;
+  color: var(--desktop-root-text);
+}
+
+.desktop-workspace-name-button {
+  min-width: 0;
+  max-width: 100%;
+  height: 100%;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  cursor: text;
+  flex: 1 1 auto;
+}
+
+.desktop-workspace-name-input {
+  width: 250px;
+  height: 100%;
+  padding: 0 15px;
+  outline: none;
+  font-family: "DM Serif Display", serif;
+  font-size: 27.5px;
+  line-height: 27.5px;
+  font-weight: 400;
+  letter-spacing: 1.38px;
+  flex: 1 1 auto;
+}
+
+.desktop-workspace-menu-button {
+  width: 38px;
+  height: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex: 0 0 auto;
+  border-left: 1px solid transparent;
+}
+
+.desktop-workspace-trigger-label {
+  min-width: 0;
+  padding-left: 15px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: "DM Serif Display", serif;
+  font-size: 27.5px;
+  line-height: 27.5px;
+  font-weight: 400;
+  letter-spacing: 1.38px;
+}
+
+.desktop-workspace-trigger-chevron {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36.1px;
+  height: 100%;
+  margin-left: 1px;
+  color: #a0a4ab;
+  border-left: 1px solid transparent;
+  flex: 0 0 auto;
+}
+
+.desktop-workspace-trigger-chevron svg {
+  width: 10.63px;
+  height: 10.63px;
+}
+
+.desktop-workspace-menu.desktop-spaces-popover {
+  position: absolute;
+  top: calc(100% + 10px);
+  left: 0;
+  z-index: 40;
+  width: 288.75px;
+  box-sizing: border-box;
+  padding: 18.75px 8.75px 18.75px 15px;
+  border: 1px solid rgba(17, 17, 17, 0.12);
+  border-radius: 23.75px;
+  background: #ffffff;
+  box-shadow: 0 22.5px 55px rgba(17, 17, 17, 0.08);
+  color: #111111;
+  overflow: visible;
+}
+
+.desktop-workspace-menu.desktop-spaces-popover.is-limit-reached {
+  padding-top: 21.25px;
+  padding-right: 7.5px;
+  padding-bottom: 21.25px;
+}
+
+.desktop-spaces-popover .desktop-workspace-menu-label {
+  padding: 0 15px;
+  margin-bottom: 7.5px;
+  color: #5e5e5e;
+  font-family: Helvetica, Arial, sans-serif;
+  font-size: 13.75px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.8px;
+}
+
+.desktop-spaces-popover .desktop-workspace-menu-list {
+  display: flex;
+  flex-direction: column;
+  gap: 7.5px;
+  padding: 0;
+}
+
+.desktop-spaces-popover.is-limit-reached .desktop-workspace-menu-list {
+  gap: 20px;
+}
+
+.desktop-spaces-popover .desktop-workspace-menu-row {
+  height: 46.25px;
+  min-height: 46.25px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  border-radius: 15px;
+  overflow: visible;
+}
+
+.desktop-spaces-popover .desktop-workspace-menu-row.is-active {
+  background: #f5f5f5;
+}
+
+.desktop-spaces-popover .desktop-workspace-menu-select,
+.desktop-spaces-popover .desktop-workspace-menu-more,
+.desktop-spaces-popover .desktop-workspace-add-button {
+  border: 0;
+  background: transparent;
+}
+
+.desktop-spaces-popover .desktop-workspace-menu-select {
+  min-width: 0;
+  height: 100%;
+  padding: 0 15px;
+  flex: 1 1 auto;
+  overflow: hidden;
+  color: #000000;
+  font-family: "DM Serif Display", serif;
+  font-size: 20px;
+  font-weight: 400;
+  line-height: 1;
+  letter-spacing: 0.8px;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.desktop-spaces-popover .desktop-workspace-menu-more {
+  width: 38px;
+  height: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #8b8b8b;
+  cursor: pointer;
+}
+
+.desktop-spaces-popover .desktop-workspace-menu-more svg {
+  width: 15.2px;
+  height: 15.2px;
+}
+
+.desktop-spaces-popover .desktop-workspace-menu-divider {
+  height: 1px;
+  margin: 16.25px 0 20px;
+  background: rgba(17, 17, 17, 0.12);
+}
+
+.desktop-spaces-popover .desktop-workspace-limit {
+  display: flex;
+  flex-direction: column;
+  gap: 11.25px;
+  padding: 0 5px;
+  margin-bottom: 22.5px;
+}
+
+.desktop-spaces-popover .desktop-workspace-limit-copy {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: #7d7b77;
+  font-family: Helvetica, Arial, sans-serif;
+  font-size: 11.25px;
+  line-height: 1;
+  letter-spacing: 0.8px;
+}
+
+.desktop-spaces-popover .desktop-workspace-limit-copy span {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.desktop-spaces-popover .desktop-workspace-limit-copy svg {
+  width: 12.5px;
+  height: 12.5px;
+  stroke-width: 1.2;
+}
+
+.desktop-spaces-popover .desktop-workspace-limit-copy strong {
+  color: #000000;
+  font-weight: 700;
+}
+
+.desktop-spaces-popover .desktop-workspace-limit-progress {
+  width: 100%;
+  height: 4.75px;
+  border-radius: 999px;
+  background: #111111;
+}
+
+.desktop-spaces-popover .desktop-workspace-add-button {
+  height: 25px;
+  padding: 0 13.75px;
+  display: inline-flex;
+  align-items: center;
+  gap: 15px;
+  color: #7d7b77;
+  font-family: Helvetica, Arial, sans-serif;
+  font-size: 13.25px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.53px;
+  cursor: pointer;
+}
+
+.desktop-spaces-popover .desktop-workspace-add-icon {
+  width: 25px;
+  height: 25px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: #f5f5f4;
+}
+
+.desktop-spaces-popover .desktop-workspace-add-icon svg {
+  width: 11.25px;
+  height: 11.25px;
+  stroke-width: 1.3;
+}
+
+.desktop-spaces-popover .desktop-workspace-add-button:disabled {
+  color: #c8cdd5;
+  cursor: not-allowed;
+}
+
+.desktop-spaces-popover .desktop-workspace-delete-popover {
+  position: absolute;
+  top: calc(100% + 7.5px);
+  right: 0;
+  z-index: 70;
+  width: max-content;
+  border: 0.875px solid #d5d5d5;
+  border-radius: 8.75px;
+  background: #ffffff;
+  box-shadow: 0 1.25px 6.25px rgba(0, 0, 0, 0.05);
+  overflow: hidden;
+}
+
+.desktop-spaces-popover .desktop-workspace-delete-action {
+  min-height: 41.25px;
+  padding: 12.5px 15px;
+  display: inline-flex;
+  align-items: center;
+  gap: 13.75px;
+  border: 0;
+  background: transparent;
+  color: #f44336;
+  font-family: Inter, sans-serif;
+  font-size: 13.75px;
+  font-weight: 400;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.desktop-spaces-popover .desktop-workspace-delete-action svg {
+  width: 13.75px;
+  height: 16.25px;
+  stroke-width: 1.5;
+}
+
+.desktop-spaces-popover .desktop-workspace-delete-action:hover,
+.desktop-spaces-popover .desktop-workspace-delete-action:focus-visible {
+  background: rgba(244, 67, 54, 0.05);
+  outline: none;
+}
+
+.desktop-spaces-popover .desktop-workspace-delete-action:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.desktop-app-dark .desktop-spaces-popover .desktop-workspace-delete-popover {
+  border-color: rgba(255, 255, 255, 0.14);
+  background: #1c1c1c;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+}
+
+.desktop-workspace-shell:hover {
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.desktop-workspace-name-button:hover,
+.desktop-workspace-menu-button:hover {
+  background: transparent;
+}
+
+.desktop-workspace-shell.is-editing {
+  background: rgba(255, 255, 255, 0.86);
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.18);
+}
+
+.desktop-workspace-icon {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  border: 2px solid #2b3444;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  background: #ffffff;
+  color: #2b3444;
+}
+
+.desktop-workspace-icon-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: currentColor;
+}
+
+.desktop-workspace-icon.is-letter {
+  border: none;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.desktop-workspace-menu {
+  position: absolute;
+  top: calc(100% + 14px);
+  left: 0;
+  width: 308px;
+  border-radius: 22px;
+  border: 1px solid rgba(17, 17, 17, 0.08);
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 20px 50px rgba(17, 17, 17, 0.1);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  overflow: hidden;
+  z-index: 40;
+}
+
+.desktop-workspace-menu-header {
+  padding: 18px 18px 14px;
+  color: #97a1b3;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.desktop-workspace-menu-list {
+  display: flex;
+  flex-direction: column;
+  padding: 0 8px 10px;
+}
+
+.desktop-workspace-menu-row {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  min-height: 54px;
+  padding: 0 8px;
+  border-radius: 14px;
+}
+
+.desktop-workspace-menu-item {
+  width: 100%;
+  min-height: 100%;
+  padding: 0 10px;
+  border: none;
+  border-radius: 14px;
+  background: transparent;
+  display: flex;
+  align-items: center;
+  color: var(--desktop-root-text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.desktop-workspace-menu-row.is-active,
+.desktop-workspace-menu-row:hover,
+.desktop-workspace-menu-row:focus-within {
+  background: rgba(17, 17, 17, 0.04);
+}
+
+.desktop-workspace-menu-item:focus-visible {
+  outline: none;
+}
+
+.desktop-workspace-menu-item-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: "DM Serif Display", serif;
+  font-size: 18px;
+  line-height: 1.1;
+  font-weight: 400;
+  letter-spacing: 0.05em;
+}
+
+.desktop-workspace-menu-item-actions {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  flex: 0 0 auto;
+}
+
+.desktop-workspace-menu-item-more {
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 9px;
+  background: transparent;
+  color: #8b93a3;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  opacity: 0;
+  transition: background-color 140ms ease, color 140ms ease, opacity 140ms ease;
+}
+
+.desktop-workspace-menu-row:hover .desktop-workspace-menu-item-more,
+.desktop-workspace-menu-row.is-actions-open .desktop-workspace-menu-item-more,
+.desktop-workspace-menu-row.is-active .desktop-workspace-menu-item-more {
+  opacity: 0.88;
+}
+
+.desktop-workspace-menu-row.is-actions-open .desktop-workspace-menu-item-more {
+  opacity: 1;
+}
+
+.desktop-workspace-menu-item-more:hover,
+.desktop-workspace-menu-item-more:focus-visible {
+  background: rgba(17, 17, 17, 0.06);
+  color: #5f6778;
+  outline: none;
+}
+
+.desktop-workspace-menu-item-popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  min-width: 148px;
+  padding: 6px;
+  border-radius: 14px;
+  border: 1px solid rgba(17, 17, 17, 0.08);
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 16px 30px rgba(17, 17, 17, 0.12);
+  z-index: 4;
+}
+
+.desktop-workspace-menu-item-delete {
+  width: 100%;
+  min-height: 36px;
+  padding: 0 10px;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: #d34b4b;
+  text-align: left;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.desktop-workspace-menu-item-delete:hover,
+.desktop-workspace-menu-item-delete:focus-visible {
+  background: rgba(211, 75, 75, 0.08);
+  outline: none;
+}
+
+.desktop-workspace-menu-item-delete:disabled {
+  opacity: 0.42;
+  cursor: default;
+}
+
+.desktop-workspace-menu-item-delete:disabled:hover,
+.desktop-workspace-menu-item-delete:disabled:focus-visible {
+  background: transparent;
+}
+
+.desktop-workspace-menu-add {
+  width: 100%;
+  min-height: 58px;
+  padding: 0 18px;
+  border: none;
+  border-top: 1px solid rgba(17, 17, 17, 0.06);
+  background: transparent;
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+  color: #6f7889;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.desktop-workspace-menu-add:hover,
+.desktop-workspace-menu-add:focus-visible {
+  background: rgba(17, 17, 17, 0.03);
+  outline: none;
+}
+
+.desktop-workspace-menu-add:disabled {
+  opacity: 0.42;
+  cursor: default;
+}
+
+.desktop-workspace-menu-add:disabled:hover,
+.desktop-workspace-menu-add:disabled:focus-visible {
+  background: transparent;
+}
+
+.desktop-app-dark .desktop-workspace-icon {
+  border-color: rgba(255, 255, 255, 0.74);
+  background: transparent;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.desktop-app-dark .desktop-workspace-name-button,
+.desktop-app-dark .desktop-workspace-menu-button {
+  color: #ffffff;
+}
+
+.desktop-app-dark .desktop-workspace-shell {
+  background: rgba(255, 255, 255, 0.03);
+  border-color: transparent;
+  box-shadow: none;
+}
+
+.desktop-app-dark .desktop-workspace-name-input {
+  background: transparent;
+  color: #ffffff;
+}
+
+.desktop-app-dark .desktop-workspace-menu-button {
+  border-left-color: transparent;
+}
+
+.desktop-app-dark .desktop-workspace-shell:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.desktop-app-dark .desktop-workspace-name-button:hover,
+.desktop-app-dark .desktop-workspace-menu-button:hover {
+  background: transparent;
+}
+
+.desktop-app-dark .desktop-workspace-shell.is-editing {
+  background: #171717;
+  border-color: #60a5fa;
+  box-shadow: 0 0 0 2px rgba(96, 165, 250, 0.22);
+}
+
+.desktop-app-dark .desktop-workspace-menu {
+  border-color: rgba(255, 255, 255, 0.08);
+  background: rgba(24, 24, 28, 0.96);
+  box-shadow: 0 24px 54px rgba(0, 0, 0, 0.34);
+}
+
+.desktop-app-dark .desktop-workspace-menu-row.is-active,
+.desktop-app-dark .desktop-workspace-menu-row:hover,
+.desktop-app-dark .desktop-workspace-menu-row:focus-within,
+.desktop-app-dark .desktop-workspace-menu-add:hover,
+.desktop-app-dark .desktop-workspace-menu-add:focus-visible {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.desktop-app-dark .desktop-workspace-menu-item-more {
+  color: rgba(255, 255, 255, 0.64);
+}
+
+.desktop-app-dark .desktop-workspace-menu-item-more:hover,
+.desktop-app-dark .desktop-workspace-menu-item-more:focus-visible {
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.desktop-app-dark .desktop-workspace-menu-add {
+  border-top-color: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.desktop-app-dark .desktop-workspace-menu-item-popover {
+  border-color: rgba(255, 255, 255, 0.08);
+  background: rgba(24, 24, 28, 0.98);
+  box-shadow: 0 18px 34px rgba(0, 0, 0, 0.36);
+}
+
+.desktop-app-dark .desktop-workspace-menu-item-delete {
+  color: #ff8f8f;
+}
+
+.desktop-app-dark .desktop-workspace-menu-item-delete:hover,
+.desktop-app-dark .desktop-workspace-menu-item-delete:focus-visible {
+  background: rgba(255, 143, 143, 0.12);
+}
+
+.desktop-app-dark .desktop-workspace-menu-add:disabled:hover,
+.desktop-app-dark .desktop-workspace-menu-add:disabled:focus-visible {
+  background: transparent;
+}
+
+.desktop-workspace-menu-button {
+  display: none !important;
+}

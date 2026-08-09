@@ -1,0 +1,812 @@
+/* Figma 267:2805 — Inbox panel presentation */
+.desktop-inbox-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  background: transparent;
+  display: block;
+}
+
+.desktop-inbox-container {
+  position: absolute;
+  width: 355px;
+  max-width: calc(100vw - 32px);
+  height: auto;
+  max-height: min(534px, calc(100vh - 98px));
+  border: 1px solid #dfdfdf;
+  border-radius: 16px;
+  background: #ffffff;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-sizing: border-box;
+  font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+.desktop-inbox-header {
+  padding: 20px 16px 0;
+  display: block;
+  border-bottom: 0;
+  flex-shrink: 0;
+}
+
+.desktop-inbox-title-row {
+  width: 100%;
+  padding: 0 4px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  box-sizing: border-box;
+}
+
+.desktop-inbox-heading-group,
+.desktop-inbox-header-actions {
+  display: flex;
+  align-items: center;
+}
+
+.desktop-inbox-heading-group {
+  gap: 8px;
+}
+
+.desktop-inbox-heading {
+  margin: 0;
+  color: #101828;
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 28px;
+}
+
+.desktop-inbox-heading-count {
+  min-width: 22px;
+  height: 22px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #000000;
+  color: #ffffff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 16px;
+}
+
+.desktop-inbox-header-actions {
+  gap: 16px;
+  color: #99a1af;
+}
+
+.desktop-inbox-add-toggle {
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: #99a1af;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.desktop-inbox-add-toggle:hover,
+.desktop-inbox-add-toggle:focus-visible {
+  color: #4a5565;
+}
+
+.desktop-inbox-add-toggle:focus-visible {
+  outline: 2px solid rgba(16, 24, 40, 0.2);
+  outline-offset: 3px;
+}
+
+.desktop-inbox-minus-icon {
+  display: block;
+  font-size: 20px;
+  font-weight: 400;
+  line-height: 18px;
+  transform: translateY(-1px);
+}
+
+.desktop-inbox-close-btn {
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: #99a1af;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.desktop-inbox-close-btn:hover {
+  color: #4a5565;
+}
+
+.desktop-inbox-close-btn:focus-visible {
+  outline: 2px solid rgba(16, 24, 40, 0.2);
+  outline-offset: 3px;
+}
+
+.desktop-inbox-subheading {
+  margin: 4px 0 0;
+  padding: 0 4px;
+  color: #99a1af;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 16px;
+}
+
+.desktop-inbox-search-container {
+  width: 100%;
+  height: 42px;
+  margin-top: 12px;
+  padding: 0 12px;
+  border: 1px solid #f3f4f6;
+  border-radius: 12px;
+  background: #f9fafb;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  box-sizing: border-box;
+}
+
+.desktop-inbox-search-icon {
+  position: static;
+  width: 15px;
+  height: 15px;
+  color: #99a1af;
+  flex-shrink: 0;
+}
+
+.desktop-inbox-search-icon svg {
+  width: 15px;
+  height: 15px;
+}
+
+.desktop-inbox-search-input {
+  flex: 1;
+  min-width: 0;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: #1e2939;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 20px;
+  outline: none;
+}
+
+.desktop-inbox-search-input::placeholder {
+  color: #99a1af;
+  opacity: 1;
+}
+
+.desktop-inbox-capture-container {
+  position: relative;
+  width: 100%;
+  height: 96px;
+  margin-top: 12px;
+  padding: 16px 16px 46px;
+  border: 1.333px solid #d5d5d5;
+  border-radius: 16px;
+  background: #ffffff;
+  box-shadow: 0 2px 6px rgba(160, 130, 240, 0.08);
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  box-sizing: border-box;
+}
+
+.desktop-inbox-capture-input {
+  flex: 1;
+  min-width: 0;
+  height: 21px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #3d3a4e;
+  font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 21px;
+  outline: none;
+}
+
+.desktop-inbox-capture-input::placeholder {
+  color: rgba(61, 58, 78, 0.5);
+  opacity: 1;
+}
+
+.desktop-inbox-capture-status,
+.desktop-inbox-capture-error {
+  position: absolute;
+  left: 16px;
+  bottom: 14px;
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.desktop-inbox-capture-status {
+  color: rgba(61, 58, 78, 0.62);
+}
+
+.desktop-inbox-capture-error {
+  color: #c2413b;
+}
+
+/* Figma 33:345 — confirm staged Inbox additions before committing them. */
+.desktop-inbox-add-confirm-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 460;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(15, 23, 42, 0.12);
+  backdrop-filter: blur(10px);
+}
+
+.desktop-inbox-add-confirm-dialog {
+  width: min(395px, calc(100vw - 32px));
+  max-height: calc(100vh - 48px);
+  padding: 17px 19px;
+  display: flex;
+  flex-direction: column;
+  gap: 13px;
+  box-sizing: border-box;
+  overflow: hidden;
+  border: 1px solid #e1e5eb;
+  border-radius: 26px;
+  background: #ffffff;
+  box-shadow: 0 24px 31px rgba(15, 23, 42, 0.14);
+  color: #111111;
+}
+
+.desktop-inbox-add-confirm-close,
+.desktop-inbox-add-preview-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  padding: 0;
+  border: 1px solid #f0f0f0;
+  background: #ffffff;
+  color: #3f3f46;
+  cursor: pointer;
+}
+
+.desktop-inbox-add-confirm-close {
+  width: 23px;
+  height: 23px;
+  margin-bottom: -10px;
+  align-self: flex-end;
+  border-radius: 50%;
+}
+
+.desktop-inbox-add-confirm-close svg,
+.desktop-inbox-add-preview-remove svg {
+  width: 12px;
+  height: 12px;
+}
+
+.desktop-inbox-add-confirm-heading {
+  padding: 0 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 7px;
+  text-align: center;
+}
+
+.desktop-inbox-add-confirm-heading h2,
+.desktop-inbox-add-confirm-heading p {
+  margin: 0;
+}
+
+.desktop-inbox-add-confirm-heading h2 {
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.desktop-inbox-add-confirm-heading p {
+  color: #6b7280;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 15.5px;
+}
+
+.desktop-inbox-add-preview-list {
+  max-height: 308px;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 13px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(107, 114, 128, 0.32) transparent;
+}
+
+.desktop-inbox-add-preview-row {
+  min-height: 94px;
+  padding: 9px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  box-sizing: border-box;
+  border: 1px solid #e4e7ec;
+  border-radius: 15px;
+  background: #ffffff;
+}
+
+.desktop-inbox-add-preview-thumbnail {
+  width: 85px;
+  height: 50px;
+  flex: 0 0 85px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: 10px;
+  background: linear-gradient(136deg, #151515 0%, #2b2b2b 52%, #e6e2da 53%, #f7f3ed 100%);
+  color: rgba(255, 255, 255, 0.92);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.desktop-inbox-add-preview-thumbnail.is-link > span {
+  width: 38px;
+  height: 2px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 13px 0 rgba(255, 255, 255, 0.9);
+}
+
+.desktop-inbox-add-preview-thumbnail.is-pdf {
+  background: linear-gradient(145deg, #ef4444, #991b1b);
+}
+
+.desktop-inbox-add-preview-thumbnail.is-text {
+  background: linear-gradient(145deg, #f59e0b, #d97706);
+}
+
+.desktop-inbox-add-preview-thumbnail img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.desktop-inbox-add-preview-copy {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.desktop-inbox-add-preview-source {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: #667085;
+  font-size: 9px;
+  line-height: 11px;
+}
+
+.desktop-inbox-add-preview-source img {
+  width: 12px;
+  height: 12px;
+  flex: 0 0 12px;
+  border-radius: 3px;
+  object-fit: contain;
+}
+
+.desktop-inbox-add-preview-source span,
+.desktop-inbox-add-preview-copy strong,
+.desktop-inbox-add-preview-subtitle {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.desktop-inbox-add-preview-source span,
+.desktop-inbox-add-preview-subtitle {
+  white-space: nowrap;
+}
+
+.desktop-inbox-add-preview-copy strong {
+  display: -webkit-box;
+  color: #1f2937;
+  font-size: 11.4px;
+  font-weight: 700;
+  line-height: 14.25px;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.desktop-inbox-add-preview-subtitle {
+  color: #6b7280;
+  font-size: 9px;
+  line-height: 11.4px;
+}
+
+.desktop-inbox-add-preview-remove {
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: 50%;
+  background: #f3f4f6;
+}
+
+.desktop-inbox-add-confirm-error {
+  color: #c2413b;
+  font-size: 11px;
+  line-height: 15px;
+  text-align: center;
+}
+
+.desktop-inbox-add-confirm-submit {
+  width: 100%;
+  min-height: 42px;
+  padding: 11px 18px;
+  border: none;
+  border-radius: 29px;
+  background: #000000;
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.14);
+  color: #ffffff;
+  font-size: 10.6px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.desktop-inbox-add-confirm-submit:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.desktop-inbox-add-confirm-backdrop.is-dark {
+  background: rgba(0, 0, 0, 0.4);
+}
+
+.desktop-inbox-add-confirm-backdrop.is-dark .desktop-inbox-add-confirm-dialog,
+.desktop-inbox-add-confirm-backdrop.is-dark .desktop-inbox-add-preview-row {
+  border-color: #34373d;
+  background: #1c1c1e;
+  color: #f5f7fa;
+}
+
+.desktop-inbox-add-confirm-backdrop.is-dark .desktop-inbox-add-confirm-heading p,
+.desktop-inbox-add-confirm-backdrop.is-dark .desktop-inbox-add-preview-source,
+.desktop-inbox-add-confirm-backdrop.is-dark .desktop-inbox-add-preview-subtitle {
+  color: #a8adb7;
+}
+
+.desktop-inbox-add-confirm-backdrop.is-dark .desktop-inbox-add-preview-copy strong {
+  color: #f5f7fa;
+}
+
+.desktop-inbox-add-confirm-backdrop.is-dark .desktop-inbox-add-confirm-close,
+.desktop-inbox-add-confirm-backdrop.is-dark .desktop-inbox-add-preview-remove {
+  border-color: #34373d;
+  background: #29292c;
+  color: #f5f7fa;
+}
+
+.desktop-inbox-content {
+  flex: 0 1 auto;
+  min-height: 0;
+  max-height: 408px;
+  padding: 16px 0 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.desktop-inbox-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.desktop-inbox-content::-webkit-scrollbar {
+  width: 6px;
+}
+
+.desktop-inbox-content::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 8px;
+  background: rgba(153, 161, 175, 0.42);
+  background-clip: padding-box;
+}
+
+.desktop-inbox-item {
+  width: 100%;
+  min-height: 65px;
+  padding: 12px 16px;
+  gap: 12px;
+  border: 0;
+  border-bottom: 1px solid #f9fafb;
+  border-radius: 0;
+  box-sizing: border-box;
+  background: transparent;
+  display: flex;
+  align-items: center;
+  text-align: left;
+  cursor: grab;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
+}
+
+.desktop-inbox-item:active {
+  cursor: grabbing;
+}
+
+.desktop-inbox-item:hover {
+  background: #fbfcfd;
+}
+
+.desktop-inbox-item-icon-wrapper {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-sizing: border-box;
+}
+
+.desktop-inbox-item-icon-wrapper img,
+.desktop-inbox-item-icon-wrapper > div {
+  width: 20px !important;
+  height: 20px !important;
+}
+
+.desktop-inbox-item-icon-wrapper .desktop-inbox-site-icon {
+  border-radius: 4px;
+  object-fit: contain;
+}
+
+.desktop-inbox-item-copy {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.desktop-inbox-item-title {
+  width: 100%;
+  color: #1e2939;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 20px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.desktop-inbox-item-subtitle {
+  width: 100%;
+  padding-top: 2px;
+  color: #99a1af;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 16px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.desktop-inbox-moveto-btn {
+  width: 78px;
+  height: 30px;
+  padding: 0 8px;
+  border: 1px solid #d0d5dd;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #344054;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 16px;
+  cursor: pointer;
+  opacity: 1;
+}
+
+.desktop-inbox-item:hover .desktop-inbox-moveto-btn {
+  opacity: 1;
+}
+
+.desktop-inbox-moveto-btn:hover {
+  border-color: #98a2b3;
+  background: #f8fafc;
+  color: #101828;
+}
+
+.desktop-inbox-moveto-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+}
+
+.desktop-inbox-move-control {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.desktop-inbox-pack-menu {
+  position: fixed;
+  z-index: 120;
+  width: 220px;
+  max-height: 240px;
+  overflow-y: auto;
+  padding: 6px;
+  border: 1px solid rgba(17, 17, 17, 0.1);
+  border-radius: 10px;
+  background: #ffffff;
+  box-shadow: 0 12px 28px rgba(28, 23, 18, 0.14);
+}
+
+.desktop-inbox-pack-option {
+  width: 100%;
+  padding: 8px 9px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #1e2939;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.desktop-inbox-pack-option:hover,
+.desktop-inbox-pack-option:focus-visible {
+  background: #f3f4f6;
+  outline: none;
+}
+
+.desktop-inbox-pack-option-icon {
+  width: 20px;
+  flex-shrink: 0;
+  text-align: center;
+}
+
+.desktop-inbox-pack-option-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.desktop-inbox-pack-option-count {
+  color: #99a1af;
+  font-size: 11px;
+}
+
+.desktop-inbox-empty {
+  min-height: 120px;
+  padding: 42px 16px;
+  box-sizing: border-box;
+  color: #99a1af;
+  font-size: 13px;
+}
+
+.desktop-inbox-move-error {
+  margin: 0 16px 8px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(255, 59, 48, 0.1);
+  color: #c9342c;
+  font-size: 12px;
+}
+
+.desktop-app-dark .desktop-inbox-container {
+  border-color: #33363b;
+  background: #1c1c1e;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.42), 0 8px 10px -6px rgba(0, 0, 0, 0.36);
+}
+
+.desktop-app-dark .desktop-inbox-header {
+  border-bottom: 0;
+}
+
+.desktop-app-dark .desktop-inbox-heading,
+.desktop-app-dark .desktop-inbox-item-title {
+  color: #f5f7fa;
+}
+
+.desktop-app-dark .desktop-inbox-heading-count {
+  background: #ffffff;
+  color: #101010;
+}
+
+.desktop-app-dark .desktop-inbox-search-container {
+  border-color: #33363b;
+  background: #252527;
+}
+
+.desktop-app-dark .desktop-inbox-search-input {
+  background: transparent;
+  color: #f5f7fa;
+}
+
+.desktop-app-dark .desktop-inbox-capture-container {
+  border-color: #3a3d42;
+  background: #252527;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.18);
+}
+
+.desktop-app-dark .desktop-inbox-capture-input {
+  color: #f5f7fa;
+}
+
+.desktop-app-dark .desktop-inbox-capture-input::placeholder,
+.desktop-app-dark .desktop-inbox-capture-status {
+  color: rgba(224, 226, 231, 0.58);
+}
+
+.desktop-app-dark .desktop-inbox-capture-error {
+  color: #ff8b84;
+}
+
+.desktop-app-dark .desktop-inbox-item {
+  border-bottom-color: #24262a;
+}
+
+.desktop-app-dark .desktop-inbox-item:hover {
+  background: #222326;
+}
+
+.desktop-app-dark .desktop-inbox-moveto-btn {
+  border-color: #3a3d42;
+  background: #1c1c1e;
+  color: #f1f3f5;
+}
+
+.desktop-app-dark .desktop-inbox-pack-menu,
+.desktop-inbox-pack-menu.is-dark {
+  border-color: rgba(255, 255, 255, 0.12);
+  background: #252527;
+  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.34);
+}
+
+.desktop-app-dark .desktop-inbox-pack-option,
+.desktop-inbox-pack-menu.is-dark .desktop-inbox-pack-option {
+  color: #f5f7fa;
+}
+
+.desktop-app-dark .desktop-inbox-pack-option:hover,
+.desktop-app-dark .desktop-inbox-pack-option:focus-visible,
+.desktop-inbox-pack-menu.is-dark .desktop-inbox-pack-option:hover,
+.desktop-inbox-pack-menu.is-dark .desktop-inbox-pack-option:focus-visible {
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.desktop-app-dark .desktop-inbox-move-error {
+  color: #ff8a82;
+}
+
+@media (max-height: 680px) {
+  .desktop-inbox-container {
+    max-height: calc(100vh - 40px);
+  }
+}

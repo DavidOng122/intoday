@@ -4,6 +4,12 @@ import App from './App.jsx';
 import './styles/tokens.css';
 import './styles/index.css';
 import './styles/desktop.css';
+import './features/session/styles/desktopSession.css';
+import './features/workspace/styles/desktopWorkspace.css';
+import './features/canvas/styles/desktopCanvas.css';
+import './features/pack/styles/desktopPack.css';
+import './features/search/styles/desktopSearch.css';
+import './features/inbox/styles/desktopInbox.css';
 
 class ErrorBoundary extends Component {
   constructor(props) {

@@ -1,0 +1,437 @@
+.desktop-profile-page {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: var(--desktop-modal-backdrop);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 28px;
+  font-family: 'Manrope', 'Segoe UI', sans-serif;
+}
+
+.desktop-profile-page::before {
+  content: none;
+}
+
+.desktop-profile-page-light {
+  --desktop-profile-surface: #fff;
+  --desktop-profile-surface-strong: #fff;
+  --desktop-profile-border: rgba(0, 0, 0, 0.1);
+  --desktop-profile-shadow: none;
+  --desktop-profile-ink: #171513;
+  --desktop-profile-muted: #746f68;
+  --desktop-profile-chip: #f6f0e8;
+  --desktop-profile-chip-active: #171513;
+  --desktop-profile-chip-active-ink: #fffaf4;
+  --desktop-profile-signout: #181511;
+  --desktop-profile-signout-ink: #fffefb;
+}
+
+.desktop-profile-page-dark {
+  --desktop-profile-surface: #444444;
+  --desktop-profile-surface-strong: #1e1e1e;
+  --desktop-profile-border: #333333;
+  --desktop-profile-shadow: none;
+  --desktop-profile-ink: #ffffff;
+  --desktop-profile-muted: #a0a0a0;
+  --desktop-profile-chip: #2c2c2c;
+  --desktop-profile-chip-active: #3b82f6;
+  --desktop-profile-chip-active-ink: #ffffff;
+  --desktop-profile-signout: #2c2c2c;
+  --desktop-profile-signout-ink: #ffffff;
+  --desktop-profile-signout-ink: #ffffff;
+}
+
+.desktop-profile-page-orb {
+  display: none;
+}
+
+.desktop-profile-page-orb-left {
+  width: 320px;
+  height: 320px;
+  left: 9%;
+  top: 18%;
+  background: radial-gradient(circle, rgba(239, 182, 89, 0.18), rgba(239, 182, 89, 0));
+}
+
+.desktop-profile-page-orb-right {
+  width: 280px;
+  height: 280px;
+  right: 12%;
+  bottom: 14%;
+  background: radial-gradient(circle, rgba(140, 166, 212, 0.18), rgba(140, 166, 212, 0));
+}
+
+.desktop-profile-page-close {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  z-index: 2;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: #111;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  border: 1px solid transparent;
+}
+
+.desktop-profile-page-dark .desktop-profile-page-close {
+  background: transparent;
+  color: #c0c0c0;
+  border-color: transparent;
+}
+
+.desktop-profile-page-close:hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.desktop-profile-page-dark .desktop-profile-page-close:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.desktop-profile-stage {
+  position: relative;
+  z-index: 1;
+  width: min(100%, 400px);
+  max-height: calc(100vh - 56px);
+  background: var(--desktop-profile-surface-strong);
+  border-radius: 24px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  overflow: hidden;
+  border: 1px solid var(--desktop-profile-border);
+}
+
+.desktop-profile-page-dark .desktop-profile-stage {
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+}
+
+.desktop-profile-content {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 32px;
+  overflow-y: auto;
+}
+
+.desktop-profile-header-block {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.desktop-profile-avatar-frame {
+  width: 48px;
+  height: 48px;
+  border-radius: 999px;
+  padding: 0;
+  border: 1px solid var(--desktop-profile-border);
+  background: var(--desktop-profile-surface-strong);
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.desktop-profile-avatar-image {
+  width: 100%;
+  height: 100%;
+  border-radius: 999px;
+  object-fit: cover;
+}
+
+.desktop-profile-avatar-fallback {
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: var(--desktop-profile-ink);
+}
+
+.desktop-profile-title {
+  margin: 10px 0 0;
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-size: clamp(1.12rem, 2.6vw, 1.56rem);
+  font-style: italic;
+  font-weight: 700;
+  letter-spacing: -0.04em;
+  color: var(--desktop-profile-ink);
+}
+
+.desktop-profile-subtitle {
+  margin: 6px 0 0;
+  color: var(--desktop-profile-muted);
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+
+.desktop-profile-card {
+  width: 100%;
+  margin-top: 29px;
+  border-radius: 19px;
+  border: 1px solid var(--desktop-profile-border);
+  background: var(--desktop-profile-surface);
+  overflow: visible;
+}
+
+.desktop-profile-card-single {
+  margin-top: 18px;
+}
+
+.desktop-profile-setting+.desktop-profile-setting {
+  border-top: 1px solid var(--desktop-profile-border);
+}
+
+.desktop-profile-setting {
+  position: relative;
+}
+
+.desktop-profile-setting-trigger,
+.desktop-profile-static-row {
+  width: 100%;
+  min-height: 54px;
+  padding: 0 14px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.desktop-profile-setting-trigger {
+  cursor: pointer;
+}
+
+.desktop-profile-setting-main,
+.desktop-profile-setting-end {
+  display: inline-flex;
+  align-items: center;
+}
+
+.desktop-profile-setting-main {
+  gap: 10px;
+}
+
+.desktop-profile-setting-end {
+  gap: 7px;
+  color: var(--desktop-profile-ink);
+}
+
+.desktop-profile-setting-icon {
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--desktop-profile-ink);
+}
+
+.desktop-profile-setting-label {
+  color: var(--desktop-profile-ink);
+  font-size: 0.84rem;
+  font-weight: 600;
+}
+
+.desktop-profile-setting-value {
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.desktop-profile-setting-chevron {
+  display: inline-flex;
+  color: var(--desktop-profile-ink);
+  transition: transform 0.22s ease;
+}
+
+.desktop-profile-setting.is-expanded .desktop-profile-setting-chevron {
+  transform: rotate(90deg);
+}
+
+.desktop-profile-setting-chevron-down,
+.desktop-profile-setting.is-expanded .desktop-profile-setting-chevron-down {
+  transform: rotate(90deg);
+}
+
+.desktop-profile-setting-panel {
+  padding: 0 14px 14px;
+}
+
+.desktop-profile-restore-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.desktop-profile-restore-item {
+  min-height: 42px;
+  padding: 7px 8px 7px 12px;
+  border-radius: 12px;
+  background: var(--desktop-profile-chip);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.desktop-profile-restore-name {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--desktop-profile-ink);
+  font-family: "DM Serif Display", serif;
+  font-size: 0.84rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.desktop-profile-restore-button {
+  min-height: 28px;
+  padding: 0 11px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--desktop-profile-chip-active);
+  color: var(--desktop-profile-chip-active-ink);
+  font-size: 0.7rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.desktop-profile-restore-button:disabled {
+  opacity: 0.36;
+  cursor: not-allowed;
+}
+
+.desktop-profile-restore-empty,
+.desktop-profile-restore-limit {
+  padding: 9px 3px 2px;
+  color: var(--desktop-profile-muted);
+  font-size: 0.72rem;
+  line-height: 1.4;
+}
+
+.desktop-profile-restore-limit {
+  color: #b45309;
+}
+
+.desktop-profile-setting-panel-popover {
+  position: absolute;
+  top: calc(100% - 2px);
+  right: 7px;
+  z-index: 40;
+  width: 298px;
+  padding: 0;
+}
+
+.desktop-profile-choice-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.desktop-profile-choice-grid-compact .desktop-profile-choice {
+  min-width: 74px;
+}
+
+.desktop-profile-choice {
+  min-width: 51px;
+  padding: 7px 11px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  background: var(--desktop-profile-chip);
+  color: var(--desktop-profile-ink);
+  font-size: 0.74rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition:
+    transform 0.18s ease,
+    border-color 0.18s ease,
+    background 0.18s ease,
+    color 0.18s ease;
+}
+
+.desktop-profile-choice:hover,
+.desktop-profile-setting-trigger:hover,
+.desktop-profile-page-close:hover,
+.desktop-profile-signout:hover {
+  transform: translateY(-1px);
+}
+
+.desktop-profile-choice.is-active {
+  background: var(--desktop-profile-chip-active);
+  color: var(--desktop-profile-chip-active-ink);
+}
+
+.desktop-profile-appearance-menu {
+  width: 100%;
+  padding: 8px;
+  border-radius: 22px;
+  border: 1px solid rgba(17, 17, 17, 0.1);
+  background: #ffffff;
+  box-shadow: 0 20px 42px rgba(15, 23, 42, 0.14), 0 2px 8px rgba(15, 23, 42, 0.06);
+  color: #050505;
+}
+
+.desktop-profile-appearance-option {
+  width: 100%;
+  min-height: 48px;
+  padding: 0 17px;
+  border: 0;
+  border-radius: 13px;
+  background: transparent;
+  color: #050505;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  font-size: 1rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    background 0.16s ease,
+    color 0.16s ease;
+}
+
+.desktop-profile-appearance-option:hover {
+  background: #f4f4f4;
+}
+
+.desktop-profile-appearance-option.is-active {
+  background: #f4f4f4;
+  font-weight: 600;
+}
+
+.desktop-profile-appearance-option svg {
+  flex: 0 0 auto;
+  color: #111111;
+}
+
+.desktop-profile-signout {
+  margin-top: 22px;
+  min-width: 148px;
+  min-height: 46px;
+  padding: 12px 20px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--desktop-profile-signout);
+  color: var(--desktop-profile-signout-ink);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 0.88rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
