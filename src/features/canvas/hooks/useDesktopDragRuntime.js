@@ -1,0 +1,41 @@
+import { useRef } from 'react';
+import {
+  DESKTOP_CANVAS_CARD_HEIGHT,
+  DESKTOP_CANVAS_CARD_WIDTH,
+} from '../model/canvasConstants.js';
+
+export const useDesktopDragRuntime = () => ({
+  activePointerTaskRef: useRef(null),
+  desktopDragStateRef: useRef({ pointerId: null, taskId: null, startX: 0, startY: 0 }),
+  desktopDragPointerRef: useRef({ x: 0, y: 0 }),
+  desktopDragLastMoveRef: useRef(null),
+  desktopDragContainerRectRef: useRef(null),
+  desktopDragModeRef: useRef(false),
+  desktopDragSelectedTaskIdsRef: useRef(new Set()),
+  desktopDragSelectionPositionsRef: useRef(new Map()),
+  desktopDragAnchorStartPositionRef: useRef(null),
+  desktopDragAnchorSizeRef: useRef({
+    width: DESKTOP_CANVAS_CARD_WIDTH,
+    height: DESKTOP_CANVAS_CARD_HEIGHT,
+  }),
+  desktopDragAnchorPointerOffsetRef: useRef(null),
+  desktopDragSourceRectRef: useRef(null),
+  desktopDragDetachedFromGroupRef: useRef(false),
+  desktopDragVisualRafRef: useRef(null),
+  desktopDragVisualPendingRef: useRef(null),
+  desktopDragIsGroupRef: useRef(false),
+  desktopDragOverlayNodeRef: useRef(null),
+  desktopDragOverlaySnapshotRef: useRef(null),
+  desktopDragSourceEntryIdRef: useRef(null),
+  desktopDragOverlapTimeoutRef: useRef(null),
+  desktopDragOverlapStateLastTsRef: useRef(0),
+  desktopDragOverlapTargetIdRef: useRef(null),
+  desktopDragOverlapRafRef: useRef(null),
+  desktopDragOverlapPendingRef: useRef(null),
+  desktopSelectionStateRef: useRef({ pointerId: null, origin: null }),
+  selectedTaskIdsRef: useRef(new Set()),
+  selectedDayEntriesRef: useRef([]),
+  suppressTaskClickRef: useRef(null),
+  suppressAllTaskClicksUntilRef: useRef(0),
+  suppressTaskClickTimeoutRef: useRef(null),
+});

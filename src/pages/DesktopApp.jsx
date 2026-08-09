@@ -19,7 +19,7 @@ import {
 } from '../features/inbox';
 import DesktopDeleteConfirmModal from '../shared/ui/DeleteConfirmModal';
 import { DesktopCanvas } from '../features/canvas';
-import { useDesktopConnections } from '../features/canvas';
+import { useDesktopConnections, useDesktopDragRuntime } from '../features/canvas';
 import { useDesktopCapture } from '../features/capture';
 import { WorkspaceMenu, useDesktopWorkspaces } from '../features/workspace';
 import { GroupedTaskCard, TaskCard } from '../features/canvas';
@@ -55,7 +55,6 @@ import { taskBelongsToWorkspace } from '../lib/workspaceUtils';
 import {
   DESKTOP_APP_WINDOW_SCALE,
   DESKTOP_CANVAS_CARD_GAP,
-  DESKTOP_CANVAS_CARD_HEIGHT,
   DESKTOP_CANVAS_CARD_WIDTH,
   DESKTOP_CANVAS_TOP_PADDING,
   DESKTOP_PHOTO_CARD_HEIGHT,
@@ -294,42 +293,40 @@ function App() {
   const selectedDateRef = useRef(selectedDate);
   const tasksRef = useRef(currentWorkspaceTasks);
   const desktopDragViewportRef = useRef(null);
-  const desktopDragStateRef = useRef({
-    pointerId: null,
-    taskId: null,
-    startX: 0,
-    startY: 0,
-  });
-  const activePointerTaskRef = useRef(null);
-  const desktopDragPointerRef = useRef({ x: 0, y: 0 });
-  const desktopDragLastMoveRef = useRef(null);
-  const desktopDragContainerRectRef = useRef(null);
-  const desktopDragModeRef = useRef(false);
-  const desktopDragSelectedTaskIdsRef = useRef(new Set());
-  const desktopDragSelectionPositionsRef = useRef(new Map());
-  const desktopDragAnchorStartPositionRef = useRef(null);
-  const desktopDragAnchorSizeRef = useRef({ width: DESKTOP_CANVAS_CARD_WIDTH, height: DESKTOP_CANVAS_CARD_HEIGHT });
-  const desktopDragAnchorPointerOffsetRef = useRef(null);
-  const desktopDragSourceRectRef = useRef(null);
-  const desktopDragDetachedFromGroupRef = useRef(false);
-  const desktopDragVisualRafRef = useRef(null);
-  const desktopDragVisualPendingRef = useRef(null);
-  const desktopDragIsGroupRef = useRef(false);
-  const desktopDragOverlayNodeRef = useRef(null);
-  const desktopDragOverlaySnapshotRef = useRef(null);
-  const desktopDragSourceEntryIdRef = useRef(null);
-  const desktopDragOverlapTimeoutRef = useRef(null);
-  const desktopDragOverlapStateLastTsRef = useRef(0);
-  const selectedTaskIdsRef = useRef(new Set());
+  const dragRuntime = useDesktopDragRuntime();
+  const {
+    activePointerTaskRef,
+    desktopDragAnchorPointerOffsetRef,
+    desktopDragAnchorSizeRef,
+    desktopDragAnchorStartPositionRef,
+    desktopDragContainerRectRef,
+    desktopDragDetachedFromGroupRef,
+    desktopDragIsGroupRef,
+    desktopDragLastMoveRef,
+    desktopDragModeRef,
+    desktopDragOverlapPendingRef,
+    desktopDragOverlapRafRef,
+    desktopDragOverlapStateLastTsRef,
+    desktopDragOverlapTargetIdRef,
+    desktopDragOverlapTimeoutRef,
+    desktopDragOverlayNodeRef,
+    desktopDragOverlaySnapshotRef,
+    desktopDragPointerRef,
+    desktopDragSelectedTaskIdsRef,
+    desktopDragSelectionPositionsRef,
+    desktopDragSourceEntryIdRef,
+    desktopDragSourceRectRef,
+    desktopDragStateRef,
+    desktopDragVisualPendingRef,
+    desktopDragVisualRafRef,
+    desktopSelectionStateRef,
+    selectedDayEntriesRef,
+    selectedTaskIdsRef,
+    suppressAllTaskClicksUntilRef,
+    suppressTaskClickRef,
+    suppressTaskClickTimeoutRef,
+  } = dragRuntime;
   const previousUploadedFileKeysRef = useRef(new Set());
-  const selectedDayEntriesRef = useRef([]);
-  const desktopSelectionStateRef = useRef({ pointerId: null, origin: null });
-  const desktopDragOverlapTargetIdRef = useRef(null);
-  const desktopDragOverlapRafRef = useRef(null);
-  const desktopDragOverlapPendingRef = useRef(null);
-  const suppressTaskClickRef = useRef(null);
-  const suppressAllTaskClicksUntilRef = useRef(0);
-  const suppressTaskClickTimeoutRef = useRef(null);
   const searchDragSeparateRef = useRef(false);
   const {
     handleSearchTaskLongPress,
@@ -498,58 +495,35 @@ function App() {
     handleTaskPointerUp,
     handleTaskPointerCancel,
   } = useDesktopTaskDrag({
-    activePointerTaskRef,
-    cleanupDesktopGroupMetadata,
-    desktopDragAnchorPointerOffsetRef,
-    desktopDragAnchorSizeRef,
-    desktopDragAnchorStartPositionRef,
-    desktopDragContainerRectRef,
-    desktopDragDetachedFromGroupRef,
-    desktopDragIsGroupRef,
-    desktopDragLastMoveRef,
-    desktopDragModeRef,
-    desktopDragOverlapPendingRef,
-    desktopDragOverlapRafRef,
-    desktopDragOverlapStateLastTsRef,
-    desktopDragOverlapTargetIdRef,
-    desktopDragOverlapTimeoutRef,
-    desktopDragOverlayNodeRef,
-    desktopDragOverlaySnapshotRef,
-    desktopDragPointerRef,
-    desktopDragSelectedTaskIdsRef,
-    desktopDragSelectionPositionsRef,
-    desktopDragSourceEntryIdRef,
-    desktopDragSourceRectRef,
-    desktopDragStateRef,
-    desktopDragVisualPendingRef,
-    canvasBoundsRef,
-    desktopDragVisualRafRef,
-    desktopSelectionStateRef,
-    getCanvasPointFromClient,
-    getDesktopDragAnchorPosition,
-    getDragCanvasPointFromClient,
-    closeExternalDragSource: closeInbox,
-    isExternalDragTask: isInboxItem,
-    onExternalDrop: commitInboxPlacement,
-    searchDragSeparateRef,
-    selectedDateRef,
-    selectedDayEntriesRef,
-    selectedTaskIdsRef,
-    setDesktopDragOverlapTargetId,
-    setDesktopDragOverlayActive,
-    setDesktopDragOverlaySnapshot,
-    setDesktopSelectionRect,
-    setDraggedTaskId,
-    setHistoryOpen,
-    setIsGroupDragActive,
-    setPendingGroupName,
-    setPendingGroupPrompt,
-    setTasks,
-    suppressAllTaskClicksUntilRef,
-    suppressTaskClickRef,
-    suppressTaskClickTimeoutRef,
-    tasksRef,
-    viewportContainerRef,
+    runtime: dragRuntime,
+    viewport: {
+      canvasBoundsRef,
+      getCanvasPointFromClient,
+      getDesktopDragAnchorPosition,
+      getDragCanvasPointFromClient,
+      viewportContainerRef,
+    },
+    canvas: {
+      cleanupDesktopGroupMetadata,
+      searchDragSeparateRef,
+      selectedDateRef,
+      setDesktopDragOverlapTargetId,
+      setDesktopDragOverlayActive,
+      setDesktopDragOverlaySnapshot,
+      setDesktopSelectionRect,
+      setDraggedTaskId,
+      setHistoryOpen,
+      setIsGroupDragActive,
+      setPendingGroupName,
+      setPendingGroupPrompt,
+      setTasks,
+      tasksRef,
+    },
+    externalSource: {
+      isTask: isInboxItem,
+      onDrop: commitInboxPlacement,
+      onOverlayReady: closeInbox,
+    },
   });
   const selectedDateKey = dateKey(selectedDate);
   const selectedDayEntries = useMemo(
