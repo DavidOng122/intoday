@@ -436,7 +436,7 @@ const DesktopGroupFullViewModal = ({
         setIsContentVisible(true);
       }, 110);
     });
-  }, [open, view?.groupId]);
+  }, [open, view?.groupId, view?.originRect]);
 
   useEffect(() => {
     const existingIds = new Set(tasks.map((task) => task.id));
@@ -455,7 +455,7 @@ const DesktopGroupFullViewModal = ({
       });
       return changed ? next : current;
     });
-  }, [tasks]);
+  }, [open, tasks]);
 
   useEffect(() => {
     if (!open || !isExportMenuOpen) return undefined;

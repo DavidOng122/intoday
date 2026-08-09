@@ -1,4 +1,8 @@
-import { DESKTOP_BASE_SLOT_COUNT, DESKTOP_PHOTO_CARD_HEIGHT, DESKTOP_CANVAS_CARD_HEIGHT } from '../features/canvas/model/canvasConstants.js';
+import {
+  DESKTOP_BASE_SLOT_COUNT,
+  DESKTOP_CANVAS_CARD_HEIGHT,
+  DESKTOP_PHOTO_CARD_HEIGHT,
+} from '../entities/task/taskLayoutConstants.js';
 import { DAY_TASK_TIME_ORDER } from './timeBlocks.js';
 import { normalizeCardType, CARD_TYPES } from '../entities/task/model/taskCardPresentation.js';
 import { isValidDesktopSlot } from './domUtils.js';

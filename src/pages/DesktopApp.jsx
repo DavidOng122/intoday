@@ -461,13 +461,13 @@ function App() {
   }, [isWorkspaceNameEditing]);
   useEffect(() => {
     selectedTaskIdsRef.current = new Set(selectedTaskIds);
-  }, [selectedTaskIds]);
+  }, [selectedTaskIds, selectedTaskIdsRef]);
   useEffect(() => () => {
     if (suppressTaskClickTimeoutRef.current !== null) {
       window.clearTimeout(suppressTaskClickTimeoutRef.current);
       suppressTaskClickTimeoutRef.current = null;
     }
-  }, []);
+  }, [suppressTaskClickTimeoutRef]);
 
   const {
     startDesktopTaskDrag,
@@ -535,7 +535,7 @@ function App() {
   });
   useEffect(() => {
     selectedDayEntriesRef.current = selectedDayEntries;
-  }, [selectedDayEntries]);
+  }, [selectedDayEntries, selectedDayEntriesRef]);
   useEffect(() => {
     if (!draggedTaskId || !desktopDragModeRef.current) {
       if (desktopDragOverlayActive) {
@@ -553,12 +553,23 @@ function App() {
       setDesktopDragOverlayActive(true);
     }
     setDesktopDragSourceHidden(false);
-  }, [desktopDragOverlayActive, draggedTaskId, setDesktopDragSourceHidden]);
+  }, [
+    desktopDragDetachedFromGroupRef,
+    desktopDragModeRef,
+    desktopDragOverlayActive,
+    draggedTaskId,
+    setDesktopDragSourceHidden,
+  ]);
 
   useLayoutEffect(() => {
     if (!desktopDragOverlayActive || !desktopDragOverlaySnapshot) return;
     syncDesktopDraggedTaskPosition(desktopDragPointerRef.current.x, desktopDragPointerRef.current.y);
-  }, [desktopDragOverlayActive, desktopDragOverlaySnapshot, syncDesktopDraggedTaskPosition]);
+  }, [
+    desktopDragOverlayActive,
+    desktopDragOverlaySnapshot,
+    desktopDragPointerRef,
+    syncDesktopDraggedTaskPosition,
+  ]);
   useEffect(() => {
     if (!draggedTaskId || !desktopDragModeRef.current) return undefined;
 
@@ -570,7 +581,13 @@ function App() {
     });
 
     return () => window.cancelAnimationFrame(frameId);
-  }, [draggedTaskId, selectedDateKey, syncDesktopDraggedTaskPosition]);
+  }, [
+    desktopDragModeRef,
+    desktopDragPointerRef,
+    draggedTaskId,
+    selectedDateKey,
+    syncDesktopDraggedTaskPosition,
+  ]);
 
   const {
     showToast,

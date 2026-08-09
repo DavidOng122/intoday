@@ -1,4 +1,3 @@
-/* eslint-disable react-hooks/preserve-manual-memoization */
 import { useCallback, useEffect, useRef } from 'react';
 import { flushSync } from 'react-dom';
 import {
@@ -8,22 +7,22 @@ import {
   DESKTOP_DRAG_START_DISTANCE,
   DESKTOP_GROUP_OVERLAP_THRESHOLD,
   DESKTOP_MAIN_CONTENT_MAX_WIDTH,
-} from '../model/canvasConstants';
+} from '../model/canvasConstants.js';
 import {
   getDesktopCanvasEntryHeight,
   getDesktopCanvasEntryTaskIds,
   getDesktopCanvasResolvedPosition,
   resolveDesktopCanvasEntries,
   getDesktopCanvasOverlapEntry,
-} from '../model/canvasEntries';
+} from '../model/canvasEntries.js';
 import { getCanvasEntryIdentity } from '../model/canvasEntryIdentity.js';
 import { resolveInboxCanvasDrop } from '../model/inboxCanvasDrop.js';
 import {
   findDesktopDragOverlap,
-} from '../model/canvasGeometry';
+} from '../model/canvasGeometry.js';
 import { getPackDisplayName } from '../../../entities/pack/model/packSelectors.js';
-import { dateKey } from '../../../lib/dateUtils';
-import { normalizeTask } from '../../../lib/taskNormalize';
+import { dateKey } from '../../../lib/dateUtils.js';
+import { normalizeTask } from '../../../lib/taskNormalize.js';
 
 const clampDesktopCanvasPosition = (position, bounds, height = DESKTOP_CANVAS_CARD_HEIGHT) => ({
   x: Math.min(
@@ -126,7 +125,7 @@ const suppressNextTaskClick = useCallback((taskId) => {
     }
     suppressTaskClickTimeoutRef.current = null;
   }, 250);
-}, []);
+}, [suppressAllTaskClicksUntilRef, suppressTaskClickRef, suppressTaskClickTimeoutRef]);
 
 const targetCandidatesCacheRef = useRef(null);
 
@@ -174,14 +173,14 @@ const resetDesktopDragInteraction = useCallback(() => {
   targetCandidatesCacheRef.current = null;
   desktopDragOverlapTargetIdRef.current = null;
   setDesktopDragOverlapTargetId(null);
-}, []);
+}, [desktopDragOverlapTargetIdRef, setDesktopDragOverlapTargetId]);
 
 const getActiveDraggedCanvasRect = useCallback((taskId) => {
   const activeNode = desktopDragOverlayNodeRef.current
     || document.getElementById(`desktop-canvas-entry-${taskId}`);
   if (!activeNode) return null;
   return getCanvasRectFromClientRect(activeNode.getBoundingClientRect());
-}, [getCanvasRectFromClientRect]);
+}, [desktopDragOverlayNodeRef, getCanvasRectFromClientRect]);
 
 const getDesktopCanvasOverlapEntryFromDom = useCallback((
   tasks,
@@ -236,7 +235,7 @@ const setDesktopDragSourceHidden = useCallback((hidden) => {
   } else {
     node.classList.remove('desktop-drag-source-hidden');
   }
-}, []);
+}, [desktopDragSourceEntryIdRef]);
 
 const resetDesktopDragState = useCallback(() => {
   resetDesktopDragInteraction();
@@ -287,7 +286,17 @@ const updateDesktopDragOverlapTarget = useCallback((clientX, clientY, taskId) =>
 
   desktopDragOverlapTargetIdRef.current = nextTargetId;
   setDesktopDragOverlapTargetId(nextTargetId);
-}, [getDesktopCanvasOverlapEntryFromDom, getDesktopDragAnchorPosition, getDragCanvasPointFromClient, isExternalDragTask]);
+}, [
+  activePointerTaskRef,
+  desktopDragOverlapTargetIdRef,
+  desktopDragSelectedTaskIdsRef,
+  getDesktopCanvasOverlapEntryFromDom,
+  getDesktopDragAnchorPosition,
+  getDragCanvasPointFromClient,
+  isExternalDragTask,
+  setDesktopDragOverlapTargetId,
+  tasksRef,
+]);
 
 const flushDesktopDragOverlapUpdate = useCallback(() => {
   desktopDragOverlapRafRef.current = null;
@@ -298,7 +307,13 @@ const flushDesktopDragOverlapUpdate = useCallback(() => {
   if (desktopDragStateRef.current.taskId !== pending.taskId) return;
 
   updateDesktopDragOverlapTarget(pending.clientX, pending.clientY, pending.taskId);
-}, [updateDesktopDragOverlapTarget]);
+}, [
+  desktopDragModeRef,
+  desktopDragOverlapPendingRef,
+  desktopDragOverlapRafRef,
+  desktopDragStateRef,
+  updateDesktopDragOverlapTarget,
+]);
 
 const scheduleDesktopDragOverlapUpdate = useCallback((clientX, clientY, taskId) => {
   desktopDragOverlapPendingRef.current = { clientX, clientY, taskId };
@@ -315,7 +330,13 @@ const scheduleDesktopDragOverlapUpdate = useCallback((clientX, clientY, taskId) 
   if (desktopDragOverlapRafRef.current === null) {
     desktopDragOverlapRafRef.current = window.requestAnimationFrame(flushDesktopDragOverlapUpdate);
   }
-}, [flushDesktopDragOverlapUpdate]);
+}, [
+  desktopDragIsGroupRef,
+  desktopDragOverlapPendingRef,
+  desktopDragOverlapRafRef,
+  desktopDragOverlapTimeoutRef,
+  flushDesktopDragOverlapUpdate,
+]);
 
 const syncDesktopDraggedTaskPosition = useCallback((clientX, clientY) => {
   const currentPt = getDragCanvasPointFromClient(clientX, clientY);
@@ -349,7 +370,14 @@ const syncDesktopDraggedTaskPosition = useCallback((clientX, clientY) => {
       node.style.zIndex = '999';
     }
   });
-}, [getDesktopDragAnchorPosition, getDragCanvasPointFromClient]);
+}, [
+  desktopDragAnchorStartPositionRef,
+  desktopDragOverlayNodeRef,
+  desktopDragSelectedTaskIdsRef,
+  desktopDragStateRef,
+  getDesktopDragAnchorPosition,
+  getDragCanvasPointFromClient,
+]);
 
 const flushDesktopDragVisualUpdate = useCallback(() => {
   desktopDragVisualRafRef.current = null;
@@ -360,14 +388,20 @@ const flushDesktopDragVisualUpdate = useCallback(() => {
   if (desktopDragStateRef.current.taskId !== pending.taskId) return;
 
   syncDesktopDraggedTaskPosition(pending.clientX, pending.clientY);
-}, [syncDesktopDraggedTaskPosition]);
+}, [
+  desktopDragModeRef,
+  desktopDragStateRef,
+  desktopDragVisualPendingRef,
+  desktopDragVisualRafRef,
+  syncDesktopDraggedTaskPosition,
+]);
 
 const scheduleDesktopDragVisualUpdate = useCallback((clientX, clientY, taskId) => {
   desktopDragVisualPendingRef.current = { clientX, clientY, taskId };
   if (desktopDragVisualRafRef.current === null) {
     desktopDragVisualRafRef.current = window.requestAnimationFrame(flushDesktopDragVisualUpdate);
   }
-}, [flushDesktopDragVisualUpdate]);
+}, [desktopDragVisualPendingRef, desktopDragVisualRafRef, flushDesktopDragVisualUpdate]);
 
 const startDesktopTaskDrag = useCallback((task) => {
   setHistoryOpen(false); // Ensure modal closes when drag starts
@@ -459,7 +493,34 @@ const startDesktopTaskDrag = useCallback((task) => {
   // Center-locked snap: force a visual sync immediately when drag mode begins.
   syncDesktopDraggedTaskPosition(desktopDragPointerRef.current.x, desktopDragPointerRef.current.y);
   scheduleDesktopDragVisualUpdate(desktopDragPointerRef.current.x, desktopDragPointerRef.current.y, taskId);
-}, [closeExternalDragSource, getCandidatesCache, getCanvasPointFromClient, isExternalDragTask, scheduleDesktopDragVisualUpdate, setDesktopDragSourceHidden, setHistoryOpen, syncDesktopDraggedTaskPosition]);
+}, [
+  closeExternalDragSource,
+  desktopDragAnchorSizeRef,
+  desktopDragAnchorStartPositionRef,
+  desktopDragContainerRectRef,
+  desktopDragDetachedFromGroupRef,
+  desktopDragIsGroupRef,
+  desktopDragModeRef,
+  desktopDragOverlaySnapshotRef,
+  desktopDragPointerRef,
+  desktopDragSelectedTaskIdsRef,
+  desktopDragSelectionPositionsRef,
+  desktopDragSourceEntryIdRef,
+  desktopDragSourceRectRef,
+  getCandidatesCache,
+  getCanvasPointFromClient,
+  isExternalDragTask,
+  scheduleDesktopDragVisualUpdate,
+  selectedDayEntriesRef,
+  setDesktopDragOverlayActive,
+  setDesktopDragOverlaySnapshot,
+  setDraggedTaskId,
+  setHistoryOpen,
+  setIsGroupDragActive,
+  syncDesktopDraggedTaskPosition,
+  tasksRef,
+  viewportContainerRef,
+]);
 
 const finishDesktopTaskDrag = useCallback((task, pointerTarget, pointerId, wasCancelled = false) => {
   resetDesktopDragState();
@@ -709,7 +770,51 @@ const finishDesktopTaskDrag = useCallback((task, pointerTarget, pointerId, wasCa
       // Pointer capture may already be released.
     }
   }
-}, [cleanupDesktopGroupMetadata, getDesktopCanvasOverlapEntryFromDom, getDesktopDragAnchorPosition, getDragCanvasPointFromClient, isExternalDragTask, onExternalDrop, resetDesktopDragState, setDesktopDragSourceHidden, setTasks, suppressNextTaskClick]);
+}, [
+  canvasBoundsRef,
+  cleanupDesktopGroupMetadata,
+  desktopDragAnchorPointerOffsetRef,
+  desktopDragAnchorSizeRef,
+  desktopDragAnchorStartPositionRef,
+  desktopDragContainerRectRef,
+  desktopDragDetachedFromGroupRef,
+  desktopDragIsGroupRef,
+  desktopDragLastMoveRef,
+  desktopDragModeRef,
+  desktopDragOverlapPendingRef,
+  desktopDragOverlapRafRef,
+  desktopDragOverlapStateLastTsRef,
+  desktopDragOverlapTimeoutRef,
+  desktopDragOverlaySnapshotRef,
+  desktopDragPointerRef,
+  desktopDragSelectedTaskIdsRef,
+  desktopDragSelectionPositionsRef,
+  desktopDragSourceEntryIdRef,
+  desktopDragSourceRectRef,
+  desktopDragStateRef,
+  desktopDragVisualPendingRef,
+  desktopDragVisualRafRef,
+  getDesktopCanvasOverlapEntryFromDom,
+  getDesktopDragAnchorPosition,
+  getDragCanvasPointFromClient,
+  isExternalDragTask,
+  onExternalDrop,
+  onExternalDropCancelled,
+  onExternalDropFailure,
+  resetDesktopDragState,
+  searchDragSeparateRef,
+  selectedDateRef,
+  selectedDayEntriesRef,
+  setDesktopDragOverlayActive,
+  setDesktopDragOverlaySnapshot,
+  setDesktopDragSourceHidden,
+  setDraggedTaskId,
+  setIsGroupDragActive,
+  setPendingGroupName,
+  setPendingGroupPrompt,
+  setTasks,
+  suppressNextTaskClick,
+]);
 
 
 const handleTaskPointerDown = useCallback((task, event) => {
@@ -757,7 +862,21 @@ const handleTaskPointerDown = useCallback((task, event) => {
   }
   desktopDragDetachedFromGroupRef.current = false;
   event.currentTarget.setPointerCapture?.(event.pointerId);
-}, [getCanvasPointFromClient]);
+}, [
+  activePointerTaskRef,
+  desktopDragAnchorPointerOffsetRef,
+  desktopDragDetachedFromGroupRef,
+  desktopDragLastMoveRef,
+  desktopDragModeRef,
+  desktopDragPointerRef,
+  desktopDragSelectedTaskIdsRef,
+  desktopDragSourceRectRef,
+  desktopDragStateRef,
+  desktopSelectionStateRef,
+  getCanvasPointFromClient,
+  selectedTaskIdsRef,
+  setDesktopSelectionRect,
+]);
 
 const processDesktopDragMove = useCallback((task, clientX, clientY, nativeEvent = null) => {
   const eventStamp = nativeEvent?.timeStamp ?? null;
@@ -787,12 +906,20 @@ const processDesktopDragMove = useCallback((task, clientX, clientY, nativeEvent 
   }
   scheduleDesktopDragVisualUpdate(clientX, clientY, task.id);
   scheduleDesktopDragOverlapUpdate(clientX, clientY, task.id);
-}, [scheduleDesktopDragOverlapUpdate, scheduleDesktopDragVisualUpdate, startDesktopTaskDrag]);
+}, [
+  desktopDragLastMoveRef,
+  desktopDragModeRef,
+  desktopDragPointerRef,
+  desktopDragStateRef,
+  scheduleDesktopDragOverlapUpdate,
+  scheduleDesktopDragVisualUpdate,
+  startDesktopTaskDrag,
+]);
 
 const handleTaskPointerMove = useCallback((task, event) => {
   if (desktopDragStateRef.current.pointerId !== event.pointerId || desktopDragStateRef.current.taskId !== task.id) return;
   processDesktopDragMove(task, event.clientX, event.clientY, event);
-}, [processDesktopDragMove]);
+}, [desktopDragStateRef, processDesktopDragMove]);
 
 const handleTaskPointerUp = useCallback((task, event) => {
   if (desktopDragStateRef.current.pointerId !== event.pointerId || desktopDragStateRef.current.taskId !== task.id) return;
@@ -816,7 +943,17 @@ const handleTaskPointerUp = useCallback((task, event) => {
       // Pointer capture may already be released.
     }
   }
-}, [finishDesktopTaskDrag, resetDesktopDragState, setHistoryOpen]);
+}, [
+  activePointerTaskRef,
+  desktopDragAnchorPointerOffsetRef,
+  desktopDragDetachedFromGroupRef,
+  desktopDragLastMoveRef,
+  desktopDragModeRef,
+  desktopDragPointerRef,
+  desktopDragSourceRectRef,
+  desktopDragStateRef,
+  finishDesktopTaskDrag,
+]);
 
 const handleTaskPointerCancel = useCallback((task, event) => {
   if (desktopDragStateRef.current.pointerId !== event.pointerId || desktopDragStateRef.current.taskId !== task.id) return;
@@ -839,7 +976,16 @@ const handleTaskPointerCancel = useCallback((task, event) => {
       // Pointer capture may already be released.
     }
   }
-}, [finishDesktopTaskDrag]);
+}, [
+  activePointerTaskRef,
+  desktopDragAnchorPointerOffsetRef,
+  desktopDragDetachedFromGroupRef,
+  desktopDragModeRef,
+  desktopDragPointerRef,
+  desktopDragSourceRectRef,
+  desktopDragStateRef,
+  finishDesktopTaskDrag,
+]);
 
 useEffect(() => {
   const handleWindowPointerMove = (event) => {
@@ -876,7 +1022,18 @@ useEffect(() => {
     window.removeEventListener('pointerup', handleWindowPointerEnd);
     window.removeEventListener('pointercancel', handleWindowPointerEnd);
   };
-}, [finishDesktopTaskDrag, processDesktopDragMove, resetDesktopDragState]);
+}, [
+  activePointerTaskRef,
+  desktopDragAnchorPointerOffsetRef,
+  desktopDragDetachedFromGroupRef,
+  desktopDragModeRef,
+  desktopDragPointerRef,
+  desktopDragSourceRectRef,
+  desktopDragStateRef,
+  finishDesktopTaskDrag,
+  processDesktopDragMove,
+  resetDesktopDragState,
+]);
 
 useEffect(() => {
   const handleViewportChange = () => {
