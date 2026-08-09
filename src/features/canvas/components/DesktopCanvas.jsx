@@ -26,7 +26,6 @@ const DesktopCanvas = ({
   draftConnection = null,
   getCanvasPointFromClient = null,
   onStartConnectionDrag = null,
-  onFinishConnectionDrag = null,
   onRemoveConnection = null,
 }) => {
   // Keep explicit references for ESLint configurations that do not count JSX tags as usage.

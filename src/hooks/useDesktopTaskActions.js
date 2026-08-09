@@ -14,6 +14,7 @@ export const useDesktopTaskActions = ({
   cleanupDesktopGroupMetadata,
   defaultWorkspaceId,
   openUploadedFileTask,
+  onGroupsDeleted,
   pendingCanvasDeletion,
   selectedTaskIdsRef,
   setActiveWorkspace,
@@ -25,6 +26,7 @@ export const useDesktopTaskActions = ({
   setWorkspaceNameDraft,
   suppressAllTaskClicksUntilRef,
   suppressTaskClickRef,
+  tasksRef,
   t,
   user,
   workspaceNameDraft,
@@ -32,6 +34,13 @@ export const useDesktopTaskActions = ({
   const deleteTasksByIds = useCallback((taskIds) => {
     if (!Array.isArray(taskIds) || taskIds.length === 0) return;
     const taskIdSet = new Set(taskIds);
+    const deletedGroupIds = [...new Set(
+      tasksRef.current
+        .filter((item) => taskIdSet.has(item.id) && item.desktopGroupId)
+        .map((item) => item.desktopGroupId),
+    )].filter((groupId) => (
+      tasksRef.current.filter((item) => item.desktopGroupId === groupId && !taskIdSet.has(item.id)).length < 2
+    ));
     setTasks((prev) => {
       const affectedGroupIds = new Set(
         prev
@@ -48,8 +57,9 @@ export const useDesktopTaskActions = ({
         ));
       return cleanupDesktopGroupMetadata(remainingTasks);
     });
+    if (deletedGroupIds.length > 0) onGroupsDeleted?.(deletedGroupIds);
     setSelectedTaskIds((current) => current.filter((taskId) => !taskIdSet.has(taskId)));
-  }, [setTasks, cleanupDesktopGroupMetadata, setSelectedTaskIds]);
+  }, [setTasks, cleanupDesktopGroupMetadata, onGroupsDeleted, setSelectedTaskIds, tasksRef]);
 
   const confirmCanvasDeletion = useCallback(() => {
     if (!pendingCanvasDeletion?.taskIds?.length) {

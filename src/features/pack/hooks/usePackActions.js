@@ -29,6 +29,7 @@ export const usePackActions = ({
   tasksRef,
   updateCanvasSelection,
   handleTaskClick,
+  onPacksMerged,
 }) => {
   const updateActiveGroupMetadata = useCallback((changes) => {
     const groupId = activeGroupView?.groupId;
@@ -188,6 +189,9 @@ export const usePackActions = ({
   const handleConfirmGroupPrompt = useCallback(() => {
     if (!pendingGroupPrompt) return;
     const isMergePacks = pendingGroupPrompt.mode === 'merge-packs';
+    const sourceGroupId = isMergePacks
+      ? tasksRef.current.find((task) => pendingGroupPrompt.movingTaskIds.includes(task.id))?.desktopGroupId
+      : null;
     const groupedTaskIds = new Set([
       ...pendingGroupPrompt.movingTaskIds,
       ...pendingGroupPrompt.targetTaskIds,
@@ -240,8 +244,11 @@ export const usePackActions = ({
           : task
       ));
     });
+    if (isMergePacks && sourceGroupId && sourceGroupId !== pendingGroupPrompt.groupId) {
+      onPacksMerged?.(sourceGroupId, pendingGroupPrompt.groupId);
+    }
     closePendingGroupPrompt();
-  }, [closePendingGroupPrompt, pendingGroupName, pendingGroupPrompt, setTasks]);
+  }, [closePendingGroupPrompt, onPacksMerged, pendingGroupName, pendingGroupPrompt, setTasks, tasksRef]);
 
   const handleCancelGroupPrompt = useCallback(() => {
     if (pendingGroupPrompt?.mode === 'merge-packs') {

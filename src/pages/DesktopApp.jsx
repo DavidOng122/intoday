@@ -19,7 +19,7 @@ import {
 } from '../features/inbox';
 import DesktopDeleteConfirmModal from '../shared/ui/DeleteConfirmModal';
 import { DesktopCanvas } from '../features/canvas';
-import { useDesktopConnections } from '../features/canvas/hooks/useDesktopConnections';
+import { useDesktopConnections } from '../features/canvas';
 import { useDesktopCapture } from '../features/capture';
 import { WorkspaceMenu, useDesktopWorkspaces } from '../features/workspace';
 import { GroupedTaskCard, TaskCard } from '../features/canvas';
@@ -277,14 +277,6 @@ function App() {
   const [fullscreenImage, setFullscreenImage] = useState(null);
   const workspaceNameInputRef = useRef(null);
   const workspaceControlRef = useRef(null);
-  const {
-    connections,
-    draftConnection,
-    startConnectionDrag,
-    updateConnectionDrag,
-    finishConnectionDrag,
-    removeConnection,
-  } = useDesktopConnections({ dateKey: dateKey(selectedDate) });
   const [tasks, setTasks, commitTodos] = useSyncedTodos({
     userId: user?.id || null,
     normalizeTodo: normalizeTask,
@@ -355,7 +347,7 @@ function App() {
     window.setTimeout(() => {
       setToastMessage((current) => (current === message ? null : current));
     }, 2200);
-  }, []);
+  }, [setToastMessage]);
   const commitInboxPlacement = useCallback(async ({ itemId, packId = null, position = null }) => {
     try {
       await commitTodos((currentTasks) => (
@@ -394,7 +386,7 @@ function App() {
     setActiveGroupView(null);
     setPendingWorkspaceDeletion(null);
     showInboxStatus('Workspace deleted. Restore it later from Settings.');
-  }, [deleteWorkspace, pendingWorkspaceDeletion, setTasks, showInboxStatus, workspaces]);
+  }, [deleteWorkspace, pendingWorkspaceDeletion, setActiveGroupView, setPendingWorkspaceDeletion, setTasks, showInboxStatus, workspaces]);
   const handleRestoreWorkspace = useCallback((workspaceId) => {
     const restoredWorkspace = restoreWorkspace(workspaceId);
     if (!restoredWorkspace) return false;
@@ -567,6 +559,21 @@ function App() {
     ),
     [canvasBounds, currentWorkspaceTasks],
   );
+  const {
+    connections,
+    draftConnection,
+    removeConnection,
+    removeGroupConnections,
+    rewirePackConnections,
+    startConnectionDrag,
+  } = useDesktopConnections({
+    entries: selectedDayEntries,
+    getCanvasPointFromClient,
+    onStatus: showInboxStatus,
+    tasks,
+    userId: user?.id || null,
+    workspaceId: activeWorkspaceId,
+  });
   useEffect(() => {
     selectedDayEntriesRef.current = selectedDayEntries;
   }, [selectedDayEntries]);
@@ -699,6 +706,7 @@ function App() {
     cleanupDesktopGroupMetadata,
     defaultWorkspaceId: activeWorkspaceId,
     openUploadedFileTask,
+    onGroupsDeleted: removeGroupConnections,
     pendingCanvasDeletion,
     selectedTaskIdsRef,
     setActiveWorkspace,
@@ -710,6 +718,7 @@ function App() {
     setWorkspaceNameDraft,
     suppressAllTaskClicksUntilRef,
     suppressTaskClickRef,
+    tasksRef,
     t,
     user,
     workspaceNameDraft,
@@ -737,6 +746,7 @@ function App() {
     tasksRef,
     updateCanvasSelection,
     handleTaskClick,
+    onPacksMerged: rewirePackConnections,
   });
 
 
@@ -879,11 +889,9 @@ function App() {
                 onPointerDownCapture={handleDesktopCanvasPointerDown}
                 onPointerMove={(event) => {
                   handleDesktopCanvasPointerMove(event);
-                  if (draftConnection) updateConnectionDrag(event);
                 }}
                 onPointerUp={(event) => {
                   handleDesktopCanvasPointerEnd(event);
-                  if (draftConnection) finishConnectionDrag(null, null, event);
                 }}
                 onPointerCancel={handleDesktopCanvasPointerEnd}
                 onDragEnter={handleCanvasFileDragEnter}
@@ -926,7 +934,6 @@ function App() {
                       draftConnection={draftConnection}
                       getCanvasPointFromClient={getCanvasPointFromClient}
                       onStartConnectionDrag={startConnectionDrag}
-                      onFinishConnectionDrag={finishConnectionDrag}
                       onRemoveConnection={removeConnection}
                     />
                   {desktopDragOverlayActive && desktopDragOverlaySnapshot ? (
