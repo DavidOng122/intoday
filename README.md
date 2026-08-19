@@ -6,8 +6,6 @@ A research workspace for collecting, organizing, and connecting context over tim
 
 > **Collaboration Note**: IntoDay is a collaborative team project. My contribution focuses on product problem definition, information architecture, UI/UX design, and frontend implementation.
 
-![IntoDay Desktop Canvas Workspace](docs/screenshots/desktop-canvas-baseline.png)
-
 ---
 
 ## Why IntoDay
