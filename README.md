@@ -35,7 +35,7 @@ Capture Resources  ──>  Temporary Inbox  ──>  Workspaces & Packs  ──
 - **Inbox Staging Queue**: A dedicated staging area for newly captured resources before organizing them into packs.
 - **Resource Packs & Full View**: Expandable card containers for grouping related research notes, links, and assets.
 - **Global Search Modal**: Keyboard-accessible search across research items, tags, and workspaces.
-- **Drag-and-Drop Interactions**: Fluid drag-and-drop positioning built with `dnd-kit` and custom spatial collision math.
+- **Drag-and-Drop Interactions**: Fluid drag-and-drop positioning built with custom canvas drag interactions and spatial collision logic.
 - **State Persistence & Cloud Sync**: Supabase-backed authentication and data persistence with offline-friendly local state reconciliation.
 - **Desktop PWA Support**: Installable desktop Progressive Web Application via `vite-plugin-pwa`.
 
@@ -81,7 +81,7 @@ src/
 │   ├── session/      # Workspace session state & persistence
 │   └── workspace/    # Workspace management & switching
 ├── components/       # Reusable UI primitives and layout containers
-├── lib/              # Pure logic helpers, geometry math, & unit test suites
+├── lib/              # Pure logic helpers, geometry math, & logic test suites
 └── supabase.js       # Supabase client configuration & auth handlers
 ```
 
@@ -95,7 +95,7 @@ src/
 | **Build Tooling** | Vite 7 |
 | **Backend & Database** | Supabase |
 | **Authentication** | Supabase Auth |
-| **Interactions & Drag-and-Drop** | `dnd-kit`, Custom Canvas Geometry Math |
+| **Interactions & Drag-and-Drop** | Custom Canvas Geometry & Drag Collision Logic |
 | **PWA Capability** | Vite PWA (`vite-plugin-pwa`) |
 | **Analytics** | PostHog, Vercel Analytics |
 | **Testing** | Node.js Test Runner (`npm run test:logic`) |
@@ -128,15 +128,15 @@ npm run build:web
 ## Getting Started
 
 ### Prerequisites
-- Node.js 18+
+- Node.js 20+
 - npm 9+
 
 ### Installation & Setup
 
 1. **Clone the repository**:
    ```bash
-   git clone https://github.com/DavidOng122/intoday.git
-   cd intoday
+   git clone https://github.com/vincentlow02/Intoday.git
+   cd Intoday
    ```
 
 2. **Install dependencies**:
@@ -157,7 +157,7 @@ npm run build:web
 
 5. **Run test suite & production build**:
    ```bash
-   # Run unit tests
+   # Run logic tests
    npm run test:logic
 
    # Build production bundle

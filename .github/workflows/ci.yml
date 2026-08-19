@@ -27,7 +27,7 @@ jobs:
       - name: Run ESLint
         run: npm run lint
 
-      - name: Run logic unit tests
+      - name: Run logic tests
         run: npm run test:logic
 
       - name: Build web production bundle

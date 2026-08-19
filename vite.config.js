@@ -49,7 +49,7 @@ export default defineConfig({
       manifest: {
         name: 'IntoDay',
         short_name: 'IntoDay',
-        description: 'Organize your day with ease',
+        description: 'Capture, organize, and connect research context over time',
         theme_color: '#FFFFFF',
         background_color: '#F9F9F9',
         display: 'standalone',
