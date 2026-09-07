@@ -2,6 +2,36 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { getPackDisplayName, resolvePackMetadata } from '../../../entities/pack/model/packSelectors.js';
 import { restoreCancelledPackMerge } from '../model/packMerge.js';
+import {
+  isDroppingBackIntoOriginalPack,
+  shouldPromptForPackMerge,
+} from '../model/packMergePolicy.js';
+
+test('merge prompt only appears when one Pack is dropped onto another Pack', () => {
+  assert.equal(shouldPromptForPackMerge({
+    isGroupDrag: false,
+    overlapEntry: { type: 'task', task: { id: 2 } },
+  }), false);
+  assert.equal(shouldPromptForPackMerge({
+    isGroupDrag: false,
+    overlapEntry: { type: 'group', id: 'pack-b', tasks: [] },
+  }), false);
+  assert.equal(shouldPromptForPackMerge({
+    isGroupDrag: true,
+    overlapEntry: { type: 'task', task: { id: 2 } },
+  }), false);
+  assert.equal(shouldPromptForPackMerge({
+    isGroupDrag: true,
+    overlapEntry: { type: 'group', id: 'pack-b', tasks: [] },
+  }), true);
+});
+
+test('dropping an item back onto its original Pack remains immediate', () => {
+  assert.equal(isDroppingBackIntoOriginalPack({
+    movingTasks: [{ id: 1, desktopGroupId: 'pack-a' }],
+    overlapEntry: { type: 'group', id: 'pack-a', tasks: [] },
+  }), true);
+});
 
 test('getPackDisplayName uses the first valid stored pack name', () => {
   assert.equal(getPackDisplayName([
