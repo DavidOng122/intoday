@@ -262,7 +262,7 @@ function App({ session }) {
   const [isWorkspaceNameEditing, setIsWorkspaceNameEditing] = useState(false);
   const [workspaceNameDraft, setWorkspaceNameDraft] = useState('');
   const [draggedTaskId, setDraggedTaskId] = useState(null);
-  const [, setIsGroupDragActive] = useState(false);
+  const [isGroupDragActive, setIsGroupDragActive] = useState(false);
   const [selectedTaskIds, setSelectedTaskIds] = useState([]);
   const [desktopSelectionRect, setDesktopSelectionRect] = useState(null);
   const [isCanvasFileDragActive, setIsCanvasFileDragActive] = useState(false);
@@ -901,6 +901,7 @@ function App({ session }) {
                       onTaskPointerUp={handleTaskPointerUp}
                       onTaskPointerCancel={handleTaskPointerCancel}
                       draggedTaskId={draggedTaskId}
+                      isGroupDragActive={isGroupDragActive}
                       selectedTaskIds={selectedTaskIds}
                       selectionRect={desktopSelectionRect}
                       dragOverlapTargetId={desktopDragOverlapTargetId}
