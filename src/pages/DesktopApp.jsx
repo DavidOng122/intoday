@@ -228,7 +228,7 @@ const GroupDragPreview = ({ tasks, appearance, labels }) => {
 
 
 
-function App() {
+function App({ session }) {
   const {
     appearance,
     appearancePreference,
@@ -243,6 +243,7 @@ function App() {
     user,
     userProfile,
   } = useDesktopSession();
+  const currentUser = user || session?.user || null;
   const selectedDate = getLogicalToday();
   const {
     activeWorkspace,
@@ -255,7 +256,7 @@ function App() {
     selectWorkspace,
     setActiveWorkspace,
     workspaces,
-  } = useDesktopWorkspaces();
+  } = useDesktopWorkspaces({ userId: currentUser?.id || null });
   const [workspaceMenuOpen, setWorkspaceMenuOpen] = useState(false);
   const [pendingWorkspaceDeletion, setPendingWorkspaceDeletion] = useState(null);
   const [isWorkspaceNameEditing, setIsWorkspaceNameEditing] = useState(false);
@@ -277,7 +278,7 @@ function App() {
   const workspaceNameInputRef = useRef(null);
   const workspaceControlRef = useRef(null);
   const [tasks, setTasks, commitTodos] = useSyncedTodos({
-    userId: user?.id || null,
+    userId: currentUser?.id || null,
     normalizeTodo: normalizeTask,
   });
   // The feature flag stays off until the Inbox UI is ready. Once enabled, the
@@ -530,7 +531,7 @@ function App() {
     getCanvasPointFromClient,
     onStatus: showInboxStatus,
     tasks,
-    userId: user?.id || null,
+    userId: currentUser?.id || null,
     workspaceId: activeWorkspaceId,
   });
   useEffect(() => {
@@ -696,7 +697,7 @@ function App() {
     suppressTaskClickRef,
     tasksRef,
     t,
-    user,
+    user: currentUser,
     workspaceNameDraft,
   });
 
@@ -734,7 +735,7 @@ function App() {
       </div>
     );
   }
-  if (!user) return <DesktopLogin />;
+  if (!currentUser) return <DesktopLogin />;
   return (
     <>
       <GlobalStyles appearance={appearance} />
@@ -985,7 +986,7 @@ function App() {
             <LazyDesktopProfilePage
               open
               onClose={() => setProfileOpen(false)}
-              user={user}
+              user={currentUser}
               language={language}
               setLanguage={setLanguage}
               appearance={appearance}

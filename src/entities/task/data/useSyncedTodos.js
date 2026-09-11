@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from '../../../supabase';
+import { getUserScopedStorageKey } from '../../../shared/storage/userScopedStorage';
 
 export const TODOS_STORAGE_KEY = 'todos';
 export const LEGACY_DESKTOP_TODOS_STORAGE_KEY = 'desktop_tasks';
@@ -33,10 +34,13 @@ const writeStorageList = (key, todos) => {
   }
 };
 
-const readLocalTodos = (normalizeTodo) => {
-  const sharedTodos = readStorageList(TODOS_STORAGE_KEY).map(normalizeTodo);
+const readLocalTodos = (userId, normalizeTodo) => {
+  const scopedTodos = readStorageList(getUserScopedStorageKey(TODOS_STORAGE_KEY, userId)).map(normalizeTodo);
+  // Legacy shared browser data is only available to an unauthenticated guest.
+  // Reading it for a signed-in user would copy one account's items into another.
+  if (userId) return scopedTodos;
   const legacyTodos = readStorageList(LEGACY_DESKTOP_TODOS_STORAGE_KEY).map(normalizeTodo);
-  return mergeById(sharedTodos, legacyTodos);
+  return mergeById(scopedTodos, legacyTodos);
 };
 
 const toCloudRow = (userId, todo) => ({
@@ -101,7 +105,7 @@ const persistCloudTodos = async (userId, todos) => {
 };
 
 export const useSyncedTodos = ({ userId, normalizeTodo }) => {
-  const [todos, setTodosState] = useState(() => readLocalTodos(normalizeTodo));
+  const [todos, setTodosState] = useState(() => readLocalTodos(userId, normalizeTodo));
   const todosRef = useRef(todos);
   const [cloudLoaded, setCloudLoaded] = useState(false);
   const syncTimeoutRef = useRef(null);
@@ -132,7 +136,7 @@ export const useSyncedTodos = ({ userId, normalizeTodo }) => {
         await persistCloudTodos(userId, nextTodos);
       }
 
-      if (!writeStorageList(TODOS_STORAGE_KEY, nextTodos) && !userId) {
+      if (!writeStorageList(getUserScopedStorageKey(TODOS_STORAGE_KEY, userId), nextTodos) && !userId) {
         throw new Error('Unable to persist the confirmed todo update locally.');
       }
 
@@ -150,15 +154,14 @@ export const useSyncedTodos = ({ userId, normalizeTodo }) => {
 
   useEffect(() => {
     const normalizedTodos = todos.map(normalizeTodo);
-    writeStorageList(TODOS_STORAGE_KEY, normalizedTodos);
-    localStorage.removeItem(LEGACY_DESKTOP_TODOS_STORAGE_KEY);
-  }, [normalizeTodo, todos]);
+    writeStorageList(getUserScopedStorageKey(TODOS_STORAGE_KEY, userId), normalizedTodos);
+  }, [normalizeTodo, todos, userId]);
 
   useEffect(() => {
     let cancelled = false;
 
     const hydrate = async () => {
-      const localTodos = readLocalTodos(normalizeTodo);
+      const localTodos = readLocalTodos(userId, normalizeTodo);
       if (!cancelled) {
         todosRef.current = localTodos;
         setTodosState(localTodos);
@@ -183,7 +186,7 @@ export const useSyncedTodos = ({ userId, normalizeTodo }) => {
 
         todosRef.current = nextTodos;
         setTodosState(nextTodos);
-        writeStorageList(TODOS_STORAGE_KEY, nextTodos);
+        writeStorageList(getUserScopedStorageKey(TODOS_STORAGE_KEY, userId), nextTodos);
         setCloudLoaded(true);
       } catch (error) {
         console.error('Failed to load todos from Supabase:', error);

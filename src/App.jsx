@@ -84,7 +84,7 @@ function App() {
   return (
     <>
       <Analytics />
-      {session ? <DesktopApp session={session} /> : <DesktopLoginPage />}
+      {session ? <DesktopApp key={session.user.id} session={session} /> : <DesktopLoginPage />}
     </>
   );
 }

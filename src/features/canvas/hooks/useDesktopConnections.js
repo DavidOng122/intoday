@@ -138,17 +138,14 @@ export const useDesktopConnections = ({
     if (hydratedScopeRef.current === scopeKey) return undefined;
     hydratedScopeRef.current = scopeKey;
     let cancelled = false;
-    const stored = dedupeDesktopConnections([
-      ...readWorkspaceConnections(ownerId, workspaceId),
-      ...(userId ? readWorkspaceConnections('guest', workspaceId) : []),
-    ], workspaceId);
+    const stored = readWorkspaceConnections(ownerId, workspaceId);
     const migrated = stored.length > 0
       ? stored
-      : migrateLegacyConnections({
+      : (!userId ? migrateLegacyConnections({
         legacyConnections: readLegacyConnections(),
         tasks: tasksRef.current,
         defaultWorkspaceId: workspaceId,
-      }).filter((connection) => connection.workspaceId === workspaceId);
+      }).filter((connection) => connection.workspaceId === workspaceId) : []);
     connectionsRef.current = migrated;
     window.queueMicrotask(() => {
       if (!cancelled) setConnections(migrated);

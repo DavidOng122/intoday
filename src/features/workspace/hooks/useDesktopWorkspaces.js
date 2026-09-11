@@ -11,10 +11,12 @@ import {
   getUntitledWorkspaceName,
   normalizeDesktopWorkspaces,
 } from '../../../lib/workspaceUtils';
+import { getUserScopedStorageKey } from '../../../shared/storage/userScopedStorage';
 
-const loadWorkspaces = () => {
+const loadWorkspaces = (userId) => {
   try {
-    return normalizeDesktopWorkspaces(JSON.parse(localStorage.getItem(DESKTOP_WORKSPACES_KEY) || 'null'));
+    const key = getUserScopedStorageKey(DESKTOP_WORKSPACES_KEY, userId);
+    return normalizeDesktopWorkspaces(JSON.parse(localStorage.getItem(key) || 'null'));
   } catch {
     return DEFAULT_DESKTOP_WORKSPACES.map((item) => ({ ...item }));
   }
@@ -22,21 +24,23 @@ const loadWorkspaces = () => {
 
 const createWorkspaceId = () => `workspace-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
-const loadDeletedWorkspaces = () => {
+const loadDeletedWorkspaces = (userId) => {
   try {
-    const value = JSON.parse(localStorage.getItem(DELETED_DESKTOP_WORKSPACES_KEY) || '[]');
+    const key = getUserScopedStorageKey(DELETED_DESKTOP_WORKSPACES_KEY, userId);
+    const value = JSON.parse(localStorage.getItem(key) || '[]');
     return Array.isArray(value) ? value.filter((workspace) => workspace?.id && workspace?.deletedAt) : [];
   } catch {
     return [];
   }
 };
 
-export const useDesktopWorkspaces = () => {
-  const [workspaces, setWorkspaces] = useState(loadWorkspaces);
-  const [deletedWorkspaces, setDeletedWorkspaces] = useState(loadDeletedWorkspaces);
+export const useDesktopWorkspaces = ({ userId } = {}) => {
+  const ownerId = userId || null;
+  const [workspaces, setWorkspaces] = useState(() => loadWorkspaces(ownerId));
+  const [deletedWorkspaces, setDeletedWorkspaces] = useState(() => loadDeletedWorkspaces(ownerId));
   const [activeWorkspaceId, setActiveWorkspaceId] = useState(() => {
-    const storedId = localStorage.getItem(DESKTOP_ACTIVE_WORKSPACE_KEY);
-    const initialWorkspaces = loadWorkspaces();
+    const storedId = localStorage.getItem(getUserScopedStorageKey(DESKTOP_ACTIVE_WORKSPACE_KEY, ownerId));
+    const initialWorkspaces = loadWorkspaces(ownerId);
     return initialWorkspaces.some((workspace) => workspace.id === storedId)
       ? storedId
       : initialWorkspaces[0].id;
@@ -48,16 +52,22 @@ export const useDesktopWorkspaces = () => {
   );
 
   useEffect(() => {
-    localStorage.setItem(DESKTOP_WORKSPACES_KEY, JSON.stringify(workspaces));
-  }, [workspaces]);
+    localStorage.setItem(getUserScopedStorageKey(DESKTOP_WORKSPACES_KEY, ownerId), JSON.stringify(workspaces));
+  }, [ownerId, workspaces]);
 
   useEffect(() => {
-    localStorage.setItem(DESKTOP_ACTIVE_WORKSPACE_KEY, activeWorkspace?.id || DEFAULT_DESKTOP_WORKSPACE_ID);
-  }, [activeWorkspace?.id]);
+    localStorage.setItem(
+      getUserScopedStorageKey(DESKTOP_ACTIVE_WORKSPACE_KEY, ownerId),
+      activeWorkspace?.id || DEFAULT_DESKTOP_WORKSPACE_ID,
+    );
+  }, [activeWorkspace?.id, ownerId]);
 
   useEffect(() => {
-    localStorage.setItem(DELETED_DESKTOP_WORKSPACES_KEY, JSON.stringify(deletedWorkspaces));
-  }, [deletedWorkspaces]);
+    localStorage.setItem(
+      getUserScopedStorageKey(DELETED_DESKTOP_WORKSPACES_KEY, ownerId),
+      JSON.stringify(deletedWorkspaces),
+    );
+  }, [deletedWorkspaces, ownerId]);
 
   const selectWorkspace = useCallback((workspaceId) => {
     if (workspaces.some((workspace) => workspace.id === workspaceId)) {
