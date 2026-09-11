@@ -6,6 +6,8 @@ export const TODOS_STORAGE_KEY = 'todos';
 export const LEGACY_DESKTOP_TODOS_STORAGE_KEY = 'desktop_tasks';
 const TODOS_TABLE = 'todos';
 const LOCAL_REFRESH_GRACE_MS = 8000;
+const AUTOSYNC_DELAY_MS = 600;
+const AUTOSYNC_RETRY_DELAY_MS = 5000;
 
 const mergeById = (...lists) => {
   const merged = new Map();
@@ -104,22 +106,75 @@ const persistCloudTodos = async (userId, todos) => {
   if (softDeleteMissingError) throw softDeleteMissingError;
 };
 
+const persistCloudTodoChanges = async (userId, todos, { upsertIds, deletedIds }) => {
+  const todosById = new Map(todos.map((todo) => [todo.id, todo]));
+  const rows = upsertIds
+    .map((id) => todosById.get(id))
+    .filter(Boolean)
+    .map((todo) => toCloudRow(userId, todo));
+
+  if (rows.length > 0) {
+    const { error } = await supabase
+      .from(TODOS_TABLE)
+      .upsert(rows, { onConflict: 'user_id,todo_id' });
+    if (error) throw error;
+  }
+
+  if (deletedIds.length > 0) {
+    const { error } = await supabase
+      .from(TODOS_TABLE)
+      .update({ is_deleted: true })
+      .eq('user_id', userId)
+      .in('todo_id', deletedIds);
+    if (error) throw error;
+  }
+};
+
+const didTodoChange = (previousTodo, nextTodo) => (
+  JSON.stringify(previousTodo) !== JSON.stringify(nextTodo)
+);
+
 export const useSyncedTodos = ({ userId, normalizeTodo }) => {
   const [todos, setTodosState] = useState(() => readLocalTodos(userId, normalizeTodo));
   const todosRef = useRef(todos);
   const [cloudLoaded, setCloudLoaded] = useState(false);
   const syncTimeoutRef = useRef(null);
+  const syncRetryTimeoutRef = useRef(null);
   const refreshInFlightRef = useRef(false);
   const lastLocalMutationAtRef = useRef(0);
   const commitQueueRef = useRef(Promise.resolve());
   const skipNextAutosyncRef = useRef(false);
+  const mutationVersionRef = useRef(0);
+  const pendingUpsertVersionsRef = useRef(new Map());
+  const pendingDeleteVersionsRef = useRef(new Map());
+
+  const recordPendingChanges = useCallback((previousTodos, nextTodos) => {
+    const previousById = new Map(previousTodos.map((todo) => [todo.id, todo]));
+    const nextById = new Map(nextTodos.map((todo) => [todo.id, todo]));
+
+    nextById.forEach((todo, id) => {
+      if (!didTodoChange(previousById.get(id), todo)) return;
+      const version = ++mutationVersionRef.current;
+      pendingUpsertVersionsRef.current.set(id, version);
+      pendingDeleteVersionsRef.current.delete(id);
+    });
+
+    previousById.forEach((_, id) => {
+      if (nextById.has(id)) return;
+      const version = ++mutationVersionRef.current;
+      pendingDeleteVersionsRef.current.set(id, version);
+      pendingUpsertVersionsRef.current.delete(id);
+    });
+  }, []);
 
   const setTodos = useCallback((nextValue) => {
     lastLocalMutationAtRef.current = Date.now();
-    const nextTodos = typeof nextValue === 'function' ? nextValue(todosRef.current) : nextValue;
+    const previousTodos = todosRef.current;
+    const nextTodos = typeof nextValue === 'function' ? nextValue(previousTodos) : nextValue;
+    recordPendingChanges(previousTodos, nextTodos);
     todosRef.current = nextTodos;
     setTodosState(nextTodos);
-  }, []);
+  }, [recordPendingChanges]);
 
   const commitTodos = useCallback((updater) => {
     const runCommit = async () => {
@@ -135,6 +190,9 @@ export const useSyncedTodos = ({ userId, normalizeTodo }) => {
       if (userId && supabase) {
         await persistCloudTodos(userId, nextTodos);
       }
+
+      pendingUpsertVersionsRef.current.clear();
+      pendingDeleteVersionsRef.current.clear();
 
       if (!writeStorageList(getUserScopedStorageKey(TODOS_STORAGE_KEY, userId), nextTodos) && !userId) {
         throw new Error('Unable to persist the confirmed todo update locally.');
@@ -214,12 +272,39 @@ export const useSyncedTodos = ({ userId, normalizeTodo }) => {
     }
 
     syncTimeoutRef.current = setTimeout(() => {
-      persistCloudTodos(userId, todos.map(normalizeTodo)).catch((error) => {
-        console.error('Failed to sync todos to Supabase:', error);
+      const upsertVersions = new Map(pendingUpsertVersionsRef.current);
+      const deleteVersions = new Map(pendingDeleteVersionsRef.current);
+      if (upsertVersions.size === 0 && deleteVersions.size === 0) {
+        syncTimeoutRef.current = null;
+        return;
+      }
+
+      persistCloudTodoChanges(userId, todosRef.current.map(normalizeTodo), {
+        upsertIds: [...upsertVersions.keys()],
+        deletedIds: [...deleteVersions.keys()],
+      }).then(() => {
+        upsertVersions.forEach((version, id) => {
+          if (pendingUpsertVersionsRef.current.get(id) === version) {
+            pendingUpsertVersionsRef.current.delete(id);
+          }
+        });
+        deleteVersions.forEach((version, id) => {
+          if (pendingDeleteVersionsRef.current.get(id) === version) {
+            pendingDeleteVersionsRef.current.delete(id);
+          }
+        });
+      }).catch((error) => {
+        console.error('Failed to sync todo changes to Supabase:', error);
+        if (syncRetryTimeoutRef.current === null) {
+          syncRetryTimeoutRef.current = setTimeout(() => {
+            syncRetryTimeoutRef.current = null;
+            setTodosState((currentTodos) => [...currentTodos]);
+          }, AUTOSYNC_RETRY_DELAY_MS);
+        }
       }).finally(() => {
         syncTimeoutRef.current = null;
       });
-    }, 350);
+    }, AUTOSYNC_DELAY_MS);
 
     return () => {
       if (syncTimeoutRef.current) {
@@ -228,6 +313,13 @@ export const useSyncedTodos = ({ userId, normalizeTodo }) => {
       }
     };
   }, [cloudLoaded, normalizeTodo, todos, userId]);
+
+  useEffect(() => () => {
+    if (syncRetryTimeoutRef.current) {
+      clearTimeout(syncRetryTimeoutRef.current);
+      syncRetryTimeoutRef.current = null;
+    }
+  }, []);
 
   useEffect(() => {
     if (!userId || !supabase || !cloudLoaded) return undefined;
