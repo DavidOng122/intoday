@@ -1,5 +1,9 @@
-// A merge confirmation is intentionally limited to Pack-on-Pack drops.
-// Ordinary task movement and task-on-task overlap should only change position.
+// This is evaluated only from the drag-end handler. An overlap entry already means
+// the card has passed the canvas collision threshold, so free movement never opens
+// a dialog. A task-on-task (or task-on-Pack) drop creates a Pack; Pack-on-Pack
+// uses the merge mode below.
+export const shouldPromptForGroupDrop = ({ overlapEntry }) => Boolean(overlapEntry);
+
 export const shouldPromptForPackMerge = ({ isGroupDrag, overlapEntry }) => (
   isGroupDrag === true && overlapEntry?.type === 'group'
 );

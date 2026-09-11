@@ -4,10 +4,21 @@ import { getPackDisplayName, resolvePackMetadata } from '../../../entities/pack/
 import { restoreCancelledPackMerge } from '../model/packMerge.js';
 import {
   isDroppingBackIntoOriginalPack,
+  shouldPromptForGroupDrop,
   shouldPromptForPackMerge,
 } from '../model/packMergePolicy.js';
 
-test('merge prompt only appears when one Pack is dropped onto another Pack', () => {
+test('group prompt appears only after a confirmed overlapping drop', () => {
+  assert.equal(shouldPromptForGroupDrop({ overlapEntry: null }), false);
+  assert.equal(shouldPromptForGroupDrop({
+    overlapEntry: { type: 'task', task: { id: 2 } },
+  }), true);
+  assert.equal(shouldPromptForGroupDrop({
+    overlapEntry: { type: 'group', id: 'pack-b', tasks: [] },
+  }), true);
+});
+
+test('Pack merge mode only applies when one Pack is dropped onto another Pack', () => {
   assert.equal(shouldPromptForPackMerge({
     isGroupDrag: false,
     overlapEntry: { type: 'task', task: { id: 2 } },
