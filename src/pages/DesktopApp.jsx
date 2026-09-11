@@ -60,7 +60,7 @@ import {
   DESKTOP_PHOTO_CARD_HEIGHT,
 } from '../features/canvas';
 import { UPLOADED_FILE_SOURCE_LABEL } from '../features/capture/config/uploadConstants';
-import { constrainDesktopCanvasEntries, resolveDesktopCanvasEntries } from '../features/canvas';
+import { resolveDesktopCanvasEntries } from '../features/canvas';
 
 const LazyDesktopProfilePage = React.lazy(() => import('../features/session/components/DesktopProfilePage'));
 const LazyDesktopSearchModal = React.lazy(() => import('../features/search/components/DesktopSearchModal'));
@@ -262,6 +262,7 @@ function App({ session }) {
   const [isWorkspaceNameEditing, setIsWorkspaceNameEditing] = useState(false);
   const [workspaceNameDraft, setWorkspaceNameDraft] = useState('');
   const [draggedTaskId, setDraggedTaskId] = useState(null);
+  const [dragSession, setDragSession] = useState(null);
   const [isGroupDragActive, setIsGroupDragActive] = useState(false);
   const [selectedTaskIds, setSelectedTaskIds] = useState([]);
   const [desktopSelectionRect, setDesktopSelectionRect] = useState(null);
@@ -498,6 +499,7 @@ function App({ session }) {
       setDraggedTaskId,
       setHistoryOpen,
       setIsGroupDragActive,
+      setDragSession,
       setPendingGroupName,
       setPendingGroupPrompt,
       setTasks,
@@ -513,11 +515,8 @@ function App({ session }) {
   });
   const selectedDateKey = dateKey(selectedDate);
   const selectedDayEntries = useMemo(
-    () => constrainDesktopCanvasEntries(
-      resolveDesktopCanvasEntries(currentWorkspaceTasks),
-      canvasBounds,
-    ),
-    [canvasBounds, currentWorkspaceTasks],
+    () => resolveDesktopCanvasEntries(currentWorkspaceTasks),
+    [currentWorkspaceTasks],
   );
   const {
     connections,
@@ -902,6 +901,7 @@ function App({ session }) {
                       onTaskPointerCancel={handleTaskPointerCancel}
                       draggedTaskId={draggedTaskId}
                       isGroupDragActive={isGroupDragActive}
+                      dragSession={dragSession}
                       selectedTaskIds={selectedTaskIds}
                       selectionRect={desktopSelectionRect}
                       dragOverlapTargetId={desktopDragOverlapTargetId}
@@ -928,8 +928,8 @@ function App({ session }) {
                         ref={desktopDragOverlayNodeRef}
                         className="desktop-canvas-card-node"
                         style={{
-                          left: desktopDragOverlaySnapshot.baseX,
-                          top: desktopDragOverlaySnapshot.baseY,
+                          left: dragSession?.previewPositions?.[desktopDragOverlaySnapshot.taskId]?.x ?? desktopDragOverlaySnapshot.baseX,
+                          top: dragSession?.previewPositions?.[desktopDragOverlaySnapshot.taskId]?.y ?? desktopDragOverlaySnapshot.baseY,
                           width: DESKTOP_CANVAS_CARD_WIDTH,
                         }}
                       >

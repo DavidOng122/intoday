@@ -40,15 +40,14 @@ test('constrainDesktopCanvasEntries clamps cards to every finite canvas edge', (
   );
 });
 
-test('resolveDesktopCanvasEntries moves duplicate saved positions below existing cards', () => {
+test('resolveDesktopCanvasEntries preserves duplicate saved positions', () => {
   const entries = resolveDesktopCanvasEntries([
     { id: 1, desktopCanvasX: 10, desktopCanvasY: 20 },
     { id: 2, desktopCanvasX: 10, desktopCanvasY: 20 },
   ]);
 
   assert.deepEqual({ x: entries[0].x, y: entries[0].y }, { x: 10, y: 20 });
-  assert.equal(entries[1].x, 0);
-  assert.ok(entries[1].y > entries[0].y);
+  assert.deepEqual({ x: entries[1].x, y: entries[1].y }, { x: 10, y: 20 });
 });
 
 test('getNextDesktopCanvasPosition is below the lowest production entry', () => {

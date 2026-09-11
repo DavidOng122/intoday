@@ -74,17 +74,9 @@ export const resolveDesktopCanvasEntries = (tasks) => {
     return resolvedEntries;
   }, []);
 
-  const occupiedPositions = new Set();
-  let maxBottom = 0;
-  return entries.map((entry) => {
-    const positionKey = `${Number(entry.x).toFixed(1)}:${Number(entry.y).toFixed(1)}`;
-    const resolvedEntry = occupiedPositions.has(positionKey)
-      ? { ...entry, x: 0, y: maxBottom + DESKTOP_CANVAS_CARD_GAP }
-      : entry;
-    occupiedPositions.add(`${Number(resolvedEntry.x).toFixed(1)}:${Number(resolvedEntry.y).toFixed(1)}`);
-    maxBottom = Math.max(maxBottom, resolvedEntry.y + getDesktopCanvasEntryHeight(resolvedEntry));
-    return resolvedEntry;
-  });
+  // This is intentionally a selector, not a layout engine. Render must use the
+  // saved coordinates verbatim; collision and placement decisions happen at drop.
+  return entries;
 };
 
 export const constrainDesktopCanvasEntries = (entries, bounds) => {

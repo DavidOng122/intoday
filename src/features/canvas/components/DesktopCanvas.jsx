@@ -16,6 +16,7 @@ const DesktopCanvas = ({
   onTaskPointerCancel,
   draggedTaskId,
   isGroupDragActive,
+  dragSession,
   selectedTaskIds,
   selectionRect,
   dragOverlapTargetId,
@@ -50,9 +51,10 @@ const DesktopCanvas = ({
       const isDragging = entry.type === 'group'
         ? draggedTaskId === dragTask.id && isGroupDragActive
         : draggedTaskId === entry.task.id && !isGroupDragActive;
+      const previewPosition = dragSession?.previewPositions?.[dragTask.id];
 
       return (
-        <div key={entry.type === 'group' ? `group-${entry.id}` : entry.task.id} id={`desktop-canvas-entry-${dragTask.id}`} data-desktop-entry-id={String(entryIdentity)} data-desktop-layout-id={`task-${dragTask.id}`} className="desktop-canvas-card-node" style={{ left: entry.x, top: entry.y, width: DESKTOP_CANVAS_CARD_WIDTH }}>
+        <div key={entry.type === 'group' ? `group-${entry.id}` : entry.task.id} id={`desktop-canvas-entry-${dragTask.id}`} data-desktop-entry-id={String(entryIdentity)} data-desktop-layout-id={`task-${dragTask.id}`} className="desktop-canvas-card-node" style={{ left: previewPosition?.x ?? entry.x, top: previewPosition?.y ?? entry.y, width: DESKTOP_CANVAS_CARD_WIDTH }}>
           <div className={`desktop-canvas-card-shell ${isGroupReady ? 'desktop-canvas-card-shell--group-ready' : ''} ${isDragging ? 'is-dragging' : ''}`}>
             {entry.type === 'group' ? (
               <>

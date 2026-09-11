@@ -98,6 +98,7 @@ export const useDesktopTaskDrag = ({ runtime, viewport, canvas, externalSource }
   setDraggedTaskId,
   setHistoryOpen,
   setIsGroupDragActive,
+  setDragSession,
   setPendingGroupName,
   setPendingGroupPrompt,
   setTasks,
@@ -348,32 +349,27 @@ const syncDesktopDraggedTaskPosition = useCallback((clientX, clientY) => {
   const dx = nextAnchorX - anchorStart.x;
   const dy = nextAnchorY - anchorStart.y;
 
-  const overlayNode = desktopDragOverlayNodeRef.current;
-  if (overlayNode) {
-    overlayNode.style.transform = `translate3d(${dx}px, ${dy}px, 0)`;
-    overlayNode.style.zIndex = '999';
-    return;
-  }
-
   const movingIds = desktopDragSelectedTaskIdsRef.current.size > 0
     ? [...desktopDragSelectedTaskIdsRef.current]
     : [desktopDragStateRef.current.taskId];
 
-  movingIds.forEach((id) => {
-    // Target the absolutely-positioned canvas entry node (not the inner wrapper)
-    const node = document.getElementById(`desktop-canvas-entry-${id}`);
-    if (node) {
-      node.style.transform = `translate3d(${dx}px, ${dy}px, 0)`;
-      node.style.zIndex = '999';
-    }
+  setDragSession((session) => {
+    if (!session) return session;
+    const previewPositions = { ...session.previewPositions };
+    movingIds.forEach((id) => {
+      const origin = desktopDragSelectionPositionsRef.current.get(id) || anchorStart;
+      previewPositions[id] = { x: origin.x + dx, y: origin.y + dy };
+    });
+    return { ...session, previewPositions };
   });
 }, [
   desktopDragAnchorStartPositionRef,
-  desktopDragOverlayNodeRef,
   desktopDragSelectedTaskIdsRef,
+  desktopDragSelectionPositionsRef,
   desktopDragStateRef,
   getDesktopDragAnchorPosition,
   getDragCanvasPointFromClient,
+  setDragSession,
 ]);
 
 const flushDesktopDragVisualUpdate = useCallback(() => {
@@ -459,6 +455,15 @@ const startDesktopTaskDrag = useCallback((task) => {
   }
 
   desktopDragOverlaySnapshotRef.current = overlaySnapshot;
+  setDragSession({
+    pointerId: desktopDragStateRef.current.pointerId,
+    type: movingTaskIds.length > 1 ? (desktopDragIsGroupRef.current ? 'pack' : 'selection') : 'single',
+    draggedIds: movingTaskIds,
+    startPointer: { ...desktopDragPointerRef.current },
+    originPositions: Object.fromEntries(nextPositions),
+    previewPositions: Object.fromEntries(nextPositions),
+    collisionTargetId: null,
+  });
   if (isExternalDrag) {
     flushSync(() => {
       setDesktopDragOverlaySnapshot(overlaySnapshot);
@@ -504,6 +509,7 @@ const startDesktopTaskDrag = useCallback((task) => {
   desktopDragSelectionPositionsRef,
   desktopDragSourceEntryIdRef,
   desktopDragSourceRectRef,
+  desktopDragStateRef,
   getCandidatesCache,
   getCanvasPointFromClient,
   isExternalDragTask,
@@ -514,6 +520,7 @@ const startDesktopTaskDrag = useCallback((task) => {
   setDraggedTaskId,
   setHistoryOpen,
   setIsGroupDragActive,
+  setDragSession,
   syncDesktopDraggedTaskPosition,
   tasksRef,
   viewportContainerRef,
@@ -540,10 +547,6 @@ const finishDesktopTaskDrag = useCallback((task, pointerTarget, pointerId, wasCa
   };
   desktopDragVisualPendingRef.current = null;
   setDesktopDragSourceHidden(false);
-
-  const movingTaskIds = desktopDragSelectedTaskIdsRef.current.size > 0
-    ? [...desktopDragSelectedTaskIdsRef.current]
-    : getDesktopDragTaskIds(task);
 
   if (desktopDragModeRef.current) {
     suppressNextTaskClick(task.id);
@@ -725,22 +728,6 @@ const finishDesktopTaskDrag = useCallback((task, pointerTarget, pointerId, wasCa
   }
 
   // Reset live transform and class on every dragged canvas entry node without CSS transition jump
-  movingTaskIds.forEach((movingTaskId) => {
-    const node = document.getElementById(`desktop-canvas-entry-${movingTaskId}`);
-    if (node) {
-      node.style.transform = '';
-      node.style.zIndex = '';
-      const shell = node.querySelector('.desktop-canvas-card-shell');
-      if (shell) {
-        shell.style.transition = 'none';
-        shell.classList.remove('is-dragging');
-        window.requestAnimationFrame(() => {
-          shell.style.transition = '';
-        });
-      }
-    }
-  });
-
   document.body.classList.remove('desktop-task-dragging');
 
   desktopDragModeRef.current = false;
@@ -763,6 +750,7 @@ const finishDesktopTaskDrag = useCallback((task, pointerTarget, pointerId, wasCa
   setIsGroupDragActive(false);
   setDesktopDragOverlayActive(false);
   setDesktopDragOverlaySnapshot(null);
+  setDragSession(null);
 
   if (pointerTarget?.hasPointerCapture?.(pointerId)) {
     try {
@@ -811,6 +799,7 @@ const finishDesktopTaskDrag = useCallback((task, pointerTarget, pointerId, wasCa
   setDesktopDragSourceHidden,
   setDraggedTaskId,
   setIsGroupDragActive,
+  setDragSession,
   setPendingGroupName,
   setPendingGroupPrompt,
   setTasks,
