@@ -17,9 +17,7 @@ import {
 } from '../model/canvasEntries.js';
 import { getCanvasEntryIdentity } from '../model/canvasEntryIdentity.js';
 import { resolveInboxCanvasDrop } from '../model/inboxCanvasDrop.js';
-import {
-  findDesktopDragOverlap,
-} from '../model/canvasGeometry.js';
+import { findCanvasCollisionTarget } from '../model/canvasCollisionTarget.js';
 import { getPackDisplayName } from '../../../entities/pack/model/packSelectors.js';
 import { getSuggestedDesktopGroupName } from '../../pack/model/groupMetadata.js';
 import {
@@ -209,7 +207,7 @@ const getDesktopCanvasOverlapEntryFromDom = useCallback((
 
   const candidates = getCandidatesCache(tasks);
 
-  return findDesktopDragOverlap({
+  return findCanvasCollisionTarget({
     movingRect,
     candidates,
     movingTaskIds,
