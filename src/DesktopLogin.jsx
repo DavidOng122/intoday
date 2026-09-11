@@ -17,6 +17,9 @@ const GoogleIcon = () => (
 function DesktopLogin() {
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const [showPasswordLogin, setShowPasswordLogin] = useState(false);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [language, setLanguage] = useState(getInitialLanguage);
   const t = translations[language] || translations.EN;
 
@@ -46,6 +49,47 @@ function DesktopLogin() {
       setErrorMessage(error?.message || t.loginErrorDefault);
       setLoading(false);
     }
+  };
+
+  const handlePasswordLogin = async (event) => {
+    event.preventDefault();
+
+    if (!email.trim() || !password) {
+      setErrorMessage(t.loginFieldsRequired);
+      return;
+    }
+
+    if (!isSupabaseConfigured) return;
+
+    setLoading(true);
+    setErrorMessage('');
+
+    try {
+      const { error } = await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password,
+      });
+
+      if (error) {
+        throw error;
+      }
+    } catch (error) {
+      console.error('Email/password login error:', error);
+      setErrorMessage(t.emailPasswordLoginError);
+      setLoading(false);
+    }
+  };
+
+  const openPasswordLogin = () => {
+    setShowPasswordLogin(true);
+    setErrorMessage('');
+  };
+
+  const closePasswordLogin = () => {
+    if (loading) return;
+    setShowPasswordLogin(false);
+    setErrorMessage('');
+    setPassword('');
   };
 
   return (
@@ -92,19 +136,80 @@ function DesktopLogin() {
           </p>
 
           <div className="desktop-login__actions">
-            <button
-              type="button"
-              onClick={handleGoogleLogin}
-              disabled={loading || !isSupabaseConfigured}
-              className="desktop-login__google-button"
-            >
-              {loading ? (
-                <span className="desktop-login__spinner" aria-hidden="true" />
-              ) : (
-                <GoogleIcon />
-              )}
-              <span>{loading ? t.signingIn : t.continueWithGoogle}</span>
-            </button>
+            {showPasswordLogin ? (
+              <form className="desktop-login__password-form" onSubmit={handlePasswordLogin}>
+                <label className="desktop-login__field">
+                  <span>{t.emailAddress}</span>
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(event) => setEmail(event.target.value)}
+                    autoComplete="email"
+                    disabled={loading || !isSupabaseConfigured}
+                  />
+                </label>
+
+                <label className="desktop-login__field">
+                  <span>{t.password}</span>
+                  <input
+                    type="password"
+                    value={password}
+                    onChange={(event) => setPassword(event.target.value)}
+                    autoComplete="current-password"
+                    disabled={loading || !isSupabaseConfigured}
+                  />
+                </label>
+
+                <button
+                  type="submit"
+                  disabled={loading || !isSupabaseConfigured}
+                  className="desktop-login__password-submit"
+                >
+                  {loading ? (
+                    <>
+                      <span className="desktop-login__spinner" aria-hidden="true" />
+                      <span>{t.signingIn}</span>
+                    </>
+                  ) : t.login}
+                </button>
+
+                <button
+                  type="button"
+                  className="desktop-login__back-button"
+                  onClick={closePasswordLogin}
+                  disabled={loading}
+                >
+                  {t.back}
+                </button>
+              </form>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  onClick={openPasswordLogin}
+                  disabled={loading || !isSupabaseConfigured}
+                  className="desktop-login__password-option"
+                >
+                  {t.login}
+                </button>
+
+                <div className="desktop-login__divider" aria-hidden="true">{t.or}</div>
+
+                <button
+                  type="button"
+                  onClick={handleGoogleLogin}
+                  disabled={loading || !isSupabaseConfigured}
+                  className="desktop-login__google-button"
+                >
+                  {loading ? (
+                    <span className="desktop-login__spinner" aria-hidden="true" />
+                  ) : (
+                    <GoogleIcon />
+                  )}
+                  <span>{loading ? t.signingIn : t.continueWithGoogle}</span>
+                </button>
+              </>
+            )}
 
             {errorMessage && (
               <p className="desktop-login__status desktop-login__status--error">{errorMessage}</p>

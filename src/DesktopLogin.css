@@ -141,8 +141,10 @@
   margin-top: 38px;
 }
 
-.desktop-login__google-button {
-  min-width: 215px;
+.desktop-login__google-button,
+.desktop-login__password-option,
+.desktop-login__password-submit {
+  width: min(100%, 296px);
   min-height: 46px;
   padding: 0 22px;
   border: 1px solid #ddd6ce;
@@ -160,18 +162,101 @@
   transition: background-color 0.18s ease, border-color 0.18s ease, transform 0.18s ease;
 }
 
+.desktop-login__password-option,
+.desktop-login__password-submit {
+  background: #171717;
+  border-color: #171717;
+  color: #ffffff;
+}
+
 .desktop-login__google-button:hover:not(:disabled) {
   background: #ffffff;
   border-color: #cfc6bd;
 }
 
-.desktop-login__google-button:active:not(:disabled) {
+.desktop-login__password-option:hover:not(:disabled),
+.desktop-login__password-submit:hover:not(:disabled) {
+  background: #2d2d2d;
+  border-color: #2d2d2d;
+}
+
+.desktop-login__google-button:active:not(:disabled),
+.desktop-login__password-option:active:not(:disabled),
+.desktop-login__password-submit:active:not(:disabled) {
   transform: translateY(1px);
 }
 
-.desktop-login__google-button:disabled {
+.desktop-login__google-button:disabled,
+.desktop-login__password-option:disabled,
+.desktop-login__password-submit:disabled,
+.desktop-login__back-button:disabled {
   opacity: 0.72;
   cursor: not-allowed;
+}
+
+.desktop-login__divider {
+  width: min(100%, 296px);
+  margin: 14px 0;
+  color: #97918a;
+  font-size: 12px;
+  line-height: 1;
+}
+
+.desktop-login__password-form {
+  width: min(100%, 296px);
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 14px;
+}
+
+.desktop-login__field {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 7px;
+  color: #2a2a2a;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: left;
+}
+
+.desktop-login__field input {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 46px;
+  padding: 0 13px;
+  border: 1px solid #ddd6ce;
+  border-radius: 14px;
+  background: #fbfaf8;
+  color: #171717;
+  font: inherit;
+  font-weight: 400;
+  outline: none;
+}
+
+.desktop-login__field input:focus {
+  border-color: #9c9388;
+  background: #ffffff;
+}
+
+.desktop-login__password-submit {
+  margin-top: 4px;
+}
+
+.desktop-login__back-button {
+  align-self: center;
+  margin-top: 2px;
+  padding: 4px 10px;
+  border: none;
+  background: transparent;
+  color: #756e66;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.desktop-login__back-button:hover:not(:disabled) {
+  color: #171717;
 }
 
 .desktop-login__google-icon {
