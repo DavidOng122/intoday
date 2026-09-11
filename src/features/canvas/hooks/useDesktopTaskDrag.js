@@ -28,7 +28,7 @@ import {
   shouldPromptForPackMerge,
 } from '../../pack/model/packMergePolicy.js';
 import { dateKey } from '../../../lib/dateUtils.js';
-import { normalizeTask } from '../../../lib/taskNormalize.js';
+import { calculateCanvasDrop, reduceCanvasDrop } from '../model/canvasDrop.js';
 
 const clampDesktopCanvasPosition = (position, bounds, height = DESKTOP_CANVAS_CARD_HEIGHT) => ({
   x: Math.min(
@@ -643,47 +643,29 @@ const finishDesktopTaskDrag = useCallback((task, pointerTarget, pointerId, wasCa
           const timestamp = Date.now();
           const isMultiDrag = desktopDragSelectedTaskIdsRef.current.size > 1;
           const isDetachedGroupTask = desktopDragDetachedFromGroupRef.current && !isMultiDrag && movingTaskIds.size === 1;
-          const applyDroppedPosition = (tasksToMap) => tasksToMap.map((item) => {
-            if (!movingTaskIds.has(item.id)) return item;
-            const itemStartPosition = desktopDragSelectionPositionsRef.current.get(item.id) || anchorStart;
-            const shouldResetGroup = !isGroupDrag && !isMultiDrag;
-            const resetGroupProps = shouldResetGroup ? {
-              desktopGroupId: null,
-              desktopGroupName: null,
-              desktopGroupIcon: null,
-              desktopGroupTags: [],
-              desktopGroupCover: null,
-            } : {};
-
-            return normalizeTask({
-              ...item,
-              ...resetGroupProps,
-              dateString: activeDateKey,
-              desktopSlot: null,
-              desktopCanvasX: Number((isDetachedGroupTask ? nextPosition.x : (itemStartPosition.x + deltaX)).toFixed(1)),
-              desktopCanvasY: Number((isDetachedGroupTask ? nextPosition.y : (itemStartPosition.y + deltaY)).toFixed(1)),
-              desktopZ: timestamp,
-            });
-          });
-
           const movingTasks = prev.filter((item) => movingTaskIds.has(item.id));
           const isPutBack = isDroppingBackIntoOriginalPack({ movingTasks, overlapEntry });
           const shouldShowGroupPrompt = shouldPromptForGroupDrop({ overlapEntry });
+          const previewPositions = Object.fromEntries([...movingTaskIds].map((id) => {
+            const origin = desktopDragSelectionPositionsRef.current.get(id) || anchorStart;
+            return [id, isDetachedGroupTask ? nextPosition : { x: origin.x + deltaX, y: origin.y + deltaY }];
+          }));
+          const drop = calculateCanvasDrop({
+            draggedIds: [...movingTaskIds],
+            originPositions: Object.fromEntries(desktopDragSelectionPositionsRef.current),
+            previewPositions,
+            activeDateKey,
+            timestamp,
+            detachFromPack: !isGroupDrag && !isMultiDrag,
+            overlapEntry,
+            isReturningToPack: isPutBack,
+          });
 
           if (isPutBack || shouldShowGroupPrompt) {
             // Returning an item to the Pack it came from is immediate; no modal is shown.
 
             if (isPutBack) {
-              return prev.map((item) => {
-                if (!movingTaskIds.has(item.id)) return item;
-                return normalizeTask({
-                  ...item,
-                  dateString: activeDateKey,
-                  desktopCanvasX: overlapEntry.x,
-                  desktopCanvasY: overlapEntry.y,
-                  desktopZ: timestamp,
-                });
-              });
+              return cleanupDesktopGroupMetadata(reduceCanvasDrop(prev, drop));
             }
 
             const isMergePacks = shouldPromptForPackMerge({ isGroupDrag, overlapEntry });
@@ -714,11 +696,11 @@ const finishDesktopTaskDrag = useCallback((task, pointerTarget, pointerId, wasCa
             setPendingGroupName(isMergePacks
               ? targetGroupName || ''
               : getSuggestedDesktopGroupName(movingTasks, overlapEntry));
-            return cleanupDesktopGroupMetadata(applyDroppedPosition(prev));
+            return cleanupDesktopGroupMetadata(reduceCanvasDrop(prev, drop.move));
           }
 
           setPendingGroupPrompt(null);
-          return cleanupDesktopGroupMetadata(applyDroppedPosition(prev));
+          return cleanupDesktopGroupMetadata(reduceCanvasDrop(prev, drop));
           });
         });
       }
