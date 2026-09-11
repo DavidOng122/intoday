@@ -105,8 +105,8 @@ const DesktopCanvas = ({
                 onClick={(event) => onTaskClick(entry.task, event)}
                 onPointerDown={(event) => onTaskPointerDown(entry.task, event)}
                 onPointerMove={(event) => onTaskPointerMove(entry.task, event)}
-                onPointerUp={(event) => onTaskPointerUp(event)}
-                onPointerCancel={(event) => onTaskPointerCancel(event)}
+                onPointerUp={(event) => onTaskPointerUp(entry.task, event)}
+                onPointerCancel={(event) => onTaskPointerCancel(entry.task, event)}
               />
             )}
           </div>
