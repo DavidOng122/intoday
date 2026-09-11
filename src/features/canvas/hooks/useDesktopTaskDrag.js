@@ -12,9 +12,9 @@ import {
   getDesktopCanvasEntryHeight,
   getDesktopCanvasEntryTaskIds,
   getDesktopCanvasResolvedPosition,
-  resolveDesktopCanvasEntries,
   getDesktopCanvasOverlapEntry,
 } from '../model/canvasEntries.js';
+import { buildCanvasCollisionCandidates, getCanvasRectFromClientRect } from '../model/canvasCollisionCandidates.js';
 import { getCanvasEntryIdentity } from '../model/canvasEntryIdentity.js';
 import { resolveInboxCanvasDrop } from '../model/inboxCanvasDrop.js';
 import { findCanvasCollisionTarget } from '../model/canvasCollisionTarget.js';
@@ -119,32 +119,9 @@ const suppressNextTaskClick = useCallback((taskId) => {
 
 const targetCandidatesCacheRef = useRef(null);
 
-const getCanvasRectFromClientRect = useCallback((rect) => {
-  if (!rect) return null;
-  const topLeft = getCanvasPointFromClient(rect.left, rect.top);
-  const bottomRight = getCanvasPointFromClient(rect.right, rect.bottom);
-  if (!topLeft || !bottomRight) return null;
-  return {
-    x: topLeft.x,
-    y: topLeft.y,
-    width: Math.max(0, bottomRight.x - topLeft.x),
-    height: Math.max(0, bottomRight.y - topLeft.y),
-  };
-}, [getCanvasPointFromClient]);
-
 const buildCandidatesCache = useCallback((tasks) => {
-  const entries = resolveDesktopCanvasEntries(tasks);
-  const entryNodes = new Map(
-    [...document.querySelectorAll('.desktop-canvas-card-node[data-desktop-entry-id]')]
-      .map((node) => [node.dataset.desktopEntryId, node]),
-  );
-  return entries.map((entry) => {
-    const entryNode = entryNodes.get(String(getCanvasEntryIdentity(entry)));
-    if (!entryNode) return null;
-    const rect = getCanvasRectFromClientRect(entryNode.getBoundingClientRect());
-    return { entry, rect };
-  }).filter(Boolean);
-}, [getCanvasRectFromClientRect]);
+  return buildCanvasCollisionCandidates(tasks, getCanvasPointFromClient);
+}, [getCanvasPointFromClient]);
 
 const getCandidatesCache = useCallback((tasks) => {
   if (
@@ -169,8 +146,8 @@ const getActiveDraggedCanvasRect = useCallback((taskId) => {
   const activeNode = desktopDragOverlayNodeRef.current
     || document.getElementById(`desktop-canvas-entry-${taskId}`);
   if (!activeNode) return null;
-  return getCanvasRectFromClientRect(activeNode.getBoundingClientRect());
-}, [desktopDragOverlayNodeRef, getCanvasRectFromClientRect]);
+  return getCanvasRectFromClientRect(activeNode.getBoundingClientRect(), getCanvasPointFromClient);
+}, [desktopDragOverlayNodeRef, getCanvasPointFromClient]);
 
 const getDesktopCanvasOverlapEntryFromDom = useCallback((
   tasks,
