@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback } from 'react';
 import { flushSync } from 'react-dom';
 import {
   DESKTOP_CANVAS_CARD_GAP,
@@ -14,10 +14,8 @@ import {
   getDesktopCanvasResolvedPosition,
   getDesktopCanvasOverlapEntry,
 } from '../model/canvasEntries.js';
-import { buildCanvasCollisionCandidates, getCanvasRectFromClientRect } from '../model/canvasCollisionCandidates.js';
-import { getCanvasEntryIdentity } from '../model/canvasEntryIdentity.js';
 import { resolveInboxCanvasDrop } from '../model/inboxCanvasDrop.js';
-import { findCanvasCollisionTarget } from '../model/canvasCollisionTarget.js';
+import { useCanvasDragCollision } from './useCanvasDragCollision.js';
 import { getPackDisplayName } from '../../../entities/pack/model/packSelectors.js';
 import { getSuggestedDesktopGroupName } from '../../pack/model/groupMetadata.js';
 import {
@@ -52,10 +50,7 @@ export const useDesktopTaskDrag = ({ runtime, viewport, canvas, externalSource }
     desktopDragModeRef,
     desktopDragOverlapPendingRef,
     desktopDragOverlapRafRef,
-    desktopDragOverlapStateLastTsRef,
-    desktopDragOverlapTargetIdRef,
     desktopDragOverlapTimeoutRef,
-    desktopDragOverlayNodeRef,
     desktopDragOverlaySnapshotRef,
     desktopDragPointerRef,
     desktopDragSelectedTaskIdsRef,
@@ -117,80 +112,20 @@ const suppressNextTaskClick = useCallback((taskId) => {
   }, 250);
 }, [suppressAllTaskClicksUntilRef, suppressTaskClickRef, suppressTaskClickTimeoutRef]);
 
-const targetCandidatesCacheRef = useRef(null);
-
-const buildCandidatesCache = useCallback((tasks) => {
-  return buildCanvasCollisionCandidates(tasks, getCanvasPointFromClient);
-}, [getCanvasPointFromClient]);
-
-const getCandidatesCache = useCallback((tasks) => {
-  if (
-    !targetCandidatesCacheRef.current
-    || targetCandidatesCacheRef.current.tasksReference !== tasks
-  ) {
-    targetCandidatesCacheRef.current = {
-      tasksReference: tasks,
-      candidates: buildCandidatesCache(tasks),
-    };
-  }
-  return targetCandidatesCacheRef.current.candidates;
-}, [buildCandidatesCache]);
-
-const resetDesktopDragInteraction = useCallback(() => {
-  targetCandidatesCacheRef.current = null;
-  desktopDragOverlapTargetIdRef.current = null;
-  setDesktopDragOverlapTargetId(null);
-}, [desktopDragOverlapTargetIdRef, setDesktopDragOverlapTargetId]);
-
-const getActiveDraggedCanvasRect = useCallback((taskId) => {
-  const activeNode = desktopDragOverlayNodeRef.current
-    || document.getElementById(`desktop-canvas-entry-${taskId}`);
-  if (!activeNode) return null;
-  return getCanvasRectFromClientRect(activeNode.getBoundingClientRect(), getCanvasPointFromClient);
-}, [desktopDragOverlayNodeRef, getCanvasPointFromClient]);
-
-const getDesktopCanvasOverlapEntryFromDom = useCallback((
-  tasks,
-  movingTaskIds,
-  taskId,
-  fallbackNextPosition,
-  threshold = DESKTOP_GROUP_OVERLAP_THRESHOLD,
-  preferFallbackPosition = false,
-) => {
-  const activeRect = getActiveDraggedCanvasRect(taskId);
-  const fallbackRect = fallbackNextPosition
-    ? {
-      x: fallbackNextPosition.x,
-      y: fallbackNextPosition.y,
-      width: activeRect?.width || DESKTOP_CANVAS_CARD_WIDTH,
-      height: activeRect?.height || DESKTOP_CANVAS_CARD_HEIGHT,
-    }
-    : null;
-  const movingRect = (preferFallbackPosition ? fallbackRect : activeRect) || (
-    fallbackNextPosition
-      ? {
-        x: fallbackNextPosition.x,
-        y: fallbackNextPosition.y,
-        width: DESKTOP_CANVAS_CARD_WIDTH,
-        height: DESKTOP_CANVAS_CARD_HEIGHT,
-      }
-      : null
-  );
-  if (!movingRect) {
-    return fallbackNextPosition
-      ? getDesktopCanvasOverlapEntry(tasks, movingTaskIds, fallbackNextPosition, threshold)
-      : null;
-  }
-
-  const candidates = getCandidatesCache(tasks);
-
-  return findCanvasCollisionTarget({
-    movingRect,
-    candidates,
-    movingTaskIds,
-    threshold,
-  });
-}, [getActiveDraggedCanvasRect, getCandidatesCache]);
+const {
+  getCandidatesCache,
+  getDesktopCanvasOverlapEntryFromDom,
+  resetDragCollision,
+  scheduleDesktopDragOverlapUpdate,
+} = useCanvasDragCollision({
+  runtime,
+  getCanvasPointFromClient,
+  getDragCanvasPointFromClient,
+  getDesktopDragAnchorPosition,
+  isExternalDragTask,
+  setDesktopDragOverlapTargetId,
+  tasksRef,
+});
 
 const setDesktopDragSourceHidden = useCallback((hidden) => {
   const sourceId = desktopDragSourceEntryIdRef.current;
@@ -205,105 +140,8 @@ const setDesktopDragSourceHidden = useCallback((hidden) => {
 }, [desktopDragSourceEntryIdRef]);
 
 const resetDesktopDragState = useCallback(() => {
-  resetDesktopDragInteraction();
-}, [resetDesktopDragInteraction]);
-
-const updateDesktopDragOverlapTarget = useCallback((clientX, clientY, taskId) => {
-  const currentPoint = getDragCanvasPointFromClient(clientX, clientY);
-  const nextPosition = getDesktopDragAnchorPosition(currentPoint);
-  if (!nextPosition) return;
-
-  const movingTaskIds = new Set(
-    desktopDragSelectedTaskIdsRef.current.size > 0
-      ? [...desktopDragSelectedTaskIdsRef.current]
-      : [taskId],
-  );
-
-  const overlapResult = getDesktopCanvasOverlapEntryFromDom(
-    tasksRef.current,
-    movingTaskIds,
-    taskId,
-    nextPosition,
-  );
-
-  const isExternalDrag = isExternalDragTask?.(activePointerTaskRef.current) === true;
-  const nextTargetId = isExternalDrag && overlapResult?.entry?.type !== 'group'
-    ? null
-    : (overlapResult?.entry ? getCanvasEntryIdentity(overlapResult.entry) : null);
-  const currentTargetId = desktopDragOverlapTargetIdRef.current;
-
-  if (nextTargetId === currentTargetId) return;
-
-  // Stability / Anti-Flicker:
-  // If we have a current target and a new candidate, only switch if the new 
-  // candidate is meaningfully better (e.g. 10% higher ratio).
-  if (currentTargetId && nextTargetId) {
-    const currentOverlap = getDesktopCanvasOverlapEntryFromDom(
-      tasksRef.current,
-      movingTaskIds,
-      taskId,
-      nextPosition,
-      0.01, // Use low threshold to get actual ratio even if below 0.6
-    );
-    // If current still has a decent overlap, don't switch unless next is much better
-    if (currentOverlap && currentOverlap.ratio * 1.1 > (overlapResult?.ratio || 0)) {
-      return;
-    }
-  }
-
-  desktopDragOverlapTargetIdRef.current = nextTargetId;
-  setDesktopDragOverlapTargetId(nextTargetId);
-}, [
-  activePointerTaskRef,
-  desktopDragOverlapTargetIdRef,
-  desktopDragSelectedTaskIdsRef,
-  getDesktopCanvasOverlapEntryFromDom,
-  getDesktopDragAnchorPosition,
-  getDragCanvasPointFromClient,
-  isExternalDragTask,
-  setDesktopDragOverlapTargetId,
-  tasksRef,
-]);
-
-const flushDesktopDragOverlapUpdate = useCallback(() => {
-  desktopDragOverlapRafRef.current = null;
-  const pending = desktopDragOverlapPendingRef.current;
-  desktopDragOverlapPendingRef.current = null;
-  if (!pending) return;
-  if (!desktopDragModeRef.current) return;
-  if (desktopDragStateRef.current.taskId !== pending.taskId) return;
-
-  updateDesktopDragOverlapTarget(pending.clientX, pending.clientY, pending.taskId);
-}, [
-  desktopDragModeRef,
-  desktopDragOverlapPendingRef,
-  desktopDragOverlapRafRef,
-  desktopDragStateRef,
-  updateDesktopDragOverlapTarget,
-]);
-
-const scheduleDesktopDragOverlapUpdate = useCallback((clientX, clientY, taskId) => {
-  desktopDragOverlapPendingRef.current = { clientX, clientY, taskId };
-  if (desktopDragIsGroupRef.current) {
-    if (desktopDragOverlapTimeoutRef.current === null) {
-      desktopDragOverlapTimeoutRef.current = window.setTimeout(() => {
-        desktopDragOverlapTimeoutRef.current = null;
-        flushDesktopDragOverlapUpdate();
-      }, 34);
-    }
-    return;
-  }
-
-  if (desktopDragOverlapRafRef.current === null) {
-    desktopDragOverlapRafRef.current = window.requestAnimationFrame(flushDesktopDragOverlapUpdate);
-  }
-}, [
-  desktopDragIsGroupRef,
-  desktopDragOverlapPendingRef,
-  desktopDragOverlapRafRef,
-  desktopDragOverlapTimeoutRef,
-  flushDesktopDragOverlapUpdate,
-]);
+  resetDragCollision();
+}, [resetDragCollision]);
 
 const syncDesktopDraggedTaskPosition = useCallback((clientX, clientY) => {
   const currentPt = getDragCanvasPointFromClient(clientX, clientY);
@@ -700,7 +538,6 @@ const finishDesktopTaskDrag = useCallback((task, pointerTarget, pointerId, wasCa
   desktopDragIsGroupRef.current = false;
   desktopDragOverlaySnapshotRef.current = null;
   desktopDragSourceEntryIdRef.current = null;
-  desktopDragOverlapStateLastTsRef.current = 0;
   desktopDragSelectedTaskIdsRef.current = new Set();
   searchDragSeparateRef.current = false;
   setDraggedTaskId(null);
@@ -729,7 +566,6 @@ const finishDesktopTaskDrag = useCallback((task, pointerTarget, pointerId, wasCa
   desktopDragModeRef,
   desktopDragOverlapPendingRef,
   desktopDragOverlapRafRef,
-  desktopDragOverlapStateLastTsRef,
   desktopDragOverlapTimeoutRef,
   desktopDragOverlaySnapshotRef,
   desktopDragPointerRef,
@@ -934,19 +770,6 @@ const handleTaskPointerCancel = useCallback((task, event) => {
   desktopDragStateRef,
   finishDesktopTaskDrag,
 ]);
-
-useEffect(() => {
-  const handleViewportChange = () => {
-    targetCandidatesCacheRef.current = null;
-  };
-  window.addEventListener('resize', handleViewportChange);
-  window.addEventListener('scroll', handleViewportChange, true);
-  return () => {
-    window.removeEventListener('resize', handleViewportChange);
-    window.removeEventListener('scroll', handleViewportChange, true);
-  };
-}, []);
-
 
   return {
     startDesktopTaskDrag,
