@@ -8,11 +8,9 @@ import {
   normalizePackIcon,
   normalizePackTags,
 } from '../../../entities/pack/model/packValueNormalizers';
-import { resolvePackMetadata } from '../../../entities/pack/model/packSelectors.js';
-import { restoreCancelledPackMerge } from '../model/packMerge.js';
+import { createCancelledPackMergeAction, createPackDropAction, reduceCanvasDrop } from '../../canvas/model/canvasDrop.js';
 import {
   getDesktopGroupDisplayName,
-  getDesktopGroupDisplayTags,
 } from '../model/groupMetadata';
 
 export const usePackActions = ({
@@ -192,57 +190,16 @@ export const usePackActions = ({
     const sourceGroupId = isMergePacks
       ? tasksRef.current.find((task) => pendingGroupPrompt.movingTaskIds.includes(task.id))?.desktopGroupId
       : null;
-    const groupedTaskIds = new Set([
-      ...pendingGroupPrompt.movingTaskIds,
-      ...pendingGroupPrompt.targetTaskIds,
-    ]);
-
     const nextUpdatedAt = createUpdatedTimestamp();
     setTasks((prev) => {
-      const groupedTasks = prev.filter((task) => groupedTaskIds.has(task.id));
-      const targetTasks = prev.filter((task) => pendingGroupPrompt.targetTaskIds.includes(task.id));
-      let groupName = pendingGroupName.trim() || 'New group';
-      let groupIcon = null;
-      let groupCover = null;
-      let groupTags = getDesktopGroupDisplayTags(groupedTasks);
-      let groupDurationType = null;
-      let groupActiveFrom = null;
-      let groupActiveUntil = null;
-      let targetDateKey = pendingGroupPrompt.targetDateKey;
-
-      if (isMergePacks && targetTasks.length > 0) {
-        const targetMetadata = resolvePackMetadata(targetTasks);
-        groupName = targetMetadata.desktopGroupName;
-        groupIcon = targetMetadata.desktopGroupIcon;
-        groupCover = targetMetadata.desktopGroupCover;
-        groupTags = targetMetadata.desktopGroupTags;
-        groupDurationType = targetMetadata.desktopGroupActiveDurationType;
-        groupActiveFrom = targetMetadata.desktopGroupActiveFrom;
-        groupActiveUntil = targetMetadata.desktopGroupActiveUntil;
-        targetDateKey = targetMetadata.dateString || targetDateKey;
-      }
-
-      return prev.map((task) => (
-        groupedTaskIds.has(task.id)
-          ? normalizeTask({
-            ...task,
-            dateString: targetDateKey,
-            updatedAt: nextUpdatedAt,
-            desktopSlot: null,
-            desktopCanvasX: Number(pendingGroupPrompt.overlapX.toFixed(1)),
-            desktopCanvasY: Number(pendingGroupPrompt.overlapY.toFixed(1)),
-            desktopGroupId: pendingGroupPrompt.groupId,
-            desktopGroupName: groupName,
-            desktopGroupIcon: groupIcon,
-            desktopGroupCover: groupCover,
-            desktopGroupTags: groupTags,
-            desktopGroupActiveDurationType: groupDurationType,
-            desktopGroupActiveFrom: groupActiveFrom,
-            desktopGroupActiveUntil: groupActiveUntil,
-            desktopZ: Date.now(),
-          })
-          : task
-      ));
+      const action = createPackDropAction({
+        prompt: pendingGroupPrompt,
+        groupName: pendingGroupName,
+        tasks: prev,
+        updatedAt: nextUpdatedAt,
+        timestamp: Date.now(),
+      });
+      return reduceCanvasDrop(prev, action);
     });
     if (isMergePacks && sourceGroupId && sourceGroupId !== pendingGroupPrompt.groupId) {
       onPacksMerged?.(sourceGroupId, pendingGroupPrompt.groupId);
@@ -252,12 +209,10 @@ export const usePackActions = ({
 
   const handleCancelGroupPrompt = useCallback(() => {
     if (pendingGroupPrompt?.mode === 'merge-packs') {
-      setTasks((prev) => {
-        const restoredTasks = restoreCancelledPackMerge(prev, pendingGroupPrompt);
-        return restoredTasks.map((task, index) => (
-          task === prev[index] ? task : normalizeTask(task)
-        ));
-      });
+      setTasks((prev) => reduceCanvasDrop(
+        prev,
+        createCancelledPackMergeAction(pendingGroupPrompt, Date.now()),
+      ));
     }
     closePendingGroupPrompt();
   }, [closePendingGroupPrompt, pendingGroupPrompt, setTasks]);
