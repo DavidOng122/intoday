@@ -527,6 +527,8 @@ const startDesktopTaskDrag = useCallback((task) => {
 ]);
 
 const finishDesktopTaskDrag = useCallback((task, pointerTarget, pointerId, wasCancelled = false) => {
+  if (!desktopDragModeRef.current || desktopDragStateRef.current.finalized) return;
+  desktopDragStateRef.current = { ...desktopDragStateRef.current, finalized: true };
   resetDesktopDragState();
   if (desktopDragOverlapRafRef.current !== null) {
     window.cancelAnimationFrame(desktopDragOverlapRafRef.current);
@@ -811,6 +813,7 @@ const handleTaskPointerDown = useCallback((task, event) => {
     taskId: task.id,
     startX: event.clientX,
     startY: event.clientY,
+    finalized: false,
   };
   desktopDragPointerRef.current = { x: event.clientX, y: event.clientY };
   if (event.currentTarget instanceof HTMLElement) {
@@ -902,7 +905,7 @@ const handleTaskPointerUp = useCallback((task, event) => {
     return;
   }
 
-  desktopDragStateRef.current = { pointerId: null, taskId: null, startX: 0, startY: 0 };
+  desktopDragStateRef.current = { pointerId: null, taskId: null, startX: 0, startY: 0, finalized: false };
   desktopDragLastMoveRef.current = null;
   activePointerTaskRef.current = null;
   desktopDragAnchorPointerOffsetRef.current = null;
@@ -936,7 +939,7 @@ const handleTaskPointerCancel = useCallback((task, event) => {
     return;
   }
 
-  desktopDragStateRef.current = { pointerId: null, taskId: null, startX: 0, startY: 0 };
+  desktopDragStateRef.current = { pointerId: null, taskId: null, startX: 0, startY: 0, finalized: false };
   activePointerTaskRef.current = null;
   desktopDragAnchorPointerOffsetRef.current = null;
   desktopDragSourceRectRef.current = null;
@@ -957,54 +960,6 @@ const handleTaskPointerCancel = useCallback((task, event) => {
   desktopDragSourceRectRef,
   desktopDragStateRef,
   finishDesktopTaskDrag,
-]);
-
-useEffect(() => {
-  const handleWindowPointerMove = (event) => {
-    const activeTask = activePointerTaskRef.current;
-    if (!activeTask) return;
-    if (desktopDragStateRef.current.pointerId !== event.pointerId || desktopDragStateRef.current.taskId !== activeTask.id) return;
-    processDesktopDragMove(activeTask, event.clientX, event.clientY, event);
-  };
-
-  const handleWindowPointerEnd = (event) => {
-    const activeTask = activePointerTaskRef.current;
-    if (!activeTask) return;
-    if (desktopDragStateRef.current.pointerId !== event.pointerId || desktopDragStateRef.current.taskId !== activeTask.id) return;
-
-    if (desktopDragModeRef.current) {
-      desktopDragPointerRef.current = { x: event.clientX, y: event.clientY };
-      finishDesktopTaskDrag(activeTask, null, event.pointerId, event.type === 'pointercancel');
-    } else {
-      desktopDragStateRef.current = { pointerId: null, taskId: null, startX: 0, startY: 0 };
-      desktopDragAnchorPointerOffsetRef.current = null;
-      desktopDragSourceRectRef.current = null;
-      desktopDragDetachedFromGroupRef.current = false;
-      resetDesktopDragState();
-    }
-    activePointerTaskRef.current = null;
-  };
-
-  window.addEventListener('pointermove', handleWindowPointerMove, { passive: false });
-  window.addEventListener('pointerup', handleWindowPointerEnd);
-  window.addEventListener('pointercancel', handleWindowPointerEnd);
-
-  return () => {
-    window.removeEventListener('pointermove', handleWindowPointerMove);
-    window.removeEventListener('pointerup', handleWindowPointerEnd);
-    window.removeEventListener('pointercancel', handleWindowPointerEnd);
-  };
-}, [
-  activePointerTaskRef,
-  desktopDragAnchorPointerOffsetRef,
-  desktopDragDetachedFromGroupRef,
-  desktopDragModeRef,
-  desktopDragPointerRef,
-  desktopDragSourceRectRef,
-  desktopDragStateRef,
-  finishDesktopTaskDrag,
-  processDesktopDragMove,
-  resetDesktopDragState,
 ]);
 
 useEffect(() => {

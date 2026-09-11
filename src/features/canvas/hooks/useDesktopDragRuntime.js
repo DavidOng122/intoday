@@ -6,7 +6,7 @@ import {
 
 export const useDesktopDragRuntime = () => ({
   activePointerTaskRef: useRef(null),
-  desktopDragStateRef: useRef({ pointerId: null, taskId: null, startX: 0, startY: 0 }),
+  desktopDragStateRef: useRef({ pointerId: null, taskId: null, startX: 0, startY: 0, finalized: false }),
   desktopDragPointerRef: useRef({ x: 0, y: 0 }),
   desktopDragLastMoveRef: useRef(null),
   desktopDragContainerRectRef: useRef(null),
