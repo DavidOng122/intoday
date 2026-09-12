@@ -16,6 +16,7 @@ import {
 } from '../model/canvasEntries.js';
 import { resolveInboxCanvasDrop } from '../model/inboxCanvasDrop.js';
 import { useCanvasDragCollision } from './useCanvasDragCollision.js';
+import { useCanvasDragPreview } from './useCanvasDragPreview.js';
 import { getPackDisplayName } from '../../../entities/pack/model/packSelectors.js';
 import { getSuggestedDesktopGroupName } from '../../pack/model/groupMetadata.js';
 import {
@@ -25,7 +26,7 @@ import {
 } from '../../pack/model/packMergePolicy.js';
 import { dateKey } from '../../../lib/dateUtils.js';
 import { calculateCanvasDrop, reduceCanvasDrop } from '../model/canvasDrop.js';
-import { createCanvasDragSession, getCanvasDragTaskIds, getCanvasPreviewPositions } from '../model/canvasDragSession.js';
+import { createCanvasDragSession, getCanvasDragTaskIds } from '../model/canvasDragSession.js';
 
 const clampDesktopCanvasPosition = (position, bounds, height = DESKTOP_CANVAS_CARD_HEIGHT) => ({
   x: Math.min(
@@ -58,8 +59,6 @@ export const useDesktopTaskDrag = ({ runtime, viewport, canvas, externalSource }
     desktopDragSourceEntryIdRef,
     desktopDragSourceRectRef,
     desktopDragStateRef,
-    desktopDragVisualPendingRef,
-    desktopDragVisualRafRef,
     desktopSelectionStateRef,
     selectedDayEntriesRef,
     selectedTaskIdsRef,
@@ -143,71 +142,16 @@ const resetDesktopDragState = useCallback(() => {
   resetDragCollision();
 }, [resetDragCollision]);
 
-const syncDesktopDraggedTaskPosition = useCallback((clientX, clientY) => {
-  const currentPt = getDragCanvasPointFromClient(clientX, clientY);
-  if (!currentPt) return;
-
-  const anchorStart = desktopDragAnchorStartPositionRef.current;
-  if (!anchorStart) return;
-  const nextAnchor = getDesktopDragAnchorPosition(currentPt);
-  if (!nextAnchor) return;
-  const nextAnchorX = nextAnchor.x;
-  const nextAnchorY = nextAnchor.y;
-  const dx = nextAnchorX - anchorStart.x;
-  const dy = nextAnchorY - anchorStart.y;
-
-  const movingIds = desktopDragSelectedTaskIdsRef.current.size > 0
-    ? [...desktopDragSelectedTaskIdsRef.current]
-    : [desktopDragStateRef.current.taskId];
-
-  setDragSession((session) => {
-    if (!session) return session;
-    const originPositions = new Map(movingIds.map((id) => [
-      id,
-      desktopDragSelectionPositionsRef.current.get(id) || anchorStart,
-    ]));
-    return {
-      ...session,
-      previewPositions: getCanvasPreviewPositions({
-        draggedIds: movingIds,
-        originPositions,
-        delta: { x: dx, y: dy },
-      }),
-    };
-  });
-}, [
-  desktopDragAnchorStartPositionRef,
-  desktopDragSelectedTaskIdsRef,
-  desktopDragSelectionPositionsRef,
-  desktopDragStateRef,
-  getDesktopDragAnchorPosition,
-  getDragCanvasPointFromClient,
-  setDragSession,
-]);
-
-const flushDesktopDragVisualUpdate = useCallback(() => {
-  desktopDragVisualRafRef.current = null;
-  const pending = desktopDragVisualPendingRef.current;
-  desktopDragVisualPendingRef.current = null;
-  if (!pending) return;
-  if (!desktopDragModeRef.current) return;
-  if (desktopDragStateRef.current.taskId !== pending.taskId) return;
-
-  syncDesktopDraggedTaskPosition(pending.clientX, pending.clientY);
-}, [
-  desktopDragModeRef,
-  desktopDragStateRef,
-  desktopDragVisualPendingRef,
-  desktopDragVisualRafRef,
+const {
+  cancelDesktopDragVisualUpdate,
+  scheduleDesktopDragVisualUpdate,
   syncDesktopDraggedTaskPosition,
-]);
-
-const scheduleDesktopDragVisualUpdate = useCallback((clientX, clientY, taskId) => {
-  desktopDragVisualPendingRef.current = { clientX, clientY, taskId };
-  if (desktopDragVisualRafRef.current === null) {
-    desktopDragVisualRafRef.current = window.requestAnimationFrame(flushDesktopDragVisualUpdate);
-  }
-}, [desktopDragVisualPendingRef, desktopDragVisualRafRef, flushDesktopDragVisualUpdate]);
+} = useCanvasDragPreview({
+  runtime,
+  getDragCanvasPointFromClient,
+  getDesktopDragAnchorPosition,
+  setDragSession,
+});
 
 const startDesktopTaskDrag = useCallback((task) => {
   setHistoryOpen(false); // Ensure modal closes when drag starts
@@ -350,15 +294,11 @@ const finishDesktopTaskDrag = useCallback((task, pointerTarget, pointerId, wasCa
     window.clearTimeout(desktopDragOverlapTimeoutRef.current);
     desktopDragOverlapTimeoutRef.current = null;
   }
-  if (desktopDragVisualRafRef.current !== null) {
-    window.cancelAnimationFrame(desktopDragVisualRafRef.current);
-    desktopDragVisualRafRef.current = null;
-  }
+  cancelDesktopDragVisualUpdate();
   const finalPointer = {
     clientX: desktopDragPointerRef.current.x,
     clientY: desktopDragPointerRef.current.y,
   };
-  desktopDragVisualPendingRef.current = null;
   setDesktopDragSourceHidden(false);
 
   if (desktopDragModeRef.current) {
@@ -574,8 +514,7 @@ const finishDesktopTaskDrag = useCallback((task, pointerTarget, pointerId, wasCa
   desktopDragSourceEntryIdRef,
   desktopDragSourceRectRef,
   desktopDragStateRef,
-  desktopDragVisualPendingRef,
-  desktopDragVisualRafRef,
+  cancelDesktopDragVisualUpdate,
   getDesktopCanvasOverlapEntryFromDom,
   getDesktopDragAnchorPosition,
   getDragCanvasPointFromClient,
