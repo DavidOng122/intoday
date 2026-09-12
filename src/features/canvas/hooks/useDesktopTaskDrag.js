@@ -30,6 +30,7 @@ export const useDesktopTaskDrag = ({ runtime, viewport, canvas, externalSource }
     desktopDragModeRef,
     desktopDragOverlaySnapshotRef,
     desktopDragPointerRef,
+    desktopDragPreviewPositionsRef,
     desktopDragSelectedTaskIdsRef,
     desktopDragSelectionPositionsRef,
     desktopDragSourceEntryIdRef,
@@ -167,6 +168,7 @@ const startDesktopTaskDrag = useCallback((task) => {
   desktopDragContainerRectRef.current = viewportContainerRef.current?.getBoundingClientRect?.() || null;
   desktopDragDetachedFromGroupRef.current = isDetachedGroupTask;
   desktopDragSelectionPositionsRef.current = originPositions;
+  desktopDragPreviewPositionsRef.current = Object.fromEntries(originPositions);
   desktopDragAnchorStartPositionRef.current = anchorPosition;
 
   desktopDragOverlaySnapshotRef.current = overlaySnapshot;
@@ -218,6 +220,7 @@ const startDesktopTaskDrag = useCallback((task) => {
   desktopDragModeRef,
   desktopDragOverlaySnapshotRef,
   desktopDragPointerRef,
+  desktopDragPreviewPositionsRef,
   desktopDragSelectedTaskIdsRef,
   desktopDragSelectionPositionsRef,
   desktopDragSourceEntryIdRef,
@@ -240,6 +243,9 @@ const startDesktopTaskDrag = useCallback((task) => {
 ]);
 
 const finishDesktopTaskDrag = useCallback((task, pointerTarget, pointerId, wasCancelled = false) => {
+  // Persist the exact last preview position. This avoids a tall Pack jumping
+  // back when pointer-up arrives before the scheduled preview frame.
+  syncDesktopDraggedTaskPosition(desktopDragPointerRef.current.x, desktopDragPointerRef.current.y);
   const finalPointer = prepareDesktopDragFinish();
   if (!finalPointer) return;
   setDesktopDragSourceHidden(false);
@@ -272,13 +278,19 @@ const finishDesktopTaskDrag = useCallback((task, pointerTarget, pointerId, wasCa
       } else {
       const anchorStart = desktopDragAnchorStartPositionRef.current || { x: 0, y: 0 };
       const startPositions = [...desktopDragSelectionPositionsRef.current.values()];
-      const { position: nextPosition, delta: { x: deltaX, y: deltaY } } = getClampedCanvasDragPosition({
-        rawPosition: rawNextPosition,
-        anchorPosition: anchorStart,
-        originPositions: startPositions,
-        canvasBounds: canvasBoundsRef.current,
-        height: movingHeight,
-      });
+      const previewPosition = desktopDragPreviewPositionsRef.current[task.id];
+      const { position: nextPosition, delta: { x: deltaX, y: deltaY } } = previewPosition
+        ? {
+          position: previewPosition,
+          delta: { x: previewPosition.x - anchorStart.x, y: previewPosition.y - anchorStart.y },
+        }
+        : getClampedCanvasDragPosition({
+          rawPosition: rawNextPosition,
+          anchorPosition: anchorStart,
+          originPositions: startPositions,
+          canvasBounds: canvasBoundsRef.current,
+          height: movingHeight,
+        });
 
         flushSync(() => {
           setTasks((prev) => {
@@ -347,6 +359,7 @@ const finishDesktopTaskDrag = useCallback((task, pointerTarget, pointerId, wasCa
   desktopDragDetachedFromGroupRef,
   desktopDragModeRef,
   desktopDragPointerRef,
+  desktopDragPreviewPositionsRef,
   desktopDragSelectedTaskIdsRef,
   desktopDragSelectionPositionsRef,
   getDesktopCanvasOverlapEntryFromDom,
@@ -364,6 +377,7 @@ const finishDesktopTaskDrag = useCallback((task, pointerTarget, pointerId, wasCa
   setPendingGroupPrompt,
   setTasks,
   suppressNextTaskClick,
+  syncDesktopDraggedTaskPosition,
 ]);
 
 

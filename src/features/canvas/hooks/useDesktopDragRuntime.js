@@ -13,6 +13,7 @@ export const useDesktopDragRuntime = () => ({
   desktopDragModeRef: useRef(false),
   desktopDragSelectedTaskIdsRef: useRef(new Set()),
   desktopDragSelectionPositionsRef: useRef(new Map()),
+  desktopDragPreviewPositionsRef: useRef({}),
   desktopDragAnchorStartPositionRef: useRef(null),
   desktopDragAnchorSizeRef: useRef({
     width: DESKTOP_CANVAS_CARD_WIDTH,

@@ -14,6 +14,7 @@ export const useCanvasDragPreview = ({
     desktopDragModeRef,
     desktopDragSelectedTaskIdsRef,
     desktopDragSelectionPositionsRef,
+    desktopDragPreviewPositionsRef,
     desktopDragStateRef,
     desktopDragVisualPendingRef,
     desktopDragVisualRafRef,
@@ -32,18 +33,21 @@ export const useCanvasDragPreview = ({
       id,
       desktopDragSelectionPositionsRef.current.get(id) || anchorStart,
     ]));
+    const previewPositions = getCanvasPreviewPositions({
+      draggedIds: movingIds,
+      originPositions,
+      delta: { x: nextAnchor.x - anchorStart.x, y: nextAnchor.y - anchorStart.y },
+    });
+    desktopDragPreviewPositionsRef.current = previewPositions;
     setDragSession((session) => (session ? {
       ...session,
-      previewPositions: getCanvasPreviewPositions({
-        draggedIds: movingIds,
-        originPositions,
-        delta: { x: nextAnchor.x - anchorStart.x, y: nextAnchor.y - anchorStart.y },
-      }),
+      previewPositions,
     } : session));
   }, [
     desktopDragAnchorStartPositionRef,
     desktopDragSelectedTaskIdsRef,
     desktopDragSelectionPositionsRef,
+    desktopDragPreviewPositionsRef,
     desktopDragStateRef,
     getDesktopDragAnchorPosition,
     getDragCanvasPointFromClient,

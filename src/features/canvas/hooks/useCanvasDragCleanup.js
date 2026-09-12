@@ -31,6 +31,7 @@ export const useCanvasDragCleanup = ({
     desktopDragOverlapTimeoutRef,
     desktopDragOverlaySnapshotRef,
     desktopDragPointerRef,
+    desktopDragPreviewPositionsRef,
     desktopDragSelectedTaskIdsRef,
     desktopDragSelectionPositionsRef,
     desktopDragSourceEntryIdRef,
@@ -71,6 +72,7 @@ export const useCanvasDragCleanup = ({
     desktopDragStateRef.current = { pointerId: null, taskId: null, startX: 0, startY: 0, finalized: false };
     desktopDragLastMoveRef.current = null;
     desktopDragSelectionPositionsRef.current = new Map();
+    desktopDragPreviewPositionsRef.current = {};
     desktopDragAnchorStartPositionRef.current = null;
     desktopDragAnchorSizeRef.current = { width: DESKTOP_CANVAS_CARD_WIDTH, height: DESKTOP_CANVAS_CARD_HEIGHT };
     desktopDragAnchorPointerOffsetRef.current = null;
@@ -103,6 +105,7 @@ export const useCanvasDragCleanup = ({
     desktopDragLastMoveRef,
     desktopDragModeRef,
     desktopDragOverlaySnapshotRef,
+    desktopDragPreviewPositionsRef,
     desktopDragSelectedTaskIdsRef,
     desktopDragSelectionPositionsRef,
     desktopDragSourceEntryIdRef,
