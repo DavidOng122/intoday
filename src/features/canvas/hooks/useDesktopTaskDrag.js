@@ -12,9 +12,9 @@ import {
   getDesktopCanvasResolvedPosition,
   getDesktopCanvasOverlapEntry,
 } from '../model/canvasEntries.js';
-import { resolveInboxCanvasDrop } from '../model/inboxCanvasDrop.js';
 import { useCanvasDragCollision } from './useCanvasDragCollision.js';
 import { useCanvasDragPreview } from './useCanvasDragPreview.js';
+import { useExternalCanvasDrop } from './useExternalCanvasDrop.js';
 import { buildCanvasDragStart } from '../model/canvasDragStart.js';
 import { getClampedCanvasDragPosition } from '../model/canvasDragPosition.js';
 import { getPackDisplayName } from '../../../entities/pack/model/packSelectors.js';
@@ -81,12 +81,11 @@ export const useDesktopTaskDrag = ({ runtime, viewport, canvas, externalSource }
   tasksRef,
   } = canvas;
   const {
-    isTask: isExternalDragTask,
-    onCancel: onExternalDropCancelled,
-    onDrop: onExternalDrop,
-    onDropFailure: onExternalDropFailure,
-    onOverlayReady: closeExternalDragSource,
-  } = externalSource;
+    cancelExternalCanvasDrop,
+    closeExternalDragSource,
+    finishExternalCanvasDrop,
+    isExternalDragTask,
+  } = useExternalCanvasDrop({ externalSource, canvasBoundsRef, selectedDayEntriesRef });
 const suppressNextTaskClick = useCallback((taskId) => {
   if (suppressTaskClickTimeoutRef.current !== null) {
     window.clearTimeout(suppressTaskClickTimeoutRef.current);
@@ -279,39 +278,20 @@ const finishDesktopTaskDrag = useCallback((task, pointerTarget, pointerId, wasCa
     if (currentPt) {
       const rawNextPosition = getDesktopDragAnchorPosition(currentPt);
       if (!rawNextPosition) {
-        if (isExternalDragTask?.(task) === true) onExternalDropCancelled?.();
+        if (isExternalDragTask?.(task) === true) cancelExternalCanvasDrop?.();
         desktopDragModeRef.current = false;
         return;
       }
       const movingHeight = desktopDragAnchorSizeRef.current?.height || DESKTOP_CANVAS_CARD_HEIGHT;
 
       if (isExternalDragTask?.(task) === true) {
-        const dropOutcome = wasCancelled
-          ? { kind: 'cancelled' }
-          : resolveInboxCanvasDrop({
-            entries: selectedDayEntriesRef.current,
-            position: rawNextPosition,
-            pointerPosition: currentPt,
-            canvasBounds: canvasBoundsRef.current,
-            cardSize: {
-              width: DESKTOP_CANVAS_CARD_WIDTH,
-              height: movingHeight,
-            },
-          });
-
-        if (dropOutcome.kind === 'cancelled') {
-          onExternalDropCancelled?.();
-        } else if (typeof onExternalDrop === 'function') {
-          void onExternalDrop({
-            itemId: task.id,
-            packId: dropOutcome.kind === 'pack' ? dropOutcome.packId : null,
-            position: {
-              x: Number(dropOutcome.position.x.toFixed(1)),
-              y: Number(dropOutcome.position.y.toFixed(1)),
-              z: Date.now(),
-            },
-          }).catch(() => onExternalDropFailure?.());
-        }
+        finishExternalCanvasDrop({
+          task,
+          wasCancelled,
+          position: rawNextPosition,
+          pointerPosition: currentPt,
+          height: movingHeight,
+        });
       } else {
       const anchorStart = desktopDragAnchorStartPositionRef.current || { x: 0, y: 0 };
       const startPositions = [...desktopDragSelectionPositionsRef.current.values()];
@@ -412,7 +392,7 @@ const finishDesktopTaskDrag = useCallback((task, pointerTarget, pointerId, wasCa
         });
       }
     } else if (isExternalDragTask?.(task) === true) {
-      onExternalDropCancelled?.();
+      cancelExternalCanvasDrop?.();
     }
   }
 
@@ -473,13 +453,11 @@ const finishDesktopTaskDrag = useCallback((task, pointerTarget, pointerId, wasCa
   getDesktopDragAnchorPosition,
   getDragCanvasPointFromClient,
   isExternalDragTask,
-  onExternalDrop,
-  onExternalDropCancelled,
-  onExternalDropFailure,
+  cancelExternalCanvasDrop,
+  finishExternalCanvasDrop,
   resetDesktopDragState,
   searchDragSeparateRef,
   selectedDateRef,
-  selectedDayEntriesRef,
   setDesktopDragOverlayActive,
   setDesktopDragOverlaySnapshot,
   setDesktopDragSourceHidden,
