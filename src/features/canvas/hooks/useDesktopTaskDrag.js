@@ -13,6 +13,7 @@ import { useCanvasDragCollision } from './useCanvasDragCollision.js';
 import { useCanvasDragPreview } from './useCanvasDragPreview.js';
 import { useExternalCanvasDrop } from './useExternalCanvasDrop.js';
 import { useCanvasPointerDrag } from './useCanvasPointerDrag.js';
+import { useCanvasDragCleanup } from './useCanvasDragCleanup.js';
 import { buildCanvasDragStart } from '../model/canvasDragStart.js';
 import { getClampedCanvasDragPosition } from '../model/canvasDragPosition.js';
 import { dateKey } from '../../../lib/dateUtils.js';
@@ -22,17 +23,12 @@ import { createCanvasDragSession } from '../model/canvasDragSession.js';
 
 export const useDesktopTaskDrag = ({ runtime, viewport, canvas, externalSource }) => {
   const {
-    desktopDragAnchorPointerOffsetRef,
     desktopDragAnchorSizeRef,
     desktopDragAnchorStartPositionRef,
     desktopDragContainerRectRef,
     desktopDragDetachedFromGroupRef,
     desktopDragIsGroupRef,
-    desktopDragLastMoveRef,
     desktopDragModeRef,
-    desktopDragOverlapPendingRef,
-    desktopDragOverlapRafRef,
-    desktopDragOverlapTimeoutRef,
     desktopDragOverlaySnapshotRef,
     desktopDragPointerRef,
     desktopDragSelectedTaskIdsRef,
@@ -116,10 +112,6 @@ const setDesktopDragSourceHidden = useCallback((hidden) => {
   }
 }, [desktopDragSourceEntryIdRef]);
 
-const resetDesktopDragState = useCallback(() => {
-  resetDragCollision();
-}, [resetDragCollision]);
-
 const {
   cancelDesktopDragVisualUpdate,
   scheduleDesktopDragVisualUpdate,
@@ -128,6 +120,18 @@ const {
   runtime,
   getDragCanvasPointFromClient,
   getDesktopDragAnchorPosition,
+  setDragSession,
+});
+
+const { prepareDesktopDragFinish, resetDesktopDragAfterFinish } = useCanvasDragCleanup({
+  runtime,
+  resetDragCollision,
+  cancelDesktopDragVisualUpdate,
+  searchDragSeparateRef,
+  setDesktopDragOverlayActive,
+  setDesktopDragOverlaySnapshot,
+  setDraggedTaskId,
+  setIsGroupDragActive,
   setDragSession,
 });
 
@@ -237,23 +241,8 @@ const startDesktopTaskDrag = useCallback((task) => {
 ]);
 
 const finishDesktopTaskDrag = useCallback((task, pointerTarget, pointerId, wasCancelled = false) => {
-  if (!desktopDragModeRef.current || desktopDragStateRef.current.finalized) return;
-  desktopDragStateRef.current = { ...desktopDragStateRef.current, finalized: true };
-  resetDesktopDragState();
-  if (desktopDragOverlapRafRef.current !== null) {
-    window.cancelAnimationFrame(desktopDragOverlapRafRef.current);
-    desktopDragOverlapRafRef.current = null;
-  }
-  desktopDragOverlapPendingRef.current = null;
-  if (desktopDragOverlapTimeoutRef.current !== null) {
-    window.clearTimeout(desktopDragOverlapTimeoutRef.current);
-    desktopDragOverlapTimeoutRef.current = null;
-  }
-  cancelDesktopDragVisualUpdate();
-  const finalPointer = {
-    clientX: desktopDragPointerRef.current.x,
-    clientY: desktopDragPointerRef.current.y,
-  };
+  const finalPointer = prepareDesktopDragFinish();
+  if (!finalPointer) return;
   setDesktopDragSourceHidden(false);
 
   if (desktopDragModeRef.current) {
@@ -351,74 +340,28 @@ const finishDesktopTaskDrag = useCallback((task, pointerTarget, pointerId, wasCa
     }
   }
 
-  // Reset live transform and class on every dragged canvas entry node without CSS transition jump
-  document.body.classList.remove('desktop-task-dragging');
-
-  desktopDragModeRef.current = false;
-  desktopDragContainerRectRef.current = null;
-  desktopDragStateRef.current = { pointerId: null, taskId: null, startX: 0, startY: 0 };
-  desktopDragLastMoveRef.current = null;
-  desktopDragSelectionPositionsRef.current = new Map();
-  desktopDragAnchorStartPositionRef.current = null;
-  desktopDragAnchorSizeRef.current = { width: DESKTOP_CANVAS_CARD_WIDTH, height: DESKTOP_CANVAS_CARD_HEIGHT };
-  desktopDragAnchorPointerOffsetRef.current = null;
-  desktopDragSourceRectRef.current = null;
-  desktopDragDetachedFromGroupRef.current = false;
-  desktopDragIsGroupRef.current = false;
-  desktopDragOverlaySnapshotRef.current = null;
-  desktopDragSourceEntryIdRef.current = null;
-  desktopDragSelectedTaskIdsRef.current = new Set();
-  searchDragSeparateRef.current = false;
-  setDraggedTaskId(null);
-  setIsGroupDragActive(false);
-  setDesktopDragOverlayActive(false);
-  setDesktopDragOverlaySnapshot(null);
-  setDragSession(null);
-
-  if (pointerTarget?.hasPointerCapture?.(pointerId)) {
-    try {
-      pointerTarget.releasePointerCapture(pointerId);
-    } catch {
-      // Pointer capture may already be released.
-    }
-  }
+  resetDesktopDragAfterFinish(pointerTarget, pointerId);
 }, [
   canvasBoundsRef,
   cleanupDesktopGroupMetadata,
-  desktopDragAnchorPointerOffsetRef,
   desktopDragAnchorSizeRef,
   desktopDragAnchorStartPositionRef,
-  desktopDragContainerRectRef,
   desktopDragDetachedFromGroupRef,
-  desktopDragIsGroupRef,
-  desktopDragLastMoveRef,
   desktopDragModeRef,
-  desktopDragOverlapPendingRef,
-  desktopDragOverlapRafRef,
-  desktopDragOverlapTimeoutRef,
-  desktopDragOverlaySnapshotRef,
   desktopDragPointerRef,
   desktopDragSelectedTaskIdsRef,
   desktopDragSelectionPositionsRef,
-  desktopDragSourceEntryIdRef,
-  desktopDragSourceRectRef,
-  desktopDragStateRef,
-  cancelDesktopDragVisualUpdate,
   getDesktopCanvasOverlapEntryFromDom,
   getDesktopDragAnchorPosition,
   getDragCanvasPointFromClient,
   isExternalDragTask,
   cancelExternalCanvasDrop,
   finishExternalCanvasDrop,
-  resetDesktopDragState,
+  prepareDesktopDragFinish,
+  resetDesktopDragAfterFinish,
   searchDragSeparateRef,
   selectedDateRef,
-  setDesktopDragOverlayActive,
-  setDesktopDragOverlaySnapshot,
   setDesktopDragSourceHidden,
-  setDraggedTaskId,
-  setIsGroupDragActive,
-  setDragSession,
   setPendingGroupName,
   setPendingGroupPrompt,
   setTasks,
