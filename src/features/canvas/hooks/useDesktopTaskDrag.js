@@ -6,7 +6,6 @@ import {
   DESKTOP_CANVAS_CARD_WIDTH,
   DESKTOP_DRAG_START_DISTANCE,
   DESKTOP_GROUP_OVERLAP_THRESHOLD,
-  DESKTOP_MAIN_CONTENT_MAX_WIDTH,
 } from '../model/canvasConstants.js';
 import {
   getDesktopCanvasEntryHeight,
@@ -17,6 +16,7 @@ import { resolveInboxCanvasDrop } from '../model/inboxCanvasDrop.js';
 import { useCanvasDragCollision } from './useCanvasDragCollision.js';
 import { useCanvasDragPreview } from './useCanvasDragPreview.js';
 import { buildCanvasDragStart } from '../model/canvasDragStart.js';
+import { getClampedCanvasDragPosition } from '../model/canvasDragPosition.js';
 import { getPackDisplayName } from '../../../entities/pack/model/packSelectors.js';
 import { getSuggestedDesktopGroupName } from '../../pack/model/groupMetadata.js';
 import {
@@ -28,16 +28,6 @@ import { dateKey } from '../../../lib/dateUtils.js';
 import { calculateCanvasDrop, reduceCanvasDrop } from '../model/canvasDrop.js';
 import { createCanvasDragSession, getCanvasDragTaskIds } from '../model/canvasDragSession.js';
 
-const clampDesktopCanvasPosition = (position, bounds, height = DESKTOP_CANVAS_CARD_HEIGHT) => ({
-  x: Math.min(
-    Math.max(0, (bounds?.width || DESKTOP_MAIN_CONTENT_MAX_WIDTH) - DESKTOP_CANVAS_CARD_WIDTH),
-    Math.max(0, position.x),
-  ),
-  y: Math.min(
-    Math.max(0, (bounds?.height || DESKTOP_CANVAS_CARD_HEIGHT) - height),
-    Math.max(0, position.y),
-  ),
-});
 export const useDesktopTaskDrag = ({ runtime, viewport, canvas, externalSource }) => {
   const {
     activePointerTaskRef,
@@ -325,26 +315,13 @@ const finishDesktopTaskDrag = useCallback((task, pointerTarget, pointerId, wasCa
       } else {
       const anchorStart = desktopDragAnchorStartPositionRef.current || { x: 0, y: 0 };
       const startPositions = [...desktopDragSelectionPositionsRef.current.values()];
-      const positionBounds = startPositions.length > 0 ? startPositions : [anchorStart];
-      const rawDeltaX = rawNextPosition.x - anchorStart.x;
-      const rawDeltaY = rawNextPosition.y - anchorStart.y;
-      const minStartX = Math.min(...positionBounds.map((position) => position.x));
-      const maxStartX = Math.max(...positionBounds.map((position) => position.x));
-      const minStartY = Math.min(...positionBounds.map((position) => position.y));
-      const maxStartY = Math.max(...positionBounds.map((position) => position.y));
-      const maxCanvasX = Math.max(
-        0,
-        (canvasBoundsRef.current?.width || DESKTOP_MAIN_CONTENT_MAX_WIDTH) - DESKTOP_CANVAS_CARD_WIDTH,
-      );
-      const maxCanvasY = Math.max(0, (canvasBoundsRef.current?.height || movingHeight) - movingHeight);
-      const clampedDeltaX = Math.min(maxCanvasX - maxStartX, Math.max(-minStartX, rawDeltaX));
-      const clampedDeltaY = Math.min(maxCanvasY - maxStartY, Math.max(-minStartY, rawDeltaY));
-      const nextPosition = clampDesktopCanvasPosition({
-        x: anchorStart.x + clampedDeltaX,
-        y: anchorStart.y + clampedDeltaY,
-      }, canvasBoundsRef.current, movingHeight);
-      const deltaX = nextPosition.x - anchorStart.x;
-      const deltaY = nextPosition.y - anchorStart.y;
+      const { position: nextPosition, delta: { x: deltaX, y: deltaY } } = getClampedCanvasDragPosition({
+        rawPosition: rawNextPosition,
+        anchorPosition: anchorStart,
+        originPositions: startPositions,
+        canvasBounds: canvasBoundsRef.current,
+        height: movingHeight,
+      });
 
         flushSync(() => {
           setTasks((prev) => {
