@@ -6,7 +6,7 @@ const bounds = { width: 1000, height: 700 };
 const position = { x: 180, y: 140 };
 const pointerPosition = { x: 220, y: 170 };
 
-test('Inbox drop preserves the requested position regardless of standalone cards', () => {
+test('Inbox drop moves beside a standalone card instead of visually overlapping it', () => {
   const standaloneEntries = [
     { type: 'task', x: 180, y: 140, task: { id: 'existing' } },
     { type: 'task', x: 500, y: 400, task: { id: 'other' } },
@@ -16,7 +16,7 @@ test('Inbox drop preserves the requested position regardless of standalone cards
     position,
     pointerPosition,
     canvasBounds: bounds,
-  }), { kind: 'canvas', position });
+  }), { kind: 'canvas', position: { x: 536, y: 140 } });
 });
 
 test('Inbox drop chooses a Pack only above the Pack overlap threshold', () => {
