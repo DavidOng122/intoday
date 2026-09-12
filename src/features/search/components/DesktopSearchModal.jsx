@@ -240,7 +240,7 @@ const PackSearchResultCard = ({ packInfo, appearance, labels, onClickPack, onCli
               onMouseEnter={(e) => { e.currentTarget.style.background = isDark ? '#333' : '#F9F9F9'; }}
               onMouseLeave={(e) => { e.currentTarget.style.background = isDark ? '#1C1C1E' : '#FFF'; }}
             >
-              <div style={{ width: 20, height: 20, borderRadius: 4, background: isDark ? cfg.darkBg : cfg.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <div style={{ width: 20, height: 20, borderRadius: 4, background: redirectUrl ? 'transparent' : (isDark ? cfg.darkBg : cfg.bg), display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                 <LinkFavicon url={redirectUrl} size={20} fallback={isDark && cfg.darkIconColor ? (
                    <div style={{ width: 10, height: 10, backgroundColor: cfg.darkIconColor, maskImage: `url(${cfg.icon})`, WebkitMaskImage: `url(${cfg.icon})`, maskSize: 'contain', WebkitMaskSize: 'contain', maskRepeat: 'no-repeat', WebkitMaskRepeat: 'no-repeat', maskPosition: 'center', WebkitMaskPosition: 'center' }} />
                 ) : (
@@ -300,7 +300,7 @@ const HistoryTaskItem = ({ task, appearance, labels, onClick, onResultPointerDow
         WebkitUserSelect: 'none',
       }}
     >
-      <div style={{ width: 24, height: 24, borderRadius: 6, background: iconBackground, border: iconBorder, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+      <div style={{ width: 24, height: 24, borderRadius: 6, background: redirectUrl ? 'transparent' : iconBackground, border: redirectUrl ? 'none' : iconBorder, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
         <LinkFavicon url={redirectUrl} size={20} fallback={appearance === 'dark' && cfg.darkIconColor ? (
           <div
             style={{

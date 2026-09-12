@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { OpenFullViewIcon } from '../../../shared/ui/icons/DesktopIcons';
-import LinkFavicon from '../../../shared/ui/LinkFavicon';
 
 import { getTaskCardPresentation, normalizeCardType, CARD_TYPES } from '../../../entities/task/model/taskCardPresentation';
 import { getLogicalToday } from '../../../lib/dateHelpers';
@@ -21,7 +20,9 @@ import {
   DESKTOP_PHOTO_CARD_HEIGHT,
 } from '../model/canvasConstants';
 
-const TaskCardFaviconIcon = ({ task, appearance, cfg, url }) => {
+const TaskCardFaviconIcon = ({ task, appearance, cfg, faviconUrl: propFaviconUrl }) => {
+  const [imgError, setImgError] = useState(false);
+  const { domain } = getPackItemSourceMeta(task, {});
   const iconBackground = appearance === 'dark' ? cfg.darkBg : cfg.bg;
   const iconBorder = appearance === 'dark' ? `1px solid ${cfg.darkStroke}` : 'none';
   const photoPreview = task?.photoDataUrl || task?.photoUrl;
@@ -42,12 +43,19 @@ const TaskCardFaviconIcon = ({ task, appearance, cfg, url }) => {
     );
   }
 
+  const faviconUrl = propFaviconUrl || (domain ? `https://www.google.com/s2/favicons?domain=${domain}&sz=64` : null);
+
+  if (faviconUrl && !imgError) {
+    return (
+      <div style={{ width: 32, height: 32, borderRadius: 8, background: appearance === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.9)', border: appearance === 'dark' ? '1px solid rgba(255,255,255,0.1)' : '1px solid rgba(0,0,0,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+        <img src={faviconUrl} alt="" width={18} height={18} style={{ borderRadius: 3, objectFit: 'contain' }} onError={() => setImgError(true)} />
+      </div>
+    );
+  }
+
   return (
     <div style={{ width: 32, height: 32, borderRadius: 8, background: iconBackground, border: iconBorder, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-      <LinkFavicon
-        url={url}
-        size={20}
-        fallback={appearance === 'dark' && cfg.darkIconColor ? (
+      {appearance === 'dark' && cfg.darkIconColor ? (
           <div style={{
             width: 18,
             height: 18,
@@ -61,16 +69,15 @@ const TaskCardFaviconIcon = ({ task, appearance, cfg, url }) => {
             maskPosition: 'center',
             WebkitMaskPosition: 'center',
           }} />
-        ) : (
+      ) : (
           <img src={cfg.icon} alt="" width={18} height={18} style={{ objectFit: 'contain' }} />
-        )}
-      />
+      )}
     </div>
   );
 };
 
 const TaskCardContent = ({ task, appearance, labels }) => {
-  const { cfg, displayTitle, displaySub, redirectUrl } = getTaskCardPresentation(task, labels);
+  const { cfg, displayTitle, displaySub, faviconUrl } = getTaskCardPresentation(task, labels);
   const isPhotoCard = normalizeCardType(task?.cardType) === CARD_TYPES.PHOTO;
   const photoPreview = task?.photoDataUrl || task?.photoUrl;
 
@@ -125,7 +132,7 @@ const TaskCardContent = ({ task, appearance, labels }) => {
 
   return (
     <>
-      <TaskCardFaviconIcon task={task} appearance={appearance} cfg={cfg} url={redirectUrl} />
+      <TaskCardFaviconIcon task={task} appearance={appearance} cfg={cfg} faviconUrl={faviconUrl} />
       <div style={{ minWidth: 0, flex: 1, display: 'flex', flexDirection: 'column', gap: 2 }}>
         <div style={{ maxWidth: '100%', display: '-webkit-box', WebkitBoxOrient: 'vertical', WebkitLineClamp: 2, overflow: 'hidden', overflowWrap: 'anywhere', wordBreak: 'break-word', color: 'var(--desktop-card-title)', fontSize: 13, fontWeight: 590, lineHeight: '20px' }}>
           {contentTitle}
