@@ -13,6 +13,7 @@ import {
 } from '../../../shared/ui/icons/DesktopIcons';
 import { getTaskCardPresentation, normalizeCardType } from '../../../entities/task/model/taskCardPresentation';
 import InboxAddConfirmDialog from './InboxAddConfirmDialog';
+import LinkFavicon from '../../../shared/ui/LinkFavicon';
 
 const parseCaptureValues = (value) => (
   String(value || '')
@@ -29,19 +30,6 @@ const getInboxLinkFallbackTitle = (displayTitle, redirectUrl) => {
     return hostname || displayTitle;
   } catch {
     return displayTitle;
-  }
-};
-
-const getInboxSiteIconUrl = (redirectUrl) => {
-  if (!redirectUrl) return null;
-
-  try {
-    const normalizedUrl = /^www\./i.test(redirectUrl) ? `https://${redirectUrl}` : redirectUrl;
-    const parsedUrl = new URL(normalizedUrl);
-    if (!/^https?:$/i.test(parsedUrl.protocol)) return null;
-    return `https://www.google.com/s2/favicons?domain=${encodeURIComponent(parsedUrl.hostname)}&sz=64`;
-  } catch {
-    return null;
   }
 };
 
@@ -62,13 +50,8 @@ const InboxTaskItem = ({
 }) => {
   const { cfg, displayTitle, displaySub, redirectUrl } = getTaskCardPresentation(item, labels);
   const resolvedDisplayTitle = getInboxLinkFallbackTitle(displayTitle, redirectUrl);
-  const siteIconUrl = getInboxSiteIconUrl(redirectUrl);
-  const iconBackground = siteIconUrl
-    ? (appearance === 'dark' ? '#2a2a2c' : '#f7f8fa')
-    : (appearance === 'dark' ? cfg.darkBg : cfg.bg);
-  const iconBorder = siteIconUrl
-    ? (appearance === 'dark' ? '1px solid #3a3d42' : '1px solid #eef0f3')
-    : (appearance === 'dark' ? `1px solid ${cfg.darkStroke}` : 'none');
+  const iconBackground = appearance === 'dark' ? cfg.darkBg : cfg.bg;
+  const iconBorder = appearance === 'dark' ? `1px solid ${cfg.darkStroke}` : 'none';
 
   return (
     <div
@@ -85,18 +68,12 @@ const InboxTaskItem = ({
           border: iconBorder,
         }}
       >
-        {siteIconUrl ? (
-          <img
-            src={siteIconUrl}
-            alt=""
-            className="desktop-inbox-site-icon"
-            onError={(event) => {
-              event.currentTarget.onerror = null;
-              event.currentTarget.src = cfg.icon;
-            }}
-          />
-        ) : appearance === 'dark' && cfg.darkIconColor ? (
-          <div
+        <LinkFavicon
+          url={redirectUrl}
+          size={20}
+          className="desktop-inbox-site-icon"
+          fallback={appearance === 'dark' && cfg.darkIconColor ? (
+            <div
             style={{
               width: 14,
               height: 14,
@@ -110,14 +87,15 @@ const InboxTaskItem = ({
               maskPosition: 'center',
               WebkitMaskPosition: 'center',
             }}
-          />
-        ) : (
-          <img
+            />
+          ) : (
+            <img
             src={cfg.icon}
             alt={normalizeCardType(item.cardType)}
             style={{ width: 14, height: 14, objectFit: 'contain' }}
-          />
-        )}
+            />
+          )}
+        />
       </div>
       <div className="desktop-inbox-item-copy">
         <div className="desktop-inbox-item-title">

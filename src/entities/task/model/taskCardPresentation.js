@@ -436,16 +436,6 @@ export const getTaskCardPresentation = (
 
   const redirectUrl = resolveTaskUrl(task);
 
-  let faviconUrl = null;
-  if ((cType === CARD_TYPES.LINK || cType === CARD_TYPES.VIDEO) && redirectUrl) {
-    try {
-      const parsedUrl = new URL(redirectUrl);
-      faviconUrl = `https://www.google.com/s2/favicons?domain=${parsedUrl.hostname}&sz=128`;
-    } catch {
-      // invalid url, ignore
-    }
-  }
-
   return {
     cfg,
     cType,
@@ -454,6 +444,5 @@ export const getTaskCardPresentation = (
     redirectUrl,
     isText,
     isPlain: isText,
-    faviconUrl,
   };
 };

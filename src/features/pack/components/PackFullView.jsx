@@ -5,7 +5,7 @@ import JSZip from 'jszip';
 import { CARD_TYPES, getTaskCardPresentation, normalizeCardType } from '../../../entities/task/model/taskCardPresentation';
 import { getPackMetadataTextFromItems } from '../model/packMetadata';
 import { normalizePackTags } from '../../../entities/pack/model/packValueNormalizers';
-import { getPackItemSourceMeta } from '../model/packItemSource';
+import { getPackItemPrimaryUrl, getPackItemSourceMeta } from '../model/packItemSource';
 import {
   getDesktopGroupDisplayName,
   getDesktopGroupDisplayTags,
@@ -26,6 +26,7 @@ import {
   sanitizePackFilename,
 } from '../services/packExport';
 import DesktopDeleteConfirmModal from '../../../shared/ui/DeleteConfirmModal';
+import LinkFavicon from '../../../shared/ui/LinkFavicon';
 import {
   CloseIcon,
   GithubGlyphIcon,
@@ -40,9 +41,8 @@ import {
 } from '../../../shared/ui/icons/DesktopIcons';
 
 const PackItemSourceIcon = ({ task, appearance, labels }) => {
-  const [imgError, setImgError] = useState(false);
   const { cfg } = getTaskCardPresentation(task, labels || {});
-  const { sourceKey, domain } = getPackItemSourceMeta(task, labels || {});
+  const { sourceKey } = getPackItemSourceMeta(task, labels || {});
   const iconBackground = appearance === 'dark' ? cfg.darkBg : cfg.bg;
   const iconBorder = appearance === 'dark' ? `1px solid ${cfg.darkStroke}` : 'none';
   const photoPreview = task?.photoDataUrl || task?.photoUrl;
@@ -63,29 +63,13 @@ const PackItemSourceIcon = ({ task, appearance, labels }) => {
     );
   }
 
-  if (domain && !imgError) {
-    const faviconUrl = `https://www.google.com/s2/favicons?domain=${domain}&sz=64`;
-    return (
-      <span className="desktop-pack-page-item-leading desktop-pack-page-item-leading-favicon" aria-hidden="true">
-        <img
-          src={faviconUrl}
-          alt=""
-          width={22}
-          height={22}
-          style={{ borderRadius: 4, objectFit: 'contain' }}
-          onError={() => setImgError(true)}
-        />
-      </span>
-    );
-  }
-
   return (
     <span
       className={`desktop-pack-page-item-leading desktop-pack-page-item-leading-${sourceKey || 'link'}`}
       aria-hidden="true"
       style={{ background: iconBackground, border: iconBorder }}
     >
-      {appearance === 'dark' && cfg.darkIconColor ? (
+      <LinkFavicon url={getPackItemPrimaryUrl(task)} size={20} fallback={appearance === 'dark' && cfg.darkIconColor ? (
         <span
           style={{
             width: 18,
@@ -103,7 +87,7 @@ const PackItemSourceIcon = ({ task, appearance, labels }) => {
         />
       ) : (
         <img src={cfg.icon} alt="" width={18} height={18} style={{ objectFit: 'contain' }} />
-      )}
+      )} />
     </span>
   );
 };

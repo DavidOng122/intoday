@@ -1,5 +1,6 @@
 import React, { useMemo, useState, useEffect, useRef, useCallback } from 'react';
 import { getTaskCardPresentation, normalizeCardType } from '../../../entities/task/model/taskCardPresentation';
+import LinkFavicon from '../../../shared/ui/LinkFavicon';
 
 const SearchIcon = () => (
   <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -209,7 +210,7 @@ const PackSearchResultCard = ({ packInfo, appearance, labels, onClickPack, onCli
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
         {visiblePreviewTasks.map(task => {
-          const { cfg, displayTitle } = getTaskCardPresentation(task, labels);
+          const { cfg, displayTitle, redirectUrl } = getTaskCardPresentation(task, labels);
           return (
             <div
               key={task.id}
@@ -239,12 +240,12 @@ const PackSearchResultCard = ({ packInfo, appearance, labels, onClickPack, onCli
               onMouseEnter={(e) => { e.currentTarget.style.background = isDark ? '#333' : '#F9F9F9'; }}
               onMouseLeave={(e) => { e.currentTarget.style.background = isDark ? '#1C1C1E' : '#FFF'; }}
             >
-              <div style={{ width: 18, height: 18, borderRadius: 4, background: isDark ? cfg.darkBg : cfg.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                {isDark && cfg.darkIconColor ? (
+              <div style={{ width: 20, height: 20, borderRadius: 4, background: isDark ? cfg.darkBg : cfg.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <LinkFavicon url={redirectUrl} size={20} fallback={isDark && cfg.darkIconColor ? (
                    <div style={{ width: 10, height: 10, backgroundColor: cfg.darkIconColor, maskImage: `url(${cfg.icon})`, WebkitMaskImage: `url(${cfg.icon})`, maskSize: 'contain', WebkitMaskSize: 'contain', maskRepeat: 'no-repeat', WebkitMaskRepeat: 'no-repeat', maskPosition: 'center', WebkitMaskPosition: 'center' }} />
                 ) : (
                    <img src={cfg.icon} alt="icon" style={{ width: 10, height: 10, objectFit: 'contain' }} />
-                )}
+                )} />
               </div>
               <div style={{ flex: 1, minWidth: 0, fontSize: 13, color: isDark ? '#DDD' : '#333', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                 {displayTitle}
@@ -260,7 +261,7 @@ const PackSearchResultCard = ({ packInfo, appearance, labels, onClickPack, onCli
 
 
 const HistoryTaskItem = ({ task, appearance, labels, onClick, onResultPointerDown, onResultPointerEnd }) => {
-  const { cfg, displayTitle } = getTaskCardPresentation(task, labels);
+  const { cfg, displayTitle, redirectUrl } = getTaskCardPresentation(task, labels);
   const iconBackground = appearance === 'dark' ? cfg.darkBg : cfg.bg;
   const iconBorder = appearance === 'dark' ? `1px solid ${cfg.darkStroke}` : 'none';
 
@@ -300,7 +301,7 @@ const HistoryTaskItem = ({ task, appearance, labels, onClick, onResultPointerDow
       }}
     >
       <div style={{ width: 24, height: 24, borderRadius: 6, background: iconBackground, border: iconBorder, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-        {appearance === 'dark' && cfg.darkIconColor ? (
+        <LinkFavicon url={redirectUrl} size={20} fallback={appearance === 'dark' && cfg.darkIconColor ? (
           <div
             style={{
               width: 14,
@@ -318,7 +319,7 @@ const HistoryTaskItem = ({ task, appearance, labels, onClick, onResultPointerDow
           />
         ) : (
           <img src={cfg.icon} alt={normalizeCardType(task.cardType)} style={{ width: 14, height: 14, objectFit: 'contain' }} />
-        )}
+        )} />
       </div>
       <div style={{
         flex: 1,
