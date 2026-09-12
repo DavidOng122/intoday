@@ -23,7 +23,6 @@ export const useCanvasPointerDrag = ({
     desktopDragSourceRectRef,
     desktopDragStateRef,
     desktopSelectionStateRef,
-    selectedTaskIdsRef,
   } = runtime;
 
   const releasePendingPointer = useCallback((event) => {
@@ -52,14 +51,9 @@ export const useCanvasPointerDrag = ({
   const handleTaskPointerDown = useCallback((task, event) => {
     if (!event.isPrimary || event.button !== 0) return;
     desktopDragLastMoveRef.current = null;
-    const taskSelectionIds = getCanvasDragTaskIds(task);
-    const isWithinCurrentSelection = taskSelectionIds.some((taskId) => selectedTaskIdsRef.current.has(taskId));
-    const dragTaskIds = task.isGroupInitiator
-      ? taskSelectionIds
-      : isWithinCurrentSelection && selectedTaskIdsRef.current.size > 0
-        ? [...selectedTaskIdsRef.current]
-        : taskSelectionIds;
-    desktopDragSelectedTaskIdsRef.current = new Set(dragTaskIds);
+    // Multi-selection remains available for other Canvas actions, but a drag
+    // always moves exactly one card or the one Pack that was grabbed.
+    desktopDragSelectedTaskIdsRef.current = new Set(getCanvasDragTaskIds(task));
     setDesktopSelectionRect(null);
     desktopSelectionStateRef.current = { pointerId: null, origin: null };
     activePointerTaskRef.current = task;
@@ -103,7 +97,6 @@ export const useCanvasPointerDrag = ({
     desktopDragStateRef,
     desktopSelectionStateRef,
     getCanvasPointFromClient,
-    selectedTaskIdsRef,
     setDesktopSelectionRect,
   ]);
 
