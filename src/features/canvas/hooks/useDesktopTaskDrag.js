@@ -7,7 +7,6 @@ import {
 } from '../model/canvasConstants.js';
 import {
   getDesktopCanvasEntryHeight,
-  getDesktopCanvasOverlapEntry,
 } from '../model/canvasEntries.js';
 import { useCanvasDragCollision } from './useCanvasDragCollision.js';
 import { useCanvasDragPreview } from './useCanvasDragPreview.js';
@@ -300,11 +299,10 @@ const finishDesktopTaskDrag = useCallback((task, pointerTarget, pointerId, wasCa
               DESKTOP_GROUP_OVERLAP_THRESHOLD,
               true,
             );
-          const geometryOverlapResult = searchDragSeparateRef.current
-            ? null
-            : getDesktopCanvasOverlapEntry(prev, movingTaskIds, nextPosition);
-          const overlapResult = domOverlapResult || geometryOverlapResult;
-          const overlapEntry = overlapResult?.entry;
+          // The DOM candidates describe what is actually on screen at drop
+          // time. Do not fall back to persisted coordinates: those may still
+          // describe the source Pack and create a false merge prompt.
+          const overlapEntry = domOverlapResult?.entry;
           const isMultiDrag = desktopDragSelectedTaskIdsRef.current.size > 1;
           const isDetachedGroupTask = desktopDragDetachedFromGroupRef.current && !isMultiDrag && movingTaskIds.size === 1;
           const timestamp = Date.now();
