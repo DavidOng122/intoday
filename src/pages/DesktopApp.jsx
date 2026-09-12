@@ -323,6 +323,7 @@ function App({ session }) {
   const inboxCount = getInboxCount(activeWorkspaceTasks);
   const inboxTargetPacks = useMemo(() => getInboxTargetPacks(activeWorkspaceTasks), [activeWorkspaceTasks]);
   const { inboxOpen, openInbox, closeInbox } = useInboxPanel();
+  const [isInboxDragActive, setIsInboxDragActive] = useState(false);
   const inboxTriggerRef = useRef(null);
   const showInboxStatus = useCallback((message) => {
     setToastMessage(message);
@@ -348,6 +349,17 @@ function App({ session }) {
   const handleMoveInboxItemToPack = useCallback((itemId, packId) => (
     commitInboxPlacement({ itemId, packId })
   ), [commitInboxPlacement]);
+  const handleInboxCanvasDrop = useCallback(async (drop) => {
+    try {
+      await commitInboxPlacement(drop);
+    } finally {
+      setIsInboxDragActive(false);
+    }
+  }, [commitInboxPlacement]);
+  const handleInboxCanvasDragCancel = useCallback(() => {
+    setIsInboxDragActive(false);
+    openInbox();
+  }, [openInbox]);
   const confirmWorkspaceDeletion = useCallback(() => {
     if (!pendingWorkspaceDeletion || workspaces.length <= 1) {
       setPendingWorkspaceDeletion(null);
@@ -507,10 +519,12 @@ function App({ session }) {
     },
     externalSource: {
       isTask: isInboxItem,
-      onCancel: openInbox,
-      onDrop: commitInboxPlacement,
-      onDropFailure: openInbox,
-      onOverlayReady: closeInbox,
+      onCancel: handleInboxCanvasDragCancel,
+      onDrop: handleInboxCanvasDrop,
+      onDropFailure: handleInboxCanvasDragCancel,
+      // Keep the source mounted for pointer capture. InboxPanel becomes
+      // visually and interactively transparent while the Canvas owns the drop.
+      onOverlayReady: () => setIsInboxDragActive(true),
     },
   });
   const selectedDateKey = dateKey(selectedDate);
@@ -1036,6 +1050,7 @@ function App({ session }) {
         ) : null}
         <InboxPanel
           open={INBOX_FEATURE_ENABLED && inboxOpen}
+          isDraggingOut={isInboxDragActive}
           items={inboxItems}
           packOptions={inboxTargetPacks}
           appearance={appearance}

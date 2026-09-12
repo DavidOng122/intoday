@@ -7,6 +7,17 @@
   display: block;
 }
 
+/* Do not unmount the Inbox source during a pointer drag: it owns pointer
+   capture until pointer-up. Hide it from hit testing so the Canvas can be the
+   visible drop surface while the captured item keeps receiving move events. */
+.desktop-inbox-overlay.is-dragging-out {
+  pointer-events: none;
+}
+
+.desktop-inbox-overlay.is-dragging-out .desktop-inbox-container {
+  opacity: 0;
+}
+
 .desktop-inbox-container {
   position: absolute;
   width: 355px;

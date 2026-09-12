@@ -180,6 +180,7 @@ const InboxTaskItem = ({
 
 const InboxPanel = ({
   open,
+  isDraggingOut = false,
   items = [],
   packOptions = [],
   appearance,
@@ -383,7 +384,7 @@ const InboxPanel = ({
   return (
     <div
       role="presentation"
-      className="desktop-inbox-overlay"
+      className={`desktop-inbox-overlay ${isDraggingOut ? 'is-dragging-out' : ''}`}
       onClick={handleClose}
     >
       <div
