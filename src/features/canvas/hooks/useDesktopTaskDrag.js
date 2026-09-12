@@ -10,13 +10,13 @@ import {
 } from '../model/canvasConstants.js';
 import {
   getDesktopCanvasEntryHeight,
-  getDesktopCanvasEntryTaskIds,
   getDesktopCanvasResolvedPosition,
   getDesktopCanvasOverlapEntry,
 } from '../model/canvasEntries.js';
 import { resolveInboxCanvasDrop } from '../model/inboxCanvasDrop.js';
 import { useCanvasDragCollision } from './useCanvasDragCollision.js';
 import { useCanvasDragPreview } from './useCanvasDragPreview.js';
+import { buildCanvasDragStart } from '../model/canvasDragStart.js';
 import { getPackDisplayName } from '../../../entities/pack/model/packSelectors.js';
 import { getSuggestedDesktopGroupName } from '../../pack/model/groupMetadata.js';
 import {
@@ -161,55 +161,32 @@ const startDesktopTaskDrag = useCallback((task) => {
   getCandidatesCache(tasksRef.current);
 
   const taskId = task.id;
-  desktopDragSourceEntryIdRef.current = taskId;
-  desktopDragIsGroupRef.current = !!task.isGroupInitiator;
-  desktopDragContainerRectRef.current = viewportContainerRef.current?.getBoundingClientRect?.() || null;
-  const movingTaskIds = desktopDragSelectedTaskIdsRef.current.size > 0
-    ? [...desktopDragSelectedTaskIdsRef.current]
-    : getCanvasDragTaskIds(task);
-  const isDetachedGroupTask = !desktopDragIsGroupRef.current && !!task.desktopGroupId && movingTaskIds.length === 1;
-  desktopDragDetachedFromGroupRef.current = isDetachedGroupTask;
-
-  // Record original canvas positions of all moving tasks for multi-drag delta math
-  const entryPositionMap = new Map();
-  selectedDayEntriesRef.current.forEach((entry) => {
-    const taskIds = getDesktopCanvasEntryTaskIds(entry);
-    taskIds.forEach((entryTaskId) => {
-      entryPositionMap.set(entryTaskId, { x: entry.x, y: entry.y });
-    });
-  });
   const sourceRect = desktopDragSourceRectRef.current;
-  const sourceCanvasPoint = sourceRect
+  const sourceCanvasPosition = sourceRect
     ? getCanvasPointFromClient(sourceRect.left, sourceRect.top)
     : null;
-  const anchorPosition = entryPositionMap.get(taskId) || sourceCanvasPoint || { x: 0, y: 0 };
-  const nextPositions = new Map();
-  movingTaskIds.forEach((movingTaskId) => {
-    const movingPosition = entryPositionMap.get(movingTaskId) || anchorPosition;
-    nextPositions.set(movingTaskId, movingPosition);
+  const dragStart = buildCanvasDragStart({
+    task,
+    selectedTaskIds: desktopDragSelectedTaskIdsRef.current,
+    entries: selectedDayEntriesRef.current,
+    tasks: tasksRef.current,
+    sourceCanvasPosition,
   });
-  desktopDragSelectionPositionsRef.current = nextPositions;
+  const {
+    anchorEntry,
+    anchorPosition,
+    isDetachedGroupTask,
+    isGroup,
+    movingTaskIds,
+    originPositions,
+    overlaySnapshot,
+  } = dragStart;
+  desktopDragSourceEntryIdRef.current = taskId;
+  desktopDragIsGroupRef.current = isGroup;
+  desktopDragContainerRectRef.current = viewportContainerRef.current?.getBoundingClientRect?.() || null;
+  desktopDragDetachedFromGroupRef.current = isDetachedGroupTask;
+  desktopDragSelectionPositionsRef.current = originPositions;
   desktopDragAnchorStartPositionRef.current = anchorPosition;
-
-  const anchorEntry = selectedDayEntriesRef.current.find((entry) => getDesktopCanvasEntryTaskIds(entry).includes(taskId)) || null;
-  const overlaySnapshot = {
-    taskId,
-    type: desktopDragIsGroupRef.current ? 'group' : 'task',
-    baseX: anchorPosition.x,
-    baseY: anchorPosition.y,
-    task: null,
-    tasks: null,
-  };
-
-  if (desktopDragIsGroupRef.current) {
-    const resolvedTasks = anchorEntry?.type === 'group'
-      ? anchorEntry.tasks
-      : tasksRef.current.filter((candidate) => Array.isArray(task.groupTaskIds) && task.groupTaskIds.includes(candidate.id));
-    overlaySnapshot.tasks = resolvedTasks.map((item) => ({ ...item }));
-  } else {
-    const resolvedTask = tasksRef.current.find((candidate) => candidate.id === taskId) || task;
-    overlaySnapshot.task = { ...resolvedTask };
-  }
 
   desktopDragOverlaySnapshotRef.current = overlaySnapshot;
   setDragSession(createCanvasDragSession({
@@ -217,7 +194,7 @@ const startDesktopTaskDrag = useCallback((task) => {
     type: movingTaskIds.length > 1 ? (desktopDragIsGroupRef.current ? 'pack' : 'selection') : 'single',
     draggedIds: movingTaskIds,
     startPointer: desktopDragPointerRef.current,
-    originPositions: nextPositions,
+    originPositions,
   }));
   if (isExternalDrag) {
     flushSync(() => {
