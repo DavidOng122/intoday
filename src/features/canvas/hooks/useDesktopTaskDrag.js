@@ -3,7 +3,6 @@ import { flushSync } from 'react-dom';
 import {
   DESKTOP_CANVAS_CARD_HEIGHT,
   DESKTOP_CANVAS_CARD_WIDTH,
-  DESKTOP_DRAG_START_DISTANCE,
   DESKTOP_GROUP_OVERLAP_THRESHOLD,
 } from '../model/canvasConstants.js';
 import {
@@ -13,16 +12,16 @@ import {
 import { useCanvasDragCollision } from './useCanvasDragCollision.js';
 import { useCanvasDragPreview } from './useCanvasDragPreview.js';
 import { useExternalCanvasDrop } from './useExternalCanvasDrop.js';
+import { useCanvasPointerDrag } from './useCanvasPointerDrag.js';
 import { buildCanvasDragStart } from '../model/canvasDragStart.js';
 import { getClampedCanvasDragPosition } from '../model/canvasDragPosition.js';
 import { dateKey } from '../../../lib/dateUtils.js';
 import { reduceCanvasDrop } from '../model/canvasDrop.js';
 import { decideCanvasDrop } from '../model/canvasDropDecision.js';
-import { createCanvasDragSession, getCanvasDragTaskIds } from '../model/canvasDragSession.js';
+import { createCanvasDragSession } from '../model/canvasDragSession.js';
 
 export const useDesktopTaskDrag = ({ runtime, viewport, canvas, externalSource }) => {
   const {
-    activePointerTaskRef,
     desktopDragAnchorPointerOffsetRef,
     desktopDragAnchorSizeRef,
     desktopDragAnchorStartPositionRef,
@@ -41,9 +40,7 @@ export const useDesktopTaskDrag = ({ runtime, viewport, canvas, externalSource }
     desktopDragSourceEntryIdRef,
     desktopDragSourceRectRef,
     desktopDragStateRef,
-    desktopSelectionStateRef,
     selectedDayEntriesRef,
-    selectedTaskIdsRef,
     suppressAllTaskClicksUntilRef,
     suppressTaskClickRef,
     suppressTaskClickTimeoutRef,
@@ -429,176 +426,24 @@ const finishDesktopTaskDrag = useCallback((task, pointerTarget, pointerId, wasCa
 ]);
 
 
-const handleTaskPointerDown = useCallback((task, event) => {
-  if (!event.isPrimary || event.button !== 0) return;
-  desktopDragLastMoveRef.current = null;
-
-  const taskSelectionIds = getCanvasDragTaskIds(task);
-  const isWithinCurrentSelection = taskSelectionIds.some((taskId) => selectedTaskIdsRef.current.has(taskId));
-  const dragTaskIds = task.isGroupInitiator
-    ? taskSelectionIds
-    : isWithinCurrentSelection && selectedTaskIdsRef.current.size > 0
-      ? [...selectedTaskIdsRef.current]
-      : taskSelectionIds;
-
-  desktopDragSelectedTaskIdsRef.current = new Set(dragTaskIds);
-  setDesktopSelectionRect(null);
-  desktopSelectionStateRef.current = { pointerId: null, origin: null };
-  activePointerTaskRef.current = task;
-  desktopDragModeRef.current = false;
-  desktopDragStateRef.current = {
-    pointerId: event.pointerId,
-    taskId: task.id,
-    startX: event.clientX,
-    startY: event.clientY,
-    finalized: false,
-  };
-  desktopDragPointerRef.current = { x: event.clientX, y: event.clientY };
-  if (event.currentTarget instanceof HTMLElement) {
-    const isDetachedGroupTask = !!task.desktopGroupId && !task.isGroupInitiator;
-    const sourceNode = isDetachedGroupTask
-      ? event.currentTarget.closest('.desktop-task-wrapper') || event.currentTarget
-      : event.currentTarget.closest('.desktop-canvas-card-node') || event.currentTarget.closest('.desktop-task-wrapper') || event.currentTarget;
-    const rect = sourceNode.getBoundingClientRect();
-    const sourceCanvasPoint = getCanvasPointFromClient(rect.left, rect.top);
-    const pointerCanvasPoint = getCanvasPointFromClient(event.clientX, event.clientY);
-    desktopDragSourceRectRef.current = rect;
-    desktopDragAnchorPointerOffsetRef.current = sourceCanvasPoint && pointerCanvasPoint
-      ? {
-        x: pointerCanvasPoint.x - sourceCanvasPoint.x,
-        y: pointerCanvasPoint.y - sourceCanvasPoint.y,
-      }
-      : null;
-  } else {
-    desktopDragSourceRectRef.current = null;
-    desktopDragAnchorPointerOffsetRef.current = null;
-  }
-  desktopDragDetachedFromGroupRef.current = false;
-  event.currentTarget.setPointerCapture?.(event.pointerId);
-}, [
-  activePointerTaskRef,
-  desktopDragAnchorPointerOffsetRef,
-  desktopDragDetachedFromGroupRef,
-  desktopDragLastMoveRef,
-  desktopDragModeRef,
-  desktopDragPointerRef,
-  desktopDragSelectedTaskIdsRef,
-  desktopDragSourceRectRef,
-  desktopDragStateRef,
-  desktopSelectionStateRef,
-  getCanvasPointFromClient,
-  selectedTaskIdsRef,
-  setDesktopSelectionRect,
-]);
-
-const processDesktopDragMove = useCallback((task, clientX, clientY, nativeEvent = null) => {
-  const eventStamp = nativeEvent?.timeStamp ?? null;
-  const previousMove = desktopDragLastMoveRef.current;
-  if (
-    previousMove
-    && previousMove.eventStamp === eventStamp
-    && previousMove.clientX === clientX
-    && previousMove.clientY === clientY
-  ) return;
-  desktopDragLastMoveRef.current = { eventStamp, clientX, clientY };
-  desktopDragPointerRef.current = { x: clientX, y: clientY };
-  const deltaX = clientX - desktopDragStateRef.current.startX;
-  const deltaY = clientY - desktopDragStateRef.current.startY;
-
-  if (!desktopDragModeRef.current) {
-    const distance = Math.hypot(deltaX, deltaY);
-    if (distance >= DESKTOP_DRAG_START_DISTANCE) {
-      startDesktopTaskDrag(task);
-    } else {
-      return;
-    }
-  }
-
-  if (nativeEvent?.cancelable) {
-    nativeEvent.preventDefault();
-  }
+const onDragMove = useCallback((task, clientX, clientY) => {
   scheduleDesktopDragVisualUpdate(clientX, clientY, task.id);
   scheduleDesktopDragOverlapUpdate(clientX, clientY, task.id);
-}, [
-  desktopDragLastMoveRef,
-  desktopDragModeRef,
-  desktopDragPointerRef,
-  desktopDragStateRef,
-  scheduleDesktopDragOverlapUpdate,
-  scheduleDesktopDragVisualUpdate,
+}, [scheduleDesktopDragOverlapUpdate, scheduleDesktopDragVisualUpdate]);
+
+const {
+  handleTaskPointerDown,
+  handleTaskPointerMove,
+  handleTaskPointerUp,
+  handleTaskPointerCancel,
+} = useCanvasPointerDrag({
+  runtime,
+  getCanvasPointFromClient,
+  setDesktopSelectionRect,
   startDesktopTaskDrag,
-]);
-
-const handleTaskPointerMove = useCallback((task, event) => {
-  if (desktopDragStateRef.current.pointerId !== event.pointerId || desktopDragStateRef.current.taskId !== task.id) return;
-  processDesktopDragMove(task, event.clientX, event.clientY, event);
-}, [desktopDragStateRef, processDesktopDragMove]);
-
-const handleTaskPointerUp = useCallback((task, event) => {
-  if (desktopDragStateRef.current.pointerId !== event.pointerId || desktopDragStateRef.current.taskId !== task.id) return;
-  if (desktopDragModeRef.current) {
-    desktopDragPointerRef.current = { x: event.clientX, y: event.clientY };
-    finishDesktopTaskDrag(task, event.currentTarget, event.pointerId);
-    activePointerTaskRef.current = null;
-    return;
-  }
-
-  desktopDragStateRef.current = { pointerId: null, taskId: null, startX: 0, startY: 0, finalized: false };
-  desktopDragLastMoveRef.current = null;
-  activePointerTaskRef.current = null;
-  desktopDragAnchorPointerOffsetRef.current = null;
-  desktopDragSourceRectRef.current = null;
-  desktopDragDetachedFromGroupRef.current = false;
-  if (event.currentTarget?.hasPointerCapture?.(event.pointerId)) {
-    try {
-      event.currentTarget.releasePointerCapture(event.pointerId);
-    } catch {
-      // Pointer capture may already be released.
-    }
-  }
-}, [
-  activePointerTaskRef,
-  desktopDragAnchorPointerOffsetRef,
-  desktopDragDetachedFromGroupRef,
-  desktopDragLastMoveRef,
-  desktopDragModeRef,
-  desktopDragPointerRef,
-  desktopDragSourceRectRef,
-  desktopDragStateRef,
+  onDragMove,
   finishDesktopTaskDrag,
-]);
-
-const handleTaskPointerCancel = useCallback((task, event) => {
-  if (desktopDragStateRef.current.pointerId !== event.pointerId || desktopDragStateRef.current.taskId !== task.id) return;
-  if (desktopDragModeRef.current) {
-    desktopDragPointerRef.current = { x: event.clientX, y: event.clientY };
-    finishDesktopTaskDrag(task, event.currentTarget, event.pointerId, true);
-    activePointerTaskRef.current = null;
-    return;
-  }
-
-  desktopDragStateRef.current = { pointerId: null, taskId: null, startX: 0, startY: 0, finalized: false };
-  activePointerTaskRef.current = null;
-  desktopDragAnchorPointerOffsetRef.current = null;
-  desktopDragSourceRectRef.current = null;
-  desktopDragDetachedFromGroupRef.current = false;
-  if (event.currentTarget?.hasPointerCapture?.(event.pointerId)) {
-    try {
-      event.currentTarget.releasePointerCapture(event.pointerId);
-    } catch {
-      // Pointer capture may already be released.
-    }
-  }
-}, [
-  activePointerTaskRef,
-  desktopDragAnchorPointerOffsetRef,
-  desktopDragDetachedFromGroupRef,
-  desktopDragModeRef,
-  desktopDragPointerRef,
-  desktopDragSourceRectRef,
-  desktopDragStateRef,
-  finishDesktopTaskDrag,
-]);
+});
 
   return {
     startDesktopTaskDrag,
