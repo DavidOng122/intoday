@@ -1,7 +1,6 @@
 import { useCallback } from 'react';
 import { flushSync } from 'react-dom';
 import {
-  DESKTOP_CANVAS_CARD_GAP,
   DESKTOP_CANVAS_CARD_HEIGHT,
   DESKTOP_CANVAS_CARD_WIDTH,
   DESKTOP_DRAG_START_DISTANCE,
@@ -9,7 +8,6 @@ import {
 } from '../model/canvasConstants.js';
 import {
   getDesktopCanvasEntryHeight,
-  getDesktopCanvasResolvedPosition,
   getDesktopCanvasOverlapEntry,
 } from '../model/canvasEntries.js';
 import { useCanvasDragCollision } from './useCanvasDragCollision.js';
@@ -17,15 +15,9 @@ import { useCanvasDragPreview } from './useCanvasDragPreview.js';
 import { useExternalCanvasDrop } from './useExternalCanvasDrop.js';
 import { buildCanvasDragStart } from '../model/canvasDragStart.js';
 import { getClampedCanvasDragPosition } from '../model/canvasDragPosition.js';
-import { getPackDisplayName } from '../../../entities/pack/model/packSelectors.js';
-import { getSuggestedDesktopGroupName } from '../../pack/model/groupMetadata.js';
-import {
-  isDroppingBackIntoOriginalPack,
-  shouldPromptForGroupDrop,
-  shouldPromptForPackMerge,
-} from '../../pack/model/packMergePolicy.js';
 import { dateKey } from '../../../lib/dateUtils.js';
-import { calculateCanvasDrop, reduceCanvasDrop } from '../model/canvasDrop.js';
+import { reduceCanvasDrop } from '../model/canvasDrop.js';
+import { decideCanvasDrop } from '../model/canvasDropDecision.js';
 import { createCanvasDragSession, getCanvasDragTaskIds } from '../model/canvasDragSession.js';
 
 export const useDesktopTaskDrag = ({ runtime, viewport, canvas, externalSource }) => {
@@ -327,67 +319,33 @@ const finishDesktopTaskDrag = useCallback((task, pointerTarget, pointerId, wasCa
             : getDesktopCanvasOverlapEntry(prev, movingTaskIds, nextPosition);
           const overlapResult = domOverlapResult || geometryOverlapResult;
           const overlapEntry = overlapResult?.entry;
-          const timestamp = Date.now();
           const isMultiDrag = desktopDragSelectedTaskIdsRef.current.size > 1;
           const isDetachedGroupTask = desktopDragDetachedFromGroupRef.current && !isMultiDrag && movingTaskIds.size === 1;
-          const movingTasks = prev.filter((item) => movingTaskIds.has(item.id));
-          const isPutBack = isDroppingBackIntoOriginalPack({ movingTasks, overlapEntry });
-          const shouldShowGroupPrompt = shouldPromptForGroupDrop({ overlapEntry });
-          const previewPositions = Object.fromEntries([...movingTaskIds].map((id) => {
-            const origin = desktopDragSelectionPositionsRef.current.get(id) || anchorStart;
-            return [id, isDetachedGroupTask ? nextPosition : { x: origin.x + deltaX, y: origin.y + deltaY }];
-          }));
-          const drop = calculateCanvasDrop({
-            draggedIds: [...movingTaskIds],
+          const timestamp = Date.now();
+          const decision = decideCanvasDrop({
+            tasks: prev,
+            movingTaskIds,
             originPositions: Object.fromEntries(desktopDragSelectionPositionsRef.current),
-            previewPositions,
+            anchorPosition: anchorStart,
+            nextPosition,
+            delta: { x: deltaX, y: deltaY },
             activeDateKey,
             timestamp,
-            detachFromPack: !isGroupDrag && !isMultiDrag,
+            isGroupDrag,
+            isDetachedGroupTask,
             overlapEntry,
-            isReturningToPack: isPutBack,
           });
-
-          if (isPutBack || shouldShowGroupPrompt) {
-            // Returning an item to the Pack it came from is immediate; no modal is shown.
-
-            if (isPutBack) {
-              return cleanupDesktopGroupMetadata(reduceCanvasDrop(prev, drop));
-            }
-
-            const isMergePacks = shouldPromptForPackMerge({ isGroupDrag, overlapEntry });
-            const targetGroupName = overlapEntry.type === 'group'
-              ? getPackDisplayName(overlapEntry.tasks)
-              : null;
-
-            setPendingGroupPrompt({
-              mode: isMergePacks ? 'merge-packs' : 'create-group',
-              movingTaskIds: [...movingTaskIds],
-              targetTaskIds: overlapEntry.type === 'group'
-                ? overlapEntry.tasks.map((item) => item.id)
-                : [overlapEntry.task.id],
-              groupId: overlapEntry.type === 'group' ? overlapEntry.id : `desktop-group-${timestamp}`,
-              targetGroupName,
-              anchorX: desktopDragPointerRef.current.x,
-              anchorY: desktopDragPointerRef.current.y,
-              targetDateKey: activeDateKey,
-              overlapX: overlapEntry.x,
-              overlapY: overlapEntry.y,
-              dropX: nextPosition.x,
-              dropY: nextPosition.y,
-              fallbackPosition: getDesktopCanvasResolvedPosition(prev, movingTaskIds, {
-                x: overlapEntry.x,
-                y: overlapEntry.y + getDesktopCanvasEntryHeight(overlapEntry) + DESKTOP_CANVAS_CARD_GAP,
-              }),
-            });
-            setPendingGroupName(isMergePacks
-              ? targetGroupName || ''
-              : getSuggestedDesktopGroupName(movingTasks, overlapEntry));
-            return cleanupDesktopGroupMetadata(reduceCanvasDrop(prev, drop.move));
+          if (!decision.prompt) {
+            setPendingGroupPrompt(null);
+            return cleanupDesktopGroupMetadata(reduceCanvasDrop(prev, decision.drop));
           }
-
-          setPendingGroupPrompt(null);
-          return cleanupDesktopGroupMetadata(reduceCanvasDrop(prev, drop));
+          setPendingGroupPrompt({
+            ...decision.prompt,
+            anchorX: desktopDragPointerRef.current.x,
+            anchorY: desktopDragPointerRef.current.y,
+          });
+          setPendingGroupName(decision.suggestedGroupName);
+          return cleanupDesktopGroupMetadata(reduceCanvasDrop(prev, decision.drop.move));
           });
         });
       }
