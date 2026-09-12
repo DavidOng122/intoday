@@ -1085,6 +1085,8 @@ function App({ session }) {
         <DesktopDeleteConfirmModal
           open={Boolean(pendingCanvasDeletion)}
           title={pendingCanvasDeletion?.title || t.deleteObjectQuestion}
+          cancelLabel={t.cancel}
+          confirmLabel={t.delete}
           onCancel={cancelCanvasDeletion}
           onConfirm={confirmCanvasDeletion}
         />

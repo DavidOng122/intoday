@@ -168,8 +168,12 @@ export const useDesktopViewport = ({
         ? getDesktopCanvasEntryTaskIds(entry)
         : [];
     });
-    setSelectedTaskIds([...new Set(nextSelectedTaskIds)]);
-  }, [selectedDayEntriesRef, setSelectedTaskIds]);
+    const nextSelection = [...new Set(nextSelectedTaskIds)];
+    // Delete can be pressed immediately after pointer-up. Keep the keyboard
+    // source of truth in sync with the visible marquee, not one render later.
+    selectedTaskIdsRef.current = new Set(nextSelection);
+    setSelectedTaskIds(nextSelection);
+  }, [selectedDayEntriesRef, selectedTaskIdsRef, setSelectedTaskIds]);
 
   const handleDesktopCanvasPointerDown = useCallback((event) => {
     if (event.button !== 0 || isEditableElement(event.target)) return;
@@ -184,8 +188,9 @@ export const useDesktopViewport = ({
     event.currentTarget.setPointerCapture?.(event.pointerId);
     desktopSelectionStateRef.current = { pointerId: event.pointerId, origin };
     setDesktopSelectionRect({ x: origin.x, y: origin.y, width: 0, height: 0 });
+    selectedTaskIdsRef.current = new Set();
     setSelectedTaskIds([]);
-  }, [clampCanvasPoint, desktopSelectionStateRef, getCanvasPointFromClient, setDesktopSelectionRect, setSelectedTaskIds]);
+  }, [clampCanvasPoint, desktopSelectionStateRef, getCanvasPointFromClient, selectedTaskIdsRef, setDesktopSelectionRect, setSelectedTaskIds]);
 
   const handleDesktopCanvasPointerMove = useCallback((event) => {
     if (desktopSelectionStateRef.current.pointerId !== event.pointerId) return;
