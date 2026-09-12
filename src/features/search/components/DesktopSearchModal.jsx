@@ -23,9 +23,10 @@ const GroupedDateLabel = ({ labelKey }) => {
   );
 };
 
-const getPackDisplayName = (tasks) => (
+const getPackDisplayName = (tasks, labels) => (
   tasks.find((task) => typeof task.desktopGroupName === 'string' && task.desktopGroupName.trim())?.desktopGroupName
   || tasks[0]?.text
+  || labels.untitledWorkspace
   || 'Untitled pack'
 );
 
@@ -114,7 +115,9 @@ const PackSearchResultCard = ({ packInfo, appearance, labels, onClickPack, onCli
               cursor: 'default',
             }}
           >
-            {packInfo.matchedCount} {packInfo.matchedCount === 1 ? 'item' : 'items'}
+            {packInfo.matchedCount} {packInfo.matchedCount === 1
+              ? (labels.searchResultItem || 'item')
+              : (labels.searchResultItems || 'items')}
           </button>
           <div
             ref={exportMenuRef}
@@ -141,12 +144,12 @@ const PackSearchResultCard = ({ packInfo, appearance, labels, onClickPack, onCli
                 transition: 'opacity 0.16s ease, transform 0.16s ease, color 0.16s ease',
               }}
             >
-              Export
+              {labels.searchExport || 'Export'}
             </button>
             {isExportMenuOpen ? (
               <div
                 role="menu"
-                aria-label="Pack export options"
+                aria-label={labels.searchPackExportOptions || 'Pack export options'}
                 style={{
                   position: 'absolute',
                   top: 'calc(100% + 8px)',
@@ -163,9 +166,9 @@ const PackSearchResultCard = ({ packInfo, appearance, labels, onClickPack, onCli
                 }}
               >
                 {[
-                  { key: 'copy', label: 'Copy for AI' },
-                  { key: 'markdown', label: 'Export as Markdown' },
-                  { key: 'open', label: 'Open pack' },
+                  { key: 'copy', label: labels.searchCopyForAi || 'Copy for AI' },
+                  { key: 'markdown', label: labels.searchExportMarkdown || 'Export as Markdown' },
+                  { key: 'open', label: labels.searchOpenPack || 'Open pack' },
                 ].map((action) => (
                   <button
                     key={action.key}
@@ -407,7 +410,7 @@ const DesktopHistoryModal = ({ open, tasks, appearance, t, onClose, onTaskClick,
     packsMap.forEach((packTasks, groupId) => {
       packTasks.sort((a, b) => b.id - a.id); // newest first
       
-      const packTitle = getPackDisplayName(packTasks);
+      const packTitle = getPackDisplayName(packTasks, t);
       
       let matches = false;
       const matchedChildTasks = [];
@@ -558,20 +561,24 @@ const DesktopHistoryModal = ({ open, tasks, appearance, t, onClose, onTaskClick,
           </div>
 
           <div style={{ display: 'flex', gap: 16, padding: '0 16px', borderBottom: `1px solid ${isDark ? '#333' : '#F0F0F0'}` }}>
-            {['all', 'packs', 'items'].map(tab => (
+            {[
+              { id: 'all', label: t.searchAll || 'All' },
+              { id: 'packs', label: t.searchPacks || 'Packs' },
+              { id: 'items', label: t.searchItems || 'Items' },
+            ].map(({ id, label }) => (
               <button
-                key={tab}
+                key={id}
                 type="button"
-                onClick={() => setActiveTab(tab)}
+                onClick={() => setActiveTab(id)}
                 style={{
                   background: 'none', border: 'none', outline: 'none', cursor: 'pointer',
-                  padding: '12px 4px', fontSize: 13, fontWeight: activeTab === tab ? 600 : 500,
-                  color: activeTab === tab ? (isDark ? '#FFF' : '#111') : (isDark ? '#777' : '#999'),
-                  borderBottom: activeTab === tab ? `2px solid ${isDark ? '#FFF' : '#111'}` : '2px solid transparent',
-                  textTransform: 'capitalize', transition: 'all 0.15s ease'
+                  padding: '12px 4px', fontSize: 13, fontWeight: activeTab === id ? 600 : 500,
+                  color: activeTab === id ? (isDark ? '#FFF' : '#111') : (isDark ? '#777' : '#999'),
+                  borderBottom: activeTab === id ? `2px solid ${isDark ? '#FFF' : '#111'}` : '2px solid transparent',
+                  transition: 'all 0.15s ease'
                 }}
               >
-                {tab}
+                {label}
               </button>
             ))}
           </div>
@@ -580,7 +587,7 @@ const DesktopHistoryModal = ({ open, tasks, appearance, t, onClose, onTaskClick,
           <div className="desktop-history-scroll" style={{ flex: 1, overflowY: 'auto', padding: '16px 8px 16px 8px', minHeight: 0, paddingRight: 4 }}>
             {isEmpty ? (
               <div style={{ textAlign: 'center', padding: '32px 16px', color: mutedColor, fontSize: 14 }}>
-                No results found
+                {t.searchNoResults || 'No results found'}
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
