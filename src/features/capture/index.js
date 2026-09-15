@@ -1,6 +1,7 @@
 // Public API for the capture feature.
 
 export { useDesktopCapture } from './hooks/useDesktopCapture';
+export { default as QuickAddMenu } from './components/QuickAddMenu';
 export {
   hasSupportedUploadFiles,
   isSupportedUploadFile,

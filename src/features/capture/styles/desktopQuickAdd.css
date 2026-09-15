@@ -1,0 +1,41 @@
+.desktop-quick-add { position: relative; z-index: 45; }
+.desktop-inbox-header-actions .desktop-quick-add-popover {
+  top: calc(100% + 14px);
+  right: 0;
+  left: auto;
+  width: 270px;
+}
+
+.desktop-inbox-header-actions .desktop-quick-add-composer {
+  top: calc(100% + 14px);
+  right: 0;
+  left: auto;
+}
+.desktop-quick-add-popover, .desktop-quick-add-composer { position: absolute; top: calc(100% + 8px); left: 0; width: 242px; padding: 10px; border: 1px solid rgba(30, 41, 59, .10); border-radius: 16px; background: #fff; box-shadow: 0 18px 42px rgba(30, 41, 59, .15); }
+.desktop-quick-add-option { width: 100%; min-height: 54px; display: flex; align-items: center; gap: 11px; padding: 7px; border: 0; border-radius: 11px; color: #1e293b; background: transparent; text-align: left; cursor: pointer; }
+.desktop-quick-add-option:hover, .desktop-quick-add-option:focus-visible { background: #f8fafc; outline: none; }
+.desktop-quick-add-option:disabled { cursor: wait; opacity: .58; }
+.desktop-quick-add-option-icon { width: 36px; height: 36px; flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; border-radius: 9px; color: #49617f; background: #e8f1ff; }
+.desktop-quick-add-option-icon.is-link { color: #23775a; background: #dcf6e9; }
+.desktop-quick-add-option-icon.is-image { color: #7351b6; background: #eee5ff; }
+.desktop-quick-add-option-icon.is-file { color: #45566f; background: #edf1f5; }
+.desktop-quick-add-option-copy { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.desktop-quick-add-option-copy strong { font-size: 14px; line-height: 18px; }
+.desktop-quick-add-option-copy small { color: #8a97a9; font-size: 12px; line-height: 16px; }
+.desktop-quick-add-file-input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.desktop-quick-add-composer { width: min(385px, calc(100vw - 40px)); padding: 18px; }
+.desktop-quick-add-composer-label { display: block; margin-bottom: 8px; color: #26354d; font-size: 13px; font-weight: 700; }
+.desktop-quick-add-composer-input { width: 100%; min-height: 112px; padding: 12px; border: 1px solid #dbe2ea; border-radius: 12px; color: #1e293b; background: #fff; outline: none; resize: vertical; font: inherit; font-size: 15px; line-height: 1.45; }
+.desktop-quick-add-composer-input:focus { border-color: #8eb8ed; box-shadow: 0 0 0 3px rgba(109, 166, 230, .14); }
+.desktop-quick-add-composer-error { margin: 7px 0 0; color: #bd3434; font-size: 12px; }
+.desktop-quick-add-composer-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
+.desktop-quick-add-composer-actions button { height: 32px; padding: 0 11px; border-radius: 8px; font-size: 12px; font-weight: 650; cursor: pointer; }
+.desktop-quick-add-composer-cancel { border: 1px solid #dde3ea; color: #586575; background: #fff; }
+.desktop-quick-add-composer-submit { border: 1px solid #24334d; color: #fff; background: #24334d; }
+.desktop-quick-add-composer-submit:disabled { opacity: .6; cursor: wait; }
+.desktop-app-dark .desktop-quick-add-popover, .desktop-app-dark .desktop-quick-add-composer { border-color: #303742; background: #1d2229; }
+.desktop-app-dark .desktop-quick-add-option { color: #f0f4fa; }
+.desktop-app-dark .desktop-quick-add-option:hover { background: #272e37; }
+.desktop-app-dark .desktop-quick-add-option-copy small, .desktop-app-dark .desktop-quick-add-composer-label { color: #aeb8c7; }
+.desktop-app-dark .desktop-quick-add-composer-input { border-color: #3a4450; color: #f3f5f8; background: #15191e; }
+.desktop-app-dark .desktop-quick-add-composer-cancel { border-color: #3a4450; color: #d4dbe5; background: #222832; }

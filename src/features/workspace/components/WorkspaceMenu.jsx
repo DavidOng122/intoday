@@ -12,6 +12,7 @@ const WorkspaceMenu = ({
   onRequestDeleteWorkspace,
   onSelectWorkspace,
   open,
+  t = {},
   workspaces,
 }) => {
   const menuRef = useRef(null);
@@ -43,8 +44,8 @@ const WorkspaceMenu = ({
 
   const limitReached = !canAddWorkspace;
   return (
-    <div ref={menuRef} className={`desktop-workspace-menu desktop-spaces-popover ${limitReached ? 'is-limit-reached' : ''}`} role="menu" aria-label="My Spaces">
-      <div className="desktop-workspace-menu-label">My Spaces</div>
+    <div ref={menuRef} className={`desktop-workspace-menu desktop-spaces-popover ${limitReached ? 'is-limit-reached' : ''}`} role="menu" aria-label={t.workspaceMenuTitle || 'My Spaces'}>
+      <div className="desktop-workspace-menu-label">{t.workspaceMenuTitle || 'My Spaces'}</div>
       <div className="desktop-workspace-menu-list">
         {workspaces.map((workspace) => {
           const active = workspace.id === activeWorkspaceId;
@@ -65,7 +66,7 @@ const WorkspaceMenu = ({
                 <button
                   type="button"
                   className="desktop-workspace-menu-more"
-                  aria-label={`Workspace actions for ${workspace.name}`}
+                  aria-label={`${t.workspaceMenuTitle || 'Workspace'} actions for ${workspace.name}`}
                   aria-expanded={actionsWorkspaceId === workspace.id}
                   onClick={(event) => {
                     event.stopPropagation();
@@ -89,7 +90,7 @@ const WorkspaceMenu = ({
                     role="menuitem"
                   >
                     <Trash2 aria-hidden="true" />
-                    <span>Deleted Workspaces</span>
+                    <span>{t.deleteWorkspace || 'Delete workspace'}</span>
                   </button>
                 </div>
               )}
@@ -101,7 +102,7 @@ const WorkspaceMenu = ({
       {limitReached && (
         <div className="desktop-workspace-limit">
           <div className="desktop-workspace-limit-copy">
-            <span><CircleAlert aria-hidden="true" />Free plan limit reached</span>
+            <span><CircleAlert aria-hidden="true" />{t.workspaceLimitReached || 'Free plan limit reached'}</span>
             <strong>{workspaces.length}/{MAX_DESKTOP_WORKSPACES}</strong>
           </div>
           <div className="desktop-workspace-limit-progress" />
@@ -117,7 +118,7 @@ const WorkspaceMenu = ({
         }}
       >
         <span className="desktop-workspace-add-icon"><Plus aria-hidden="true" /></span>
-        <span>Add workspace</span>
+        <span>{t.addWorkspace || 'Add workspace'}</span>
       </button>
     </div>
   );

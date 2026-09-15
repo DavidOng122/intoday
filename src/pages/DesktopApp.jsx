@@ -609,6 +609,7 @@ function App({ session }) {
     handleCanvasFileDragOver,
     handleCanvasFileDragLeave,
     handleCanvasFileDrop,
+    importFiles,
     applyAsyncMetadata,
   } = useDesktopCapture({
     activeWorkspaceId,
@@ -821,6 +822,7 @@ function App({ session }) {
                 onRequestDeleteWorkspace={setPendingWorkspaceDeletion}
                 onSelectWorkspace={selectWorkspace}
                 open={workspaceMenuOpen}
+                t={t}
                 workspaces={workspaces}
               />
             </div>
@@ -841,8 +843,8 @@ function App({ session }) {
                 type="button"
                 onClick={openInbox}
                 className="desktop-inbox-trigger"
-                aria-label={`Inbox (${inboxCount})`}
-                title="Inbox"
+                aria-label={`${t.inbox || 'Inbox'} (${inboxCount})`}
+                title={t.inbox || 'Inbox'}
               >
                 <span className="desktop-inbox-trigger-icon" aria-hidden="true">
                   <svg width="19" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.55" strokeLinecap="round" strokeLinejoin="round">
@@ -850,7 +852,7 @@ function App({ session }) {
                     <path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z" />
                   </svg>
                 </span>
-                <span className="desktop-inbox-trigger-label">Inbox</span>
+                <span className="desktop-inbox-trigger-label">{t.inbox || 'Inbox'}</span>
                 <span className="desktop-inbox-trigger-count" aria-hidden="true">{inboxCount}</span>
               </button>
             )}
@@ -1056,6 +1058,7 @@ function App({ session }) {
           t={t}
           onClose={closeInbox}
           onCreateItem={handleCreateInboxItem}
+          onImportFiles={importFiles}
           onMoveToPack={handleMoveInboxItemToPack}
           onTaskPointerDown={handleTaskPointerDown}
           onTaskPointerMove={handleTaskPointerMove}

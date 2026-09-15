@@ -12,14 +12,7 @@ import {
   PlusIcon,
 } from '../../../shared/ui/icons/DesktopIcons';
 import { getTaskCardPresentation, normalizeCardType } from '../../../entities/task/model/taskCardPresentation';
-import InboxAddConfirmDialog from './InboxAddConfirmDialog';
-
-const parseCaptureValues = (value) => (
-  String(value || '')
-    .split(/\r?\n/)
-    .map((item) => item.trim())
-    .filter(Boolean)
-);
+import QuickAddMenu from '../../capture/components/QuickAddMenu';
 
 const getInboxLinkFallbackTitle = (displayTitle, redirectUrl) => {
   if (!redirectUrl || !/^(link|链接)$/i.test(String(displayTitle || '').trim())) return displayTitle;
@@ -60,10 +53,16 @@ const InboxTaskItem = ({
   onPointerCancel,
 }) => {
   const { cfg, displayTitle, displaySub, redirectUrl } = getTaskCardPresentation(item, labels);
+  const [thumbnailFailed, setThumbnailFailed] = useState(false);
   const resolvedDisplayTitle = getInboxLinkFallbackTitle(displayTitle, redirectUrl);
   const siteIconUrl = getInboxSiteIconUrl(redirectUrl);
-  const iconBackground = siteIconUrl ? (appearance === 'dark' ? '#2a2a2c' : '#f7f8fa') : (appearance === 'dark' ? cfg.darkBg : cfg.bg);
-  const iconBorder = siteIconUrl ? (appearance === 'dark' ? '1px solid #3a3d42' : '1px solid #eef0f3') : (appearance === 'dark' ? `1px solid ${cfg.darkStroke}` : 'none');
+  const uploadedImageUrl = String(item?.uploadedFileType || '').toLowerCase() === 'image'
+    ? (item.photoUrl || item.photoDataUrl || null)
+    : null;
+  const shouldShowUploadedThumbnail = Boolean(uploadedImageUrl && !thumbnailFailed);
+  const usesNeutralIconSurface = Boolean(siteIconUrl || uploadedImageUrl);
+  const iconBackground = usesNeutralIconSurface ? (appearance === 'dark' ? '#2a2a2c' : '#f7f8fa') : (appearance === 'dark' ? cfg.darkBg : cfg.bg);
+  const iconBorder = usesNeutralIconSurface ? (appearance === 'dark' ? '1px solid #3a3d42' : '1px solid #eef0f3') : (appearance === 'dark' ? `1px solid ${cfg.darkStroke}` : 'none');
 
   return (
     <div
@@ -80,7 +79,14 @@ const InboxTaskItem = ({
           border: iconBorder,
         }}
       >
-        {siteIconUrl ? (
+        {shouldShowUploadedThumbnail ? (
+          <img
+            src={uploadedImageUrl}
+            alt=""
+            className="desktop-inbox-uploaded-thumbnail"
+            onError={() => setThumbnailFailed(true)}
+          />
+        ) : siteIconUrl ? (
           <img src={siteIconUrl} alt="" className="desktop-inbox-site-icon" onError={(event) => { event.currentTarget.onerror = null; event.currentTarget.src = cfg.icon; }} />
         ) : appearance === 'dark' && cfg.darkIconColor ? (
           <div
@@ -125,7 +131,7 @@ const InboxTaskItem = ({
           title={packOptions.length ? 'Move to a Pack' : 'No Packs available'}
           onClick={(event) => onToggleMoveMenu(item.id, event.currentTarget)}
         >
-          {isMoving ? 'Moving...' : 'Move to...'}
+          {isMoving ? (labels.moving || 'Moving...') : (labels.moveToPack || 'Move to...')}
         </button>
 
         {isMoveMenuOpen && moveMenuPosition && typeof document !== 'undefined' ? createPortal(
@@ -174,6 +180,7 @@ const InboxPanel = ({
   t = {},
   onClose,
   onCreateItem,
+  onImportFiles,
   onMoveToPack,
   onTaskPointerDown,
   onTaskPointerMove,
@@ -186,11 +193,6 @@ const InboxPanel = ({
   const [moveMenuPosition, setMoveMenuPosition] = useState(null);
   const [movingItemId, setMovingItemId] = useState(null);
   const [moveError, setMoveError] = useState('');
-  const [addModeOpen, setAddModeOpen] = useState(false);
-  const [captureValue, setCaptureValue] = useState('');
-  const [captureSubmitting, setCaptureSubmitting] = useState(false);
-  const [captureError, setCaptureError] = useState('');
-  const [pendingCaptureValues, setPendingCaptureValues] = useState([]);
   const panelRef = useRef(null);
 
   const handleClose = useCallback(() => {
@@ -199,61 +201,7 @@ const InboxPanel = ({
     setActiveMoveItemId(null);
     setMoveMenuPosition(null);
     setMoveError('');
-    setAddModeOpen(false);
-    setCaptureValue('');
-    setCaptureSubmitting(false);
-    setCaptureError('');
-    setPendingCaptureValues([]);
   }, [onClose]);
-
-  const handleToggleAddMode = useCallback(() => {
-    setAddModeOpen((current) => !current);
-    setActiveMoveItemId(null);
-    setMoveMenuPosition(null);
-    setMoveError('');
-    setCaptureError('');
-  }, []);
-
-  const handleCaptureSubmit = useCallback((nextValue = captureValue) => {
-    const values = parseCaptureValues(nextValue);
-    if (!values.length || captureSubmitting || typeof onCreateItem !== 'function') return;
-
-    setCaptureError('');
-    setPendingCaptureValues(values);
-  }, [captureSubmitting, captureValue, onCreateItem]);
-
-  const handleConfirmCapture = useCallback(async () => {
-    if (!pendingCaptureValues.length || captureSubmitting || typeof onCreateItem !== 'function') return;
-
-    setCaptureSubmitting(true);
-    setCaptureError('');
-    const failedValues = [];
-    for (const value of pendingCaptureValues) {
-      try {
-        await onCreateItem(value);
-      } catch {
-        failedValues.push(value);
-      }
-    }
-
-    setCaptureSubmitting(false);
-    setPendingCaptureValues(failedValues);
-    if (failedValues.length) {
-      setCaptureError('Some items could not be added. Please try again.');
-      return;
-    }
-    setCaptureValue('');
-  }, [captureSubmitting, onCreateItem, pendingCaptureValues]);
-
-  const handleCapturePaste = useCallback((event) => {
-    const pastedText = event.clipboardData?.getData('text')?.trim() || '';
-    const values = parseCaptureValues(pastedText);
-    if (!values.length) return;
-
-    event.preventDefault();
-    setCaptureValue(pastedText);
-    void handleCaptureSubmit(pastedText);
-  }, [handleCaptureSubmit]);
 
   const handleToggleMoveMenu = useCallback((itemId, anchorElement) => {
     setMoveError('');
@@ -306,13 +254,9 @@ const InboxPanel = ({
 
     const handleKeyDown = (e) => {
       if (e.key === 'Escape') {
-        if (pendingCaptureValues.length) {
-          setPendingCaptureValues([]);
-        } else if (activeMoveItemId !== null) {
+        if (activeMoveItemId !== null) {
           setActiveMoveItemId(null);
           setMoveMenuPosition(null);
-        } else if (addModeOpen) {
-          setAddModeOpen(false);
         } else {
           handleClose();
         }
@@ -321,7 +265,7 @@ const InboxPanel = ({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [activeMoveItemId, addModeOpen, open, handleClose, pendingCaptureValues.length]);
+  }, [activeMoveItemId, open, handleClose]);
 
   useLayoutEffect(() => {
     if (!open) return undefined;
@@ -379,29 +323,34 @@ const InboxPanel = ({
         className="desktop-inbox-container"
         role="dialog"
         aria-modal="true"
-        aria-label="Inbox"
+        aria-label={t.inbox || 'Inbox'}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="desktop-inbox-header">
           <div className="desktop-inbox-title-row">
             <div className="desktop-inbox-heading-group">
-              <h2 className="desktop-inbox-heading">Inbox</h2>
+              <h2 className="desktop-inbox-heading">{t.inbox || 'Inbox'}</h2>
               <span className="desktop-inbox-heading-count">{items.length}</span>
             </div>
             <div className="desktop-inbox-header-actions">
-              <button
-                type="button"
-                className={`desktop-inbox-add-toggle ${addModeOpen ? 'is-open' : ''}`}
-                onClick={handleToggleAddMode}
-                aria-label={addModeOpen ? 'Close Inbox input' : 'Add to Inbox'}
-                aria-expanded={addModeOpen}
-              >
-                {addModeOpen ? (
-                  <span className="desktop-inbox-minus-icon" aria-hidden="true">−</span>
-                ) : (
-                  <PlusIcon size={18} />
+              <span className="desktop-inbox-new-badge" aria-label={t.quickAddNew || 'New feature'}>{t.quickAddNew || 'NEW'}</span>
+              <QuickAddMenu
+                labels={t}
+                onCreateItem={onCreateItem}
+                onImportFiles={onImportFiles}
+                renderTrigger={({ open: quickAddOpen, toggle }) => (
+                  <button
+                    type="button"
+                    className={`desktop-inbox-add-toggle ${quickAddOpen ? 'is-open' : ''}`}
+                    onClick={toggle}
+                    aria-label={t.quickAddMenuLabel || 'Add to Inbox'}
+                    aria-expanded={quickAddOpen}
+                    aria-haspopup="menu"
+                  >
+                    <PlusIcon size={18} />
+                  </button>
                 )}
-              </button>
+              />
               <button
                 type="button"
                 className="desktop-inbox-close-btn"
@@ -413,57 +362,26 @@ const InboxPanel = ({
             </div>
           </div>
           <p className="desktop-inbox-subheading">
-            {items.length} unorganized {items.length === 1 ? 'item' : 'items'}
+            {(items.length === 1 ? (t.inboxUnorganizedOne || '{count} unorganized item') : (t.inboxUnorganizedOther || '{count} unorganized items')).replace('{count}', items.length)}
           </p>
-          {addModeOpen ? (
-            <div className="desktop-inbox-capture-container">
-              <input
-                type="text"
-                className="desktop-inbox-capture-input"
-                placeholder="Paste link or type text..."
-                value={captureValue}
-                readOnly={captureSubmitting}
-                aria-busy={captureSubmitting}
-                onChange={(event) => {
-                  setCaptureValue(event.target.value);
-                  setCaptureError('');
-                }}
-                onPaste={handleCapturePaste}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter' && !event.nativeEvent.isComposing) {
-                    event.preventDefault();
-                    void handleCaptureSubmit();
-                  }
-                }}
-                autoFocus
-              />
-              {captureSubmitting ? (
-                <span className="desktop-inbox-capture-status" role="status">Adding...</span>
-              ) : null}
-              {captureError ? (
-                <span className="desktop-inbox-capture-error" role="status">{captureError}</span>
-              ) : null}
-            </div>
-          ) : (
-            <div className="desktop-inbox-search-container">
-              <span className="desktop-inbox-search-icon" aria-hidden="true">
-                <SearchIcon />
-              </span>
-              <input
-                type="text"
-                placeholder={t.searchInbox || 'Search inbox...'}
-                value={searchQuery}
-                onChange={(e) => {
-                  setSearchQuery(e.target.value);
-                  setActiveMoveItemId(null);
-                }}
-                className="desktop-inbox-search-input"
-              />
-              <span className="desktop-inbox-search-icon desktop-inbox-search-icon-right" aria-hidden="true">
-                <SearchIcon />
-              </span>
-            </div>
-          )}
+          <div className="desktop-inbox-search-container">
+            <span className="desktop-inbox-search-icon" aria-hidden="true">
+              <SearchIcon />
+            </span>
+            <input
+              type="text"
+              placeholder={t.searchInbox || 'Search inbox...'}
+              value={searchQuery}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setActiveMoveItemId(null);
+              }}
+              className="desktop-inbox-search-input"
+            />
+            <span className="desktop-inbox-search-icon desktop-inbox-search-icon-right" aria-hidden="true">
+              <SearchIcon />
+            </span>
+          </div>
         </div>
 
         <div
@@ -478,7 +396,7 @@ const InboxPanel = ({
           ) : null}
           {isEmpty ? (
             <div className="desktop-inbox-empty">
-              No items to organize
+              {t.inboxEmpty || 'No items to organize'}
             </div>
           ) : (
             <div className="desktop-inbox-list">
@@ -504,20 +422,6 @@ const InboxPanel = ({
           )}
         </div>
       </div>
-      <InboxAddConfirmDialog
-        open={pendingCaptureValues.length > 0}
-        values={pendingCaptureValues}
-        appearance={appearance}
-        submitting={captureSubmitting}
-        error={captureError}
-        onClose={() => {
-          if (!captureSubmitting) setPendingCaptureValues([]);
-        }}
-        onRemove={(index) => {
-          setPendingCaptureValues((current) => current.filter((_, itemIndex) => itemIndex !== index));
-        }}
-        onConfirm={handleConfirmCapture}
-      />
     </div>
   );
 };

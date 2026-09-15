@@ -1,13 +1,11 @@
 import { createInboxTask } from '../../inbox';
-import { createUpdatedTimestamp } from '../../pack/model/packMetadata';
 import { normalizeTask } from '../../../lib/taskNormalize';
-import { getUploadedFileRecord, saveUploadedFileBlob } from '../../../shared/storage/uploadedFileStorage';
+import { getUploadedFileRecord } from '../../../shared/storage/uploadedFileStorage';
 import {
-  createUploadedFileStorageKey,
   hasSupportedUploadFiles,
   isSupportedUploadFile,
-  serializeUploadAttachment,
 } from '../services/uploadUtils';
+import { createUploadedTasks } from '../services/uploadedTaskFactory';
 import {
   CARD_TYPES,
   fetchLinkPreviewMeta,
@@ -23,7 +21,6 @@ import {
   DESKTOP_CANVAS_CARD_WIDTH,
   DESKTOP_PHOTO_CARD_HEIGHT,
 } from '../../canvas';
-import { UPLOADED_FILE_SOURCE_LABEL } from '../config/uploadConstants';
 
 export const useDesktopCapture = ({
   activeWorkspaceId,
@@ -122,90 +119,25 @@ export const useDesktopCapture = ({
       setIsCanvasFileDragActive(false);
     }
   };
-  const handleCanvasFileDrop = async (event) => {
-    // We only prevent default and proceed if there are files.
-    // If it's an internal task drag (draggedTaskId), we clear the overlay and let internal logic handle it.
-    if (!hasSupportedUploadFiles(event.dataTransfer)) {
-      if (draggedTaskId) {
-        setIsCanvasFileDragActive(false);
-        canvasFileDragDepthRef.current = 0;
-      }
-      return;
-    }
-  
-    event.preventDefault();
-    event.stopPropagation();
-    canvasFileDragDepthRef.current = 0;
-    setIsCanvasFileDragActive(false);
-  
-    const supportedFiles = Array.from(event.dataTransfer?.files || []).filter((file) => isSupportedUploadFile(file));
+  // Upload creation is shared, while the entry point explicitly controls its
+  // destination: Inbox menu uploads remain unorganised; a native Canvas drop
+  // is placed at the user's drop point.
+  const importFiles = async (files, { dropBasePosition = null, destination = inboxEnabled ? 'inbox' : 'canvas' } = {}) => {
+    const supportedFiles = Array.from(files || []).filter((file) => isSupportedUploadFile(file));
     if (!supportedFiles.length) return;
   
     const droppedDateKey = selectedDateRef.current ? dateKey(selectedDateRef.current) : selectedDateKey;
-    const dropCenter = getCanvasPointFromClient(event.clientX, event.clientY);
-    const dropBasePosition = dropCenter
-      ? { x: dropCenter.x - DESKTOP_CANVAS_CARD_WIDTH / 2, y: dropCenter.y - DESKTOP_PHOTO_CARD_HEIGHT / 2 }
-      : null;
   
     try {
-      const serializedAttachments = await Promise.all(supportedFiles.map((file) => serializeUploadAttachment(file)));
-      const operationUpdatedAt = createUpdatedTimestamp();
-      
-      const fileTasks = await Promise.all(serializedAttachments.map(async (attachment, index) => {
-        const storageKey = createUploadedFileStorageKey(attachment.originalFileName);
-        await saveUploadedFileBlob({
-          storageKey,
-          blob: attachment.file,
-          metadata: {
-            originalFileName: attachment.originalFileName,
-            mimeType: attachment.mimeType,
-            size: attachment.size,
-            uploadedFileType: attachment.uploadKind,
-            createdAt: operationUpdatedAt,
-            updatedAt: operationUpdatedAt,
-          },
-        });
-        
-        const taskId = Date.now() + index + Math.floor(Math.random() * 1000);
-        const isImageAttachment = attachment.uploadKind === 'image';
-        
-        return normalizeTask({
-          id: taskId,
-          text: attachment.title,
-          title: attachment.title,
-          completed: false,
-          desktopWorkspaceId: activeWorkspaceId,
-          timeOfDay: 'Morning',
-          dateString: droppedDateKey,
-          updatedAt: operationUpdatedAt,
-          cardType: isImageAttachment ? CARD_TYPES.PHOTO : CARD_TYPES.DOCUMENT,
-          primaryUrl: null,
-          source: UPLOADED_FILE_SOURCE_LABEL,
-          uploadedSourceLabel: UPLOADED_FILE_SOURCE_LABEL,
-          uploadedFileStorageKey: storageKey,
-          uploadedFileType: attachment.uploadKind,
-          uploadedOriginalFileName: attachment.originalFileName,
-          uploadedMimeType: attachment.mimeType,
-          uploadedFileSize: attachment.size,
-          uploadedCreatedAt: attachment.createdAt,
-          uploadedUpdatedAt: operationUpdatedAt,
-          extractedText: null,
-          redirectUrl: isImageAttachment ? (attachment.previewUrl || attachment.photoDataUrl || null) : null,
-          photoUrl: isImageAttachment ? (attachment.previewUrl || attachment.photoDataUrl || null) : null,
-          photoTitle: isImageAttachment ? attachment.title : null,
-          photoFileName: isImageAttachment ? attachment.originalFileName : null,
-          photoDataUrl: isImageAttachment ? attachment.photoDataUrl : null,
-          photoWidth: isImageAttachment ? attachment.photoWidth : null,
-          photoHeight: isImageAttachment ? attachment.photoHeight : null,
-          desktopSlot: null,
-          desktopZ: Date.now() + index,
-        });
-      }));
+      const fileTasks = await createUploadedTasks(supportedFiles, {
+        workspaceId: activeWorkspaceId,
+        dateString: droppedDateKey,
+      });
   
       setTasks((prev) => {
         let nextTasks = [...prev];
         fileTasks.forEach((task, index) => {
-          if (inboxEnabled) {
+          if (destination === 'inbox') {
             nextTasks = [...nextTasks, normalizeTask(createInboxTask(task))];
             return;
           }
@@ -239,8 +171,34 @@ export const useDesktopCapture = ({
   
       showToast(supportedFiles.length === 1 ? 'File added' : `${supportedFiles.length} files added`);
     } catch (error) {
-      console.error('Failed to import dropped files:', error);
+      console.error('Failed to import files:', error);
       showToast('Unable to import files');
+      throw error;
+    }
+  };
+  const handleCanvasFileDrop = async (event) => {
+    // We only prevent default and proceed if there are files. If an internal
+    // task is being dragged, clear this overlay and let its own handler finish.
+    if (!hasSupportedUploadFiles(event.dataTransfer)) {
+      if (draggedTaskId) {
+        setIsCanvasFileDragActive(false);
+        canvasFileDragDepthRef.current = 0;
+      }
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+    canvasFileDragDepthRef.current = 0;
+    setIsCanvasFileDragActive(false);
+    const dropCenter = getCanvasPointFromClient(event.clientX, event.clientY);
+    const dropBasePosition = dropCenter
+      ? { x: dropCenter.x - DESKTOP_CANVAS_CARD_WIDTH / 2, y: dropCenter.y - DESKTOP_PHOTO_CARD_HEIGHT / 2 }
+      : null;
+    try {
+      await importFiles(event.dataTransfer?.files, { dropBasePosition, destination: 'canvas' });
+    } catch {
+      // importFiles already reported the user-facing failure.
     }
   };
   const applyAsyncMetadata = (taskId, cardType, videoUrl, mapUrl, primaryUrl, updatedAt = null) => {
@@ -271,6 +229,7 @@ export const useDesktopCapture = ({
     handleCanvasFileDragOver,
     handleCanvasFileDragLeave,
     handleCanvasFileDrop,
+    importFiles,
     applyAsyncMetadata,
   };
 };
