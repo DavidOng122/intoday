@@ -631,7 +631,9 @@ function App({ session }) {
   });
 
   const handleCreateInboxItem = useCallback(async (value) => {
-    const rawText = String(value || '').trim();
+    const isTextDraft = value && typeof value === 'object';
+    const rawText = String(isTextDraft ? value.text : value || '').trim();
+    const explicitTitle = isTextDraft ? String(value.title || '').trim() : '';
     if (!rawText) return null;
 
     const typeFields = getDerivedTaskFields(rawText);
@@ -653,6 +655,8 @@ function App({ session }) {
           dateString: selectedDateKey,
           updatedAt: operationUpdatedAt,
           ...typeFields,
+          ...(isTextDraft ? { cardType: CARD_TYPES.TEXT, primaryUrl: null, redirectUrl: null } : {}),
+          ...(explicitTitle ? { title: explicitTitle } : {}),
           desktopZ: Date.now(),
         }));
 

@@ -16,6 +16,13 @@
 .desktop-text-detail-editor.is-inline:focus { border: 0; box-shadow: none; }
 .desktop-text-detail-editor:focus { border-color: #89aee0; box-shadow: 0 0 0 3px rgba(102, 153, 212, .16); }
 .desktop-text-detail-footer { min-height: 48px; padding: 10px 28px; border-top: 1px solid #e8edf3; display: flex; align-items: center; justify-content: flex-end; gap: 16px; color: #91a0b7; font-size: 12px; }
+.desktop-text-capture-footer { justify-content: space-between; }
+.desktop-text-capture-actions { display: flex; align-items: center; gap: 9px; }
+.desktop-text-capture-cancel, .desktop-text-capture-submit { height: 34px; padding: 0 14px; border-radius: 8px; font: inherit; font-size: 13px; font-weight: 650; cursor: pointer; }
+.desktop-text-capture-cancel { border: 1px solid #dbe2ea; color: #526074; background: #fff; }
+.desktop-text-capture-submit { border: 1px solid #24334d; color: #fff; background: #24334d; }
+.desktop-text-capture-submit:disabled { cursor: wait; opacity: .62; }
+.desktop-text-capture-error { color: #bd3434; }
 .desktop-text-detail-backdrop.is-dark { background: rgba(0, 0, 0, .68); }
 .desktop-text-detail-backdrop.is-dark .desktop-text-detail-modal { border-color: #394451; background: #1b222b; color: #e8edf5; }
 .desktop-text-detail-backdrop.is-dark .desktop-text-detail-header, .desktop-text-detail-backdrop.is-dark .desktop-text-detail-footer { border-color: #343e4b; }
@@ -23,4 +30,6 @@
 .desktop-text-detail-backdrop.is-dark .desktop-text-detail-icon-button { color: #cbd5e1; }
 .desktop-text-detail-backdrop.is-dark .desktop-text-detail-icon-button:hover, .desktop-text-detail-backdrop.is-dark .desktop-text-detail-icon-button:focus-visible { background: #2a3440; }
 .desktop-text-detail-backdrop.is-dark .desktop-text-detail-editor { border-color: #44515f; color: #edf2f8; background: #121820; }
+.desktop-text-detail-backdrop.is-dark .desktop-text-capture-cancel { border-color: #3a4450; color: #d4dbe5; background: #222832; }
+.desktop-text-detail-backdrop.is-dark .desktop-text-capture-submit { border-color: #8fa9cc; background: #8fa9cc; color: #101821; }
 @media (max-width: 640px) { .desktop-text-detail-backdrop { padding: 12px; } .desktop-text-detail-modal { width: 100%; min-height: calc(100vh - 24px); } .desktop-text-detail-header { padding: 16px 18px 10px; } .desktop-text-detail-body { padding: 22px; } .desktop-text-detail-footer { padding: 10px 18px; } .desktop-text-detail-heading h2 { font-size: 19px; } }

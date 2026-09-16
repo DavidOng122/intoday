@@ -1,8 +1,9 @@
 import QuickAddComposer from './QuickAddComposer';
+import TextCaptureModal from './TextCaptureModal';
 import { useQuickAdd } from '../hooks/useQuickAdd';
 import { QUICK_ADD_OPTIONS } from '../config/quickAddOptions';
 
-const QuickAddMenu = ({ labels, onCreateItem, onImportFiles, renderTrigger }) => {
+const QuickAddMenu = ({ appearance, labels, onCreateItem, onImportFiles, renderTrigger }) => {
   const {
     rootRef,
     imageInputRef,
@@ -57,7 +58,9 @@ const QuickAddMenu = ({ labels, onCreateItem, onImportFiles, renderTrigger }) =>
         </div>
       ) : null}
 
-      {composerKind ? (
+      {composerKind === 'text' ? (
+        <TextCaptureModal appearance={appearance} labels={labels} onCancel={close} onSubmit={submitComposer} />
+      ) : composerKind ? (
         <QuickAddComposer kind={composerKind} labels={labels} onCancel={close} onSubmit={submitComposer} />
       ) : null}
     </div>

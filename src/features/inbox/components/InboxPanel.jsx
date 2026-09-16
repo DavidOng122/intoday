@@ -336,6 +336,7 @@ const InboxPanel = ({
             <div className="desktop-inbox-header-actions">
               <span className="desktop-inbox-new-badge" aria-label={t.quickAddNew || 'New feature'}>{t.quickAddNew || 'NEW'}</span>
               <QuickAddMenu
+                appearance={appearance}
                 labels={t}
                 onCreateItem={onCreateItem}
                 onImportFiles={onImportFiles}
