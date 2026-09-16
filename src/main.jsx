@@ -12,6 +12,7 @@ import './features/pack/styles/desktopPack.css';
 import './features/search/styles/desktopSearch.css';
 import './features/inbox/styles/desktopInbox.css';
 import './features/capture/styles/desktopQuickAdd.css';
+import './features/task-detail/styles/textTaskDetail.css';
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>

@@ -53,6 +53,7 @@ export const normalizeTask = (task) => {
     photoUrl: typeof task.photoUrl === 'string' && task.photoUrl.trim() ? task.photoUrl : null,
     photoTitle: typeof task.photoTitle === 'string' && task.photoTitle.trim() ? task.photoTitle : null,
     uploadedFileStorageKey: typeof task.uploadedFileStorageKey === 'string' && task.uploadedFileStorageKey.trim() ? task.uploadedFileStorageKey : null,
+    uploadedFileStoragePath: typeof task.uploadedFileStoragePath === 'string' && task.uploadedFileStoragePath.trim() ? task.uploadedFileStoragePath : null,
     uploadedFileType: typeof task.uploadedFileType === 'string' && task.uploadedFileType.trim() ? task.uploadedFileType : null,
     uploadedOriginalFileName: typeof task.uploadedOriginalFileName === 'string' && task.uploadedOriginalFileName.trim() ? task.uploadedOriginalFileName : null,
     uploadedMimeType: typeof task.uploadedMimeType === 'string' && task.uploadedMimeType.trim() ? task.uploadedMimeType : null,

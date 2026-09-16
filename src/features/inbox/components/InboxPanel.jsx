@@ -13,6 +13,8 @@ import {
 } from '../../../shared/ui/icons/DesktopIcons';
 import { getTaskCardPresentation, normalizeCardType } from '../../../entities/task/model/taskCardPresentation';
 import QuickAddMenu from '../../capture/components/QuickAddMenu';
+import TaskPhotoImage from '../../../shared/ui/TaskPhotoImage';
+import { hasTaskPhotoPreview } from '../../../shared/storage/taskPhotoPreview';
 
 const getInboxLinkFallbackTitle = (displayTitle, redirectUrl) => {
   if (!redirectUrl || !/^(link|链接)$/i.test(String(displayTitle || '').trim())) return displayTitle;
@@ -56,11 +58,10 @@ const InboxTaskItem = ({
   const [thumbnailFailed, setThumbnailFailed] = useState(false);
   const resolvedDisplayTitle = getInboxLinkFallbackTitle(displayTitle, redirectUrl);
   const siteIconUrl = getInboxSiteIconUrl(redirectUrl);
-  const uploadedImageUrl = String(item?.uploadedFileType || '').toLowerCase() === 'image'
-    ? (item.photoUrl || item.photoDataUrl || null)
-    : null;
-  const shouldShowUploadedThumbnail = Boolean(uploadedImageUrl && !thumbnailFailed);
-  const usesNeutralIconSurface = Boolean(siteIconUrl || uploadedImageUrl);
+  const hasUploadedImage = String(item?.uploadedFileType || '').toLowerCase() === 'image'
+    && hasTaskPhotoPreview(item);
+  const shouldShowUploadedThumbnail = Boolean(hasUploadedImage && !thumbnailFailed);
+  const usesNeutralIconSurface = Boolean(siteIconUrl || hasUploadedImage);
   const iconBackground = usesNeutralIconSurface ? (appearance === 'dark' ? '#2a2a2c' : '#f7f8fa') : (appearance === 'dark' ? cfg.darkBg : cfg.bg);
   const iconBorder = usesNeutralIconSurface ? (appearance === 'dark' ? '1px solid #3a3d42' : '1px solid #eef0f3') : (appearance === 'dark' ? `1px solid ${cfg.darkStroke}` : 'none');
 
@@ -80,8 +81,8 @@ const InboxTaskItem = ({
         }}
       >
         {shouldShowUploadedThumbnail ? (
-          <img
-            src={uploadedImageUrl}
+          <TaskPhotoImage
+            task={item}
             alt=""
             className="desktop-inbox-uploaded-thumbnail"
             onError={() => setThumbnailFailed(true)}

@@ -45,10 +45,27 @@ const readLocalTodos = (userId, normalizeTodo) => {
   return mergeById(scopedTodos, legacyTodos);
 };
 
+const toCloudPayload = (todo) => {
+  const {
+    localPreviewUrl: _localPreviewUrl,
+    uploadState: _uploadState,
+    ...payload
+  } = todo;
+
+  // New uploads keep binary data in Storage. Never re-introduce a large Base64
+  // value into the JSON task row once a Storage object exists.
+  if (payload.uploadedFileStoragePath) {
+    payload.photoDataUrl = null;
+    payload.photoUrl = null;
+    payload.redirectUrl = null;
+  }
+  return payload;
+};
+
 const toCloudRow = (userId, todo) => ({
   user_id: userId,
   todo_id: Number(todo.id),
-  payload: todo,
+  payload: toCloudPayload(todo),
   is_deleted: false,
 });
 

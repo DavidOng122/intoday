@@ -14,6 +14,7 @@ export const useDesktopTaskActions = ({
   cleanupDesktopGroupMetadata,
   defaultWorkspaceId,
   openUploadedFileTask,
+  onOpenTextTask,
   onGroupsDeleted,
   pendingCanvasDeletion,
   selectedTaskIdsRef,
@@ -121,8 +122,13 @@ export const useDesktopTaskActions = ({
         trackUserEvent(user.id, 'task_clicked', { action: 'card_click', platform: 'desktop', isPlain, hasRedirect: !!redirectUrl });
       }
 
-      if (task.uploadedFileStorageKey) {
+      if (task.uploadedFileStorageKey || task.uploadedFileStoragePath) {
         void openUploadedFileTask(task);
+        return;
+      }
+
+      if (isPlain) {
+        onOpenTextTask?.(task);
         return;
       }
 
@@ -143,7 +149,7 @@ export const useDesktopTaskActions = ({
     }
 
     updateCanvasSelection([task.id], event, openTaskFromCanvas);
-  }, [suppressAllTaskClicksUntilRef, suppressTaskClickRef, t, user, openUploadedFileTask, setFullscreenImage, updateCanvasSelection]);
+  }, [suppressAllTaskClicksUntilRef, suppressTaskClickRef, t, user, openUploadedFileTask, onOpenTextTask, setFullscreenImage, updateCanvasSelection]);
 
   const handleStartWorkspaceRename = () => {
     setWorkspaceNameDraft(activeWorkspace?.name || 'Untitled');

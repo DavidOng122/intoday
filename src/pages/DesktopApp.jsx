@@ -20,6 +20,7 @@ import DesktopDeleteConfirmModal from '../shared/ui/DeleteConfirmModal';
 import { DesktopCanvas } from '../features/canvas';
 import { useDesktopConnections, useDesktopDragRuntime } from '../features/canvas';
 import { useDesktopCapture } from '../features/capture';
+import { TextTaskDetailModal, useTextTaskDetail } from '../features/task-detail';
 import { WorkspaceMenu, useDesktopWorkspaces } from '../features/workspace';
 import { GroupedTaskCard, TaskCard } from '../features/canvas';
 import {
@@ -281,6 +282,7 @@ function App({ session }) {
     userId: currentUser?.id || null,
     normalizeTodo: normalizeTask,
   });
+  const { activeTextTask, closeTextTask, openTextTask } = useTextTaskDetail({ tasks });
   // The feature flag stays off until the Inbox UI is ready. Once enabled, the
   // existing canvas and global search receive only organized Library items.
   const activeWorkspaceTasks = useMemo(
@@ -625,6 +627,7 @@ function App({ session }) {
     setIsCanvasFileDragActive,
     setTasks,
     setToastMessage,
+    userId: currentUser?.id || null,
   });
 
   const handleCreateInboxItem = useCallback(async (value) => {
@@ -696,6 +699,7 @@ function App({ session }) {
     cleanupDesktopGroupMetadata,
     defaultWorkspaceId: activeWorkspaceId,
     openUploadedFileTask,
+    onOpenTextTask: openTextTask,
     onGroupsDeleted: removeGroupConnections,
     pendingCanvasDeletion,
     selectedTaskIdsRef,
@@ -713,6 +717,17 @@ function App({ session }) {
     user: currentUser,
     workspaceNameDraft,
   });
+
+  const handleSaveTextTask = useCallback((taskId, changes) => {
+    const text = String(changes?.text || '');
+    const title = String(changes?.title || '').trim() || null;
+    const updatedAt = createUpdatedTimestamp();
+    setTasks((currentTasks) => currentTasks.map((task) => (
+      task.id === taskId
+        ? normalizeTask({ ...task, text, title, updatedAt })
+        : task
+    )));
+  }, [setTasks]);
 
   const {
     updateActiveGroupMetadata,
@@ -1027,7 +1042,7 @@ function App({ session }) {
               onTaskClick={(task) => {
                 if (!task.id) return;
                 const { redirectUrl } = getTaskCardPresentation(task, t);
-                if (task.uploadedFileStorageKey) {
+                if (task.uploadedFileStorageKey || task.uploadedFileStoragePath) {
                   setHistoryOpen(false);
                   void openUploadedFileTask(task);
                   return;
@@ -1091,6 +1106,17 @@ function App({ session }) {
               }}
             />
           </React.Suspense>
+        ) : null}
+        {activeTextTask ? (
+          <TextTaskDetailModal
+            key={activeTextTask.id}
+            task={activeTextTask}
+            appearance={appearance}
+            labels={t}
+            language={language}
+            onClose={closeTextTask}
+            onSave={handleSaveTextTask}
+          />
         ) : null}
         <DesktopDeleteConfirmModal
           open={Boolean(pendingWorkspaceDeletion)}

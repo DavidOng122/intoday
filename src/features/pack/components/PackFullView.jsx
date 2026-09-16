@@ -2,6 +2,8 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import EmojiPicker from 'emoji-picker-react';
 import JSZip from 'jszip';
+import TaskPhotoImage from '../../../shared/ui/TaskPhotoImage';
+import { hasTaskPhotoPreview } from '../../../shared/storage/taskPhotoPreview';
 import { CARD_TYPES, getTaskCardPresentation, normalizeCardType } from '../../../entities/task/model/taskCardPresentation';
 import { getPackMetadataTextFromItems } from '../model/packMetadata';
 import { normalizePackTags } from '../../../entities/pack/model/packValueNormalizers';
@@ -45,13 +47,13 @@ const PackItemSourceIcon = ({ task, appearance, labels }) => {
   const { sourceKey, domain } = getPackItemSourceMeta(task, labels || {});
   const iconBackground = appearance === 'dark' ? cfg.darkBg : cfg.bg;
   const iconBorder = appearance === 'dark' ? `1px solid ${cfg.darkStroke}` : 'none';
-  const photoPreview = task?.photoDataUrl || task?.photoUrl;
+  const hasPhotoPreview = hasTaskPhotoPreview(task);
 
-  if (normalizeCardType(task?.cardType) === CARD_TYPES.PHOTO && photoPreview) {
+  if (normalizeCardType(task?.cardType) === CARD_TYPES.PHOTO && hasPhotoPreview) {
     return (
         <span className="desktop-pack-page-item-leading desktop-pack-page-item-leading-photo-preview" aria-hidden="true">
-          <img
-            src={photoPreview}
+          <TaskPhotoImage
+            task={task}
             alt=""
             width={36}
             height={36}

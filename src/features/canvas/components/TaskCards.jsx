@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { OpenFullViewIcon } from '../../../shared/ui/icons/DesktopIcons';
+import TaskPhotoImage from '../../../shared/ui/TaskPhotoImage';
+import { hasTaskPhotoPreview } from '../../../shared/storage/taskPhotoPreview';
 
 import { getTaskCardPresentation, normalizeCardType, CARD_TYPES } from '../../../entities/task/model/taskCardPresentation';
 import { getLogicalToday } from '../../../lib/dateHelpers';
@@ -25,13 +27,13 @@ const TaskCardFaviconIcon = ({ task, appearance, cfg, faviconUrl: propFaviconUrl
   const { domain } = getPackItemSourceMeta(task, {});
   const iconBackground = appearance === 'dark' ? cfg.darkBg : cfg.bg;
   const iconBorder = appearance === 'dark' ? `1px solid ${cfg.darkStroke}` : 'none';
-  const photoPreview = task?.photoDataUrl || task?.photoUrl;
+  const hasPhotoPreview = hasTaskPhotoPreview(task);
 
-  if (normalizeCardType(task?.cardType) === CARD_TYPES.PHOTO && photoPreview) {
+  if (normalizeCardType(task?.cardType) === CARD_TYPES.PHOTO && hasPhotoPreview) {
     return (
         <div style={{ width: 32, height: 32, borderRadius: 8, overflow: 'hidden', background: '#f3f3f3', border: iconBorder, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-          <img
-            src={photoPreview}
+          <TaskPhotoImage
+            task={task}
             alt=""
             width={32}
             height={32}
@@ -79,7 +81,7 @@ const TaskCardFaviconIcon = ({ task, appearance, cfg, faviconUrl: propFaviconUrl
 const TaskCardContent = ({ task, appearance, labels }) => {
   const { cfg, displayTitle, displaySub, faviconUrl } = getTaskCardPresentation(task, labels);
   const isPhotoCard = normalizeCardType(task?.cardType) === CARD_TYPES.PHOTO;
-  const photoPreview = task?.photoDataUrl || task?.photoUrl;
+  const hasPhotoPreview = hasTaskPhotoPreview(task);
 
   // Resolve the best available content title
   const contentTitle = (() => {
@@ -96,7 +98,7 @@ const TaskCardContent = ({ task, appearance, labels }) => {
     ? sourceLabel
     : displaySub;
 
-  if (isPhotoCard && photoPreview) {
+  if (isPhotoCard && hasPhotoPreview) {
     return (
       <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 10 }}>
         <div
@@ -110,8 +112,8 @@ const TaskCardContent = ({ task, appearance, labels }) => {
             flexShrink: 0,
           }}
         >
-            <img
-              src={photoPreview}
+            <TaskPhotoImage
+              task={task}
               alt={contentTitle || 'Photo'}
               draggable={false}
               onDragStart={(event) => event.preventDefault()}

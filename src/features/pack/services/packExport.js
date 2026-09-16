@@ -1,6 +1,7 @@
 import { CARD_TYPES, normalizeCardType } from '../../../entities/task/model/taskCardPresentation';
 import { deriveTaskDisplayTitle } from '../../../lib/taskDisplayUtils';
 import { getUploadedFileRecord } from '../../../shared/storage/uploadedFileStorage';
+import { downloadFileFromStorage } from '../../capture/services/uploadStorage';
 import JSZip from 'jszip';
 
 import { getPackMetadataTextFromItems } from '../model/packMetadata';
@@ -151,7 +152,7 @@ const isCodeLikeContent = (value) => {
 };
 const shouldIncludePackExportUrl = (value) => /^(https?:\/\/|www\.)/i.test(String(value || '').trim());
 const isBundleExportableUploadedAsset = (task) => (
-  Boolean(task?.uploadedFileStorageKey)
+  Boolean(task?.uploadedFileStorageKey || task?.uploadedFileStoragePath)
   && ['pdf', 'word', 'image'].includes(String(task?.uploadedFileType || '').toLowerCase())
 );
 const isDataUrl = (value) => /^data:/i.test(String(value || '').trim());
@@ -197,31 +198,39 @@ export const collectPackAssets = async (tasks) => {
 
   for (const task of tasks) {
     if (isBundleExportableUploadedAsset(task)) {
-      const storageKey = task.uploadedFileStorageKey;
-      if (assetPathByStorageKey.has(storageKey)) {
-        assetPathByTaskId.set(task.id, assetPathByStorageKey.get(storageKey));
+      const storageIdentity = task.uploadedFileStoragePath || task.uploadedFileStorageKey;
+      if (assetPathByStorageKey.has(storageIdentity)) {
+        assetPathByTaskId.set(task.id, assetPathByStorageKey.get(storageIdentity));
         continue;
       }
 
       try {
-        const record = await getUploadedFileRecord(storageKey);
-        if (!record?.blob) continue;
+        let blob = null;
+        let localRecord = null;
+        if (task.uploadedFileStoragePath) {
+          blob = await downloadFileFromStorage(task.uploadedFileStoragePath);
+        }
+        if (!blob && task.uploadedFileStorageKey) {
+          localRecord = await getUploadedFileRecord(task.uploadedFileStorageKey);
+          blob = localRecord?.blob || null;
+        }
+        if (!blob) continue;
 
         const safeName = ensureUniqueAssetFilename(
           sanitizeAssetFilename(
             task.uploadedOriginalFileName
-            || record.originalFileName
+            || localRecord?.originalFileName
             || `${deriveTaskDisplayTitle(task) || 'file'}`
           ),
           usedNames,
         );
         const relativePath = `assets/${safeName}`;
-        assetPathByStorageKey.set(storageKey, relativePath);
+        assetPathByStorageKey.set(storageIdentity, relativePath);
         assetPathByTaskId.set(task.id, relativePath);
         assets.push({
-          storageKey,
+          storageKey: storageIdentity,
           path: relativePath,
-          blob: record.blob,
+          blob,
         });
       } catch (error) {
         console.error('Failed to collect uploaded asset for export bundle:', error);

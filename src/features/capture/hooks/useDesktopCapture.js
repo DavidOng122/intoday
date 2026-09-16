@@ -6,6 +6,7 @@ import {
   isSupportedUploadFile,
 } from '../services/uploadUtils';
 import { createUploadedTasks } from '../services/uploadedTaskFactory';
+import { createStorageSignedUrl, downloadFileFromStorage, uploadFileToStorage } from '../services/uploadStorage';
 import {
   CARD_TYPES,
   fetchLinkPreviewMeta,
@@ -36,6 +37,7 @@ export const useDesktopCapture = ({
   setIsCanvasFileDragActive,
   setTasks,
   setToastMessage,
+  userId,
 }) => {
   const showToast = (message) => {
     setToastMessage(message);
@@ -45,14 +47,27 @@ export const useDesktopCapture = ({
   };
   const openUploadedFileTask = async (task) => {
     const storageKey = task.uploadedFileStorageKey;
+    const storagePath = task.uploadedFileStoragePath;
     const uploadedType = String(task.uploadedFileType || '').toLowerCase();
+
+    if (uploadedType === 'image' && storagePath) {
+      try {
+        const signedUrl = await createStorageSignedUrl(storagePath);
+        if (signedUrl) {
+          setFullscreenImage(signedUrl);
+          return true;
+        }
+      } catch (error) {
+        console.error('Failed to open uploaded image from Storage:', error);
+      }
+    }
   
     if (uploadedType === 'image' && (task?.photoUrl || task?.photoDataUrl)) {
       setFullscreenImage(task.photoUrl || task.photoDataUrl);
       return true;
     }
   
-    if (!storageKey) {
+    if (!storageKey && !storagePath) {
       return false;
     }
     
@@ -67,22 +82,47 @@ export const useDesktopCapture = ({
     }
   
     try {
-      const record = await getUploadedFileRecord(storageKey);
-      if (!record?.blob) {
+      let blob = null;
+      if (storagePath) {
+        try {
+          blob = await downloadFileFromStorage(storagePath);
+        } catch (error) {
+          // Offline/local cache remains a fallback if Storage is temporarily
+          // unavailable. The remote path is still the durable source.
+          console.warn('Failed to download file from Storage:', error);
+        }
+      }
+      if (!blob && storageKey) {
+        const record = await getUploadedFileRecord(storageKey);
+        blob = record?.blob || null;
+      }
+      if (!blob) {
         if (newWin) newWin.close();
-        showToast('File is no longer available on this device');
+        showToast('File is not available yet. Please try again.');
         return true;
       }
   
       if (uploadedType === 'image') {
-        const objectUrl = URL.createObjectURL(record.blob);
+        const objectUrl = URL.createObjectURL(blob);
         setFullscreenImage(objectUrl);
       } else if (newWin) {
-        const objectUrl = URL.createObjectURL(record.blob);
-        newWin.location.href = objectUrl;
+        const objectUrl = URL.createObjectURL(blob);
+        if (uploadedType === 'word') {
+          // Browsers cannot reliably render DOC/DOCX. Download it with its
+          // original filename instead of showing a blank browser tab.
+          const link = newWin.document.createElement('a');
+          link.href = objectUrl;
+          link.download = task.uploadedOriginalFileName || 'document.docx';
+          newWin.document.body.appendChild(link);
+          link.click();
+          newWin.close();
+        } else {
+          // PDFs are natively previewable in supported browsers.
+          newWin.location.href = objectUrl;
+        }
       } else {
         // Fallback if popup blocker aggressively blocked the synch open
-        const objectUrl = URL.createObjectURL(record.blob);
+        const objectUrl = URL.createObjectURL(blob);
         window.open(objectUrl, '_blank');
       }
       return true;
@@ -122,6 +162,36 @@ export const useDesktopCapture = ({
   // Upload creation is shared, while the entry point explicitly controls its
   // destination: Inbox menu uploads remain unorganised; a native Canvas drop
   // is placed at the user's drop point.
+  const uploadCreatedFiles = (fileTasks, sourceFiles) => {
+    fileTasks.forEach((task, index) => {
+      const file = sourceFiles[index];
+      if (!file) return;
+      uploadFileToStorage({ file, userId }).then((uploadedFileStoragePath) => {
+        setTasks((currentTasks) => currentTasks.map((currentTask) => (
+          currentTask.id === task.id
+            ? normalizeTask({
+              ...currentTask,
+              uploadedFileStoragePath,
+              // The local preview is deliberately discarded after the server
+              // confirms the binary. Future views resolve a signed URL.
+              localPreviewUrl: null,
+              uploadState: null,
+              updatedAt: new Date().toISOString(),
+            })
+            : currentTask
+        )));
+      }).catch((error) => {
+        console.error('Failed to upload file to Supabase Storage:', error);
+        setTasks((currentTasks) => currentTasks.map((currentTask) => (
+          currentTask.id === task.id
+            ? normalizeTask({ ...currentTask, uploadState: 'failed' })
+            : currentTask
+        )));
+        showToast('Upload failed. The file is kept on this device.');
+      });
+    });
+  };
+
   const importFiles = async (files, { dropBasePosition = null, destination = inboxEnabled ? 'inbox' : 'canvas' } = {}) => {
     const supportedFiles = Array.from(files || []).filter((file) => isSupportedUploadFile(file));
     if (!supportedFiles.length) return;
@@ -168,8 +238,12 @@ export const useDesktopCapture = ({
         });
         return nextTasks;
       });
-  
-      showToast(supportedFiles.length === 1 ? 'File added' : `${supportedFiles.length} files added`);
+
+      // Rendering and interaction are local-first. The binary transfer runs
+      // independently so a slow network never blocks the Canvas or Inbox.
+      uploadCreatedFiles(fileTasks, supportedFiles);
+
+      showToast(supportedFiles.length === 1 ? 'File added — uploading…' : `${supportedFiles.length} files added — uploading…`);
     } catch (error) {
       console.error('Failed to import files:', error);
       showToast('Unable to import files');
