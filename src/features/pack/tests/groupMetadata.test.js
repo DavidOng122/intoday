@@ -21,24 +21,23 @@ const DESKTOP_GROUP_CARD_COLLAPSED_LIST_MAX_HEIGHT = 240;
 
 const getDesktopGroupDisplayName = (tasks) => (
   tasks.find((task) => typeof task.desktopGroupName === 'string' && task.desktopGroupName.trim())?.desktopGroupName
-  || tasks[0]?.text
-  || 'Untitled group'
+  || 'Untitled'
 );
 
 test('getDesktopGroupDisplayName: uses desktopGroupName when present', () => {
   assert.equal(getDesktopGroupDisplayName([{ desktopGroupName: 'Research' }]), 'Research');
 });
 
-test('getDesktopGroupDisplayName: falls back to first task text', () => {
-  assert.equal(getDesktopGroupDisplayName([{ text: 'Hello', desktopGroupName: null }]), 'Hello');
+test('getDesktopGroupDisplayName: defaults to Untitled when desktopGroupName is missing', () => {
+  assert.equal(getDesktopGroupDisplayName([{ text: 'Hello', desktopGroupName: null }]), 'Untitled');
 });
 
 test('getDesktopGroupDisplayName: empty array returns fallback', () => {
-  assert.equal(getDesktopGroupDisplayName([]), 'Untitled group');
+  assert.equal(getDesktopGroupDisplayName([]), 'Untitled');
 });
 
 test('getDesktopGroupDisplayName: whitespace-only name is skipped', () => {
-  assert.equal(getDesktopGroupDisplayName([{ text: 'Text', desktopGroupName: '   ' }]), 'Text');
+  assert.equal(getDesktopGroupDisplayName([{ text: 'Text', desktopGroupName: '   ' }]), 'Untitled');
 });
 
 // ---------------------------------------------------------------------------

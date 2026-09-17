@@ -36,7 +36,6 @@ export const useCanvasDragSessionStart = ({
     desktopDragOverlaySnapshotRef,
     desktopDragPointerRef,
     desktopDragPreviewPositionsRef,
-    desktopDragSelectedTaskIdsRef,
     desktopDragSelectionPositionsRef,
     desktopDragSourceEntryIdRef,
     desktopDragSourceRectRef,
@@ -57,7 +56,6 @@ export const useCanvasDragSessionStart = ({
       : null;
     const dragStart = buildCanvasDragStart({
       task,
-      selectedTaskIds: desktopDragSelectedTaskIdsRef.current,
       entries: selectedDayEntriesRef.current,
       tasks: tasksRef.current,
       sourceCanvasPosition,
@@ -126,7 +124,6 @@ export const useCanvasDragSessionStart = ({
     desktopDragOverlaySnapshotRef,
     desktopDragPointerRef,
     desktopDragPreviewPositionsRef,
-    desktopDragSelectedTaskIdsRef,
     desktopDragSelectionPositionsRef,
     desktopDragSourceEntryIdRef,
     desktopDragSourceRectRef,

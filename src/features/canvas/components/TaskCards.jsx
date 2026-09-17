@@ -237,9 +237,11 @@ const GroupedTaskCard = ({
     isGroupInitiator: true,
   };
 
-  // If we are dragging a single item out of this group, hide it from the group preview
+  // A child being dragged out of a Pack is represented by the drag overlay.
+  // Hide only that child in the source Pack; keep the Pack itself visible as
+  // a legitimate possible drop target.
   const isDraggingGroup = isDragging && isGroupDragActive;
-  const filteredTasks = tasks.filter((t) => isDraggingGroup || t.id !== draggedTaskId);
+  const filteredTasks = tasks.filter((task) => isDraggingGroup || task.id !== draggedTaskId);
   const collapsedVisibleCount = getDesktopVisibleGroupTaskCount(filteredTasks, DESKTOP_GROUP_CARD_COLLAPSED_LIST_MAX_HEIGHT);
   const expandedVisibleCount = getDesktopVisibleGroupTaskCount(filteredTasks, DESKTOP_GROUP_CARD_EXPANDED_LIST_MAX_HEIGHT);
   const visibleItemCount = isExpanded ? expandedVisibleCount : collapsedVisibleCount;

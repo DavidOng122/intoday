@@ -48,7 +48,7 @@ export const resolveDesktopCanvasEntries = (tasks) => {
     if (task.desktopGroupId) {
       if (processedGroupIds.has(task.desktopGroupId)) return resolvedEntries;
       const groupedTasks = selectedTasks.filter((item) => item.desktopGroupId === task.desktopGroupId);
-      if (groupedTasks.length > 0) {
+      if (groupedTasks.length > 1) {
         processedGroupIds.add(task.desktopGroupId);
         const anchorTask = groupedTasks.find((item) => (
           isFiniteCanvasCoordinate(item.desktopCanvasX) && isFiniteCanvasCoordinate(item.desktopCanvasY)

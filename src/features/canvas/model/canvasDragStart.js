@@ -5,15 +5,15 @@ import { getCanvasDragTaskIds } from './canvasDragSession.js';
 // No DOM or React state is changed here, so this can be reused/tested separately.
 export const buildCanvasDragStart = ({
   task,
-  selectedTaskIds,
   entries,
   tasks,
   sourceCanvasPosition,
 }) => {
   const isGroup = !!task.isGroupInitiator;
-  const movingTaskIds = selectedTaskIds.size > 0
-    ? [...selectedTaskIds]
-    : getCanvasDragTaskIds(task);
+  // Canvas selection is intentionally for batch delete only.  Using it here
+  // meant a stale box-selection could silently replace the card the user was
+  // actually dragging, producing a detached preview for the wrong item.
+  const movingTaskIds = getCanvasDragTaskIds(task);
   const entryPositionMap = new Map();
   entries.forEach((entry) => {
     getDesktopCanvasEntryTaskIds(entry).forEach((taskId) => {

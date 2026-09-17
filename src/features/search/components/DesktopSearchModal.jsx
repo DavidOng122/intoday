@@ -24,11 +24,9 @@ const GroupedDateLabel = ({ labelKey }) => {
   );
 };
 
-const getPackDisplayName = (tasks, labels) => (
+const getPackDisplayName = (tasks) => (
   tasks.find((task) => typeof task.desktopGroupName === 'string' && task.desktopGroupName.trim())?.desktopGroupName
-  || tasks[0]?.text
-  || labels.untitledWorkspace
-  || 'Untitled pack'
+  || 'Untitled'
 );
 
 const PackSearchResultCard = ({ packInfo, appearance, labels, onClickPack, onClickItem, onResultPointerDown, onResultPointerEnd }) => {

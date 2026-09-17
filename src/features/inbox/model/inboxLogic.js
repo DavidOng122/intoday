@@ -63,13 +63,12 @@ export const getInboxTargetPacks = (tasks) => {
 
     const packId = task.desktopGroupId;
     const storedName = typeof task.desktopGroupName === 'string' ? task.desktopGroupName.trim() : '';
-    const fallbackName = typeof task.text === 'string' ? task.text.trim() : '';
     const existing = packs.get(packId);
 
     if (!existing) {
       packs.set(packId, {
         id: packId,
-        name: storedName || fallbackName || 'Untitled pack',
+        name: storedName || 'Untitled',
         icon: task.desktopGroupIcon || null,
         itemCount: 1,
       });

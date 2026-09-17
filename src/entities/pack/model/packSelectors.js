@@ -8,8 +8,7 @@ const firstMatchingValue = (tasks, selector, predicate = Boolean) => {
 
 export const getPackDisplayName = (tasks = []) => (
   firstMatchingValue(tasks, (task) => task?.desktopGroupName?.trim?.())
-  || firstMatchingValue(tasks, (task) => task?.text?.trim?.())
-  || 'Untitled group'
+  || 'Untitled'
 );
 
 export const resolvePackMetadata = (tasks = []) => ({

@@ -148,12 +148,12 @@ test('getInboxTargetPacks: returns unique library packs with item counts', () =>
   ]);
 });
 
-test('getInboxTargetPacks: falls back to task text for an unnamed pack', () => {
+test('getInboxTargetPacks: defaults to Untitled for an unnamed pack', () => {
   const tasks = [
     { id: 1, collectionState: 'library', desktopGroupId: 'g1', text: 'First item' },
   ];
 
-  assert.equal(getInboxTargetPacks(tasks)[0].name, 'First item');
+  assert.equal(getInboxTargetPacks(tasks)[0].name, 'Untitled');
 });
 
 // ---------------------------------------------------------------------------

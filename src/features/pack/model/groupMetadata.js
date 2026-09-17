@@ -12,8 +12,7 @@ import { normalizeTask } from '../../../lib/taskNormalize.js';
 
 export const getDesktopGroupDisplayName = (tasks) => (
   tasks.find((task) => typeof task.desktopGroupName === 'string' && task.desktopGroupName.trim())?.desktopGroupName
-  || tasks[0]?.text
-  || 'Untitled group'
+  || 'Untitled'
 );
 
 export const getDesktopGroupIcon = (tasks) => getPackIconFromTasks(tasks);
@@ -42,9 +41,10 @@ export const formatDesktopGroupChipLabel = (value) => {
 };
 
 export const getSuggestedDesktopGroupName = (movingTasks, overlapEntry) => {
-  const overlapTasks = overlapEntry?.type === 'group' ? overlapEntry.tasks : overlapEntry?.task ? [overlapEntry.task] : [];
-  const existingName = getDesktopGroupDisplayName([...movingTasks, ...overlapTasks]);
-  return existingName || 'New group';
+  const existingName = overlapEntry?.type === 'group'
+    ? overlapEntry.tasks?.find((task) => typeof task.desktopGroupName === 'string' && task.desktopGroupName.trim())?.desktopGroupName
+    : null;
+  return existingName || 'Untitled';
 };
 
 export const cleanupDesktopGroupMetadata = (tasks) => {

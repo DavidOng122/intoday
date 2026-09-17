@@ -32,7 +32,7 @@ export const createPackDropAction = ({ prompt, groupName, tasks, updatedAt, time
     timestamp,
     updatedAt,
     metadata: targetMetadata || {
-      desktopGroupName: groupName.trim() || 'New group',
+      desktopGroupName: groupName.trim() || 'Untitled',
       desktopGroupIcon: null,
       desktopGroupCover: null,
       desktopGroupTags: getDesktopGroupDisplayTags(groupedTasks),

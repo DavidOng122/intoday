@@ -130,8 +130,7 @@ const getCanvasDeletionSummary = (labels, tasks, selectedTaskIds) => {
 };
 const getDesktopGroupDisplayName = (tasks) => (
   tasks.find((task) => typeof task.desktopGroupName === 'string' && task.desktopGroupName.trim())?.desktopGroupName
-  || tasks[0]?.text
-  || 'Untitled group'
+  || 'Untitled'
 );
 const getDesktopGroupIcon = (tasks) => getPackIconFromTasks(tasks);
 const getDesktopGroupTags = (tasks) => getPackTagsFromTasks(tasks);
