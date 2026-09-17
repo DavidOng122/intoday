@@ -529,6 +529,9 @@ export const deriveTaskDisplayTitle = (task) => {
 
   const rawText = getTaskText(task);
   const cardType = normalizeCardType(task.cardType);
+  if (cardType === CARD_TYPES.TEXT && typeof task.title === 'string' && task.title.trim()) {
+    return task.title.trim();
+  }
   const processedText = cardType === CARD_TYPES.MEETING ? stripMeetingNoise(rawText) : rawText;
   const primaryUrl = getPrimaryUrlForTask(task);
   const derivedCardType = normalizeCardType(task.cardType || (primaryUrl ? detectUrlType(primaryUrl) : CARD_TYPES.TEXT));
