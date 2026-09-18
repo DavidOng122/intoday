@@ -13,6 +13,8 @@ import {
 } from '../../../shared/ui/icons/DesktopIcons';
 import { getTaskCardPresentation, normalizeCardType } from '../../../entities/task/model/taskCardPresentation';
 import QuickAddMenu from '../../capture/components/QuickAddMenu';
+import { getClipboardImageFile, isEditableClipboardTarget, normalizeClipboardImageFile } from '../../capture/services/clipboardUtils.js';
+import InboxImageCaptureDialog from './InboxImageCaptureDialog';
 import TaskPhotoImage from '../../../shared/ui/TaskPhotoImage';
 import { hasTaskPhotoPreview } from '../../../shared/storage/taskPhotoPreview';
 
@@ -194,6 +196,9 @@ const InboxPanel = ({
   const [moveMenuPosition, setMoveMenuPosition] = useState(null);
   const [movingItemId, setMovingItemId] = useState(null);
   const [moveError, setMoveError] = useState('');
+  const [clipboardImage, setClipboardImage] = useState(null);
+  const [clipboardSubmitting, setClipboardSubmitting] = useState(false);
+  const [clipboardError, setClipboardError] = useState('');
   const panelRef = useRef(null);
 
   const handleClose = useCallback(() => {
@@ -267,6 +272,46 @@ const InboxPanel = ({
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [activeMoveItemId, open, handleClose]);
+
+  useEffect(() => {
+    if (!open) return undefined;
+
+    const handlePaste = (event) => {
+      const target = event.target;
+      if (isEditableClipboardTarget(target)) return;
+
+      const file = normalizeClipboardImageFile(getClipboardImageFile(event.clipboardData?.items));
+      if (!file) return;
+
+      event.preventDefault();
+      setClipboardError('');
+      setClipboardImage(file);
+    };
+
+    window.addEventListener('paste', handlePaste);
+    return () => window.removeEventListener('paste', handlePaste);
+  }, [open]);
+
+  const handleClipboardClose = useCallback(() => {
+    if (clipboardSubmitting) return;
+    setClipboardImage(null);
+    setClipboardError('');
+  }, [clipboardSubmitting]);
+
+  const handleClipboardConfirm = useCallback(async (file, note) => {
+    if (clipboardSubmitting || typeof onImportFiles !== 'function') return;
+    setClipboardSubmitting(true);
+    setClipboardError('');
+    try {
+      await onImportFiles([file], { destination: 'inbox', note });
+      setClipboardImage(null);
+    } catch (error) {
+      console.error('Failed to save pasted image:', error);
+      setClipboardError('Unable to save image. Please try again.');
+    } finally {
+      setClipboardSubmitting(false);
+    }
+  }, [clipboardSubmitting, onImportFiles]);
 
   useLayoutEffect(() => {
     if (!open) return undefined;
@@ -424,6 +469,14 @@ const InboxPanel = ({
           )}
         </div>
       </div>
+      <InboxImageCaptureDialog
+        file={clipboardImage}
+        appearance={appearance}
+        submitting={clipboardSubmitting}
+        error={clipboardError}
+        onClose={handleClipboardClose}
+        onConfirm={handleClipboardConfirm}
+      />
     </div>
   );
 };

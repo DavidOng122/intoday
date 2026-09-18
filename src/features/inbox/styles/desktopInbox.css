@@ -536,6 +536,116 @@
   color: #f5f7fa;
 }
 
+.desktop-inbox-image-capture-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 470;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(15, 23, 42, 0.18);
+  backdrop-filter: blur(10px);
+}
+
+.desktop-inbox-image-capture-dialog {
+  width: min(520px, calc(100vw - 32px));
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  border: 1px solid #e1e5eb;
+  border-radius: 18px;
+  background: #ffffff;
+  box-shadow: 0 24px 31px rgba(15, 23, 42, 0.18);
+}
+
+.desktop-inbox-image-capture-heading,
+.desktop-inbox-image-capture-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.desktop-inbox-image-capture-heading h2 {
+  margin: 0;
+  color: #111111;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.desktop-inbox-image-capture-heading button,
+.desktop-inbox-image-capture-actions button {
+  min-height: 36px;
+  padding: 8px 13px;
+  border: 1px solid #d0d5dd;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #344054;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.desktop-inbox-image-capture-preview {
+  width: 100%;
+  max-height: min(52vh, 420px);
+  object-fit: contain;
+  border-radius: 10px;
+  background: #f4f5f7;
+}
+
+.desktop-inbox-image-capture-note {
+  width: 100%;
+  min-height: 72px;
+  padding: 10px 11px;
+  resize: vertical;
+  border: 1px solid #d0d5dd;
+  border-radius: 8px;
+  color: #1d2939;
+  font: inherit;
+  font-size: 13px;
+}
+
+.desktop-inbox-image-capture-error {
+  color: #c2413b;
+  font-size: 12px;
+}
+
+.desktop-inbox-image-capture-actions {
+  justify-content: flex-end;
+}
+
+.desktop-inbox-image-capture-actions button:last-child {
+  border-color: #000000;
+  background: #000000;
+  color: #ffffff;
+}
+
+.desktop-inbox-image-capture-actions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.desktop-inbox-image-capture-backdrop.is-dark .desktop-inbox-image-capture-dialog {
+  border-color: #34373d;
+  background: #1c1c1e;
+}
+
+.desktop-inbox-image-capture-backdrop.is-dark .desktop-inbox-image-capture-heading h2,
+.desktop-inbox-image-capture-backdrop.is-dark .desktop-inbox-image-capture-note {
+  color: #f5f7fa;
+}
+
+.desktop-inbox-image-capture-backdrop.is-dark .desktop-inbox-image-capture-heading button,
+.desktop-inbox-image-capture-backdrop.is-dark .desktop-inbox-image-capture-note,
+.desktop-inbox-image-capture-backdrop.is-dark .desktop-inbox-image-capture-actions button:first-child {
+  border-color: #34373d;
+  background: #29292c;
+  color: #f5f7fa;
+}
+
 .desktop-inbox-content {
   flex: 0 1 auto;
   min-height: 0;

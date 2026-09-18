@@ -7,8 +7,9 @@ import { createUploadedFileStorageKey, getSupportedUploadKind, getUploadedFileTi
 
 // This is deliberately UI-free. Every upload entry point must create the same
 // local blob record and task payload before a hook decides where it appears.
-export const createUploadedTasks = async (files, { workspaceId, dateString }) => {
+export const createUploadedTasks = async (files, { workspaceId, dateString, note = '' }) => {
   const operationUpdatedAt = createUpdatedTimestamp();
+  const noteText = String(note || '').trim();
 
   return Promise.all(files.map(async (file, index) => {
     const uploadKind = getSupportedUploadKind(file);
@@ -47,8 +48,8 @@ export const createUploadedTasks = async (files, { workspaceId, dateString }) =>
 
     return normalizeTask({
       id: Date.now() + index + Math.floor(Math.random() * 1000),
-      text: attachment.title,
-      title: attachment.title,
+      text: noteText || attachment.title,
+      title: noteText || attachment.title,
       completed: false,
       desktopWorkspaceId: workspaceId,
       timeOfDay: 'Morning',

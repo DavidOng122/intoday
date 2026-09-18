@@ -192,7 +192,7 @@ export const useDesktopCapture = ({
     });
   };
 
-  const importFiles = async (files, { dropBasePosition = null, destination = inboxEnabled ? 'inbox' : 'canvas' } = {}) => {
+  const importFiles = async (files, { dropBasePosition = null, destination = inboxEnabled ? 'inbox' : 'canvas', note = '' } = {}) => {
     const supportedFiles = Array.from(files || []).filter((file) => isSupportedUploadFile(file));
     if (!supportedFiles.length) return;
   
@@ -202,6 +202,7 @@ export const useDesktopCapture = ({
       const fileTasks = await createUploadedTasks(supportedFiles, {
         workspaceId: activeWorkspaceId,
         dateString: droppedDateKey,
+        note,
       });
   
       setTasks((prev) => {

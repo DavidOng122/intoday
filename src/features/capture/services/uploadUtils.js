@@ -1,5 +1,6 @@
 import { DESKTOP_IMAGE_DROP_MAX_EDGE, DESKTOP_IMAGE_DROP_QUALITY, SUPPORTED_UPLOAD_IMAGE_EXTENSIONS, SUPPORTED_UPLOAD_WORD_EXTENSIONS, SUPPORTED_UPLOAD_PDF_EXTENSIONS } from '../config/uploadConstants';
 import { createUpdatedTimestamp } from '../../pack/model/packMetadata';
+export { getClipboardImageFile, normalizeClipboardImageFile } from './clipboardUtils.js';
 
 export const getUploadedFileTitle = (fileName = '', fallback = 'Untitled file') => fileName.replace(/\.[^.]+$/, '').trim() || fallback;
 
