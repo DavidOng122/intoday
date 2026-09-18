@@ -274,8 +274,6 @@ const InboxPanel = ({
   }, [activeMoveItemId, open, handleClose]);
 
   useEffect(() => {
-    if (!open) return undefined;
-
     const handlePaste = (event) => {
       const target = event.target;
       if (isEditableClipboardTarget(target)) return;
@@ -290,7 +288,7 @@ const InboxPanel = ({
 
     window.addEventListener('paste', handlePaste);
     return () => window.removeEventListener('paste', handlePaste);
-  }, [open]);
+  }, []);
 
   const handleClipboardClose = useCallback(() => {
     if (clipboardSubmitting) return;
@@ -343,7 +341,18 @@ const InboxPanel = ({
     return () => window.removeEventListener('resize', positionPanel);
   }, [anchorRef, open]);
 
-  if (!open) return null;
+  if (!open) {
+    return (
+      <InboxImageCaptureDialog
+        file={clipboardImage}
+        appearance={appearance}
+        submitting={clipboardSubmitting}
+        error={clipboardError}
+        onClose={handleClipboardClose}
+        onConfirm={handleClipboardConfirm}
+      />
+    );
+  }
 
   const q = searchQuery.trim().toLowerCase();
 
