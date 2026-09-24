@@ -1,171 +1,131 @@
 # IntoDay
 
-A research workspace for collecting, organizing, and connecting context over time.
+リサーチ情報をすばやく収集し、視覚的に整理・関連付けるためのデスクトップ型ワークスペースです。
 
-[Product Website](https://www.intoday.cc/) • [Web Application](https://app.intoday.cc/)
+[公式サイト](https://www.intoday.cc/) · [Web アプリ](https://app.intoday.cc/) · [English](#english)
 
-> **Collaboration Note**: IntoDay is a collaborative team project. My contribution focuses on product problem definition, information architecture, UI/UX design, and frontend implementation.
+> IntoDay はチームで開発しているプロジェクトです。私（Vincent Low）は、課題定義、情報設計、UI/UX デザイン、およびフロントエンド実装を担当しました。
 
----
+## プロジェクト概要
 
-## Why IntoDay
-
-Research and creative work often fragment information across browser tabs, saved links, PDFs, screenshots, quick notes, and AI chat logs. While saving raw information is easy, the harder challenge is preserving **why something mattered** and **how different pieces of information relate to each other**.
-
-IntoDay explores a structured research workflow where users can capture information quickly first, and then organize it into meaningful project context later.
-
----
-
-## Core Workflow
+リサーチ中のリンク、メモ、画像、ファイルなどは、複数のツールに分散しがちです。IntoDay は「まず保存し、あとで整理する」という流れによって、集中を妨げずに情報を集め、必要な文脈とともに再利用できるようにします。
 
 ```text
-Capture Resources  ──>  Temporary Inbox  ──>  Workspaces & Packs  ──>  Connected Research Context
+情報を保存 → Inbox に集約 → Workspace / Pack で整理 → 検索・共有・再利用
 ```
 
-1. **Capture First**: Rapidly save links, notes, and references without breaking research focus.
-2. **Staging (Inbox)**: Store unorganized items in a central staging queue.
-3. **Organize Later**: Drag and group items into Workspaces and structured Packs on a visual canvas.
-4. **Synthesize**: Review connected information cards to build long-term project context.
+## 主な機能
 
----
+- テキスト、リンク、画像、ファイル、クリップボード画像のクイック保存
+- 未整理の情報を一時保管する Inbox
+- カードを自由に配置・選択・グループ化できるデスクトップキャンバス
+- 関連するカードをまとめる Pack と、ドラッグ＆ドロップによる整理
+- Workspace、Pack、アイテムを横断する検索と Markdown 書き出し
+- Supabase 認証・データ同期、ローカル状態との調整
+- インストール可能な PWA と日英中・マレー語 UI
 
-## Key Features
+## 私の担当
 
-- **Desktop Workspace Canvas**: A spatial desktop canvas for placing, grouping, and arranging research cards.
-- **Inbox Staging Queue**: A dedicated staging area for newly captured resources before organizing them into packs.
-- **Resource Packs & Full View**: Expandable card containers for grouping related research notes, links, and assets.
-- **Global Search Modal**: Keyboard-accessible search across research items, tags, and workspaces.
-- **Drag-and-Drop Interactions**: Fluid drag-and-drop positioning built with custom canvas drag interactions and spatial collision logic.
-- **State Persistence & Cloud Sync**: Supabase-backed authentication and data persistence with offline-friendly local state reconciliation.
-- **Desktop PWA Support**: Installable desktop Progressive Web Application via `vite-plugin-pwa`.
+- 「Capture first, organize later」というプロダクトコンセプトと情報設計
+- キャンバス、Inbox、Pack を中心とした操作フローと UI デザイン
+- React による機能単位のフロントエンド実装
+- ドラッグ判定、座標計算、複数選択、Pack 統合などの操作ロジック
+- 約 15 名のベータユーザーによる検証と、その結果に基づく改善
 
----
+## 技術構成
 
-## My Contribution
+`React 19` · `Vite 7` · `Supabase` · `JavaScript / JSX` · `PostHog` · `Vercel Analytics` · `Vite PWA`
 
-I worked on IntoDay as a **Product Designer and Frontend Contributor**, collaborating with engineering team members from initial product definition through implementation and beta testing.
+コードは `src/features/` 配下を中心とした Feature-oriented Architecture で構成しています。キャンバスの座標・衝突判定、Inbox から Pack への状態遷移、データ正規化などは純粋関数として分離し、Node.js Test Runner で検証しています。
 
-### Responsibilities & Core Work
-- **Product Definition & Direction**: Identified core research fragmentation problems and refined the "capture first, organize later" product model.
-- **Information Architecture & UX**: Designed user flows, spatial canvas mechanics, Inbox staging patterns, and resource Pack hierarchies.
-- **Frontend Implementation**: Built modular React components (`src/features/`), implemented desktop canvas layout geometry, and integrated drag-and-drop staging workflows.
-- **Design System & UI**: Created the visual interface, component styles, responsive layout behavior, and theme consistency.
-- **Usability Testing & Iteration**: Conducted usability testing sessions with **~15 beta users**, gathering feedback to refine canvas drag interactions, Inbox sorting, and navigation flows.
+## ローカルでの実行
 
----
-
-## Product Iteration
-
-IntoDay was built iteratively to validate core workflow concepts:
-
-```text
-User Problem Research  ──>  Information Architecture  ──>  Interaction Design  ──>  Frontend MVP  ──>  Beta Testing (15 Users)  ──>  Iteration
-```
-
-An early beta version was developed in approximately three weeks and tested with 15 target users. Usability feedback directly guided the transition toward a feature-based architecture and refined spatial card collision rules.
-
----
-
-## Architecture & Engineering
-
-The codebase uses a **Feature-Oriented Architecture** under `src/features/` to separate domain-specific UI, state hooks, and business logic from shared primitives.
-
-```text
-src/
-├── features/
-│   ├── canvas/       # Canvas layout geometry, selection, drag mechanics
-│   ├── capture/      # Quick resource entry & staging
-│   ├── inbox/        # Unsorted resource collection & Move-to-Pack logic
-│   ├── pack/         # Grouped resource containers & full pack view
-│   ├── search/       # Global search modal and keyword filtering
-│   ├── session/      # Workspace session state & persistence
-│   └── workspace/    # Workspace management & switching
-├── components/       # Reusable UI primitives and layout containers
-├── lib/              # Pure logic helpers, geometry math, & logic test suites
-└── supabase.js       # Supabase client configuration & auth handlers
-```
-
----
-
-## Tech Stack
-
-| Area | Technology |
-|---|---|
-| **Frontend Framework** | React 19, JavaScript / JSX |
-| **Build Tooling** | Vite 7 |
-| **Backend & Database** | Supabase |
-| **Authentication** | Supabase Auth |
-| **Interactions & Drag-and-Drop** | Custom Canvas Geometry & Drag Collision Logic |
-| **PWA Capability** | Vite PWA (`vite-plugin-pwa`) |
-| **Analytics** | PostHog, Vercel Analytics |
-| **Testing** | Node.js Test Runner (`npm run test:logic`) |
-| **Version Control** | Git, GitHub |
-
----
-
-## Quality Assurance & Testing
-
-The repository uses automated linting, logic test suites, production build verification, and GitHub Actions CI:
-
-- **ESLint Code Quality**: Enforces React 19 / JSX best practices across application source files (`npm run lint`).
-- **124 Logic Tests**: Validates canvas coordinate collision geometry, drag overlap calculation, Inbox-to-Pack state transitions, and workspace normalization (`npm run test:logic`).
-- **Production Build Verification**: Verifies bundle compilation via Vite 7 (`npm run build:web`).
-- **Automated CI Workflow**: Executed automatically on every pull request and push to `main` via GitHub Actions (`.github/workflows/ci.yml`).
+**必要環境:** Node.js 20+ / npm 9+
 
 ```bash
-# Run ESLint check
-npm run lint
-
-# Run 124 logic tests
-npm run test:logic
-
-# Build web bundle
-npm run build:web
+git clone https://github.com/vincentlow02/Intoday.git
+cd Intoday
+npm install
+cp .env.example .env.local
+npm run dev
 ```
 
----
+`.env.local` に Supabase の URL と匿名キーを設定してください。
 
-## Getting Started
+```bash
+npm run lint        # コード品質チェック
+npm run test:logic  # 144 件のロジックテスト
+npm run build:web   # プロダクションビルド
+```
 
-### Prerequisites
-- Node.js 20+
-- npm 9+
+## 現在の状況
 
-### Installation & Setup
-
-1. **Clone the repository**:
-   ```bash
-   git clone https://github.com/vincentlow02/Intoday.git
-   cd Intoday
-   ```
-
-2. **Install dependencies**:
-   ```bash
-   npm install
-   ```
-
-3. **Set up environment variables**:
-   Copy `.env.example` to `.env.local` and fill in your Supabase credentials:
-   ```bash
-   cp .env.example .env.local
-   ```
-
-4. **Start the local development server**:
-   ```bash
-   npm run dev
-   ```
-
-5. **Run test suite & production build**:
-   ```bash
-   # Run logic tests
-   npm run test:logic
-
-   # Build production bundle
-   npm run build:web
-   ```
+デスクトップ中心のベータ版です。現在は、情報収集から整理までの操作性、キャンバス上のドラッグ体験、およびクラウド同期の安定性を継続的に改善しています。
 
 ---
 
-## Project Status
+<a id="english"></a>
 
-IntoDay is an actively developed product prototype. Ongoing refinement focuses on desktop workspace interaction flows, simplifying multi-resource organization, and improving long-term research synthesis.
+## English
+
+IntoDay is a desktop-first workspace for quickly capturing, visually organizing, and connecting research materials.
+
+[Product Website](https://www.intoday.cc/) · [Web App](https://app.intoday.cc/) · [日本語](#intoday)
+
+> IntoDay is a collaborative team project. My contribution focuses on problem definition, information architecture, UI/UX design, and frontend implementation.
+
+### Overview
+
+Research links, notes, images, and files often become scattered across different tools. IntoDay supports a “capture first, organize later” workflow so users can stay focused while collecting information and restore its context when they need it.
+
+```text
+Capture → Inbox → Organize into Workspaces / Packs → Search, share, and reuse
+```
+
+### Key Features
+
+- Quick capture for text, links, images, files, and clipboard images
+- An Inbox for staging unorganized resources
+- A desktop canvas for positioning, selecting, and grouping cards
+- Packs and drag-and-drop workflows for organizing related resources
+- Search across workspaces, packs, and items, with Markdown export
+- Supabase authentication and cloud sync with local-state reconciliation
+- Installable PWA with English, Japanese, Chinese, and Malay UI
+
+### My Contribution
+
+- Defined the “capture first, organize later” product model and information architecture
+- Designed the canvas, Inbox, Pack interactions, and overall UI
+- Implemented feature-oriented frontend modules with React
+- Built interaction logic for collision detection, positioning, multi-selection, and Pack merging
+- Conducted usability testing with approximately 15 beta users and iterated from the findings
+
+### Tech Stack
+
+`React 19` · `Vite 7` · `Supabase` · `JavaScript / JSX` · `PostHog` · `Vercel Analytics` · `Vite PWA`
+
+The frontend follows a feature-oriented structure under `src/features/`. Canvas geometry, drag collision rules, Inbox-to-Pack transitions, and data normalization are separated into testable pure logic.
+
+### Local Setup
+
+**Requirements:** Node.js 20+ / npm 9+
+
+```bash
+git clone https://github.com/vincentlow02/Intoday.git
+cd Intoday
+npm install
+cp .env.example .env.local
+npm run dev
+```
+
+Add your Supabase URL and anonymous key to `.env.local`.
+
+```bash
+npm run lint        # Code quality
+npm run test:logic  # 144 logic tests
+npm run build:web   # Production build
+```
+
+### Current Status
+
+IntoDay is a desktop-first beta. Current work focuses on refining the capture-to-organization flow, canvas drag interactions, and cloud-sync reliability.
