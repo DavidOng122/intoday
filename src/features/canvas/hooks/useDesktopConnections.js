@@ -1,9 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  applyConnectionOperations,
   createConnectionOperationsForReplacement,
   createDesktopConnection,
-  dedupeDesktopConnections,
   findConnectionTargetAtPoint,
   migrateLegacyConnections,
   removeConnectionsForGroupIds,
@@ -138,58 +136,55 @@ export const useDesktopConnections = ({
     if (hydratedScopeRef.current === scopeKey) return undefined;
     hydratedScopeRef.current = scopeKey;
     let cancelled = false;
+
+    if (!userId || !cloudEnabled) {
+      const stored = readWorkspaceConnections(ownerId, workspaceId);
+      const migrated = stored.length > 0
+        ? stored
+        : migrateLegacyConnections({
+          legacyConnections: readLegacyConnections(),
+          tasks: tasksRef.current,
+          defaultWorkspaceId: workspaceId,
+        }).filter((connection) => connection.workspaceId === workspaceId);
+      connectionsRef.current = migrated;
+      window.queueMicrotask(() => {
+        if (!cancelled) setConnections(migrated);
+      });
+      writeWorkspaceConnections(ownerId, workspaceId, migrated);
+      pendingOperationsByScopeRef.current.set(
+        scopeKey,
+        readPendingConnectionOperations(ownerId, workspaceId),
+      );
+      return undefined;
+    }
+
     const stored = readWorkspaceConnections(ownerId, workspaceId);
-    const migrated = stored.length > 0
-      ? stored
-      : (!userId ? migrateLegacyConnections({
-        legacyConnections: readLegacyConnections(),
-        tasks: tasksRef.current,
-        defaultWorkspaceId: workspaceId,
-      }).filter((connection) => connection.workspaceId === workspaceId) : []);
-    connectionsRef.current = migrated;
-    window.queueMicrotask(() => {
-      if (!cancelled) setConnections(migrated);
-    });
-    writeWorkspaceConnections(ownerId, workspaceId, migrated);
     pendingOperationsByScopeRef.current.set(
       scopeKey,
       readPendingConnectionOperations(ownerId, workspaceId),
     );
 
-    if (!cloudEnabled || !userId) return undefined;
-
     const hydrateCloud = async () => {
       try {
         const cloudConnections = await loadCloudConnections(userId, workspaceId);
         if (cancelled) return;
-        let combined = dedupeDesktopConnections([...cloudConnections, ...migrated], workspaceId);
+
         const migrationCompleted = hasCompletedConnectionMigration(ownerId, workspaceId);
-        if (!migrationCompleted) {
-          const migrationOperations = createConnectionOperationsForReplacement(
-            cloudConnections,
-            combined,
-            workspaceId,
-          );
-          const pendingOperations = pendingOperationsByScopeRef.current.get(scopeKey) ?? [];
-          const nextPendingOperations = [
-            ...pendingOperations,
-            ...migrationOperations,
-          ];
-          pendingOperationsByScopeRef.current.set(scopeKey, nextPendingOperations);
-          writePendingConnectionOperations(ownerId, workspaceId, nextPendingOperations);
-        }
-        combined = applyConnectionOperations(
-          combined,
-          pendingOperationsByScopeRef.current.get(scopeKey) ?? [],
-          workspaceId,
-        );
-        connectionsRef.current = combined;
-        setConnections(combined);
-        writeWorkspaceConnections(ownerId, workspaceId, combined);
-        const result = await flushPendingOperations();
-        if (!cancelled && !result.error && result.remaining.length === 0) {
+        if (cloudConnections.length === 0 && !migrationCompleted && stored.length > 0) {
+          for (const connection of stored) {
+            await executeConnectionOperation(userId, { type: 'upsert', connection });
+          }
+          markConnectionMigrationComplete(ownerId, workspaceId);
+        } else if (cloudConnections.length === 0 && !migrationCompleted && stored.length === 0) {
           markConnectionMigrationComplete(ownerId, workspaceId);
         }
+
+        const finalConnections = await loadCloudConnections(userId, workspaceId);
+        if (cancelled) return;
+
+        connectionsRef.current = finalConnections;
+        setConnections(finalConnections);
+        writeWorkspaceConnections(ownerId, workspaceId, finalConnections);
       } catch {
         if (!cancelled && !syncErrorShownRef.current) {
           syncErrorShownRef.current = true;
@@ -197,6 +192,7 @@ export const useDesktopConnections = ({
         }
       }
     };
+
     void hydrateCloud();
     return () => {
       cancelled = true;

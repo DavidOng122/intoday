@@ -4,11 +4,12 @@ export { drainConnectionOperations } from './connectionSync.js';
 
 const CONNECTIONS_TABLE = 'canvas_connections';
 
-export const isConnectionCloudSyncEnabled = () => (
-  import.meta.env.VITE_CANVAS_CONNECTIONS_CLOUD_ENABLED === 'true'
-  && isSupabaseConfigured
-  && Boolean(supabase)
-);
+export const isConnectionCloudSyncEnabled = () => {
+  if (!isSupabaseConfigured || !supabase) return false;
+  const viteEnv = typeof import.meta !== 'undefined' && import.meta.env ? import.meta.env : {};
+  const flag = viteEnv.VITE_CANVAS_CONNECTIONS_CLOUD_ENABLED;
+  return flag === undefined || flag === null || flag === '' || flag === 'true';
+};
 
 export const fromConnectionRow = (row) => normalizeDesktopConnection({
   id: row.connection_id,

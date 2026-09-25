@@ -5,6 +5,7 @@ import { getUserScopedStorageKey } from '../../../shared/storage/userScopedStora
 export const TODOS_STORAGE_KEY = 'todos';
 export const LEGACY_DESKTOP_TODOS_STORAGE_KEY = 'desktop_tasks';
 const TODOS_TABLE = 'todos';
+const TODOS_CLOUD_MIGRATION_KEY = 'intoday_todos_cloud_migrated';
 const LOCAL_REFRESH_GRACE_MS = 8000;
 const AUTOSYNC_DELAY_MS = 600;
 const AUTOSYNC_RETRY_DELAY_MS = 5000;
@@ -36,11 +37,30 @@ const writeStorageList = (key, todos) => {
   }
 };
 
+const getTodoMigrationKey = (userId) => getUserScopedStorageKey(TODOS_CLOUD_MIGRATION_KEY, userId);
+
+const hasTodoCloudMigrationCompleted = (userId) => {
+  if (!userId) return true;
+  try {
+    return localStorage.getItem(getTodoMigrationKey(userId)) === 'true';
+  } catch {
+    return false;
+  }
+};
+
+const markTodoCloudMigrationComplete = (userId) => {
+  if (!userId) return false;
+  try {
+    localStorage.setItem(getTodoMigrationKey(userId), 'true');
+    return true;
+  } catch {
+    return false;
+  }
+};
+
 const readLocalTodos = (userId, normalizeTodo) => {
+  if (userId) return [];
   const scopedTodos = readStorageList(getUserScopedStorageKey(TODOS_STORAGE_KEY, userId)).map(normalizeTodo);
-  // Legacy shared browser data is only available to an unauthenticated guest.
-  // Reading it for a signed-in user would copy one account's items into another.
-  if (userId) return scopedTodos;
   const legacyTodos = readStorageList(LEGACY_DESKTOP_TODOS_STORAGE_KEY).map(normalizeTodo);
   return mergeById(scopedTodos, legacyTodos);
 };
@@ -52,8 +72,6 @@ const toCloudPayload = (todo) => {
     ...payload
   } = todo;
 
-  // New uploads keep binary data in Storage. Never re-introduce a large Base64
-  // value into the JSON task row once a Storage object exists.
   if (payload.uploadedFileStoragePath) {
     payload.photoDataUrl = null;
     payload.photoUrl = null;
@@ -206,14 +224,12 @@ export const useSyncedTodos = ({ userId, normalizeTodo }) => {
 
       if (userId && supabase) {
         await persistCloudTodos(userId, nextTodos);
+      } else if (!writeStorageList(getUserScopedStorageKey(TODOS_STORAGE_KEY, userId), nextTodos)) {
+        throw new Error('Unable to persist the confirmed todo update locally.');
       }
 
       pendingUpsertVersionsRef.current.clear();
       pendingDeleteVersionsRef.current.clear();
-
-      if (!writeStorageList(getUserScopedStorageKey(TODOS_STORAGE_KEY, userId), nextTodos) && !userId) {
-        throw new Error('Unable to persist the confirmed todo update locally.');
-      }
 
       lastLocalMutationAtRef.current = Date.now();
       todosRef.current = nextTodos;
@@ -228,8 +244,10 @@ export const useSyncedTodos = ({ userId, normalizeTodo }) => {
   }, [normalizeTodo, userId]);
 
   useEffect(() => {
+    if (userId) return undefined;
     const normalizedTodos = todos.map(normalizeTodo);
     writeStorageList(getUserScopedStorageKey(TODOS_STORAGE_KEY, userId), normalizedTodos);
+    return undefined;
   }, [normalizeTodo, todos, userId]);
 
   useEffect(() => {
@@ -238,8 +256,8 @@ export const useSyncedTodos = ({ userId, normalizeTodo }) => {
     const hydrate = async () => {
       const localTodos = readLocalTodos(userId, normalizeTodo);
       if (!cancelled) {
-        todosRef.current = localTodos;
-        setTodosState(localTodos);
+        todosRef.current = userId ? [] : localTodos;
+        setTodosState(userId ? [] : localTodos);
       }
 
       if (!userId || !supabase) {
@@ -251,25 +269,29 @@ export const useSyncedTodos = ({ userId, normalizeTodo }) => {
         const cloudTodos = await loadCloudTodos(userId, normalizeTodo);
         if (cancelled) return;
 
-        const shouldSeedCloud = cloudTodos.length === 0 && localTodos.length > 0;
-        const nextTodos = shouldSeedCloud ? localTodos : cloudTodos;
+        const shouldMigrateLegacyData = cloudTodos.length === 0
+          && localTodos.length > 0
+          && !hasTodoCloudMigrationCompleted(userId);
 
-        if (shouldSeedCloud) {
-          await persistCloudTodos(userId, nextTodos.map(normalizeTodo));
-          if (cancelled) return;
+        if (shouldMigrateLegacyData) {
+          await persistCloudTodos(userId, localTodos.map(normalizeTodo));
+          markTodoCloudMigrationComplete(userId);
         }
+
+        const nextTodos = await loadCloudTodos(userId, normalizeTodo);
+        if (cancelled) return;
 
         todosRef.current = nextTodos;
         setTodosState(nextTodos);
-        writeStorageList(getUserScopedStorageKey(TODOS_STORAGE_KEY, userId), nextTodos);
         setCloudLoaded(true);
       } catch (error) {
         console.error('Failed to load todos from Supabase:', error);
+        if (!cancelled) setCloudLoaded(true);
       }
     };
 
     setCloudLoaded(false);
-    hydrate();
+    void hydrate();
 
     return () => {
       cancelled = true;

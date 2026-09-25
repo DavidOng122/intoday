@@ -12,6 +12,17 @@ import {
   normalizeDesktopWorkspaces,
 } from '../../../lib/workspaceUtils';
 import { getUserScopedStorageKey } from '../../../shared/storage/userScopedStorage';
+import {
+  createCloudWorkspace,
+  deleteCloudWorkspace,
+  hasWorkspaceCloudMigrationCompleted,
+  loadCloudWorkspaces,
+  loadDeletedCloudWorkspaces,
+  markWorkspaceCloudMigrationComplete,
+  restoreCloudWorkspace,
+  shouldAutoMigrateLegacyWorkspaces,
+  updateCloudWorkspace,
+} from '../data/workspaceRepository';
 
 const loadWorkspaces = (userId) => {
   try {
@@ -34,17 +45,73 @@ const loadDeletedWorkspaces = (userId) => {
   }
 };
 
+const readActiveWorkspaceId = (ownerId, fallbackWorkspaces) => {
+  const storedId = localStorage.getItem(getUserScopedStorageKey(DESKTOP_ACTIVE_WORKSPACE_KEY, ownerId));
+  return fallbackWorkspaces.some((workspace) => workspace.id === storedId)
+    ? storedId
+    : fallbackWorkspaces[0]?.id || DEFAULT_DESKTOP_WORKSPACE_ID;
+};
+
 export const useDesktopWorkspaces = ({ userId } = {}) => {
   const ownerId = userId || null;
-  const [workspaces, setWorkspaces] = useState(() => loadWorkspaces(ownerId));
-  const [deletedWorkspaces, setDeletedWorkspaces] = useState(() => loadDeletedWorkspaces(ownerId));
+  const [workspaces, setWorkspaces] = useState(() => (userId ? [] : loadWorkspaces(ownerId)));
+  const [deletedWorkspaces, setDeletedWorkspaces] = useState(() => (userId ? [] : loadDeletedWorkspaces(ownerId)));
   const [activeWorkspaceId, setActiveWorkspaceId] = useState(() => {
-    const storedId = localStorage.getItem(getUserScopedStorageKey(DESKTOP_ACTIVE_WORKSPACE_KEY, ownerId));
-    const initialWorkspaces = loadWorkspaces(ownerId);
-    return initialWorkspaces.some((workspace) => workspace.id === storedId)
-      ? storedId
-      : initialWorkspaces[0].id;
+    const fallbackWorkspaces = userId ? [] : loadWorkspaces(ownerId);
+    return readActiveWorkspaceId(ownerId, fallbackWorkspaces);
   });
+
+  useEffect(() => {
+    if (!userId) return undefined;
+
+    let cancelled = false;
+
+    const hydrate = async () => {
+      try {
+        const localWorkspaces = loadWorkspaces(userId);
+        const cloudWorkspaces = await loadCloudWorkspaces(userId);
+
+        if (cancelled) return;
+
+        const migrationCompleted = hasWorkspaceCloudMigrationCompleted(userId);
+        const shouldMigrate = shouldAutoMigrateLegacyWorkspaces({
+          cloudWorkspaces,
+          localWorkspaces,
+          migrationCompleted,
+        });
+
+        if (shouldMigrate) {
+          await Promise.all(localWorkspaces.map((workspace) => createCloudWorkspace(userId, workspace)));
+          markWorkspaceCloudMigrationComplete(userId);
+        }
+
+        const nextCloudWorkspaces = await loadCloudWorkspaces(userId);
+        const nextDeletedWorkspaces = await loadDeletedCloudWorkspaces(userId);
+
+        if (cancelled) return;
+
+        setWorkspaces(nextCloudWorkspaces);
+        setDeletedWorkspaces(nextDeletedWorkspaces);
+        const storedId = localStorage.getItem(getUserScopedStorageKey(DESKTOP_ACTIVE_WORKSPACE_KEY, ownerId));
+        const nextActiveWorkspaceId = nextCloudWorkspaces.some((workspace) => workspace.id === storedId)
+          ? storedId
+          : nextCloudWorkspaces[0]?.id || DEFAULT_DESKTOP_WORKSPACE_ID;
+        setActiveWorkspaceId(nextActiveWorkspaceId);
+      } catch (error) {
+        console.error('Failed to load workspaces from Supabase:', error);
+        if (!cancelled) {
+          setWorkspaces([]);
+          setDeletedWorkspaces([]);
+          setActiveWorkspaceId(DEFAULT_DESKTOP_WORKSPACE_ID);
+        }
+      }
+    };
+
+    void hydrate();
+    return () => {
+      cancelled = true;
+    };
+  }, [ownerId, userId]);
 
   const activeWorkspace = useMemo(
     () => workspaces.find((workspace) => workspace.id === activeWorkspaceId) || workspaces[0],
@@ -52,8 +119,9 @@ export const useDesktopWorkspaces = ({ userId } = {}) => {
   );
 
   useEffect(() => {
+    if (userId) return;
     localStorage.setItem(getUserScopedStorageKey(DESKTOP_WORKSPACES_KEY, ownerId), JSON.stringify(workspaces));
-  }, [ownerId, workspaces]);
+  }, [ownerId, userId, workspaces]);
 
   useEffect(() => {
     localStorage.setItem(
@@ -63,11 +131,12 @@ export const useDesktopWorkspaces = ({ userId } = {}) => {
   }, [activeWorkspace?.id, ownerId]);
 
   useEffect(() => {
+    if (userId) return;
     localStorage.setItem(
       getUserScopedStorageKey(DELETED_DESKTOP_WORKSPACES_KEY, ownerId),
       JSON.stringify(deletedWorkspaces),
     );
-  }, [deletedWorkspaces, ownerId]);
+  }, [deletedWorkspaces, ownerId, userId]);
 
   const selectWorkspace = useCallback((workspaceId) => {
     if (workspaces.some((workspace) => workspace.id === workspaceId)) {
@@ -75,33 +144,56 @@ export const useDesktopWorkspaces = ({ userId } = {}) => {
     }
   }, [workspaces]);
 
-  const addWorkspace = useCallback(() => {
+  const addWorkspace = useCallback(async () => {
     if (workspaces.length >= MAX_DESKTOP_WORKSPACES) return null;
     const nextWorkspace = {
       id: createWorkspaceId(),
       name: getUntitledWorkspaceName(workspaces.length + 1),
     };
+
     setWorkspaces((current) => [...current, nextWorkspace]);
     setActiveWorkspaceId(nextWorkspace.id);
+
+    if (userId) {
+      try {
+        await createCloudWorkspace(userId, nextWorkspace);
+      } catch (error) {
+        console.error('Failed to create workspace in Supabase:', error);
+        setWorkspaces((current) => current.filter((workspace) => workspace.id !== nextWorkspace.id));
+        setActiveWorkspaceId(workspaces[0]?.id || DEFAULT_DESKTOP_WORKSPACE_ID);
+        throw error;
+      }
+    }
+
     return nextWorkspace;
-  }, [workspaces.length]);
+  }, [userId, workspaces]);
 
   const setActiveWorkspace = useCallback((valueOrUpdater) => {
+    const activeWorkspaceSnapshot = workspaces.find((workspace) => workspace.id === activeWorkspaceId) || null;
+    const nextWorkspace = typeof valueOrUpdater === 'function'
+      ? valueOrUpdater(activeWorkspaceSnapshot || {})
+      : valueOrUpdater;
+
     setWorkspaces((current) => current.map((workspace) => {
       if (workspace.id !== activeWorkspaceId) return workspace;
-      const nextWorkspace = typeof valueOrUpdater === 'function'
-        ? valueOrUpdater(workspace)
-        : valueOrUpdater;
-      return {
+      const merged = {
         ...workspace,
         ...nextWorkspace,
         id: workspace.id,
         name: nextWorkspace?.name?.trim() || workspace.name,
       };
-    }));
-  }, [activeWorkspaceId]);
 
-  const deleteWorkspace = useCallback((workspaceId) => {
+      if (userId) {
+        void updateCloudWorkspace(userId, merged).catch((error) => {
+          console.error('Failed to rename workspace in Supabase:', error);
+        });
+      }
+
+      return merged;
+    }));
+  }, [activeWorkspaceId, userId, workspaces]);
+
+  const deleteWorkspace = useCallback(async (workspaceId) => {
     if (workspaces.length <= 1) return null;
     const deletedWorkspace = workspaces.find((workspace) => workspace.id === workspaceId);
     if (!deletedWorkspace) return null;
@@ -111,6 +203,30 @@ export const useDesktopWorkspaces = ({ userId } = {}) => {
       ...deletedWorkspace,
       deletedAt: new Date().toISOString(),
     };
+
+    if (userId) {
+      const previousWorkspaces = workspaces;
+      const previousDeletedWorkspaces = deletedWorkspaces;
+      try {
+        setWorkspaces(remainingWorkspaces);
+        setDeletedWorkspaces((current) => [
+          { id: archivedWorkspace.id, name: archivedWorkspace.name, deletedAt: archivedWorkspace.deletedAt },
+          ...current.filter((workspace) => workspace.id !== workspaceId),
+        ]);
+        if (activeWorkspaceId === workspaceId) setActiveWorkspaceId(fallbackWorkspace.id);
+        await deleteCloudWorkspace(userId, workspaceId);
+        const cloudDeletedWorkspaces = await loadDeletedCloudWorkspaces(userId);
+        setDeletedWorkspaces(cloudDeletedWorkspaces);
+        return archivedWorkspace;
+      } catch (error) {
+        console.error('Failed to delete workspace in Supabase:', error);
+        setWorkspaces(previousWorkspaces);
+        setDeletedWorkspaces(previousDeletedWorkspaces);
+        if (activeWorkspaceId === workspaceId) setActiveWorkspaceId(workspaceId);
+        throw error;
+      }
+    }
+
     setWorkspaces(remainingWorkspaces);
     setDeletedWorkspaces((current) => [
       archivedWorkspace,
@@ -118,9 +234,9 @@ export const useDesktopWorkspaces = ({ userId } = {}) => {
     ]);
     if (activeWorkspaceId === workspaceId) setActiveWorkspaceId(fallbackWorkspace.id);
     return archivedWorkspace;
-  }, [activeWorkspaceId, workspaces]);
+  }, [activeWorkspaceId, deletedWorkspaces, userId, workspaces]);
 
-  const restoreWorkspace = useCallback((workspaceId) => {
+  const restoreWorkspace = useCallback(async (workspaceId) => {
     if (workspaces.length >= MAX_DESKTOP_WORKSPACES) return null;
     const archivedWorkspace = deletedWorkspaces.find((workspace) => workspace.id === workspaceId);
     if (!archivedWorkspace) return null;
@@ -128,11 +244,31 @@ export const useDesktopWorkspaces = ({ userId } = {}) => {
       id: archivedWorkspace.id,
       name: archivedWorkspace.name || getUntitledWorkspaceName(workspaces.length + 1),
     };
+
+    if (userId) {
+      const previousWorkspaces = workspaces;
+      const previousDeletedWorkspaces = deletedWorkspaces;
+      try {
+        setDeletedWorkspaces((current) => current.filter((workspace) => workspace.id !== workspaceId));
+        setWorkspaces((current) => [...current, restoredWorkspace]);
+        setActiveWorkspaceId(restoredWorkspace.id);
+        await restoreCloudWorkspace(userId, workspaceId);
+        const nextDeletedWorkspaces = await loadDeletedCloudWorkspaces(userId);
+        setDeletedWorkspaces(nextDeletedWorkspaces);
+        return restoredWorkspace;
+      } catch (error) {
+        console.error('Failed to restore workspace in Supabase:', error);
+        setWorkspaces(previousWorkspaces);
+        setDeletedWorkspaces(previousDeletedWorkspaces);
+        throw error;
+      }
+    }
+
     setDeletedWorkspaces((current) => current.filter((workspace) => workspace.id !== workspaceId));
     setWorkspaces((current) => [...current, restoredWorkspace]);
     setActiveWorkspaceId(restoredWorkspace.id);
     return restoredWorkspace;
-  }, [deletedWorkspaces, workspaces.length]);
+  }, [deletedWorkspaces, userId, workspaces]);
 
   return {
     activeWorkspace,
