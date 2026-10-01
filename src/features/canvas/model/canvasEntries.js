@@ -35,6 +35,14 @@ export const getDesktopCanvasEntryTaskIds = (entry) => (
       : []
 );
 
+export const getDesktopCanvasTasksFromEntries = (entries) => entries.flatMap((entry) => (
+  entry?.type === 'group'
+    ? entry.tasks
+    : entry?.task
+      ? [entry.task]
+      : []
+));
+
 export const resolveDesktopCanvasEntries = (tasks) => {
   const selectedTasks = tasks.slice().sort((a, b) => {
     const layerA = Number.isFinite(a.desktopZ) ? a.desktopZ : 0;

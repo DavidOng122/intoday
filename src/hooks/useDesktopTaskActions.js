@@ -9,28 +9,21 @@ import {
 } from '../entities/task/model/taskCardPresentation';
 
 export const useDesktopTaskActions = ({
-  activeWorkspace,
-  areTaskIdSelectionsEqual,
   cleanupDesktopGroupMetadata,
-  defaultWorkspaceId,
   openUploadedFileTask,
   onOpenTextTask,
   onGroupsDeleted,
   pendingCanvasDeletion,
-  selectedTaskIdsRef,
-  setActiveWorkspace,
   setFullscreenImage,
-  setIsWorkspaceNameEditing,
   setPendingCanvasDeletion,
   setSelectedTaskIds,
   setTasks,
-  setWorkspaceNameDraft,
   suppressAllTaskClicksUntilRef,
   suppressTaskClickRef,
   tasksRef,
   t,
+  updateCanvasSelection,
   user,
-  workspaceNameDraft,
 }) => {
   const deleteTasksByIds = useCallback((taskIds) => {
     if (!Array.isArray(taskIds) || taskIds.length === 0) return;
@@ -74,37 +67,6 @@ export const useDesktopTaskActions = ({
   const cancelCanvasDeletion = useCallback(() => {
     setPendingCanvasDeletion(null);
   }, [setPendingCanvasDeletion]);
-
-  const updateCanvasSelection = useCallback((taskIds, event, openAction) => {
-    const normalizedTaskIds = [...new Set(taskIds)];
-    if (!normalizedTaskIds.length) return;
-
-    if (event?.metaKey || event?.ctrlKey) {
-      event.preventDefault?.();
-      event.stopPropagation?.();
-      setSelectedTaskIds((current) => {
-        const currentSet = new Set(current);
-        const isFullySelected = normalizedTaskIds.every((taskId) => currentSet.has(taskId));
-        normalizedTaskIds.forEach((taskId) => {
-          if (isFullySelected) currentSet.delete(taskId);
-          else currentSet.add(taskId);
-        });
-        return [...currentSet];
-      });
-      return;
-    }
-
-    if (areTaskIdSelectionsEqual(selectedTaskIdsRef.current, normalizedTaskIds)) {
-      openAction?.();
-      return;
-    }
-
-    setSelectedTaskIds(normalizedTaskIds);
-
-    if (normalizedTaskIds.length === 1) {
-      openAction?.();
-    }
-  }, [areTaskIdSelectionsEqual, selectedTaskIdsRef, setSelectedTaskIds]);
 
   const handleTaskClick = useCallback((task, event) => {
     const openTaskFromCanvas = () => {
@@ -151,32 +113,11 @@ export const useDesktopTaskActions = ({
     updateCanvasSelection([task.id], event, openTaskFromCanvas);
   }, [suppressAllTaskClicksUntilRef, suppressTaskClickRef, t, user, openUploadedFileTask, onOpenTextTask, setFullscreenImage, updateCanvasSelection]);
 
-  const handleStartWorkspaceRename = () => {
-    setWorkspaceNameDraft(activeWorkspace?.name || 'Untitled');
-    setIsWorkspaceNameEditing(true);
-  };
-
-  const handleCommitWorkspaceRename = () => {
-    const nextName = workspaceNameDraft.trim() || 'Untitled';
-    setActiveWorkspace((current) => ({ ...current, id: defaultWorkspaceId, name: nextName }));
-    setIsWorkspaceNameEditing(false);
-  };
-
-  const handleCancelWorkspaceRename = () => {
-    setWorkspaceNameDraft(activeWorkspace?.name || 'Untitled');
-    setIsWorkspaceNameEditing(false);
-  };
-
-  
-
   return {
     deleteTasksByIds,
     confirmCanvasDeletion,
     cancelCanvasDeletion,
     handleTaskClick,
-    handleStartWorkspaceRename,
-    handleCommitWorkspaceRename,
-    handleCancelWorkspaceRename,
     updateCanvasSelection,
   };
 };

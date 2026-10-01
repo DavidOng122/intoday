@@ -8,15 +8,20 @@ import { useExternalCanvasDrop } from './useExternalCanvasDrop.js';
 import { useCanvasPointerDrag } from './useCanvasPointerDrag.js';
 import { useCanvasDragCleanup } from './useCanvasDragCleanup.js';
 import { useCanvasDragSessionStart } from './useCanvasDragSessionStart.js';
-import { useCanvasTaskDrop } from './useCanvasTaskDrop.js';
 
-export const useDesktopTaskDrag = ({ runtime, viewport, canvas, externalSource }) => {
+export const useDesktopTaskDrag = ({ canvas, application, bridges }) => {
+  const {
+    runtime,
+    entriesRef,
+    viewport,
+    selection,
+    presentation,
+  } = canvas;
   const {
     desktopDragAnchorSizeRef,
     desktopDragModeRef,
     desktopDragPointerRef,
     desktopDragSourceEntryIdRef,
-    selectedDayEntriesRef,
     suppressAllTaskClicksUntilRef,
     suppressTaskClickRef,
     suppressTaskClickTimeoutRef,
@@ -29,28 +34,31 @@ export const useDesktopTaskDrag = ({ runtime, viewport, canvas, externalSource }
     viewportContainerRef,
   } = viewport;
   const {
-  cleanupDesktopGroupMetadata,
-  searchDragSeparateRef,
-  selectedDateRef,
-  setDesktopDragOverlapTargetId,
-  setDesktopDragOverlayActive,
-  setDesktopDragOverlaySnapshot,
-  setDesktopSelectionRect,
-  setDraggedTaskId,
-  setHistoryOpen,
-  setIsGroupDragActive,
-  setDragSession,
-  setPendingGroupName,
-  setPendingGroupPrompt,
-  setTasks,
-  tasksRef,
-  } = canvas;
+    setDesktopSelectionRect,
+  } = selection;
+  const {
+    setDesktopDragOverlapTargetId,
+    setDesktopDragOverlayActive,
+    setDesktopDragOverlaySnapshot,
+    setDraggedTaskId,
+    setIsGroupDragActive,
+    setDragSession,
+  } = presentation;
+  const { onCommitInternalDrop } = application;
+  const {
+    search,
+    externalSource,
+  } = bridges;
+  const {
+    searchDragSeparateRef,
+    setHistoryOpen,
+  } = search;
   const {
     cancelExternalCanvasDrop,
     closeExternalDragSource,
     finishExternalCanvasDrop,
     isExternalDragTask,
-  } = useExternalCanvasDrop({ externalSource, canvasBoundsRef, selectedDayEntriesRef });
+  } = useExternalCanvasDrop({ externalSource, canvasBoundsRef, entriesRef });
 const suppressNextTaskClick = useCallback((taskId) => {
   if (suppressTaskClickTimeoutRef.current !== null) {
     window.clearTimeout(suppressTaskClickTimeoutRef.current);
@@ -77,7 +85,7 @@ const {
   getDesktopDragAnchorPosition,
   isExternalDragTask,
   setDesktopDragOverlapTargetId,
-  tasksRef,
+  entriesRef,
 });
 
 const setDesktopDragSourceHidden = useCallback((hidden) => {
@@ -117,6 +125,7 @@ const { prepareDesktopDragFinish, resetDesktopDragAfterFinish } = useCanvasDragC
 
 const startDesktopTaskDrag = useCanvasDragSessionStart({
   runtime,
+  entriesRef,
   viewport: { getCanvasPointFromClient, viewportContainerRef },
   isExternalDragTask,
   closeExternalDragSource,
@@ -129,21 +138,6 @@ const startDesktopTaskDrag = useCanvasDragSessionStart({
   setDragSession,
   syncDesktopDraggedTaskPosition,
   scheduleDesktopDragVisualUpdate,
-  tasksRef,
-});
-
-const finishCanvasTaskDrop = useCanvasTaskDrop({
-  runtime,
-  canvas: {
-    cleanupDesktopGroupMetadata,
-    searchDragSeparateRef,
-    selectedDateRef,
-    setPendingGroupName,
-    setPendingGroupPrompt,
-    setTasks,
-  },
-  canvasBoundsRef,
-  getDesktopCanvasOverlapEntryFromDom,
 });
 
 const finishDesktopTaskDrag = useCallback((task, pointerTarget, pointerId, wasCancelled = false) => {
@@ -180,7 +174,11 @@ const finishDesktopTaskDrag = useCallback((task, pointerTarget, pointerId, wasCa
           height: movingHeight,
         });
       } else {
-        finishCanvasTaskDrop({ task, rawNextPosition });
+        onCommitInternalDrop({
+          task,
+          rawNextPosition,
+          getDesktopCanvasOverlapEntryFromDom,
+        });
       }
     } else if (isExternalDragTask?.(task) === true) {
       cancelExternalCanvasDrop?.();
@@ -200,7 +198,8 @@ const finishDesktopTaskDrag = useCallback((task, pointerTarget, pointerId, wasCa
   prepareDesktopDragFinish,
   resetDesktopDragAfterFinish,
   setDesktopDragSourceHidden,
-  finishCanvasTaskDrop,
+  getDesktopCanvasOverlapEntryFromDom,
+  onCommitInternalDrop,
   suppressNextTaskClick,
   syncDesktopDraggedTaskPosition,
 ]);

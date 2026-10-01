@@ -2,7 +2,10 @@
 // External consumers must import from this file rather than its internal folders.
 
 export { default as InboxPanel } from './components/InboxPanel';
+export { useInboxData } from './hooks/useInboxData';
+export { useInboxItemCreation } from './hooks/useInboxItemCreation';
 export { useInboxPanel } from './hooks/useInboxPanel';
+export { useInboxPlacement } from './hooks/useInboxPlacement';
 
 export {
   COLLECTION_STATES,

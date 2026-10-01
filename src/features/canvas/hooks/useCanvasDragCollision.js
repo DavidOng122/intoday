@@ -4,7 +4,10 @@ import {
   DESKTOP_CANVAS_CARD_WIDTH,
   DESKTOP_GROUP_OVERLAP_THRESHOLD,
 } from '../model/canvasConstants.js';
-import { getDesktopCanvasOverlapEntry } from '../model/canvasEntries.js';
+import {
+  getDesktopCanvasOverlapEntry,
+  getDesktopCanvasTasksFromEntries,
+} from '../model/canvasEntries.js';
 import { buildCanvasCollisionCandidates, getCanvasRectFromClientRect } from '../model/canvasCollisionCandidates.js';
 import { getCanvasEntryIdentity } from '../model/canvasEntryIdentity.js';
 import { findCanvasCollisionTarget } from '../model/canvasCollisionTarget.js';
@@ -18,7 +21,7 @@ export const useCanvasDragCollision = ({
   getDesktopDragAnchorPosition,
   isExternalDragTask,
   setDesktopDragOverlapTargetId,
-  tasksRef,
+  entriesRef,
 }) => {
   const {
     activePointerTaskRef,
@@ -34,15 +37,19 @@ export const useCanvasDragCollision = ({
   } = runtime;
   const targetCandidatesCacheRef = useRef(null);
 
-  const getCandidatesCache = useCallback((tasks) => {
-    if (!targetCandidatesCacheRef.current || targetCandidatesCacheRef.current.tasksReference !== tasks) {
+  const getCandidatesCache = useCallback(() => {
+    const entries = entriesRef.current;
+    if (!targetCandidatesCacheRef.current || targetCandidatesCacheRef.current.entriesReference !== entries) {
       targetCandidatesCacheRef.current = {
-        tasksReference: tasks,
-        candidates: buildCanvasCollisionCandidates(tasks, getCanvasPointFromClient),
+        entriesReference: entries,
+        candidates: buildCanvasCollisionCandidates(
+          getDesktopCanvasTasksFromEntries(entries),
+          getCanvasPointFromClient,
+        ),
       };
     }
     return targetCandidatesCacheRef.current.candidates;
-  }, [getCanvasPointFromClient]);
+  }, [entriesRef, getCanvasPointFromClient]);
 
   const resetDragCollision = useCallback(() => {
     targetCandidatesCacheRef.current = null;
@@ -81,7 +88,7 @@ export const useCanvasDragCollision = ({
     }
     return findCanvasCollisionTarget({
       movingRect,
-      candidates: getCandidatesCache(tasks),
+      candidates: getCandidatesCache(),
       movingTaskIds,
       threshold,
     });
@@ -97,7 +104,7 @@ export const useCanvasDragCollision = ({
         : [taskId],
     );
     const overlapResult = getDesktopCanvasOverlapEntryFromDom(
-      tasksRef.current, movingTaskIds, taskId, nextPosition,
+      getDesktopCanvasTasksFromEntries(entriesRef.current), movingTaskIds, taskId, nextPosition,
     );
     const isExternalDrag = isExternalDragTask?.(activePointerTaskRef.current) === true;
     const nextTargetId = isExternalDrag && overlapResult?.entry?.type !== 'group'
@@ -110,12 +117,12 @@ export const useCanvasDragCollision = ({
     activePointerTaskRef,
     desktopDragOverlapTargetIdRef,
     desktopDragSelectedTaskIdsRef,
+    entriesRef,
     getDesktopCanvasOverlapEntryFromDom,
     getDesktopDragAnchorPosition,
     getDragCanvasPointFromClient,
     isExternalDragTask,
     setDesktopDragOverlapTargetId,
-    tasksRef,
   ]);
 
   const flushDesktopDragOverlapUpdate = useCallback(() => {

@@ -4,7 +4,10 @@ import {
   DESKTOP_CANVAS_CARD_HEIGHT,
   DESKTOP_CANVAS_CARD_WIDTH,
 } from '../model/canvasConstants.js';
-import { getDesktopCanvasEntryHeight } from '../model/canvasEntries.js';
+import {
+  getDesktopCanvasEntryHeight,
+  getDesktopCanvasTasksFromEntries,
+} from '../model/canvasEntries.js';
 import { buildCanvasDragStart } from '../model/canvasDragStart.js';
 import { createCanvasDragSession } from '../model/canvasDragSession.js';
 
@@ -12,6 +15,7 @@ import { createCanvasDragSession } from '../model/canvasDragSession.js';
 // Pointer handling and visual updates remain in the orchestrating hook.
 export const useCanvasDragSessionStart = ({
   runtime,
+  entriesRef,
   viewport,
   isExternalDragTask,
   closeExternalDragSource,
@@ -24,7 +28,6 @@ export const useCanvasDragSessionStart = ({
   setDragSession,
   syncDesktopDraggedTaskPosition,
   scheduleDesktopDragVisualUpdate,
-  tasksRef,
 }) => {
   const {
     desktopDragAnchorSizeRef,
@@ -40,24 +43,24 @@ export const useCanvasDragSessionStart = ({
     desktopDragSourceEntryIdRef,
     desktopDragSourceRectRef,
     desktopDragStateRef,
-    selectedDayEntriesRef,
   } = runtime;
   const { getCanvasPointFromClient, viewportContainerRef } = viewport;
 
   return useCallback((task) => {
     setHistoryOpen(false);
     const isExternalDrag = isExternalDragTask?.(task) === true;
-    getCandidatesCache(tasksRef.current);
+    getCandidatesCache();
 
     const taskId = task.id;
     const sourceRect = desktopDragSourceRectRef.current;
     const sourceCanvasPosition = sourceRect
       ? getCanvasPointFromClient(sourceRect.left, sourceRect.top)
       : null;
+    const entries = entriesRef.current;
     const dragStart = buildCanvasDragStart({
       task,
-      entries: selectedDayEntriesRef.current,
-      tasks: tasksRef.current,
+      entries,
+      tasks: getDesktopCanvasTasksFromEntries(entries),
       sourceCanvasPosition,
     });
     const {
@@ -128,11 +131,11 @@ export const useCanvasDragSessionStart = ({
     desktopDragSourceEntryIdRef,
     desktopDragSourceRectRef,
     desktopDragStateRef,
+    entriesRef,
     getCandidatesCache,
     getCanvasPointFromClient,
     isExternalDragTask,
     scheduleDesktopDragVisualUpdate,
-    selectedDayEntriesRef,
     setDesktopDragOverlayActive,
     setDesktopDragOverlaySnapshot,
     setDraggedTaskId,
@@ -140,7 +143,6 @@ export const useCanvasDragSessionStart = ({
     setIsGroupDragActive,
     setDragSession,
     syncDesktopDraggedTaskPosition,
-    tasksRef,
     viewportContainerRef,
   ]);
 };

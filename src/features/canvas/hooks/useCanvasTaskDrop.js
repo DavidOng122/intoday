@@ -15,7 +15,6 @@ export const useCanvasTaskDrop = ({
   runtime,
   canvas,
   canvasBoundsRef,
-  getDesktopCanvasOverlapEntryFromDom,
 }) => {
   const {
     desktopDragAnchorSizeRef,
@@ -35,7 +34,7 @@ export const useCanvasTaskDrop = ({
     setTasks,
   } = canvas;
 
-  return useCallback(({ task, rawNextPosition }) => {
+  return useCallback(({ task, rawNextPosition, getDesktopCanvasOverlapEntryFromDom }) => {
     const anchorStart = desktopDragAnchorStartPositionRef.current || { x: 0, y: 0 };
     const startPositions = [...desktopDragSelectionPositionsRef.current.values()];
     const previewPosition = desktopDragPreviewPositionsRef.current[task.id];
@@ -111,7 +110,6 @@ export const useCanvasTaskDrop = ({
     desktopDragPreviewPositionsRef,
     desktopDragSelectedTaskIdsRef,
     desktopDragSelectionPositionsRef,
-    getDesktopCanvasOverlapEntryFromDom,
     searchDragSeparateRef,
     selectedDateRef,
     setPendingGroupName,

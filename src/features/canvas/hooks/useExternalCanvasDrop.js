@@ -7,7 +7,7 @@ import { resolveInboxCanvasDrop } from '../model/inboxCanvasDrop.js';
 
 // Owns the bridge from an Inbox resource to the Canvas. Canvas task movement
 // does not need to know how the external source persists its result.
-export const useExternalCanvasDrop = ({ externalSource, canvasBoundsRef, selectedDayEntriesRef }) => {
+export const useExternalCanvasDrop = ({ externalSource, canvasBoundsRef, entriesRef }) => {
   const {
     isTask: isExternalDragTask,
     onCancel,
@@ -26,7 +26,7 @@ export const useExternalCanvasDrop = ({ externalSource, canvasBoundsRef, selecte
     const outcome = wasCancelled
       ? { kind: 'cancelled' }
       : resolveInboxCanvasDrop({
-        entries: selectedDayEntriesRef.current,
+        entries: entriesRef.current,
         position,
         pointerPosition,
         canvasBounds: canvasBoundsRef.current,
@@ -46,7 +46,7 @@ export const useExternalCanvasDrop = ({ externalSource, canvasBoundsRef, selecte
         z: Date.now(),
       },
     }).catch(() => onDropFailure?.());
-  }, [canvasBoundsRef, onCancel, onDrop, onDropFailure, selectedDayEntriesRef]);
+  }, [canvasBoundsRef, entriesRef, onCancel, onDrop, onDropFailure]);
 
   return {
     closeExternalDragSource: onOverlayReady,

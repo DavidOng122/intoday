@@ -35,7 +35,6 @@ export const useDesktopDragRuntime = () => ({
   desktopDragOverlapPendingRef: useRef(null),
   desktopSelectionStateRef: useRef({ pointerId: null, origin: null }),
   selectedTaskIdsRef: useRef(new Set()),
-  selectedDayEntriesRef: useRef([]),
   suppressTaskClickRef: useRef(null),
   suppressAllTaskClicksUntilRef: useRef(0),
   suppressTaskClickTimeoutRef: useRef(null),

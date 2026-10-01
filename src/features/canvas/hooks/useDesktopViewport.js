@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useLayoutEffect, useRef, useState } from 'react';
 import {
   DESKTOP_APP_WINDOW_SCALE,
   DESKTOP_CANVAS_CARD_HEIGHT,
@@ -6,8 +6,6 @@ import {
   DESKTOP_CANVAS_TOP_PADDING,
   DESKTOP_MAIN_CONTENT_MAX_WIDTH,
 } from '../model/canvasConstants';
-import { getDesktopCanvasEntryHeight, getDesktopCanvasEntryTaskIds } from '../model/canvasEntries';
-import { doDesktopRectsIntersect } from '../model/canvasGeometry';
 
 const DEFAULT_CANVAS_BOUNDS = {
   width: DESKTOP_MAIN_CONTENT_MAX_WIDTH,
@@ -54,19 +52,13 @@ const getDesktopSelectionRect = (start, end) => ({
 });
 
 export const useDesktopViewport = ({
-  activeGroupView,
   desktopDragAnchorPointerOffsetRef,
   desktopDragAnchorSizeRef,
   desktopDragContainerRectRef,
   desktopSelectionStateRef,
-  getCanvasDeletionSummary,
-  selectedDayEntriesRef,
-  selectedTaskIdsRef,
+  clearSelection,
+  updateMarqueeSelection,
   setDesktopSelectionRect,
-  setPendingCanvasDeletion,
-  setSelectedTaskIds,
-  t,
-  tasksRef,
 }) => {
   const initialMetrics = getFiniteViewportMetrics();
   const [viewport, setViewport] = useState(initialMetrics.viewport);
@@ -160,25 +152,6 @@ export const useDesktopViewport = ({
     y: Math.min(canvasBoundsRef.current.height, Math.max(0, point.y)),
   }), []);
 
-  const updateDesktopSelectionFromRect = useCallback((selectionRect) => {
-    const nextSelectedTaskIds = selectedDayEntriesRef.current.flatMap((entry) => {
-      const entryRect = {
-        x: entry.x,
-        y: entry.y,
-        width: DESKTOP_CANVAS_CARD_WIDTH,
-        height: getDesktopCanvasEntryHeight(entry),
-      };
-      return doDesktopRectsIntersect(selectionRect, entryRect)
-        ? getDesktopCanvasEntryTaskIds(entry)
-        : [];
-    });
-    const nextSelection = [...new Set(nextSelectedTaskIds)];
-    // Delete can be pressed immediately after pointer-up. Keep the keyboard
-    // source of truth in sync with the visible marquee, not one render later.
-    selectedTaskIdsRef.current = new Set(nextSelection);
-    setSelectedTaskIds(nextSelection);
-  }, [selectedDayEntriesRef, selectedTaskIdsRef, setSelectedTaskIds]);
-
   const handleDesktopCanvasPointerDown = useCallback((event) => {
     if (event.button !== 0 || isEditableElement(event.target)) return;
     if (event.target instanceof Element && event.target.closest('.desktop-task-card, .desktop-task-group-row, .desktop-group-connector-handle, .desktop-canvas-connections-layer, .desktop-connection-group')) return;
@@ -192,9 +165,8 @@ export const useDesktopViewport = ({
     event.currentTarget.setPointerCapture?.(event.pointerId);
     desktopSelectionStateRef.current = { pointerId: event.pointerId, origin };
     setDesktopSelectionRect({ x: origin.x, y: origin.y, width: 0, height: 0 });
-    selectedTaskIdsRef.current = new Set();
-    setSelectedTaskIds([]);
-  }, [clampCanvasPoint, desktopSelectionStateRef, getCanvasPointFromClient, selectedTaskIdsRef, setDesktopSelectionRect, setSelectedTaskIds]);
+    clearSelection();
+  }, [clampCanvasPoint, clearSelection, desktopSelectionStateRef, getCanvasPointFromClient, setDesktopSelectionRect]);
 
   const handleDesktopCanvasPointerMove = useCallback((event) => {
     if (desktopSelectionStateRef.current.pointerId !== event.pointerId) return;
@@ -206,8 +178,8 @@ export const useDesktopViewport = ({
       clampCanvasPoint(point),
     );
     setDesktopSelectionRect(nextRect);
-    updateDesktopSelectionFromRect(nextRect);
-  }, [clampCanvasPoint, desktopSelectionStateRef, getCanvasPointFromClient, setDesktopSelectionRect, updateDesktopSelectionFromRect]);
+    updateMarqueeSelection(nextRect);
+  }, [clampCanvasPoint, desktopSelectionStateRef, getCanvasPointFromClient, setDesktopSelectionRect, updateMarqueeSelection]);
 
   const handleDesktopCanvasPointerEnd = useCallback((event) => {
     if (desktopSelectionStateRef.current.pointerId !== event.pointerId) return;
@@ -215,21 +187,6 @@ export const useDesktopViewport = ({
     desktopSelectionStateRef.current = { pointerId: null, origin: null };
     setDesktopSelectionRect(null);
   }, [desktopSelectionStateRef, setDesktopSelectionRect]);
-
-  useEffect(() => {
-    const handleKeyDown = (event) => {
-      if (isEditableElement(event.target)) return;
-      if ((event.key !== 'Delete' && event.key !== 'Backspace') || activeGroupView) return;
-      if (selectedTaskIdsRef.current.size === 0) return;
-
-      event.preventDefault();
-      const summary = getCanvasDeletionSummary(t, tasksRef.current, [...selectedTaskIdsRef.current]);
-      if (summary) setPendingCanvasDeletion(summary);
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [activeGroupView, getCanvasDeletionSummary, selectedTaskIdsRef, setPendingCanvasDeletion, t, tasksRef]);
 
   return {
     viewport,
