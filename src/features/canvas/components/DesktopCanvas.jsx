@@ -24,7 +24,6 @@ import {
   getReactFlowPackNodeId,
   getReactFlowTaskNodeId,
   getSelectedTaskIdsFromReactFlowNodes,
-  isReactFlowNodeSelected,
   toReactFlowEdges,
   toReactFlowNode,
 } from '../adapters/reactFlowAdapter.js';
@@ -54,7 +53,6 @@ const DesktopCanvasFlow = ({
   onFlowNodeDragStop,
   draggedTaskId,
   isGroupDragActive,
-  selectedTaskIds,
   onSelectionChange,
   dragOverlapTargetId,
   layoutWidth = DESKTOP_MAIN_CONTENT_MAX_WIDTH,
@@ -64,7 +62,6 @@ const DesktopCanvasFlow = ({
   onRemoveConnection,
 }) => {
   const reactFlow = useReactFlow();
-  const selectedTaskIdSet = useMemo(() => new Set(selectedTaskIds), [selectedTaskIds]);
   const projectedNodes = useMemo(() => entries.map((entry, index) => {
     const id = entry.type === 'group'
       ? getReactFlowPackNodeId(entry.id)
@@ -80,7 +77,6 @@ const DesktopCanvasFlow = ({
       labels,
       draggedTaskId,
       isGroupDragActive,
-      isFlowSelected: isReactFlowNodeSelected(entry, selectedTaskIdSet),
       dragOverlapTargetId,
       onTaskClick,
       onGroupOpenFullView,
@@ -94,7 +90,6 @@ const DesktopCanvasFlow = ({
       data: nodeData,
       measured,
       zIndex: index,
-      selected: isReactFlowNodeSelected(entry, selectedTaskIdSet),
     });
   }), [
     draggedTaskId,
@@ -109,7 +104,6 @@ const DesktopCanvasFlow = ({
     onTaskPointerMove,
     onTaskPointerUp,
     reactFlow,
-    selectedTaskIdSet,
   ]);
   const [nodes, setNodes] = useNodesState(projectedNodes);
   const domainPositionsRef = useRef(new Map());
@@ -130,6 +124,7 @@ const DesktopCanvasFlow = ({
           || previousDomainPosition.y !== node.position.y;
         return {
           ...node,
+          selected: previous?.selected ?? false,
           position: previous && !domainPositionChanged
             ? previous.position
             : node.position,

@@ -5,7 +5,6 @@ import {
   getReactFlowPackNodeId,
   getReactFlowTaskNodeId,
   getSelectedTaskIdsFromReactFlowNodes,
-  isReactFlowNodeSelected,
   toReactFlowEdge,
   toReactFlowNode,
   toReactFlowEdges,
@@ -30,7 +29,7 @@ test('React Flow nodes use domain positions and enable Flow drag and selection',
   assert.deepEqual(node.position, { x: 12, y: 24 });
   assert.equal(node.draggable, true);
   assert.equal(node.selectable, true);
-  assert.equal(node.selected, false);
+  assert.equal(Object.hasOwn(node, 'selected'), false);
   assert.equal(node.connectable, false);
   assert.equal(node.style.pointerEvents, 'all');
   assert.equal(node.zIndex, 3);
@@ -59,13 +58,8 @@ test('domain selection maps Task and Pack nodes to their member Task ids', () =>
     x: 0,
     y: 0,
   };
-  assert.equal(isReactFlowNodeSelected(taskEntry, new Set([1, 2, 3])), true);
-  assert.equal(isReactFlowNodeSelected(packEntry, new Set([1, 2, 3])), true);
-  assert.equal(isReactFlowNodeSelected(packEntry, new Set([2])), false);
-  assert.equal(isReactFlowNodeSelected(packEntry, new Set()), false);
-
-  const taskNode = toReactFlowNode(taskEntry, { selected: true });
-  const packNode = toReactFlowNode(packEntry, { selected: true });
+  const taskNode = toReactFlowNode(taskEntry);
+  const packNode = toReactFlowNode(packEntry);
   assert.deepEqual(
     getSelectedTaskIdsFromReactFlowNodes([
       taskNode,

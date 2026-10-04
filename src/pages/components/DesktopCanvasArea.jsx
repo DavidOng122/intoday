@@ -34,7 +34,6 @@ function DesktopCanvasArea({
   isGroupDragActive,
   removeConnection,
   canvasEntries,
-  selectedTaskIds,
   createConnectionFromFlow,
   isValidConnection,
   t,
@@ -131,7 +130,6 @@ function DesktopCanvasArea({
               onFlowNodeDragStop={handleFlowNodeDragStop}
               draggedTaskId={draggedTaskId}
               isGroupDragActive={isGroupDragActive}
-              selectedTaskIds={selectedTaskIds}
               onSelectionChange={handleSelectionChange}
               dragOverlapTargetId={desktopDragOverlapTargetId}
               layoutWidth={canvasBounds.width}

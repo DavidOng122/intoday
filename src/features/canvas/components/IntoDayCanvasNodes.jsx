@@ -4,13 +4,12 @@ import { DESKTOP_CANVAS_CARD_WIDTH } from '../model/canvasConstants.js';
 import { getCanvasEntryIdentity } from '../model/canvasEntryIdentity.js';
 import { GroupedTaskCard, TaskCard } from './TaskCards.jsx';
 
-const CanvasNodeContent = ({ data, isPack }) => {
+const CanvasNodeContent = ({ data, isPack, selected }) => {
   const {
     entry,
     labels,
     draggedTaskId,
     isGroupDragActive,
-    isFlowSelected,
     dragOverlapTargetId,
     onTaskClick,
     onGroupOpenFullView,
@@ -42,7 +41,7 @@ const CanvasNodeContent = ({ data, isPack }) => {
             labels={labels}
             isDragging={isDragging}
             isGroupDragActive={isGroupDragActive}
-            isSelected={isFlowSelected}
+            isSelected={selected}
             isGroupReady={isGroupReady}
             draggedTaskId={draggedTaskId}
             onOpenItem={onTaskClick}
@@ -57,7 +56,7 @@ const CanvasNodeContent = ({ data, isPack }) => {
             task={entry.task}
             labels={labels}
             isDragging={isDragging}
-            isSelected={isFlowSelected}
+            isSelected={selected}
             isGroupReady={isGroupReady}
             draggedTaskId={draggedTaskId}
             onClick={(event) => onTaskClick(entry.task, event)}
@@ -72,13 +71,13 @@ const stopHandleClick = (event) => {
   event.stopPropagation();
 };
 
-export const IntoDayTaskNode = React.memo(({ data }) => (
-  <CanvasNodeContent data={data} isPack={false} />
+export const IntoDayTaskNode = React.memo(({ data, selected }) => (
+  <CanvasNodeContent data={data} isPack={false} selected={selected} />
 ));
 
 IntoDayTaskNode.displayName = 'IntoDayTaskNode';
 
-export const IntoDayPackNode = React.memo(({ data, isConnectable }) => (
+export const IntoDayPackNode = React.memo(({ data, isConnectable, selected }) => (
   <>
     <Handle
       id="left"
@@ -92,7 +91,7 @@ export const IntoDayPackNode = React.memo(({ data, isConnectable }) => (
       className="desktop-group-connector-handle is-left nodrag"
       onClick={stopHandleClick}
     />
-    <CanvasNodeContent data={data} isPack />
+    <CanvasNodeContent data={data} isPack selected={selected} />
     <Handle
       id="right"
       type="source"

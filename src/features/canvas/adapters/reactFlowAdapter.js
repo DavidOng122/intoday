@@ -20,12 +20,6 @@ export const getPackGroupIdFromReactFlowNodeId = (nodeId) => {
   }
 };
 
-export const isReactFlowNodeSelected = (entry, selectedTaskIds) => {
-  const entryTaskIds = getDesktopCanvasEntryTaskIds(entry);
-  return entryTaskIds.length > 0
-    && entryTaskIds.every((taskId) => selectedTaskIds.has(taskId));
-};
-
 export const getSelectedTaskIdsFromReactFlowNodes = (nodes) => [...new Set(
   nodes
     .flatMap((node) => getDesktopCanvasEntryTaskIds(node.data?.entry)),
@@ -35,7 +29,6 @@ export const toReactFlowNode = (entry, {
   data = {},
   measured,
   zIndex = 0,
-  selected = false,
 } = {}) => {
   const isPack = entry?.type === 'group';
   const taskId = entry?.task?.id;
@@ -46,7 +39,6 @@ export const toReactFlowNode = (entry, {
     id: nodeId,
     type: isPack ? 'intodayPack' : 'intodayTask',
     position: { x: entry.x, y: entry.y },
-    selected,
     measured,
     data: { entry, ...data },
     draggable: true,

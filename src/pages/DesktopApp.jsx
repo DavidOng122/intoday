@@ -186,7 +186,6 @@ function App({ session }) {
     selectedDateKey,
   });
   const {
-    selectedTaskIds,
     selectedTaskIdsRef,
     handleSelectionChange,
   } = useCanvasSelection({
@@ -593,7 +592,6 @@ function App({ session }) {
           isGroupDragActive={isGroupDragActive}
           removeConnection={removeConnection}
           canvasEntries={canvasEntries}
-          selectedTaskIds={selectedTaskIds}
           createConnectionFromFlow={createConnectionFromFlow}
           isValidConnection={isValidConnection}
           t={t}
