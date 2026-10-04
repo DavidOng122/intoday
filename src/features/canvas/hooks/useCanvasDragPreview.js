@@ -5,7 +5,7 @@ import { getCanvasPreviewPositions } from '../model/canvasDragSession.js';
 // persistence while a pointer is moving.
 export const useCanvasDragPreview = ({
   runtime,
-  getDragCanvasPointFromClient,
+  getCanvasPointFromClient,
   getDesktopDragAnchorPosition,
   setDragSession,
 }) => {
@@ -21,7 +21,7 @@ export const useCanvasDragPreview = ({
   } = runtime;
 
   const syncDesktopDraggedTaskPosition = useCallback((clientX, clientY) => {
-    const currentPoint = getDragCanvasPointFromClient(clientX, clientY);
+    const currentPoint = getCanvasPointFromClient(clientX, clientY);
     const anchorStart = desktopDragAnchorStartPositionRef.current;
     const nextAnchor = currentPoint && getDesktopDragAnchorPosition(currentPoint);
     if (!anchorStart || !nextAnchor) return;
@@ -50,7 +50,7 @@ export const useCanvasDragPreview = ({
     desktopDragPreviewPositionsRef,
     desktopDragStateRef,
     getDesktopDragAnchorPosition,
-    getDragCanvasPointFromClient,
+    getCanvasPointFromClient,
     setDragSession,
   ]);
 

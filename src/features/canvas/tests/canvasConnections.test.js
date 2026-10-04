@@ -5,9 +5,7 @@ import {
   createConnectionOperationsForReplacement,
   createDesktopConnection,
   dedupeDesktopConnections,
-  findConnectionTargetAtPoint,
   getDesktopConnectionId,
-  getGroupHandleCoordinates,
   getWorkspaceConnections,
   migrateLegacyConnections,
   removeConnectionsForGroupIds,
@@ -36,20 +34,6 @@ test('connections reject self-links and deduplicate reverse links', () => {
   const first = makeConnection('group-a', 'group-b');
   const reverse = makeConnection('group-b', 'group-a');
   assert.equal(dedupeDesktopConnections([first, reverse]).length, 1);
-});
-
-test('getGroupHandleCoordinates calculates left and right handle points', () => {
-  const entry = { type: 'group', id: 'group-1', x: 100, y: 200, tasks: [{ id: '1' }, { id: '2' }] };
-  assert.equal(getGroupHandleCoordinates(entry, 'left').x, 100);
-  assert.equal(getGroupHandleCoordinates(entry, 'right').x, 436);
-});
-
-test('findConnectionTargetAtPoint uses canvas geometry without DOM scanning', () => {
-  const entries = [{ type: 'group', id: 'group-1', x: 100, y: 200, tasks: [{ id: '1' }, { id: '2' }] }];
-  assert.deepEqual(findConnectionTargetAtPoint(entries, { x: 102, y: 240 }), {
-    targetGroupId: 'group-1', targetSide: 'left', distance: 2,
-  });
-  assert.equal(findConnectionTargetAtPoint(entries, { x: 200, y: 240 }), null);
 });
 
 test('legacy migration keeps only valid same-workspace Pack links', () => {

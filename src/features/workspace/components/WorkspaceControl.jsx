@@ -1,3 +1,4 @@
+import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import { WorkspaceChevronIcon } from '../../../shared/ui/icons/DesktopIcons';
 import WorkspaceMenu from './WorkspaceMenu';
 
@@ -24,6 +25,13 @@ function WorkspaceControl({
 }) {
   return (
     <div ref={workspaceControlRef} className="desktop-workspace-control">
+      <DropdownMenu.Root
+        open={workspaceMenuOpen}
+        onOpenChange={(nextOpen) => {
+          if (nextOpen) onToggleWorkspaceMenu();
+          else onCloseWorkspaceMenu();
+        }}
+      >
       <div className={`desktop-workspace-shell ${isWorkspaceNameEditing ? 'is-editing' : ''} ${workspaceMenuOpen ? 'is-open' : ''}`}>
         {isWorkspaceNameEditing ? (
           <input
@@ -37,25 +45,23 @@ function WorkspaceControl({
             aria-label="Workspace name"
           />
         ) : (
-          <button
-            type="button"
-            className="desktop-workspace-name-button"
-            aria-haspopup="menu"
-            aria-expanded={workspaceMenuOpen}
-            onClick={onToggleWorkspaceMenu}
-            onDoubleClick={onWorkspaceNameDoubleClick}
-          >
-            <span className="desktop-workspace-trigger-label">{activeWorkspace?.name || t.untitledWorkspace}</span>
-            <span className="desktop-workspace-trigger-chevron" aria-hidden="true">
-              <WorkspaceChevronIcon open={workspaceMenuOpen} />
-            </span>
-          </button>
+          <DropdownMenu.Trigger asChild>
+            <button
+              type="button"
+              className="desktop-workspace-name-button"
+              onDoubleClick={onWorkspaceNameDoubleClick}
+            >
+              <span className="desktop-workspace-trigger-label">{activeWorkspace?.name || t.untitledWorkspace}</span>
+              <span className="desktop-workspace-trigger-chevron" aria-hidden="true">
+                <WorkspaceChevronIcon open={workspaceMenuOpen} />
+              </span>
+            </button>
+          </DropdownMenu.Trigger>
         )}
       </div>
       <WorkspaceMenu
         activeWorkspaceId={activeWorkspaceId}
         canAddWorkspace={canAddWorkspace}
-        controlRef={workspaceControlRef}
         onAddWorkspace={onAddWorkspace}
         onClose={onCloseWorkspaceMenu}
         onRequestDeleteWorkspace={onRequestDeleteWorkspace}
@@ -64,6 +70,7 @@ function WorkspaceControl({
         t={t}
         workspaces={workspaces}
       />
+      </DropdownMenu.Root>
     </div>
   );
 }

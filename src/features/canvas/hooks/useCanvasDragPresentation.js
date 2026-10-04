@@ -12,29 +12,19 @@ export const useCanvasDragPresentation = ({
   const [desktopDragOverlapTargetId, setDesktopDragOverlapTargetId] = useState(null);
   const [desktopDragOverlayActive, setDesktopDragOverlayActive] = useState(false);
   const [desktopDragOverlaySnapshot, setDesktopDragOverlaySnapshot] = useState(null);
-  const dragPresentationApiRef = useRef({
-    setDesktopDragSourceHidden: null,
-    syncDesktopDraggedTaskPosition: null,
-  });
+  const dragPresentationApiRef = useRef({ syncDesktopDraggedTaskPosition: null });
 
   const connectDragPresentation = useCallback((api) => {
-    dragPresentationApiRef.current = api || {
-      setDesktopDragSourceHidden: null,
-      syncDesktopDraggedTaskPosition: null,
-    };
+    dragPresentationApiRef.current = api || { syncDesktopDraggedTaskPosition: null };
   }, []);
 
   useEffect(() => {
-    const { setDesktopDragSourceHidden } = dragPresentationApiRef.current;
-    if (typeof setDesktopDragSourceHidden !== 'function') return;
-
     if (!draggedTaskId || !desktopDragModeRef.current) {
       if (desktopDragOverlayActive) {
         // Preserve the existing visual reset timing when a drag ends.
         // eslint-disable-next-line react-hooks/set-state-in-effect
         setDesktopDragOverlayActive(false);
       }
-      setDesktopDragSourceHidden(false);
       return;
     }
 
@@ -45,7 +35,6 @@ export const useCanvasDragPresentation = ({
     if (!desktopDragOverlayActive && shouldOverlay) {
       setDesktopDragOverlayActive(true);
     }
-    setDesktopDragSourceHidden(false);
   }, [
     desktopDragDetachedFromGroupRef,
     desktopDragModeRef,

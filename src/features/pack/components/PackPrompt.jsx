@@ -1,4 +1,6 @@
 import React from 'react';
+import * as Dialog from '@radix-ui/react-dialog';
+import { getDesktopPortalContainer } from '../../../shared/ui/desktopPortal';
 
 const DesktopGroupPrompt = ({ prompt, groupName, setGroupName, onConfirm, onCancel }) => {
   if (!prompt) return null;
@@ -9,24 +11,29 @@ const DesktopGroupPrompt = ({ prompt, groupName, setGroupName, onConfirm, onCanc
   const isMergePacks = prompt.mode === 'merge-packs';
 
   return (
-    <div role="presentation" onClick={onCancel} className="desktop-group-prompt-backdrop">
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="desktop-group-prompt-title"
-        onClick={(event) => event.stopPropagation()}
-        className="desktop-group-prompt-panel"
-        style={{ left, top, width: panelWidth }}
-      >
+    <Dialog.Root
+      open={Boolean(prompt)}
+      onOpenChange={(nextOpen) => {
+        if (!nextOpen) onCancel?.();
+      }}
+    >
+      <Dialog.Portal container={getDesktopPortalContainer()}>
+        <Dialog.Overlay className="desktop-group-prompt-backdrop" />
+        <Dialog.Content
+          className="desktop-group-prompt-panel"
+          style={{ left, top, width: panelWidth }}
+        >
         <div className="desktop-group-prompt-eyebrow">
           <span className="desktop-group-prompt-eyebrow-icon" aria-hidden="true">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="none" style={{ width: 14, height: 14 }}>
               <path d="M6.167 5.5H4.833a2.333 2.333 0 0 0 0 4.667h1.334M9.833 5.5h1.334a2.333 2.333 0 0 1 0 4.667H9.833M5.667 8h4.666" stroke="currentColor" strokeWidth="1.35" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
           </span>
-          <span id="desktop-group-prompt-title">
-            {isMergePacks ? `Merge into “${prompt.targetGroupName || 'Group'}”?` : 'Merge into group'}
-          </span>
+          <Dialog.Title asChild>
+            <span>
+              {isMergePacks ? `Merge into “${prompt.targetGroupName || 'Group'}”?` : 'Merge into group'}
+            </span>
+          </Dialog.Title>
         </div>
         {!isMergePacks && (
           <input
@@ -37,9 +44,6 @@ const DesktopGroupPrompt = ({ prompt, groupName, setGroupName, onConfirm, onCanc
               if (event.key === 'Enter') {
                 event.preventDefault();
                 onConfirm();
-              } else if (event.key === 'Escape') {
-                event.preventDefault();
-                onCancel();
               }
             }}
             autoFocus
@@ -48,15 +52,16 @@ const DesktopGroupPrompt = ({ prompt, groupName, setGroupName, onConfirm, onCanc
           />
         )}
         <div className="desktop-group-prompt-actions">
-          <button type="button" onClick={onCancel} className="desktop-group-prompt-secondary">
-            Keep separate
-          </button>
+          <Dialog.Close asChild>
+            <button type="button" className="desktop-group-prompt-secondary">Keep separate</button>
+          </Dialog.Close>
           <button type="button" onClick={onConfirm} className="desktop-group-prompt-primary">
             {isMergePacks ? 'Merge packs' : <>Group items <span aria-hidden="true">→</span></>}
           </button>
         </div>
-      </div>
-    </div>
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
   );
 };
 

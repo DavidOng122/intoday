@@ -5,12 +5,15 @@ import React, {
   useCallback,
   useRef,
 } from 'react';
-import { createPortal } from 'react-dom';
+import * as Dialog from '@radix-ui/react-dialog';
+import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
+import { getDesktopPortalContainer } from '../../../shared/ui/desktopPortal';
 import {
   SearchIcon,
   CloseIcon,
   PlusIcon,
 } from '../../../shared/ui/icons/DesktopIcons';
+import { DESKTOP_APP_WINDOW_SCALE } from '../../../shared/config/viewportConstants';
 import { getTaskCardPresentation, normalizeCardType } from '../../../entities/task/model/taskCardPresentation';
 import QuickAddMenu from '../../capture/components/QuickAddMenu';
 import { getClipboardImageFile, isEditableClipboardTarget, normalizeClipboardImageFile } from '../../capture/services/clipboardUtils.js';
@@ -43,13 +46,11 @@ const getInboxSiteIconUrl = (redirectUrl) => {
 
 const InboxTaskItem = ({
   item,
-  appearance,
   labels,
   packOptions,
   isMoveMenuOpen,
-  moveMenuPosition,
   isMoving,
-  onToggleMoveMenu,
+  onMoveMenuOpenChange,
   onMoveToPack,
   onPointerDown,
   onPointerMove,
@@ -64,8 +65,8 @@ const InboxTaskItem = ({
     && hasTaskPhotoPreview(item);
   const shouldShowUploadedThumbnail = Boolean(hasUploadedImage && !thumbnailFailed);
   const usesNeutralIconSurface = Boolean(siteIconUrl || hasUploadedImage);
-  const iconBackground = usesNeutralIconSurface ? (appearance === 'dark' ? '#2a2a2c' : '#f7f8fa') : (appearance === 'dark' ? cfg.darkBg : cfg.bg);
-  const iconBorder = usesNeutralIconSurface ? (appearance === 'dark' ? '1px solid #3a3d42' : '1px solid #eef0f3') : (appearance === 'dark' ? `1px solid ${cfg.darkStroke}` : 'none');
+  const iconBackground = usesNeutralIconSurface ? '#f7f8fa' : cfg.bg;
+  const iconBorder = usesNeutralIconSurface ? '1px solid #eef0f3' : 'none';
 
   return (
     <div
@@ -91,22 +92,6 @@ const InboxTaskItem = ({
           />
         ) : siteIconUrl ? (
           <img src={siteIconUrl} alt="" className="desktop-inbox-site-icon" onError={(event) => { event.currentTarget.onerror = null; event.currentTarget.src = cfg.icon; }} />
-        ) : appearance === 'dark' && cfg.darkIconColor ? (
-          <div
-            style={{
-              width: 14,
-              height: 14,
-              backgroundColor: cfg.darkIconColor,
-              maskImage: `url(${cfg.icon})`,
-              WebkitMaskImage: `url(${cfg.icon})`,
-              maskSize: 'contain',
-              WebkitMaskSize: 'contain',
-              maskRepeat: 'no-repeat',
-              WebkitMaskRepeat: 'no-repeat',
-              maskPosition: 'center',
-              WebkitMaskPosition: 'center',
-            }}
-          />
         ) : (
           <img
             src={cfg.icon}
@@ -123,53 +108,57 @@ const InboxTaskItem = ({
           {displaySub || item.sourceLabel || 'Item'}
         </div>
       </div>
-      <div className="desktop-inbox-move-control" onPointerDown={(event) => event.stopPropagation()}>
-        <button
-          type="button"
-          className="desktop-inbox-moveto-btn"
-          disabled={isMoving || packOptions.length === 0}
-          aria-haspopup="menu"
-          aria-expanded={isMoveMenuOpen}
-          aria-label={packOptions.length ? `Move ${resolvedDisplayTitle} to a Pack` : 'No Packs available'}
-          title={packOptions.length ? 'Move to a Pack' : 'No Packs available'}
-          onClick={(event) => onToggleMoveMenu(item.id, event.currentTarget)}
-        >
-          {isMoving ? (labels.moving || 'Moving...') : (labels.moveToPack || 'Move to...')}
-        </button>
+      <DropdownMenu.Root
+        open={isMoveMenuOpen}
+        onOpenChange={(open) => onMoveMenuOpenChange(item.id, open)}
+        modal={false}
+      >
+        <div className="desktop-inbox-move-control" onPointerDown={(event) => event.stopPropagation()}>
+          <DropdownMenu.Trigger asChild>
+            <button
+              type="button"
+              className="desktop-inbox-moveto-btn"
+              disabled={isMoving || packOptions.length === 0}
+              aria-label={packOptions.length ? `Move ${resolvedDisplayTitle} to a Pack` : 'No Packs available'}
+              title={packOptions.length ? 'Move to a Pack' : 'No Packs available'}
+            >
+              {isMoving ? (labels.moving || 'Moving...') : (labels.moveToPack || 'Move to...')}
+            </button>
+          </DropdownMenu.Trigger>
 
-        {isMoveMenuOpen && moveMenuPosition && typeof document !== 'undefined' ? createPortal(
-          <div
-            className={`desktop-inbox-pack-menu ${appearance === 'dark' ? 'is-dark' : ''}`}
-            role="menu"
-            aria-label={`Choose a Pack for ${resolvedDisplayTitle}`}
-            style={{
-              left: moveMenuPosition.left,
-              top: moveMenuPosition.top,
-              transform: `scale(${moveMenuPosition.scale})`,
-              transformOrigin: 'top left',
-            }}
-            onClick={(event) => event.stopPropagation()}
-            onPointerDown={(event) => event.stopPropagation()}
-          >
-            {packOptions.map((pack) => (
-              <button
-                key={pack.id}
-                type="button"
-                role="menuitem"
-                className="desktop-inbox-pack-option"
-                onClick={() => onMoveToPack(item.id, pack.id)}
-              >
-                <span className="desktop-inbox-pack-option-icon" aria-hidden="true">
-                  {pack.icon || '•'}
-                </span>
-                <span className="desktop-inbox-pack-option-name">{pack.name}</span>
-                <span className="desktop-inbox-pack-option-count">{pack.itemCount}</span>
-              </button>
-            ))}
-          </div>,
-          document.body,
-        ) : null}
-      </div>
+          <DropdownMenu.Portal container={getDesktopPortalContainer()}>
+            <DropdownMenu.Content
+              className="desktop-inbox-pack-menu"
+              aria-label={`Choose a Pack for ${resolvedDisplayTitle}`}
+              side="right"
+              align="start"
+              sideOffset={8 * DESKTOP_APP_WINDOW_SCALE}
+              collisionPadding={16 * DESKTOP_APP_WINDOW_SCALE}
+              style={{ transform: `scale(${DESKTOP_APP_WINDOW_SCALE})` }}
+              onEscapeKeyDown={(event) => event.stopPropagation()}
+              onClick={(event) => event.stopPropagation()}
+              onPointerDown={(event) => event.stopPropagation()}
+            >
+              {packOptions.map((pack) => (
+                <DropdownMenu.Item
+                  key={pack.id}
+                  className="desktop-inbox-pack-option"
+                  onSelect={(event) => {
+                    event.preventDefault();
+                    onMoveToPack(item.id, pack.id);
+                  }}
+                >
+                  <span className="desktop-inbox-pack-option-icon" aria-hidden="true">
+                    {pack.icon || '•'}
+                  </span>
+                  <span className="desktop-inbox-pack-option-name">{pack.name}</span>
+                  <span className="desktop-inbox-pack-option-count">{pack.itemCount}</span>
+                </DropdownMenu.Item>
+              ))}
+            </DropdownMenu.Content>
+          </DropdownMenu.Portal>
+        </div>
+      </DropdownMenu.Root>
     </div>
   );
 };
@@ -179,7 +168,6 @@ const InboxPanel = ({
   isDraggingOut = false,
   items = [],
   packOptions = [],
-  appearance,
   t = {},
   onClose,
   onCreateItem,
@@ -193,7 +181,6 @@ const InboxPanel = ({
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeMoveItemId, setActiveMoveItemId] = useState(null);
-  const [moveMenuPosition, setMoveMenuPosition] = useState(null);
   const [movingItemId, setMovingItemId] = useState(null);
   const [moveError, setMoveError] = useState('');
   const [clipboardImage, setClipboardImage] = useState(null);
@@ -205,39 +192,13 @@ const InboxPanel = ({
     onClose?.();
     setSearchQuery('');
     setActiveMoveItemId(null);
-    setMoveMenuPosition(null);
     setMoveError('');
   }, [onClose]);
 
-  const handleToggleMoveMenu = useCallback((itemId, anchorElement) => {
-    setMoveError('');
-    if (activeMoveItemId === itemId) {
-      setActiveMoveItemId(null);
-      setMoveMenuPosition(null);
-      return;
-    }
-
-    const anchorRect = anchorElement.getBoundingClientRect();
-    const panelRect = anchorElement.closest('.desktop-inbox-container')?.getBoundingClientRect();
-    const computedWidth = Number.parseFloat(window.getComputedStyle(anchorElement).width) || 78;
-    const renderedScale = anchorRect.width > 0 ? anchorRect.width / computedWidth : 1;
-    const menuVisualWidth = 220 * renderedScale;
-    const menuVisualGap = 8 * renderedScale;
-    const menuVisualInset = 16 * renderedScale;
-    const panelLeft = panelRect?.left ?? anchorRect.left;
-    const panelRight = panelRect?.right ?? anchorRect.right;
-    const canOpenToRight = panelRight + menuVisualGap + menuVisualWidth
-      <= window.innerWidth - menuVisualInset;
-
-    setMoveMenuPosition({
-      left: (canOpenToRight
-        ? panelRight + menuVisualGap
-        : panelLeft - menuVisualGap - menuVisualWidth),
-      top: anchorRect.top,
-      scale: renderedScale,
-    });
-    setActiveMoveItemId(itemId);
-  }, [activeMoveItemId]);
+  const handleMoveMenuOpenChange = useCallback((itemId, isOpen) => {
+    if (isOpen) setMoveError('');
+    setActiveMoveItemId(isOpen ? itemId : null);
+  }, []);
 
   const handleMoveToPack = useCallback(async (itemId, packId) => {
     if (movingItemId !== null || typeof onMoveToPack !== 'function') return;
@@ -247,31 +208,12 @@ const InboxPanel = ({
     try {
       await onMoveToPack(itemId, packId);
       setActiveMoveItemId(null);
-      setMoveMenuPosition(null);
     } catch {
       setMoveError('Unable to move this item. It is still in Inbox.');
     } finally {
       setMovingItemId(null);
     }
   }, [movingItemId, onMoveToPack]);
-
-  useEffect(() => {
-    if (!open) return undefined;
-
-    const handleKeyDown = (e) => {
-      if (e.key === 'Escape') {
-        if (activeMoveItemId !== null) {
-          setActiveMoveItemId(null);
-          setMoveMenuPosition(null);
-        } else {
-          handleClose();
-        }
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [activeMoveItemId, open, handleClose]);
 
   useEffect(() => {
     const handlePaste = (event) => {
@@ -345,7 +287,6 @@ const InboxPanel = ({
     return (
       <InboxImageCaptureDialog
         file={clipboardImage}
-        appearance={appearance}
         submitting={clipboardSubmitting}
         error={clipboardError}
         onClose={handleClipboardClose}
@@ -368,18 +309,19 @@ const InboxPanel = ({
   const isEmpty = filteredItems.length === 0;
 
   return (
-    <div
-      role="presentation"
-      className={`desktop-inbox-overlay ${isDraggingOut ? 'is-dragging-out' : ''}`}
-      onClick={handleClose}
+    <Dialog.Root
+      open={open}
+      modal={false}
+      onOpenChange={(nextOpen) => {
+        if (!nextOpen) handleClose();
+      }}
     >
+    <div className={`desktop-inbox-overlay ${isDraggingOut ? 'is-dragging-out' : ''}`}>
+      <Dialog.Content asChild>
       <div
         ref={panelRef}
         className="desktop-inbox-container"
-        role="dialog"
-        aria-modal="true"
         aria-label={t.inbox || 'Inbox'}
-        onClick={(e) => e.stopPropagation()}
       >
         <div className="desktop-inbox-header">
           <div className="desktop-inbox-title-row">
@@ -390,15 +332,13 @@ const InboxPanel = ({
             <div className="desktop-inbox-header-actions">
               <span className="desktop-inbox-new-badge" aria-label={t.quickAddNew || 'New feature'}>{t.quickAddNew || 'NEW'}</span>
               <QuickAddMenu
-                appearance={appearance}
                 labels={t}
                 onCreateItem={onCreateItem}
                 onImportFiles={onImportFiles}
-                renderTrigger={({ open: quickAddOpen, toggle }) => (
+                renderTrigger={({ open: quickAddOpen }) => (
                   <button
                     type="button"
                     className={`desktop-inbox-add-toggle ${quickAddOpen ? 'is-open' : ''}`}
-                    onClick={toggle}
                     aria-label={t.quickAddMenuLabel || 'Add to Inbox'}
                     aria-expanded={quickAddOpen}
                     aria-haspopup="menu"
@@ -407,14 +347,15 @@ const InboxPanel = ({
                   </button>
                 )}
               />
-              <button
-                type="button"
-                className="desktop-inbox-close-btn"
-                onClick={handleClose}
-                aria-label={t.close || 'Close inbox'}
-              >
-                <CloseIcon />
-              </button>
+              <Dialog.Close asChild>
+                <button
+                  type="button"
+                  className="desktop-inbox-close-btn"
+                  aria-label={t.close || 'Close inbox'}
+                >
+                  <CloseIcon />
+                </button>
+              </Dialog.Close>
             </div>
           </div>
           <p className="desktop-inbox-subheading">
@@ -442,10 +383,7 @@ const InboxPanel = ({
 
         <div
           className="desktop-inbox-content"
-          onScroll={() => {
-            setActiveMoveItemId(null);
-            setMoveMenuPosition(null);
-          }}
+          onScroll={() => setActiveMoveItemId(null)}
         >
           {moveError ? (
             <div className="desktop-inbox-move-error" role="status">{moveError}</div>
@@ -460,13 +398,11 @@ const InboxPanel = ({
                 <InboxTaskItem
                   key={item.id}
                   item={item}
-                  appearance={appearance}
                   labels={t}
                   packOptions={packOptions}
                   isMoveMenuOpen={activeMoveItemId === item.id}
-                  moveMenuPosition={moveMenuPosition}
                   isMoving={movingItemId === item.id}
-                  onToggleMoveMenu={handleToggleMoveMenu}
+                  onMoveMenuOpenChange={handleMoveMenuOpenChange}
                   onMoveToPack={handleMoveToPack}
                   onPointerDown={onTaskPointerDown}
                   onPointerMove={onTaskPointerMove}
@@ -476,17 +412,18 @@ const InboxPanel = ({
               ))}
             </div>
           )}
-        </div>
       </div>
+      </div>
+      </Dialog.Content>
       <InboxImageCaptureDialog
         file={clipboardImage}
-        appearance={appearance}
         submitting={clipboardSubmitting}
         error={clipboardError}
         onClose={handleClipboardClose}
         onConfirm={handleClipboardConfirm}
       />
     </div>
+    </Dialog.Root>
   );
 };
 

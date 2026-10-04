@@ -1,6 +1,3 @@
-import { DESKTOP_CANVAS_CARD_WIDTH } from './canvasConstants.js';
-import { getDesktopCanvasEntryHeight } from './canvasEntries.js';
-
 export const LEGACY_CONNECTIONS_STORAGE_KEY = 'desktop_canvas_group_connections_v1';
 export const CONNECTION_SIDE_VALUES = new Set(['left', 'right']);
 
@@ -89,38 +86,6 @@ export const dedupeDesktopConnections = (connections, workspaceId = null) => {
 export const getWorkspaceConnections = (connections, workspaceId) => (
   dedupeDesktopConnections(connections).filter((connection) => connection.workspaceId === workspaceId)
 );
-
-export const getGroupHandleCoordinates = (entry, side = 'right') => {
-  if (!entry) return { x: 0, y: 0 };
-  const height = getDesktopCanvasEntryHeight(entry);
-  return {
-    x: side === 'left' ? entry.x : entry.x + DESKTOP_CANVAS_CARD_WIDTH,
-    y: entry.y + (height / 2),
-  };
-};
-
-export const findConnectionTargetAtPoint = (entries, point, {
-  edgeThreshold = 30,
-  verticalMargin = 24,
-} = {}) => {
-  if (!point) return null;
-  let best = null;
-  (Array.isArray(entries) ? entries : []).forEach((entry) => {
-    if (entry?.type !== 'group') return;
-    const height = getDesktopCanvasEntryHeight(entry);
-    if (point.y < entry.y - verticalMargin || point.y > entry.y + height + verticalMargin) return;
-    const leftDistance = Math.abs(point.x - entry.x);
-    const rightDistance = Math.abs(point.x - (entry.x + DESKTOP_CANVAS_CARD_WIDTH));
-    const distance = Math.min(leftDistance, rightDistance);
-    if (distance > edgeThreshold || (best && best.distance <= distance)) return;
-    best = {
-      targetGroupId: entry.id,
-      targetSide: leftDistance <= rightDistance ? 'left' : 'right',
-      distance,
-    };
-  });
-  return best;
-};
 
 export const rewireConnectionsForPackMerge = (
   connections,

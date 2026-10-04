@@ -1,4 +1,6 @@
-import React from 'react';
+import React, { useRef } from 'react';
+import * as AlertDialog from '@radix-ui/react-alert-dialog';
+import { getDesktopPortalContainer } from './desktopPortal';
 
 const DesktopDeleteConfirmModal = ({
   open,
@@ -9,39 +11,79 @@ const DesktopDeleteConfirmModal = ({
   onCancel,
   onConfirm,
 }) => {
-  if (!open) return null;
+  const confirmingRef = useRef(false);
+  const previouslyFocusedElementRef = useRef(null);
 
   return (
-    <div role="presentation" onClick={onCancel} className="desktop-delete-confirm-backdrop">
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="desktop-delete-confirm-title"
-        onClick={(event) => event.stopPropagation()}
-        className="desktop-delete-confirm-dialog"
-      >
-        <div className="desktop-delete-confirm-copy">
-          <h2 id="desktop-delete-confirm-title" className="desktop-delete-confirm-title">{title}</h2>
-          {description ? <p className="desktop-delete-confirm-description">{description}</p> : null}
-        </div>
-        <div className="desktop-delete-confirm-actions">
-          <button
-            type="button"
-            className="desktop-delete-confirm-button desktop-delete-confirm-button-secondary"
-            onClick={onCancel}
-          >
-            {cancelLabel}
-          </button>
-          <button
-            type="button"
-            className="desktop-delete-confirm-button desktop-delete-confirm-button-primary"
-            onClick={onConfirm}
-          >
-            {confirmLabel}
-          </button>
-        </div>
-      </div>
-    </div>
+    <AlertDialog.Root
+      open={open}
+      onOpenChange={(nextOpen) => {
+        if (nextOpen) return;
+        if (confirmingRef.current) {
+          confirmingRef.current = false;
+          return;
+        }
+        onCancel?.();
+      }}
+    >
+      <AlertDialog.Portal container={getDesktopPortalContainer()}>
+        <AlertDialog.Overlay
+          className="desktop-delete-confirm-backdrop"
+          onClick={(event) => event.stopPropagation()}
+        />
+        <AlertDialog.Content
+          className="desktop-delete-confirm-dialog"
+          onClick={(event) => event.stopPropagation()}
+          onOpenAutoFocus={() => {
+            const activeElement = document.activeElement;
+            previouslyFocusedElementRef.current = activeElement instanceof HTMLElement && activeElement !== document.body
+              ? activeElement
+              : null;
+          }}
+          onCloseAutoFocus={(event) => {
+            event.preventDefault();
+            previouslyFocusedElementRef.current?.focus({ preventScroll: true });
+          }}
+        >
+          <div className="desktop-delete-confirm-copy">
+            <AlertDialog.Title className="desktop-delete-confirm-title">{title}</AlertDialog.Title>
+            {description ? (
+              <AlertDialog.Description className="desktop-delete-confirm-description">
+                {description}
+              </AlertDialog.Description>
+            ) : null}
+          </div>
+          <div className="desktop-delete-confirm-actions">
+            <AlertDialog.Cancel asChild>
+              <button
+                type="button"
+                className="desktop-delete-confirm-button desktop-delete-confirm-button-secondary"
+              >
+                {cancelLabel}
+              </button>
+            </AlertDialog.Cancel>
+            <AlertDialog.Action asChild>
+              <button
+                type="button"
+                className="desktop-delete-confirm-button desktop-delete-confirm-button-primary"
+                onClick={() => {
+                  confirmingRef.current = true;
+                  try {
+                    onConfirm?.();
+                  } finally {
+                    queueMicrotask(() => {
+                      confirmingRef.current = false;
+                    });
+                  }
+                }}
+              >
+                {confirmLabel}
+              </button>
+            </AlertDialog.Action>
+          </div>
+        </AlertDialog.Content>
+      </AlertDialog.Portal>
+    </AlertDialog.Root>
   );
 };
 

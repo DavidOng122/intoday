@@ -71,10 +71,12 @@ export const decideCanvasDrop = ({
       overlapY: overlapEntry.y,
       dropX: nextPosition.x,
       dropY: nextPosition.y,
-      fallbackPosition: getDesktopCanvasResolvedPosition(tasks, movingTaskIds, {
-        x: overlapEntry.x,
-        y: overlapEntry.y + getDesktopCanvasEntryHeight(overlapEntry) + DESKTOP_CANVAS_CARD_GAP,
-      }),
+      fallbackPosition: isMergePacks
+        ? anchorPosition
+        : getDesktopCanvasResolvedPosition(tasks, movingTaskIds, {
+          x: overlapEntry.x,
+          y: overlapEntry.y + getDesktopCanvasEntryHeight(overlapEntry) + DESKTOP_CANVAS_CARD_GAP,
+        }),
     },
   };
 };

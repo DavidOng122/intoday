@@ -44,3 +44,33 @@ test('drop decision immediately returns a Pack member to its own Pack', () => {
   assert.equal(result.prompt, null);
   assert.equal(result.drop.type, 'RETURN_TO_PACK');
 });
+
+test('cancelled Pack merge restores the moving Pack original position', () => {
+  const movingTasks = [
+    { id: 1, desktopGroupId: 'pack-a', desktopCanvasX: 10, desktopCanvasY: 20 },
+    { id: 2, desktopGroupId: 'pack-a', desktopCanvasX: 10, desktopCanvasY: 20 },
+  ];
+  const targetTasks = [
+    { id: 3, desktopGroupId: 'pack-b', desktopCanvasX: 300, desktopCanvasY: 200 },
+    { id: 4, desktopGroupId: 'pack-b', desktopCanvasX: 300, desktopCanvasY: 200 },
+  ];
+  const result = decideCanvasDrop({
+    tasks: [...movingTasks, ...targetTasks],
+    movingTaskIds: new Set([1, 2]),
+    originPositions: {
+      1: { x: 10, y: 20 },
+      2: { x: 10, y: 20 },
+    },
+    anchorPosition: { x: 10, y: 20 },
+    nextPosition: { x: 280, y: 180 },
+    delta: { x: 270, y: 160 },
+    activeDateKey: '2026-09-12',
+    timestamp: 123,
+    isGroupDrag: true,
+    isDetachedGroupTask: false,
+    overlapEntry: { type: 'group', id: 'pack-b', tasks: targetTasks, x: 300, y: 200 },
+  });
+
+  assert.equal(result.prompt.mode, 'merge-packs');
+  assert.deepEqual(result.prompt.fallbackPosition, { x: 10, y: 20 });
+});

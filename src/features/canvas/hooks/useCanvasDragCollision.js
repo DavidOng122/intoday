@@ -17,7 +17,6 @@ import { findCanvasCollisionTarget } from '../model/canvasCollisionTarget.js';
 export const useCanvasDragCollision = ({
   runtime,
   getCanvasPointFromClient,
-  getDragCanvasPointFromClient,
   getDesktopDragAnchorPosition,
   isExternalDragTask,
   setDesktopDragOverlapTargetId,
@@ -25,12 +24,10 @@ export const useCanvasDragCollision = ({
 }) => {
   const {
     activePointerTaskRef,
-    desktopDragIsGroupRef,
     desktopDragModeRef,
     desktopDragOverlapPendingRef,
     desktopDragOverlapRafRef,
     desktopDragOverlapTargetIdRef,
-    desktopDragOverlapTimeoutRef,
     desktopDragOverlayNodeRef,
     desktopDragSelectedTaskIdsRef,
     desktopDragStateRef,
@@ -95,7 +92,7 @@ export const useCanvasDragCollision = ({
   }, [getActiveDraggedCanvasRect, getCandidatesCache]);
 
   const updateDesktopDragOverlapTarget = useCallback((clientX, clientY, taskId) => {
-    const currentPoint = getDragCanvasPointFromClient(clientX, clientY);
+    const currentPoint = getCanvasPointFromClient(clientX, clientY);
     const nextPosition = getDesktopDragAnchorPosition(currentPoint);
     if (!nextPosition) return;
     const movingTaskIds = new Set(
@@ -120,7 +117,7 @@ export const useCanvasDragCollision = ({
     entriesRef,
     getDesktopCanvasOverlapEntryFromDom,
     getDesktopDragAnchorPosition,
-    getDragCanvasPointFromClient,
+    getCanvasPointFromClient,
     isExternalDragTask,
     setDesktopDragOverlapTargetId,
   ]);
@@ -135,19 +132,10 @@ export const useCanvasDragCollision = ({
 
   const scheduleDesktopDragOverlapUpdate = useCallback((clientX, clientY, taskId) => {
     desktopDragOverlapPendingRef.current = { clientX, clientY, taskId };
-    if (desktopDragIsGroupRef.current) {
-      if (desktopDragOverlapTimeoutRef.current === null) {
-        desktopDragOverlapTimeoutRef.current = window.setTimeout(() => {
-          desktopDragOverlapTimeoutRef.current = null;
-          flushDesktopDragOverlapUpdate();
-        }, 34);
-      }
-      return;
-    }
     if (desktopDragOverlapRafRef.current === null) {
       desktopDragOverlapRafRef.current = window.requestAnimationFrame(flushDesktopDragOverlapUpdate);
     }
-  }, [desktopDragIsGroupRef, desktopDragOverlapPendingRef, desktopDragOverlapRafRef, desktopDragOverlapTimeoutRef, flushDesktopDragOverlapUpdate]);
+  }, [desktopDragOverlapPendingRef, desktopDragOverlapRafRef, flushDesktopDragOverlapUpdate]);
 
   useEffect(() => {
     const invalidateCandidates = () => { targetCandidatesCacheRef.current = null; };

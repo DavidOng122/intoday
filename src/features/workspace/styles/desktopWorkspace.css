@@ -146,10 +146,7 @@
 }
 
 .desktop-workspace-menu.desktop-spaces-popover {
-  position: absolute;
-  top: calc(100% + 10px);
-  left: 0;
-  z-index: 40;
+  z-index: 500;
   width: 288.75px;
   box-sizing: border-box;
   padding: 18.75px 8.75px 18.75px 15px;
@@ -329,10 +326,7 @@
 }
 
 .desktop-spaces-popover .desktop-workspace-delete-popover {
-  position: absolute;
-  top: calc(100% + 7.5px);
-  right: 0;
-  z-index: 70;
+  z-index: 501;
   width: max-content;
   border: 0.875px solid #d5d5d5;
   border-radius: 8.75px;
@@ -373,12 +367,6 @@
 .desktop-spaces-popover .desktop-workspace-delete-action:disabled {
   opacity: 0.4;
   cursor: not-allowed;
-}
-
-.desktop-app-dark .desktop-spaces-popover .desktop-workspace-delete-popover {
-  border-color: rgba(255, 255, 255, 0.14);
-  background: #1c1c1c;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
 }
 
 .desktop-workspace-shell:hover {
@@ -610,96 +598,6 @@
 
 .desktop-workspace-menu-add:disabled:hover,
 .desktop-workspace-menu-add:disabled:focus-visible {
-  background: transparent;
-}
-
-.desktop-app-dark .desktop-workspace-icon {
-  border-color: rgba(255, 255, 255, 0.74);
-  background: transparent;
-  color: rgba(255, 255, 255, 0.9);
-}
-
-.desktop-app-dark .desktop-workspace-name-button,
-.desktop-app-dark .desktop-workspace-menu-button {
-  color: #ffffff;
-}
-
-.desktop-app-dark .desktop-workspace-shell {
-  background: rgba(255, 255, 255, 0.03);
-  border-color: transparent;
-  box-shadow: none;
-}
-
-.desktop-app-dark .desktop-workspace-name-input {
-  background: transparent;
-  color: #ffffff;
-}
-
-.desktop-app-dark .desktop-workspace-menu-button {
-  border-left-color: transparent;
-}
-
-.desktop-app-dark .desktop-workspace-shell:hover {
-  background: rgba(255, 255, 255, 0.1);
-}
-
-.desktop-app-dark .desktop-workspace-name-button:hover,
-.desktop-app-dark .desktop-workspace-menu-button:hover {
-  background: transparent;
-}
-
-.desktop-app-dark .desktop-workspace-shell.is-editing {
-  background: #171717;
-  border-color: #60a5fa;
-  box-shadow: 0 0 0 2px rgba(96, 165, 250, 0.22);
-}
-
-.desktop-app-dark .desktop-workspace-menu {
-  border-color: rgba(255, 255, 255, 0.08);
-  background: rgba(24, 24, 28, 0.96);
-  box-shadow: 0 24px 54px rgba(0, 0, 0, 0.34);
-}
-
-.desktop-app-dark .desktop-workspace-menu-row.is-active,
-.desktop-app-dark .desktop-workspace-menu-row:hover,
-.desktop-app-dark .desktop-workspace-menu-row:focus-within,
-.desktop-app-dark .desktop-workspace-menu-add:hover,
-.desktop-app-dark .desktop-workspace-menu-add:focus-visible {
-  background: rgba(255, 255, 255, 0.06);
-}
-
-.desktop-app-dark .desktop-workspace-menu-item-more {
-  color: rgba(255, 255, 255, 0.64);
-}
-
-.desktop-app-dark .desktop-workspace-menu-item-more:hover,
-.desktop-app-dark .desktop-workspace-menu-item-more:focus-visible {
-  background: rgba(255, 255, 255, 0.08);
-  color: rgba(255, 255, 255, 0.92);
-}
-
-.desktop-app-dark .desktop-workspace-menu-add {
-  border-top-color: rgba(255, 255, 255, 0.08);
-  color: rgba(255, 255, 255, 0.72);
-}
-
-.desktop-app-dark .desktop-workspace-menu-item-popover {
-  border-color: rgba(255, 255, 255, 0.08);
-  background: rgba(24, 24, 28, 0.98);
-  box-shadow: 0 18px 34px rgba(0, 0, 0, 0.36);
-}
-
-.desktop-app-dark .desktop-workspace-menu-item-delete {
-  color: #ff8f8f;
-}
-
-.desktop-app-dark .desktop-workspace-menu-item-delete:hover,
-.desktop-app-dark .desktop-workspace-menu-item-delete:focus-visible {
-  background: rgba(255, 143, 143, 0.12);
-}
-
-.desktop-app-dark .desktop-workspace-menu-add:disabled:hover,
-.desktop-app-dark .desktop-workspace-menu-add:disabled:focus-visible {
   background: transparent;
 }
 

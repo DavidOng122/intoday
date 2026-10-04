@@ -21,20 +21,16 @@ export const useCanvasDragCleanup = ({
     desktopDragAnchorPointerOffsetRef,
     desktopDragAnchorSizeRef,
     desktopDragAnchorStartPositionRef,
-    desktopDragContainerRectRef,
     desktopDragDetachedFromGroupRef,
-    desktopDragIsGroupRef,
     desktopDragLastMoveRef,
     desktopDragModeRef,
     desktopDragOverlapPendingRef,
     desktopDragOverlapRafRef,
-    desktopDragOverlapTimeoutRef,
     desktopDragOverlaySnapshotRef,
     desktopDragPointerRef,
     desktopDragPreviewPositionsRef,
     desktopDragSelectedTaskIdsRef,
     desktopDragSelectionPositionsRef,
-    desktopDragSourceEntryIdRef,
     desktopDragSourceRectRef,
     desktopDragStateRef,
   } = runtime;
@@ -48,10 +44,6 @@ export const useCanvasDragCleanup = ({
       desktopDragOverlapRafRef.current = null;
     }
     desktopDragOverlapPendingRef.current = null;
-    if (desktopDragOverlapTimeoutRef.current !== null) {
-      window.clearTimeout(desktopDragOverlapTimeoutRef.current);
-      desktopDragOverlapTimeoutRef.current = null;
-    }
     cancelDesktopDragVisualUpdate();
     return { clientX: desktopDragPointerRef.current.x, clientY: desktopDragPointerRef.current.y };
   }, [
@@ -59,7 +51,6 @@ export const useCanvasDragCleanup = ({
     desktopDragModeRef,
     desktopDragOverlapPendingRef,
     desktopDragOverlapRafRef,
-    desktopDragOverlapTimeoutRef,
     desktopDragPointerRef,
     desktopDragStateRef,
     resetDragCollision,
@@ -68,7 +59,6 @@ export const useCanvasDragCleanup = ({
   const resetDesktopDragAfterFinish = useCallback((pointerTarget, pointerId) => {
     document.body.classList.remove('desktop-task-dragging');
     desktopDragModeRef.current = false;
-    desktopDragContainerRectRef.current = null;
     desktopDragStateRef.current = { pointerId: null, taskId: null, startX: 0, startY: 0, finalized: false };
     desktopDragLastMoveRef.current = null;
     desktopDragSelectionPositionsRef.current = new Map();
@@ -78,9 +68,7 @@ export const useCanvasDragCleanup = ({
     desktopDragAnchorPointerOffsetRef.current = null;
     desktopDragSourceRectRef.current = null;
     desktopDragDetachedFromGroupRef.current = false;
-    desktopDragIsGroupRef.current = false;
     desktopDragOverlaySnapshotRef.current = null;
-    desktopDragSourceEntryIdRef.current = null;
     desktopDragSelectedTaskIdsRef.current = new Set();
     searchDragSeparateRef.current = false;
     setDraggedTaskId(null);
@@ -99,16 +87,13 @@ export const useCanvasDragCleanup = ({
     desktopDragAnchorPointerOffsetRef,
     desktopDragAnchorSizeRef,
     desktopDragAnchorStartPositionRef,
-    desktopDragContainerRectRef,
     desktopDragDetachedFromGroupRef,
-    desktopDragIsGroupRef,
     desktopDragLastMoveRef,
     desktopDragModeRef,
     desktopDragOverlaySnapshotRef,
     desktopDragPreviewPositionsRef,
     desktopDragSelectedTaskIdsRef,
     desktopDragSelectionPositionsRef,
-    desktopDragSourceEntryIdRef,
     desktopDragSourceRectRef,
     desktopDragStateRef,
     searchDragSeparateRef,

@@ -2,11 +2,11 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   createConnectionOperationsForReplacement,
   createDesktopConnection,
-  findConnectionTargetAtPoint,
   migrateLegacyConnections,
   removeConnectionsForGroupIds,
   rewireConnectionsForPackMerge,
 } from '../model/canvasConnections.js';
+import { getPackGroupIdFromReactFlowNodeId } from '../adapters/reactFlowAdapter.js';
 import {
   hasCompletedConnectionMigration,
   markConnectionMigrationComplete,
@@ -25,7 +25,6 @@ import {
 
 export const useDesktopConnections = ({
   entries,
-  getCanvasPointFromClient,
   onStatus,
   tasks,
   userId,
@@ -34,15 +33,9 @@ export const useDesktopConnections = ({
   const ownerId = userId || 'guest';
   const cloudEnabled = Boolean(userId) && isConnectionCloudSyncEnabled();
   const [connections, setConnections] = useState([]);
-  const [draftConnection, setDraftConnection] = useState(null);
   const connectionsRef = useRef([]);
-  const draftRef = useRef(null);
   const entriesRef = useRef(entries);
   const tasksRef = useRef(tasks);
-  const getCanvasPointRef = useRef(getCanvasPointFromClient);
-  const rafRef = useRef(null);
-  const pendingClientPointRef = useRef(null);
-  const listenersRef = useRef(null);
   const pendingOperationsByScopeRef = useRef(new Map());
   const syncInFlightByScopeRef = useRef(new Map());
   const hydratedScopeRef = useRef(null);
@@ -55,27 +48,6 @@ export const useDesktopConnections = ({
   useEffect(() => {
     tasksRef.current = tasks;
   }, [tasks]);
-
-  useEffect(() => {
-    getCanvasPointRef.current = getCanvasPointFromClient;
-  }, [getCanvasPointFromClient]);
-
-  const cleanupPointerListeners = useCallback(() => {
-    const listeners = listenersRef.current;
-    if (listeners) {
-      window.removeEventListener('pointermove', listeners.move);
-      window.removeEventListener('pointerup', listeners.end);
-      window.removeEventListener('pointercancel', listeners.end);
-      listenersRef.current = null;
-    }
-    if (rafRef.current !== null) {
-      window.cancelAnimationFrame(rafRef.current);
-      rafRef.current = null;
-    }
-    pendingClientPointRef.current = null;
-  }, []);
-
-  useEffect(() => cleanupPointerListeners, [cleanupPointerListeners]);
 
   const flushPendingOperations = useCallback(async () => {
     const scopeKey = `${ownerId}:${workspaceId}`;
@@ -250,75 +222,61 @@ export const useDesktopConnections = ({
     replaceConnections((current) => removeConnectionsForGroupIds(current, workspaceId, groupIds));
   }, [replaceConnections, workspaceId]);
 
-  const finishConnectionDrag = useCallback((event) => {
-    const draft = draftRef.current;
-    cleanupPointerListeners();
-    draftRef.current = null;
-    setDraftConnection(null);
-    if (!draft || event?.type === 'pointercancel') return;
+  const isValidConnection = useCallback((connection) => {
+    const sourceGroupId = getPackGroupIdFromReactFlowNodeId(connection?.source);
+    const targetGroupId = getPackGroupIdFromReactFlowNodeId(connection?.target);
+    const sourceSide = connection?.sourceHandle;
+    const targetSide = connection?.targetHandle;
+    if (
+      !sourceGroupId
+      || !targetGroupId
+      || sourceGroupId === targetGroupId
+      || (sourceSide !== 'left' && sourceSide !== 'right')
+      || (targetSide !== 'left' && targetSide !== 'right')
+    ) return false;
 
-    const toCanvasPoint = getCanvasPointRef.current;
-    const canvasPoint = typeof toCanvasPoint === 'function'
-      ? toCanvasPoint(event.clientX, event.clientY)
-      : null;
-    const target = findConnectionTargetAtPoint(entriesRef.current, canvasPoint);
-    if (!target || target.targetGroupId === draft.sourceGroupId) return;
+    const visiblePackIds = new Set(
+      entriesRef.current
+        .filter((entry) => entry?.type === 'group')
+        .map((entry) => String(entry.id)),
+    );
+    if (!visiblePackIds.has(sourceGroupId) || !visiblePackIds.has(targetGroupId)) return false;
+
+    const candidate = createDesktopConnection({
+      workspaceId,
+      sourceGroupId,
+      sourceSide,
+      targetGroupId,
+      targetSide,
+    });
+    return Boolean(candidate) && !connectionsRef.current.some(
+      (existingConnection) => existingConnection.id === candidate.id,
+    );
+  }, [workspaceId]);
+
+  const createConnectionFromFlow = useCallback((flowConnection) => {
+    if (!isValidConnection(flowConnection)) return;
 
     const connection = createDesktopConnection({
       workspaceId,
-      sourceGroupId: draft.sourceGroupId,
-      sourceSide: draft.sourceSide,
-      targetGroupId: target.targetGroupId,
-      targetSide: target.targetSide,
+      sourceGroupId: getPackGroupIdFromReactFlowNodeId(flowConnection.source),
+      sourceSide: flowConnection.sourceHandle,
+      targetGroupId: getPackGroupIdFromReactFlowNodeId(flowConnection.target),
+      targetSide: flowConnection.targetHandle,
     });
     if (!connection) return;
+
     replaceConnections((current) => (
       current.some((item) => item.id === connection.id) ? current : [...current, connection]
     ));
-  }, [cleanupPointerListeners, replaceConnections, workspaceId]);
-
-  const scheduleDraftPoint = useCallback((clientX, clientY) => {
-    pendingClientPointRef.current = { x: clientX, y: clientY };
-    if (rafRef.current !== null) return;
-    rafRef.current = window.requestAnimationFrame(() => {
-      rafRef.current = null;
-      const point = pendingClientPointRef.current;
-      pendingClientPointRef.current = null;
-      if (!point || !draftRef.current) return;
-      const nextDraft = { ...draftRef.current, currentClientPt: point };
-      draftRef.current = nextDraft;
-      setDraftConnection(nextDraft);
-    });
-  }, []);
-
-  const startConnectionDrag = useCallback((groupId, side, event) => {
-    if (event.button !== 0) return;
-    event.stopPropagation();
-    event.preventDefault();
-    cleanupPointerListeners();
-
-    const draft = {
-      sourceGroupId: groupId,
-      sourceSide: side,
-      currentClientPt: { x: event.clientX, y: event.clientY },
-    };
-    draftRef.current = draft;
-    setDraftConnection(draft);
-
-    const move = (moveEvent) => scheduleDraftPoint(moveEvent.clientX, moveEvent.clientY);
-    const end = (endEvent) => finishConnectionDrag(endEvent);
-    listenersRef.current = { move, end };
-    window.addEventListener('pointermove', move);
-    window.addEventListener('pointerup', end);
-    window.addEventListener('pointercancel', end);
-  }, [cleanupPointerListeners, finishConnectionDrag, scheduleDraftPoint]);
+  }, [isValidConnection, replaceConnections, workspaceId]);
 
   return {
     connections,
-    draftConnection,
+    isValidConnection,
+    createConnectionFromFlow,
     removeConnection,
     removeGroupConnections,
     rewirePackConnections,
-    startConnectionDrag,
   };
 };

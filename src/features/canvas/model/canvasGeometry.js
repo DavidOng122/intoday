@@ -1,24 +1,9 @@
 import {
   DESKTOP_CANVAS_CARD_HEIGHT,
-  DESKTOP_CANVAS_CARD_WIDTH,
   DESKTOP_CANVAS_HITBOX_HORIZONTAL_PADDING,
   DESKTOP_CANVAS_HITBOX_VERTICAL_PADDING,
   DESKTOP_GROUP_OVERLAP_THRESHOLD,
 } from './canvasConstants.js';
-
-export const doDesktopRectsIntersect = (first, second) => !(
-  first.x + first.width < second.x
-  || second.x + second.width < first.x
-  || first.y + first.height < second.y
-  || second.y + second.height < first.y
-);
-
-export const getDesktopSelectionRect = (start, end) => ({
-  x: Math.min(start.x, end.x),
-  y: Math.min(start.y, end.y),
-  width: Math.abs(end.x - start.x),
-  height: Math.abs(end.y - start.y),
-});
 
 export const getDesktopCanvasRectIntersectionArea = (first, second) => {
   const overlapWidth = Math.max(0, Math.min(first.x + first.width, second.x + second.width) - Math.max(first.x, second.x));
@@ -117,16 +102,3 @@ export const findDesktopDragOverlap = ({
 
   return { entry: bestMatch, ratio: bestRatio, rect: movingRect, centerAligned };
 };
-
-export const getDesktopCubicBezierPath = (sourcePt, targetPt, sourceSide = 'right', targetSide = 'left') => {
-  if (!sourcePt || !targetPt) return '';
-  const dx = Math.abs(targetPt.x - sourcePt.x);
-  const dy = Math.abs(targetPt.y - sourcePt.y);
-  const minCurve = Math.max(36, Math.min(180, dx * 0.45 + dy * 0.15));
-
-  const c1x = sourceSide === 'left' ? sourcePt.x - minCurve : sourcePt.x + minCurve;
-  const c2x = targetSide === 'left' ? targetPt.x - minCurve : targetPt.x + minCurve;
-
-  return `M ${sourcePt.x} ${sourcePt.y} C ${c1x} ${sourcePt.y}, ${c2x} ${targetPt.y}, ${targetPt.x} ${targetPt.y}`;
-};
-

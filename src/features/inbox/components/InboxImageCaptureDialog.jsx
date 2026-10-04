@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { createPortal } from 'react-dom';
+import * as Dialog from '@radix-ui/react-dialog';
+import { getDesktopPortalContainer } from '../../../shared/ui/desktopPortal';
 
-const InboxImageCaptureDialog = ({ file, appearance = 'light', submitting = false, error = '', onClose, onConfirm }) => {
+const InboxImageCaptureDialog = ({ file, submitting = false, error = '', onClose, onConfirm }) => {
   const [note, setNote] = useState('');
   const previewUrl = useMemo(() => (file ? URL.createObjectURL(file) : null), [file]);
 
@@ -10,29 +11,20 @@ const InboxImageCaptureDialog = ({ file, appearance = 'light', submitting = fals
     return () => URL.revokeObjectURL(previewUrl);
   }, [previewUrl]);
 
-  useEffect(() => {
-    if (!file) return undefined;
-    const handleKeyDown = (event) => {
-      if (event.key === 'Escape') onClose?.();
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [file, onClose]);
+  if (!file || !previewUrl) return null;
 
-  if (!file || !previewUrl || typeof document === 'undefined') return null;
-
-  return createPortal(
-    <div className={`desktop-inbox-image-capture-backdrop ${appearance === 'dark' ? 'is-dark' : ''}`} role="presentation" onClick={onClose}>
-      <section
-        className="desktop-inbox-image-capture-dialog"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="desktop-inbox-image-capture-title"
-        onClick={(event) => event.stopPropagation()}
-      >
+  return (
+    <Dialog.Root open={Boolean(file)} onOpenChange={(nextOpen) => {
+      if (!nextOpen) onClose?.();
+    }}>
+      <Dialog.Portal container={getDesktopPortalContainer()}>
+        <Dialog.Overlay className="desktop-inbox-image-capture-backdrop" />
+        <Dialog.Content className="desktop-inbox-image-capture-dialog">
         <div className="desktop-inbox-image-capture-heading">
-          <h2 id="desktop-inbox-image-capture-title">Add image to Inbox</h2>
-          <button type="button" onClick={onClose} aria-label="Cancel image capture">Cancel</button>
+          <Dialog.Title className="desktop-inbox-image-capture-title">Add image to Inbox</Dialog.Title>
+          <Dialog.Close asChild>
+            <button type="button" aria-label="Cancel image capture">Cancel</button>
+          </Dialog.Close>
         </div>
         <img className="desktop-inbox-image-capture-preview" src={previewUrl} alt="Pasted clipboard preview" />
         <textarea
@@ -44,14 +36,16 @@ const InboxImageCaptureDialog = ({ file, appearance = 'light', submitting = fals
         />
         {error ? <div className="desktop-inbox-image-capture-error" role="status">{error}</div> : null}
         <div className="desktop-inbox-image-capture-actions">
-          <button type="button" onClick={onClose}>Cancel</button>
+          <Dialog.Close asChild>
+            <button type="button">Cancel</button>
+          </Dialog.Close>
           <button type="button" disabled={submitting} onClick={() => onConfirm?.(file, note.trim())}>
             {submitting ? 'Saving...' : 'Save to Inbox'}
           </button>
         </div>
-      </section>
-    </div>,
-    document.body,
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
   );
 };
 

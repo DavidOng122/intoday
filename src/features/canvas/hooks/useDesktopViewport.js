@@ -12,72 +12,66 @@ const DEFAULT_CANVAS_BOUNDS = {
   height: 560,
 };
 
-const getFiniteViewportMetrics = () => {
+const DEFAULT_CANVAS_VIEWPORT_SIZE = {
+  width: DESKTOP_MAIN_CONTENT_MAX_WIDTH * DESKTOP_APP_WINDOW_SCALE,
+  height: 560 * DESKTOP_APP_WINDOW_SCALE,
+};
+
+const getFiniteViewportMetrics = (container = null) => {
   if (typeof window === 'undefined') {
     return {
-      viewport: { panX: 0, panY: 0, zoom: 1 },
       bounds: DEFAULT_CANVAS_BOUNDS,
+      canvasViewportSize: DEFAULT_CANVAS_VIEWPORT_SIZE,
     };
   }
 
-  const width = window.innerWidth / DESKTOP_APP_WINDOW_SCALE;
-  const height = window.innerHeight / DESKTOP_APP_WINDOW_SCALE;
+  const rect = container?.getBoundingClientRect?.();
+  const viewportWidth = rect?.width || window.innerWidth;
+  const viewportHeight = rect?.height || window.innerHeight;
   return {
-    viewport: {
-      panX: 0,
-      panY: 0,
-      zoom: 1,
-    },
     bounds: {
-      width: Math.max(DESKTOP_CANVAS_CARD_WIDTH, width),
-      height: Math.max(DESKTOP_CANVAS_CARD_HEIGHT, height - DESKTOP_CANVAS_TOP_PADDING),
+      width: Math.max(
+        DESKTOP_CANVAS_CARD_WIDTH,
+        window.innerWidth / DESKTOP_APP_WINDOW_SCALE,
+      ),
+      height: Math.max(
+        DESKTOP_CANVAS_CARD_HEIGHT,
+        (window.innerHeight / DESKTOP_APP_WINDOW_SCALE) - DESKTOP_CANVAS_TOP_PADDING,
+      ),
+    },
+    canvasViewportSize: {
+      width: viewportWidth,
+      height: Math.max(
+        0,
+        viewportHeight - (DESKTOP_CANVAS_TOP_PADDING * DESKTOP_APP_WINDOW_SCALE),
+      ),
     },
   };
 };
 
-const isEditableElement = (target) => (
-  target instanceof HTMLElement
-  // A marquee selection does not move keyboard focus to the Canvas. It can
-  // therefore remain on a header button (for example, Inbox) after the user
-  // closes it. Buttons and selects do not accept text, so they must not block
-  // the Canvas Delete shortcut. Only text-editing surfaces and dialogs own it.
-  && Boolean(target.closest('input, textarea, [contenteditable="true"], [role="dialog"]'))
-);
-
-const getDesktopSelectionRect = (start, end) => ({
-  x: Math.min(start.x, end.x),
-  y: Math.min(start.y, end.y),
-  width: Math.abs(end.x - start.x),
-  height: Math.abs(end.y - start.y),
-});
-
 export const useDesktopViewport = ({
   desktopDragAnchorPointerOffsetRef,
   desktopDragAnchorSizeRef,
-  desktopDragContainerRectRef,
-  desktopSelectionStateRef,
-  clearSelection,
-  updateMarqueeSelection,
-  setDesktopSelectionRect,
 }) => {
   const initialMetrics = getFiniteViewportMetrics();
-  const [viewport, setViewport] = useState(initialMetrics.viewport);
-  const viewportRef = useRef(viewport);
   const viewportContainerRef = useRef(null);
+  const flowInstanceRef = useRef(null);
   const [canvasBounds, setCanvasBounds] = useState(initialMetrics.bounds);
   const canvasBoundsRef = useRef(initialMetrics.bounds);
+  const [canvasViewportSize, setCanvasViewportSize] = useState(initialMetrics.canvasViewportSize);
 
   useLayoutEffect(() => {
     const container = viewportContainerRef.current;
     if (!container) return undefined;
 
     const updateFiniteViewport = () => {
-      const { viewport: nextViewport, bounds: nextBounds } = getFiniteViewportMetrics();
-
-      viewportRef.current = nextViewport;
+      const {
+        bounds: nextBounds,
+        canvasViewportSize: nextCanvasViewportSize,
+      } = getFiniteViewportMetrics(container);
       canvasBoundsRef.current = nextBounds;
-      setViewport(nextViewport);
       setCanvasBounds(nextBounds);
+      setCanvasViewportSize(nextCanvasViewportSize);
     };
 
     updateFiniteViewport();
@@ -92,27 +86,11 @@ export const useDesktopViewport = ({
     };
   }, []);
 
-  const getCanvasPointFromRect = useCallback((clientX, clientY, rect) => {
-    const screenX = (clientX - rect.left) / DESKTOP_APP_WINDOW_SCALE;
-    const screenY = (clientY - rect.top) / DESKTOP_APP_WINDOW_SCALE;
-    return {
-      x: (screenX - viewportRef.current.panX) / viewportRef.current.zoom,
-      y: ((screenY - viewportRef.current.panY) / viewportRef.current.zoom) - DESKTOP_CANVAS_TOP_PADDING,
-    };
-  }, []);
-
   const getCanvasPointFromClient = useCallback((clientX, clientY) => {
-    const container = viewportContainerRef.current;
-    if (!container) return null;
-    return getCanvasPointFromRect(clientX, clientY, container.getBoundingClientRect());
-  }, [getCanvasPointFromRect]);
-
-  const getDragCanvasPointFromClient = useCallback((clientX, clientY) => {
-    const rect = desktopDragContainerRectRef.current;
-    return rect
-      ? getCanvasPointFromRect(clientX, clientY, rect)
-      : getCanvasPointFromClient(clientX, clientY);
-  }, [desktopDragContainerRectRef, getCanvasPointFromClient, getCanvasPointFromRect]);
+    const flowInstance = flowInstanceRef.current;
+    if (!flowInstance) return null;
+    return flowInstance.screenToFlowPosition({ x: clientX, y: clientY });
+  }, []);
 
   const clampCanvasPosition = useCallback((position, size = null) => {
     const bounds = canvasBoundsRef.current;
@@ -147,58 +125,14 @@ export const useDesktopViewport = ({
     return clampCanvasPosition(position, anchorSize);
   }, [clampCanvasPosition, desktopDragAnchorPointerOffsetRef, desktopDragAnchorSizeRef]);
 
-  const clampCanvasPoint = useCallback((point) => ({
-    x: Math.min(canvasBoundsRef.current.width, Math.max(0, point.x)),
-    y: Math.min(canvasBoundsRef.current.height, Math.max(0, point.y)),
-  }), []);
-
-  const handleDesktopCanvasPointerDown = useCallback((event) => {
-    if (event.button !== 0 || isEditableElement(event.target)) return;
-    if (event.target instanceof Element && event.target.closest('.desktop-task-card, .desktop-task-group-row, .desktop-group-connector-handle, .desktop-canvas-connections-layer, .desktop-connection-group')) return;
-
-    const point = getCanvasPointFromClient(event.clientX, event.clientY);
-    if (!point) return;
-    const origin = clampCanvasPoint(point);
-
-    event.preventDefault();
-    event.stopPropagation();
-    event.currentTarget.setPointerCapture?.(event.pointerId);
-    desktopSelectionStateRef.current = { pointerId: event.pointerId, origin };
-    setDesktopSelectionRect({ x: origin.x, y: origin.y, width: 0, height: 0 });
-    clearSelection();
-  }, [clampCanvasPoint, clearSelection, desktopSelectionStateRef, getCanvasPointFromClient, setDesktopSelectionRect]);
-
-  const handleDesktopCanvasPointerMove = useCallback((event) => {
-    if (desktopSelectionStateRef.current.pointerId !== event.pointerId) return;
-    const point = getCanvasPointFromClient(event.clientX, event.clientY);
-    if (!point || !desktopSelectionStateRef.current.origin) return;
-
-    const nextRect = getDesktopSelectionRect(
-      desktopSelectionStateRef.current.origin,
-      clampCanvasPoint(point),
-    );
-    setDesktopSelectionRect(nextRect);
-    updateMarqueeSelection(nextRect);
-  }, [clampCanvasPoint, desktopSelectionStateRef, getCanvasPointFromClient, setDesktopSelectionRect, updateMarqueeSelection]);
-
-  const handleDesktopCanvasPointerEnd = useCallback((event) => {
-    if (desktopSelectionStateRef.current.pointerId !== event.pointerId) return;
-    event.currentTarget.releasePointerCapture?.(event.pointerId);
-    desktopSelectionStateRef.current = { pointerId: null, origin: null };
-    setDesktopSelectionRect(null);
-  }, [desktopSelectionStateRef, setDesktopSelectionRect]);
-
   return {
-    viewport,
     viewportContainerRef,
+    flowInstanceRef,
     canvasBounds,
     canvasBoundsRef,
+    canvasViewportSize,
     clampCanvasPosition,
     getCanvasPointFromClient,
-    getDragCanvasPointFromClient,
     getDesktopDragAnchorPosition,
-    handleDesktopCanvasPointerDown,
-    handleDesktopCanvasPointerMove,
-    handleDesktopCanvasPointerEnd,
   };
 };

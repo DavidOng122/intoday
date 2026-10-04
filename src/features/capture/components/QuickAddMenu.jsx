@@ -1,9 +1,13 @@
+import { useRef } from 'react';
+import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
+import * as Popover from '@radix-ui/react-popover';
+import { getDesktopPortalContainer } from '../../../shared/ui/desktopPortal';
 import QuickAddComposer from './QuickAddComposer';
 import TextCaptureModal from './TextCaptureModal';
 import { useQuickAdd } from '../hooks/useQuickAdd';
 import { QUICK_ADD_OPTIONS } from '../config/quickAddOptions';
 
-const QuickAddMenu = ({ appearance, labels, onCreateItem, onImportFiles, renderTrigger }) => {
+const QuickAddMenu = ({ labels, onCreateItem, onImportFiles, renderTrigger }) => {
   const {
     rootRef,
     imageInputRef,
@@ -17,52 +21,91 @@ const QuickAddMenu = ({ appearance, labels, onCreateItem, onImportFiles, renderT
     submitComposer,
     handleFileInputChange,
   } = useQuickAdd({ onCreateItem, onImportFiles });
+  const textCaptureReturnFocusRef = useRef(null);
 
   const chooseFiles = (kind) => {
-    setOpen(false);
     (kind === 'image' ? imageInputRef : fileInputRef).current?.click();
   };
 
   return (
     <div ref={rootRef} className="desktop-quick-add">
-      {renderTrigger?.({
-        open,
-        toggle: () => setOpen((current) => !current),
-      })}
+      <Popover.Root
+        open={Boolean(composerKind && composerKind !== 'text')}
+        onOpenChange={(nextOpen) => {
+          if (!nextOpen) close();
+        }}
+      >
+        <DropdownMenu.Root open={open} onOpenChange={setOpen}>
+          <Popover.Anchor asChild>
+            <DropdownMenu.Trigger asChild>
+              {renderTrigger?.({ open })}
+            </DropdownMenu.Trigger>
+          </Popover.Anchor>
 
       <input ref={imageInputRef} hidden type="file" accept={QUICK_ADD_OPTIONS[2].accept} onChange={handleFileInputChange} />
       <input ref={fileInputRef} hidden type="file" accept={QUICK_ADD_OPTIONS[3].accept} onChange={handleFileInputChange} />
 
       {open ? (
-        <div className="desktop-quick-add-popover" role="menu" aria-label={labels.quickAddMenuLabel}>
+        <DropdownMenu.Portal container={getDesktopPortalContainer()}>
+        <DropdownMenu.Content
+          className="desktop-quick-add-popover"
+          aria-label={labels.quickAddMenuLabel}
+          side="bottom"
+          align="end"
+          sideOffset={14}
+          collisionPadding={8}
+        >
           {QUICK_ADD_OPTIONS.map((option) => {
             const Icon = option.icon;
             const isFileAction = option.id === 'image' || option.id === 'file';
             return (
-              <button
+              <DropdownMenu.Item
                 key={option.id}
-                type="button"
-                role="menuitem"
                 className="desktop-quick-add-option"
                 disabled={isImporting && isFileAction}
-                onClick={() => (isFileAction ? chooseFiles(option.id) : openComposer(option.id))}
+                onSelect={() => {
+                  if (option.id === 'text') {
+                    textCaptureReturnFocusRef.current = rootRef.current?.querySelector('button:not([role="menuitem"])') || null;
+                  }
+                  if (isFileAction) chooseFiles(option.id);
+                  else openComposer(option.id);
+                }}
               >
                 <span className={`desktop-quick-add-option-icon is-${option.id}`}><Icon size={19} strokeWidth={1.9} /></span>
                 <span className="desktop-quick-add-option-copy">
                   <strong>{labels[option.labelKey]}</strong>
                   <small>{labels[option.descriptionKey]}</small>
                 </span>
-              </button>
+              </DropdownMenu.Item>
             );
           })}
-        </div>
+        </DropdownMenu.Content>
+        </DropdownMenu.Portal>
       ) : null}
+        </DropdownMenu.Root>
 
       {composerKind === 'text' ? (
-        <TextCaptureModal appearance={appearance} labels={labels} onCancel={close} onSubmit={submitComposer} />
+        <TextCaptureModal
+          labels={labels}
+          onCancel={close}
+          onSubmit={submitComposer}
+          returnFocusRef={textCaptureReturnFocusRef}
+        />
       ) : composerKind ? (
-        <QuickAddComposer kind={composerKind} labels={labels} onCancel={close} onSubmit={submitComposer} />
+        <Popover.Portal container={getDesktopPortalContainer()}>
+          <Popover.Content
+            className="desktop-quick-add-composer"
+            side="bottom"
+            align="end"
+            sideOffset={14}
+            collisionPadding={8}
+            onOpenAutoFocus={(event) => event.preventDefault()}
+          >
+            <QuickAddComposer kind={composerKind} labels={labels} onCancel={close} onSubmit={submitComposer} />
+          </Popover.Content>
+        </Popover.Portal>
       ) : null}
+      </Popover.Root>
     </div>
   );
 };

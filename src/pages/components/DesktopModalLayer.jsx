@@ -1,5 +1,7 @@
 import React from 'react';
 import { X } from 'lucide-react';
+import * as Dialog from '@radix-ui/react-dialog';
+import { getDesktopPortalContainer } from '../../shared/ui/desktopPortal';
 import { InboxPanel } from '../../features/inbox';
 import { PackPrompt } from '../../features/pack';
 import { TextTaskDetailModal } from '../../features/task-detail';
@@ -11,8 +13,6 @@ function DesktopModalLayer({
   PackFullViewComponent,
   activeGroupView,
   activeTextTask,
-  appearance,
-  appearancePreference,
   canRestoreWorkspace,
   currentUser,
   deletedWorkspaces,
@@ -53,7 +53,6 @@ function DesktopModalLayer({
   onSearchTaskClick,
   onSearchTaskLongPress,
   onSearchTaskPointerDown,
-  onSetAppearance,
   onSetLanguage,
   onSignOut,
   onTextTaskClose,
@@ -77,9 +76,6 @@ function DesktopModalLayer({
             user: currentUser,
             language,
             setLanguage: onSetLanguage,
-            appearance,
-            appearancePreference,
-            setAppearance: onSetAppearance,
             deletedWorkspaces,
             canRestoreWorkspace,
             onRestoreWorkspace,
@@ -92,7 +88,6 @@ function DesktopModalLayer({
           {React.createElement(SearchModalComponent, {
             open: true,
             tasks: searchTasks,
-            appearance,
             language,
             t,
             onClose: onCloseSearch,
@@ -109,7 +104,6 @@ function DesktopModalLayer({
         isDraggingOut={isInboxDragActive}
         items={inboxItems}
         packOptions={inboxPackOptions}
-        appearance={appearance}
         t={t}
         onClose={onCloseInbox}
         onCreateItem={onCreateInboxItem}
@@ -131,9 +125,8 @@ function DesktopModalLayer({
       />
       {activeGroupView ? (
         <React.Suspense fallback={null}>
-          {React.createElement(PackFullViewComponent, {
+          {          React.createElement(PackFullViewComponent, {
             view: activeGroupView,
-            appearance,
             labels: t,
             language,
             onClose: onCloseActiveGroupView,
@@ -148,7 +141,6 @@ function DesktopModalLayer({
         <TextTaskDetailModal
           key={activeTextTask.id}
           task={activeTextTask}
-          appearance={appearance}
           labels={t}
           language={language}
           onClose={onTextTaskClose}
@@ -176,7 +168,7 @@ function DesktopModalLayer({
           bottom: 32,
           left: '50%',
           transform: 'translateX(-50%)',
-          background: appearance === 'dark' ? '#333' : '#333',
+          background: '#333',
           color: '#FFF',
           padding: '10px 20px',
           borderRadius: 999,
@@ -190,8 +182,15 @@ function DesktopModalLayer({
         </div>
       )}
 
+      <Dialog.Root
+        open={Boolean(fullscreenImage)}
+        onOpenChange={(nextOpen) => {
+          if (!nextOpen) onCloseFullscreenImage();
+        }}
+      >
       {fullscreenImage && (
-        <div
+        <Dialog.Portal container={getDesktopPortalContainer()}>
+        <Dialog.Overlay
           style={{
             position: 'fixed',
             top: 0,
@@ -204,15 +203,28 @@ function DesktopModalLayer({
             alignItems: 'center',
             justifyContent: 'center',
             animation: 'fadeIn 0.2s ease-out',
-            cursor: 'zoom-out',
           }}
-          onClick={onCloseFullscreenImage}
+        />
+        <Dialog.Content
+          aria-label="Fullscreen image viewer"
+          onClick={(event) => {
+            if (event.target === event.currentTarget) onCloseFullscreenImage();
+          }}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 100001,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'zoom-out',
+            outline: 'none',
+          }}
         >
+          <Dialog.Close asChild>
           <button
-            onClick={(event) => {
-              event.stopPropagation();
-              onCloseFullscreenImage();
-            }}
+            type="button"
+            aria-label="Close fullscreen image"
             style={{
               position: 'absolute',
               top: 40,
@@ -237,6 +249,7 @@ function DesktopModalLayer({
           >
             <X size={24} />
           </button>
+          </Dialog.Close>
           <img
             src={fullscreenImage}
             alt="Fullscreen"
@@ -250,8 +263,10 @@ function DesktopModalLayer({
             }}
             onClick={(event) => event.stopPropagation()}
           />
-        </div>
+        </Dialog.Content>
+        </Dialog.Portal>
       )}
+      </Dialog.Root>
     </>
   );
 }

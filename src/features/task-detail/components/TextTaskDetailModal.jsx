@@ -1,5 +1,7 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { X } from 'lucide-react';
+import * as Dialog from '@radix-ui/react-dialog';
+import { getDesktopPortalContainer } from '../../../shared/ui/desktopPortal';
 import { getTaskCardPresentation } from '../../../entities/task/model/taskCardPresentation';
 
 const LOCALE_BY_LANGUAGE = {
@@ -19,88 +21,108 @@ const formatUpdatedAt = (updatedAt, language) => {
   }).format(date);
 };
 
-const TextTaskDetailModal = ({ task, appearance, labels = {}, language, onClose, onSave }) => {
+const TextTaskDetailModal = ({ task, labels = {}, language, onClose, onSave }) => {
   const presentation = useMemo(() => getTaskCardPresentation(task, labels), [labels, task]);
   const [draft, setDraft] = useState(task?.text || '');
   const [titleDraft, setTitleDraft] = useState(task?.title || presentation.displayTitle || '');
   const updatedAtLabel = formatUpdatedAt(task?.updatedAt, language);
   const savedTitle = task?.title || presentation.displayTitle || '';
+  const textareaRef = useRef(null);
+  const lastSavedDraftRef = useRef({ text: task?.text || '', title: savedTitle });
 
   const saveDraft = useCallback(() => {
-    if (draft === task.text && titleDraft === savedTitle) return;
-    onSave?.(task.id, { text: draft, title: titleDraft });
-  }, [draft, onSave, savedTitle, task, titleDraft]);
+    if (!task || (
+      draft === lastSavedDraftRef.current.text
+      && titleDraft === lastSavedDraftRef.current.title
+    )) return;
+    const previous = lastSavedDraftRef.current;
+    lastSavedDraftRef.current = { text: draft, title: titleDraft };
+    try {
+      onSave?.(task.id, { text: draft, title: titleDraft });
+    } catch (error) {
+      lastSavedDraftRef.current = previous;
+      throw error;
+    }
+  }, [draft, onSave, task, titleDraft]);
+  const handleClose = useCallback(() => {
+    saveDraft();
+    onClose?.();
+  }, [onClose, saveDraft]);
 
   // The editor stays responsive locally. Persist after a short pause instead
   // of synchronising every keystroke, then save immediately on blur/close.
   useEffect(() => {
-    if (draft === task.text && titleDraft === savedTitle) return undefined;
+    if (!task || (draft === task.text && titleDraft === savedTitle)) return undefined;
     const timer = window.setTimeout(saveDraft, 600);
     return () => window.clearTimeout(timer);
   }, [draft, saveDraft, savedTitle, task, titleDraft]);
 
-  useEffect(() => {
-    const handleKeyDown = (event) => {
-      if (event.key === 'Escape') {
-        saveDraft();
-        onClose?.();
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [onClose, saveDraft]);
-
   if (!task) return null;
 
   return (
-    <div
-      className={`desktop-text-detail-backdrop ${appearance === 'dark' ? 'is-dark' : ''}`}
-      role="presentation"
-      onPointerDown={(event) => {
-        if (event.target === event.currentTarget) {
-          saveDraft();
-          onClose?.();
-        }
+    <Dialog.Root
+      open
+      onOpenChange={(nextOpen) => {
+        if (!nextOpen) handleClose();
       }}
     >
-      <section className="desktop-text-detail-modal" role="dialog" aria-modal="true" aria-labelledby="desktop-text-detail-title">
-        <header className="desktop-text-detail-header">
-          <span className="desktop-text-detail-type-icon" aria-hidden="true">T</span>
-          <div className="desktop-text-detail-heading">
-            <input
-              id="desktop-text-detail-title"
-              className="desktop-text-detail-title-input"
-              value={titleDraft}
-              onChange={(event) => setTitleDraft(event.target.value)}
+      <Dialog.Portal container={getDesktopPortalContainer()}>
+        <Dialog.Overlay className="desktop-text-detail-backdrop" />
+        <Dialog.Content
+          className="desktop-text-detail-modal desktop-text-task-detail-content"
+          onOpenAutoFocus={(event) => {
+            event.preventDefault();
+            textareaRef.current?.focus();
+          }}
+        >
+          <Dialog.Title className="desktop-text-detail-accessible-title">
+            {titleDraft || labels.text || 'Text'}
+          </Dialog.Title>
+          <header className="desktop-text-detail-header">
+            <span className="desktop-text-detail-type-icon" aria-hidden="true">T</span>
+            <div className="desktop-text-detail-heading">
+              <input
+                id="desktop-text-detail-title"
+                className="desktop-text-detail-title-input"
+                value={titleDraft}
+                onChange={(event) => setTitleDraft(event.target.value)}
+                onBlur={saveDraft}
+                placeholder={labels.text || 'Text'}
+                aria-label={labels.textDetailTitle || 'Text title'}
+              />
+            </div>
+            <div className="desktop-text-detail-actions">
+              <Dialog.Close asChild>
+                <button
+                  type="button"
+                  className="desktop-text-detail-icon-button"
+                  onClick={saveDraft}
+                  aria-label={labels.close || 'Close'}
+                >
+                  <X size={22} />
+                </button>
+              </Dialog.Close>
+            </div>
+          </header>
+
+          <div className="desktop-text-detail-body">
+            <textarea
+              ref={textareaRef}
+              className="desktop-text-detail-editor is-inline"
+              value={draft}
+              onChange={(event) => setDraft(event.target.value)}
               onBlur={saveDraft}
-              placeholder={labels.text || 'Text'}
-              aria-label={labels.textDetailTitle || 'Text title'}
+              placeholder={labels.textDetailPlaceholder || 'Write something...'}
+              aria-label={labels.textDetailEdit || 'Edit text'}
             />
           </div>
-          <div className="desktop-text-detail-actions">
-            <button type="button" className="desktop-text-detail-icon-button" onClick={() => { saveDraft(); onClose?.(); }} aria-label={labels.close || 'Close'}>
-              <X size={22} />
-            </button>
-          </div>
-        </header>
 
-        <div className="desktop-text-detail-body">
-          <textarea
-            className="desktop-text-detail-editor is-inline"
-            value={draft}
-            onChange={(event) => setDraft(event.target.value)}
-            onBlur={saveDraft}
-            autoFocus
-            placeholder={labels.textDetailPlaceholder || 'Write something...'}
-            aria-label={labels.textDetailEdit || 'Edit text'}
-          />
-        </div>
-
-        <footer className="desktop-text-detail-footer">
-          <span>{updatedAtLabel ? `${labels.textDetailLastEdited || 'Last edited'} ${updatedAtLabel}` : ''}</span>
-        </footer>
-      </section>
-    </div>
+          <footer className="desktop-text-detail-footer">
+            <span>{updatedAtLabel ? `${labels.textDetailLastEdited || 'Last edited'} ${updatedAtLabel}` : ''}</span>
+          </footer>
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
   );
 };
 

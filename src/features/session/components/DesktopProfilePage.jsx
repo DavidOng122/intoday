@@ -1,10 +1,10 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
+import * as Dialog from '@radix-ui/react-dialog';
+import { getDesktopPortalContainer } from '../../../shared/ui/desktopPortal';
 import { RotateCcw } from 'lucide-react';
 import { getLanguageLabel, PROFILE_LANGUAGE_OPTIONS } from '../../../lib/language';
 import { translations } from '../../../shared/i18n/translations';
 import { getUserProfile } from '../../../userProfile';
-
-const APPEARANCE_OPTIONS = ['system', 'dark', 'light'];
 
 const RESTORE_COPY = {
   EN: { label: 'Restore', empty: 'No deleted workspaces', action: 'Restore', limit: 'Maximum 3 active workspaces' },
@@ -12,20 +12,6 @@ const RESTORE_COPY = {
   MS: { label: 'Pulihkan', empty: 'Tiada ruang kerja dipadam', action: 'Pulihkan', limit: 'Maksimum 3 ruang kerja aktif' },
   JA: { label: '復元', empty: '削除されたワークスペースはありません', action: '復元', limit: '有効なワークスペースは最大3つです' },
   TH: { label: 'กู้คืน', empty: 'ไม่มีเวิร์กสเปซที่ลบ', action: 'กู้คืน', limit: 'มีเวิร์กสเปซที่ใช้งานได้สูงสุด 3 รายการ' },
-};
-
-const SYSTEM_LABELS = {
-  EN: 'System',
-  ZH: 'ç³»ç»Ÿ',
-  MS: 'Sistem',
-  JA: 'ã‚·ã‚¹ãƒ†ãƒ ',
-  TH: 'à¸£à¸°à¸šà¸š',
-};
-
-const getAppearanceOptionLabel = (option, language, t) => {
-  if (option === 'system') return SYSTEM_LABELS[language] || SYSTEM_LABELS.EN;
-  if (option === 'dark') return t.dark;
-  return t.light;
 };
 
 const CloseIcon = () => (
@@ -38,12 +24,6 @@ const CloseIcon = () => (
 const ChevronRightIcon = () => (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
     <path d="M9 6L15 12L9 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-  </svg>
-);
-
-const CheckIcon = () => (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-    <path d="M20 6L9 17L4 12" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
   </svg>
 );
 
@@ -116,9 +96,6 @@ function DesktopProfilePage({
   user,
   language,
   setLanguage,
-  appearance,
-  appearancePreference = appearance,
-  setAppearance,
   deletedWorkspaces = [],
   canRestoreWorkspace = true,
   onRestoreWorkspace,
@@ -133,41 +110,22 @@ function DesktopProfilePage({
     setExpandedSection(null);
     onClose();
   }, [onClose]);
-  const handlePageClick = useCallback((event) => {
-    // If the click is on the backdrop (.desktop-profile-page), close it
-    if (event.target.classList.contains('desktop-profile-page')) {
-      handleClose();
-    }
-  }, [handleClose]);
-
-  useEffect(() => {
-    if (!open) {
-      return undefined;
-    }
-
-    const handleKeyDown = (event) => {
-      if (event.key === 'Escape') {
-        handleClose();
-      }
-    };
-
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [handleClose, open]);
-
   if (!open) {
     return null;
   }
 
   return (
-    <div className={`desktop-profile-page desktop-profile-page-${appearance}`} role="dialog" aria-modal="true" aria-labelledby="desktop-profile-title" onClick={handlePageClick}>
-      <div className="desktop-profile-page-orb desktop-profile-page-orb-left" aria-hidden="true" />
-      <div className="desktop-profile-page-orb desktop-profile-page-orb-right" aria-hidden="true" />
-
-      <div className="desktop-profile-stage" onClick={(e) => e.stopPropagation()}>
-        <button type="button" className="desktop-profile-page-close" onClick={handleClose} aria-label={t.close}>
-          <CloseIcon />
-        </button>
+    <Dialog.Root open={open} onOpenChange={(nextOpen) => {
+      if (!nextOpen) handleClose();
+    }}>
+      <Dialog.Portal container={getDesktopPortalContainer()}>
+        <Dialog.Overlay className="desktop-profile-page" />
+        <Dialog.Content className="desktop-profile-stage">
+        <Dialog.Close asChild>
+          <button type="button" className="desktop-profile-page-close" aria-label={t.close}>
+            <CloseIcon />
+          </button>
+        </Dialog.Close>
 
         <div className="desktop-profile-content" ref={contentRef}>
           <div className="desktop-profile-header-block">
@@ -178,9 +136,11 @@ function DesktopProfilePage({
                 <span className="desktop-profile-avatar-fallback">{profile.initial}</span>
               )}
             </div>
-            <h2 className="desktop-profile-title" id="desktop-profile-title">
-              {(profile.fullName || 'USER').toUpperCase()}
-            </h2>
+            <Dialog.Title asChild>
+              <h2 className="desktop-profile-title">
+                {(profile.fullName || 'USER').toUpperCase()}
+              </h2>
+            </Dialog.Title>
             <p className="desktop-profile-subtitle">{profile.email || ''}</p>
           </div>
 
@@ -238,32 +198,19 @@ function DesktopProfilePage({
               </div>
             </SettingsRow>
 
-            <SettingsRow
-              icon={<SunIcon />}
-              label={t.appearance}
-              value={getAppearanceOptionLabel(appearancePreference, language, t)}
-              expanded={expandedSection === 'appearance'}
-              onClick={() => setExpandedSection((current) => (current === 'appearance' ? null : 'appearance'))}
-              panelClassName="desktop-profile-setting-panel-popover"
-              chevronVariant="down"
-            >
-              <div className="desktop-profile-appearance-menu">
-                {APPEARANCE_OPTIONS.map((option) => (
-                  <button
-                    key={option}
-                    type="button"
-                    className={`desktop-profile-appearance-option ${appearancePreference === option ? 'is-active' : ''}`}
-                    onClick={() => {
-                      setAppearance(option);
-                      setExpandedSection(null);
-                    }}
-                  >
-                    <span>{getAppearanceOptionLabel(option, language, t)}</span>
-                    {appearancePreference === option ? <CheckIcon /> : null}
-                  </button>
-                ))}
+            <div className="desktop-profile-setting">
+              <div className="desktop-profile-static-row">
+                <span className="desktop-profile-setting-main">
+                  <span className="desktop-profile-setting-icon">
+                    <SunIcon />
+                  </span>
+                  <span className="desktop-profile-setting-label">{t.appearance}</span>
+                </span>
+                <span className="desktop-profile-setting-end">
+                  <span className="desktop-profile-setting-value">{t.light}</span>
+                </span>
               </div>
-            </SettingsRow>
+            </div>
           </div>
 
           <div className="desktop-profile-card desktop-profile-card-single">
@@ -285,8 +232,9 @@ function DesktopProfilePage({
             <span>{t.signOut}</span>
           </button>
         </div>
-      </div>
-    </div>
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
   );
 }
 

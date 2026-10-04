@@ -22,11 +22,11 @@ import {
   DESKTOP_PHOTO_CARD_HEIGHT,
 } from '../model/canvasConstants';
 
-const TaskCardFaviconIcon = ({ task, appearance, cfg, faviconUrl: propFaviconUrl }) => {
+const TaskCardFaviconIcon = ({ task, cfg, faviconUrl: propFaviconUrl }) => {
   const [imgError, setImgError] = useState(false);
   const { domain } = getPackItemSourceMeta(task, {});
-  const iconBackground = appearance === 'dark' ? cfg.darkBg : cfg.bg;
-  const iconBorder = appearance === 'dark' ? `1px solid ${cfg.darkStroke}` : 'none';
+  const iconBackground = cfg.bg;
+  const iconBorder = 'none';
   const hasPhotoPreview = hasTaskPhotoPreview(task);
 
   if (normalizeCardType(task?.cardType) === CARD_TYPES.PHOTO && hasPhotoPreview) {
@@ -49,7 +49,7 @@ const TaskCardFaviconIcon = ({ task, appearance, cfg, faviconUrl: propFaviconUrl
 
   if (faviconUrl && !imgError) {
     return (
-      <div style={{ width: 32, height: 32, borderRadius: 8, background: appearance === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.9)', border: appearance === 'dark' ? '1px solid rgba(255,255,255,0.1)' : '1px solid rgba(0,0,0,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+      <div style={{ width: 32, height: 32, borderRadius: 8, background: 'rgba(255,255,255,0.9)', border: '1px solid rgba(0,0,0,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
         <img src={faviconUrl} alt="" width={18} height={18} style={{ borderRadius: 3, objectFit: 'contain' }} onError={() => setImgError(true)} />
       </div>
     );
@@ -57,28 +57,12 @@ const TaskCardFaviconIcon = ({ task, appearance, cfg, faviconUrl: propFaviconUrl
 
   return (
     <div style={{ width: 32, height: 32, borderRadius: 8, background: iconBackground, border: iconBorder, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-      {appearance === 'dark' && cfg.darkIconColor ? (
-          <div style={{
-            width: 18,
-            height: 18,
-            backgroundColor: cfg.darkIconColor,
-            maskImage: `url(${cfg.icon})`,
-            WebkitMaskImage: `url(${cfg.icon})`,
-            maskSize: 'contain',
-            WebkitMaskSize: 'contain',
-            maskRepeat: 'no-repeat',
-            WebkitMaskRepeat: 'no-repeat',
-            maskPosition: 'center',
-            WebkitMaskPosition: 'center',
-          }} />
-      ) : (
-          <img src={cfg.icon} alt="" width={18} height={18} style={{ objectFit: 'contain' }} />
-      )}
+      <img src={cfg.icon} alt="" width={18} height={18} style={{ objectFit: 'contain' }} />
     </div>
   );
 };
 
-const TaskCardContent = ({ task, appearance, labels }) => {
+const TaskCardContent = ({ task, labels }) => {
   const { cfg, displayTitle, displaySub, faviconUrl } = getTaskCardPresentation(task, labels);
   const isPhotoCard = normalizeCardType(task?.cardType) === CARD_TYPES.PHOTO;
   const hasPhotoPreview = hasTaskPhotoPreview(task);
@@ -107,8 +91,8 @@ const TaskCardContent = ({ task, appearance, labels }) => {
             height: 162,
             borderRadius: 12,
             overflow: 'hidden',
-            background: appearance === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(17,17,17,0.04)',
-            border: appearance === 'dark' ? '1px solid rgba(255,255,255,0.08)' : '1px solid rgba(17,17,17,0.06)',
+            background: 'rgba(17,17,17,0.04)',
+            border: '1px solid rgba(17,17,17,0.06)',
             flexShrink: 0,
           }}
         >
@@ -134,7 +118,7 @@ const TaskCardContent = ({ task, appearance, labels }) => {
 
   return (
     <>
-      <TaskCardFaviconIcon task={task} appearance={appearance} cfg={cfg} faviconUrl={faviconUrl} />
+      <TaskCardFaviconIcon task={task} cfg={cfg} faviconUrl={faviconUrl} />
       <div style={{ minWidth: 0, flex: 1, display: 'flex', flexDirection: 'column', gap: 2 }}>
         <div style={{ maxWidth: '100%', display: '-webkit-box', WebkitBoxOrient: 'vertical', WebkitLineClamp: 2, overflow: 'hidden', overflowWrap: 'anywhere', wordBreak: 'break-word', color: 'var(--desktop-card-title)', fontSize: 13, fontWeight: 590, lineHeight: '20px' }}>
           {contentTitle}
@@ -150,7 +134,6 @@ const TaskCardContent = ({ task, appearance, labels }) => {
 const TaskCard = (props) => {
   const {
     task,
-    appearance,
     onClick,
     onPointerDown,
     onPointerMove,
@@ -198,7 +181,6 @@ const TaskCard = (props) => {
       >
         <TaskCardContent
           task={task}
-          appearance={appearance}
           labels={taskCardLabels}
           onDragStart={(e) => e.preventDefault()}
         />
@@ -209,7 +191,6 @@ const TaskCard = (props) => {
 
 const GroupedTaskCard = ({
   tasks,
-  appearance,
   labels,
   isDragging,
   isGroupDragActive,
@@ -228,15 +209,6 @@ const GroupedTaskCard = ({
   const groupMetadataText = getPackMetadataTextFromItems(tasks);
   const groupChips = getDesktopGroupDisplayTags(tasks);
   const groupIcon = getDesktopGroupIcon(tasks);
-  const groupTask = {
-    ...leadTask,
-    groupTaskIds: tasks.map((task) => task.id),
-    groupSize: tasks.length,
-    desktopGroupName: groupTitle,
-    updatedAt: leadTask.updatedAt,
-    isGroupInitiator: true,
-  };
-
   // A child being dragged out of a Pack is represented by the drag overlay.
   // Hide only that child in the source Pack; keep the Pack itself visible as
   // a legitimate possible drop target.
@@ -256,10 +228,6 @@ const GroupedTaskCard = ({
         <div
           id={`desktop-group-card-${leadTask.id}`}
           className={`desktop-task-card desktop-task-group-card ${isDragging ? 'is-dragging' : ''} ${isExpanded ? 'is-expanded' : ''}`}
-          onPointerDown={(event) => onPointerDown(groupTask, event)}
-          onPointerMove={(event) => onPointerMove(groupTask, event)}
-          onPointerUp={(event) => onPointerUp(groupTask, event)}
-          onPointerCancel={(event) => onPointerCancel(groupTask, event)}
           onMouseLeave={() => setIsExpanded(false)}
           style={{ width: '100%', minHeight: groupCardMinHeight, touchAction: 'none', userSelect: 'none' }}
         >
@@ -267,13 +235,7 @@ const GroupedTaskCard = ({
             type="button"
             className="desktop-task-group-summary-button"
             aria-label="Open full view"
-            onMouseDown={(event) => event.stopPropagation()}
-            onPointerDown={(event) => {
-              event.stopPropagation();
-              onPointerDown?.(groupTask, event);
-            }}
             onClick={(event) => {
-              event.stopPropagation();
               onOpenFullView?.(event);
             }}
           >
@@ -320,27 +282,6 @@ const GroupedTaskCard = ({
         <div
           className="desktop-task-group-list"
           style={{ maxHeight: groupListMaxHeight, overflowY: canScrollExpandedList ? 'auto' : 'hidden' }}
-          onPointerDown={(event) => {
-            // Only trigger if clicking the list container itself (empty space)
-            if (event.target === event.currentTarget) {
-              onPointerDown?.(groupTask, event);
-            }
-          }}
-          onPointerMove={(event) => {
-            if (event.target === event.currentTarget) {
-              onPointerMove?.(groupTask, event);
-            }
-          }}
-          onPointerUp={(event) => {
-            if (event.target === event.currentTarget) {
-              onPointerUp?.(groupTask, event);
-            }
-          }}
-          onPointerCancel={(event) => {
-            if (event.target === event.currentTarget) {
-              onPointerCancel?.(groupTask, event);
-            }
-          }}
         >
           {filteredTasks.map((task) => {
             const isTaskDragging = draggedTaskId === task.id && !isDraggingGroup;
@@ -349,7 +290,7 @@ const GroupedTaskCard = ({
                 <button
                   id={`desktop-task-card-${task.id}`}
                   type="button"
-                  className="desktop-task-group-row"
+                  className="desktop-task-group-row nodrag"
                   onMouseDown={(event) => event.stopPropagation()}
                   onPointerDown={(event) => {
                     event.stopPropagation();
@@ -371,7 +312,7 @@ const GroupedTaskCard = ({
                     onOpenItem?.(task);
                   }}
                 >
-                  <TaskCardContent task={task} appearance={appearance} labels={labels} />
+                  <TaskCardContent task={task} labels={labels} />
                 </button>
               </div>
             );

@@ -5,6 +5,7 @@ import ErrorBoundary from './components/ErrorBoundary.jsx';
 import './styles/tokens.css';
 import './styles/index.css';
 import './styles/desktop.css';
+import '@xyflow/react/dist/style.css';
 import './features/session/styles/desktopSession.css';
 import './features/workspace/styles/desktopWorkspace.css';
 import './features/canvas/styles/desktopCanvas.css';

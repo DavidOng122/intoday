@@ -25,7 +25,6 @@ export const usePackActions = ({
   setTasks,
   suppressAllTaskClicksUntilRef,
   tasksRef,
-  updateCanvasSelection,
   handleTaskClick,
   onPacksMerged,
 }) => {
@@ -151,14 +150,10 @@ export const usePackActions = ({
   }, [setActiveGroupView]);
 
   const handleGroupCardOpen = useCallback((groupTasks, event = null) => {
-    if (event?.metaKey || event?.ctrlKey) {
-      const groupTaskIds = groupTasks.map((task) => task.id);
-      updateCanvasSelection(groupTaskIds, event, null);
-      return;
-    }
+    if (event?.metaKey || event?.ctrlKey) return;
     if (Date.now() < suppressAllTaskClicksUntilRef.current) return;
     openActiveGroupView(groupTasks, null, getGroupCardOriginRect(groupTasks, event));
-  }, [openActiveGroupView, getGroupCardOriginRect, suppressAllTaskClicksUntilRef, updateCanvasSelection]);
+  }, [openActiveGroupView, getGroupCardOriginRect, suppressAllTaskClicksUntilRef]);
 
   const handleHistoryPackOpen = useCallback((groupTasks) => {
     setHistoryOpen(false);

@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { createPortal } from 'react-dom';
+import * as Dialog from '@radix-ui/react-dialog';
+import { getDesktopPortalContainer } from '../../../shared/ui/desktopPortal';
 import { CloseIcon } from '../../../shared/ui/icons/DesktopIcons';
 import { fetchLinkPreviewMeta } from '../../../entities/task/model/taskCardPresentation';
 
@@ -99,35 +100,33 @@ const InboxAddPreviewRow = ({ value, onRemove }) => {
 const InboxAddConfirmDialog = ({
   open,
   values = [],
-  appearance = 'light',
   submitting = false,
   error = '',
   onClose,
   onRemove,
   onConfirm,
 }) => {
-  if (!open || typeof document === 'undefined') return null;
+  if (!open) return null;
 
-  return createPortal(
-    <div className={`desktop-inbox-add-confirm-backdrop ${appearance === 'dark' ? 'is-dark' : ''}`} role="presentation" onClick={onClose}>
-      <div
-        className="desktop-inbox-add-confirm-dialog"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="desktop-inbox-add-confirm-title"
-        onClick={(event) => event.stopPropagation()}
-      >
-        <button
-          type="button"
-          className="desktop-inbox-add-confirm-close"
-          onClick={onClose}
-          aria-label="Close add confirmation"
-        >
-          <CloseIcon />
-        </button>
+  return (
+    <Dialog.Root open={open} onOpenChange={(nextOpen) => {
+      if (!nextOpen) onClose?.();
+    }}>
+      <Dialog.Portal container={getDesktopPortalContainer()}>
+        <Dialog.Overlay className="desktop-inbox-add-confirm-backdrop" />
+        <Dialog.Content className="desktop-inbox-add-confirm-dialog">
+        <Dialog.Close asChild>
+          <button
+            type="button"
+            className="desktop-inbox-add-confirm-close"
+            aria-label="Close add confirmation"
+          >
+            <CloseIcon />
+          </button>
+        </Dialog.Close>
         <div className="desktop-inbox-add-confirm-heading">
-          <h2 id="desktop-inbox-add-confirm-title">Add</h2>
-          <p>You can add multiple links, photos, and PDFs at once.</p>
+          <Dialog.Title asChild><h2>Add</h2></Dialog.Title>
+          <Dialog.Description asChild><p>You can add multiple links, photos, and PDFs at once.</p></Dialog.Description>
         </div>
         <div className="desktop-inbox-add-preview-list">
           {values.map((value, index) => (
@@ -147,9 +146,9 @@ const InboxAddConfirmDialog = ({
         >
           {submitting ? 'Adding...' : 'Add to Inbox'}
         </button>
-      </div>
-    </div>,
-    document.body,
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
   );
 };
 

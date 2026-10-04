@@ -32,19 +32,16 @@ export const useCanvasDragSessionStart = ({
   const {
     desktopDragAnchorSizeRef,
     desktopDragAnchorStartPositionRef,
-    desktopDragContainerRectRef,
     desktopDragDetachedFromGroupRef,
-    desktopDragIsGroupRef,
     desktopDragModeRef,
     desktopDragOverlaySnapshotRef,
     desktopDragPointerRef,
     desktopDragPreviewPositionsRef,
     desktopDragSelectionPositionsRef,
-    desktopDragSourceEntryIdRef,
     desktopDragSourceRectRef,
     desktopDragStateRef,
   } = runtime;
-  const { getCanvasPointFromClient, viewportContainerRef } = viewport;
+  const { getCanvasPointFromClient } = viewport;
 
   return useCallback((task) => {
     setHistoryOpen(false);
@@ -73,9 +70,6 @@ export const useCanvasDragSessionStart = ({
       overlaySnapshot,
     } = dragStart;
 
-    desktopDragSourceEntryIdRef.current = taskId;
-    desktopDragIsGroupRef.current = isGroup;
-    desktopDragContainerRectRef.current = viewportContainerRef.current?.getBoundingClientRect?.() || null;
     desktopDragDetachedFromGroupRef.current = isDetachedGroupTask;
     desktopDragSelectionPositionsRef.current = originPositions;
     desktopDragPreviewPositionsRef.current = Object.fromEntries(originPositions);
@@ -120,15 +114,12 @@ export const useCanvasDragSessionStart = ({
     closeExternalDragSource,
     desktopDragAnchorSizeRef,
     desktopDragAnchorStartPositionRef,
-    desktopDragContainerRectRef,
     desktopDragDetachedFromGroupRef,
-    desktopDragIsGroupRef,
     desktopDragModeRef,
     desktopDragOverlaySnapshotRef,
     desktopDragPointerRef,
     desktopDragPreviewPositionsRef,
     desktopDragSelectionPositionsRef,
-    desktopDragSourceEntryIdRef,
     desktopDragSourceRectRef,
     desktopDragStateRef,
     entriesRef,
@@ -143,6 +134,5 @@ export const useCanvasDragSessionStart = ({
     setIsGroupDragActive,
     setDragSession,
     syncDesktopDraggedTaskPosition,
-    viewportContainerRef,
   ]);
 };

@@ -2,6 +2,9 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import EmojiPicker from 'emoji-picker-react';
 import JSZip from 'jszip';
+import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
+import * as Dialog from '@radix-ui/react-dialog';
+import { getDesktopPortalContainer } from '../../../shared/ui/desktopPortal';
 import TaskPhotoImage from '../../../shared/ui/TaskPhotoImage';
 import { hasTaskPhotoPreview } from '../../../shared/storage/taskPhotoPreview';
 import { CARD_TYPES, getTaskCardPresentation, normalizeCardType } from '../../../entities/task/model/taskCardPresentation';
@@ -41,12 +44,12 @@ import {
   YouTubeGlyphIcon,
 } from '../../../shared/ui/icons/DesktopIcons';
 
-const PackItemSourceIcon = ({ task, appearance, labels }) => {
+const PackItemSourceIcon = ({ task, labels }) => {
   const [imgError, setImgError] = useState(false);
   const { cfg } = getTaskCardPresentation(task, labels || {});
   const { sourceKey, domain } = getPackItemSourceMeta(task, labels || {});
-  const iconBackground = appearance === 'dark' ? cfg.darkBg : cfg.bg;
-  const iconBorder = appearance === 'dark' ? `1px solid ${cfg.darkStroke}` : 'none';
+  const iconBackground = cfg.bg;
+  const iconBorder = 'none';
   const hasPhotoPreview = hasTaskPhotoPreview(task);
 
   if (normalizeCardType(task?.cardType) === CARD_TYPES.PHOTO && hasPhotoPreview) {
@@ -80,25 +83,7 @@ const PackItemSourceIcon = ({ task, appearance, labels }) => {
       aria-hidden="true"
       style={{ background: iconBackground, border: iconBorder }}
     >
-      {appearance === 'dark' && cfg.darkIconColor ? (
-        <span
-          style={{
-            width: 18,
-            height: 18,
-            backgroundColor: cfg.darkIconColor,
-            maskImage: `url(${cfg.icon})`,
-            WebkitMaskImage: `url(${cfg.icon})`,
-            maskSize: 'contain',
-            WebkitMaskSize: 'contain',
-            maskRepeat: 'no-repeat',
-            WebkitMaskRepeat: 'no-repeat',
-            maskPosition: 'center',
-            WebkitMaskPosition: 'center',
-          }}
-        />
-      ) : (
-        <img src={cfg.icon} alt="" width={18} height={18} style={{ objectFit: 'contain' }} />
-      )}
+      <img src={cfg.icon} alt="" width={18} height={18} style={{ objectFit: 'contain' }} />
     </span>
   );
 };
@@ -106,7 +91,6 @@ const PackItemSourceIcon = ({ task, appearance, labels }) => {
 const DesktopPackPageHeader = ({
   tasks,
   onUpdateGroup,
-  appearance,
   labels = {},
   isSelectMode = false,
   selectedCount = 0,
@@ -196,7 +180,6 @@ const DesktopPackPageHeader = ({
         {isIconPickerOpen ? (
           <div className="desktop-pack-page-icon-picker" style={{ padding: 0, border: 'none', background: 'transparent', boxShadow: 'none', zIndex: 9999 }}>
             <EmojiPicker
-              theme={appearance === 'dark' ? 'dark' : 'light'}
               onEmojiClick={(emojiData) => {
                 onUpdateGroup({ desktopGroupIcon: emojiData.emoji });
                 setIsIconPickerOpen(false);
@@ -333,7 +316,6 @@ const DesktopPackPageHeader = ({
 
 const DesktopGroupFullViewModal = ({
   view,
-  appearance,
   labels,
   language,
   onClose,
@@ -356,7 +338,6 @@ const DesktopGroupFullViewModal = ({
   const [isAtSourcePosition, setIsAtSourcePosition] = useState(false);
   const [flipSnapshot, setFlipSnapshot] = useState(null);
   const [hasOriginTransition, setHasOriginTransition] = useState(false);
-  const exportMenuRef = useRef(null);
   const shellRef = useRef(null);
   const openContentTimerRef = useRef(null);
   const closeTimerRef = useRef(null);
@@ -453,29 +434,6 @@ const DesktopGroupFullViewModal = ({
   }, [open, tasks]);
 
   useEffect(() => {
-    if (!open || !isExportMenuOpen) return undefined;
-
-    const handlePointerDown = (event) => {
-      if (exportMenuRef.current && !exportMenuRef.current.contains(event.target)) {
-        setIsExportMenuOpen(false);
-      }
-    };
-
-    const handleKeyDown = (event) => {
-      if (event.key === 'Escape') {
-        setIsExportMenuOpen(false);
-      }
-    };
-
-    window.addEventListener('pointerdown', handlePointerDown);
-    window.addEventListener('keydown', handleKeyDown);
-    return () => {
-      window.removeEventListener('pointerdown', handlePointerDown);
-      window.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [isExportMenuOpen, open]);
-
-  useEffect(() => {
     if (!open || !view?.focusTaskId) return undefined;
 
     const targetId = view.focusTaskId;
@@ -527,7 +485,6 @@ const DesktopGroupFullViewModal = ({
   if (!open || !tasks?.length) return null;
 
   const filters = PACK_FILTER_ORDER;
-  const isDark = appearance === 'dark';
   const selectedCount = selectedItemIds.length;
   const toggleSelectItem = (taskId) => {
     setSelectedItemIds((current) => (
@@ -736,19 +693,18 @@ const DesktopGroupFullViewModal = ({
   } : undefined;
 
   return (
-    <div
-      role="presentation"
-      onClick={handleRequestClose}
-      className="desktop-pack-page-modal"
+    <Dialog.Root
+      open={open}
+      onOpenChange={(nextOpen) => {
+        if (!nextOpen) handleRequestClose();
+      }}
     >
-      <div className={`desktop-pack-page-backdrop ${isBackdropVisible ? 'is-visible' : ''}`} />
-      <div
+      <Dialog.Portal container={getDesktopPortalContainer()}>
+        <Dialog.Overlay className={`desktop-pack-page-backdrop ${isBackdropVisible ? 'is-visible' : ''}`} />
+        <Dialog.Content
         ref={shellRef}
-        role="dialog"
-        aria-modal="true"
         aria-labelledby="desktop-group-full-view-title"
-        onClick={(event) => event.stopPropagation()}
-        className={`desktop-pack-page-shell ${isDark ? 'is-dark' : ''} ${hasOriginTransition ? 'has-origin-transition' : ''} ${isAtSourcePosition ? 'is-from-card' : ''} ${isClosing ? 'is-closing' : ''}`}
+        className={`desktop-pack-page-shell ${hasOriginTransition ? 'has-origin-transition' : ''} ${isAtSourcePosition ? 'is-from-card' : ''} ${isClosing ? 'is-closing' : ''}`}
         style={shellMotionStyle}
       >
         <div className={`desktop-pack-page-shell-inner ${isContentVisible ? 'is-visible' : ''}`}>
@@ -766,7 +722,6 @@ const DesktopGroupFullViewModal = ({
         <DesktopPackPageHeader
           tasks={tasks}
           onUpdateGroup={onUpdateGroup}
-          appearance={appearance}
           language={language}
           labels={labels}
           isSelectMode={isSelectMode}
@@ -779,12 +734,13 @@ const DesktopGroupFullViewModal = ({
         <div className="desktop-pack-page-content">
           <div className="desktop-pack-page-controls">
             <div className="desktop-pack-page-controls-bar">
-              <div className="desktop-pack-page-filters" role="tablist" aria-label="Pack filters">
+              <div className="desktop-pack-page-filters" role="group" aria-label={labels.filterPackItems || 'Filter pack items'}>
                 {filters.map((filter) => (
                   <button
                     key={filter}
                     type="button"
                     className={`desktop-pack-page-filter-btn ${activeFilter === filter ? 'is-active' : ''}`}
+                    aria-pressed={activeFilter === filter}
                     onClick={() => {
                       setActiveFilter(filter);
                       setIsSearchVisible(false);
@@ -828,35 +784,39 @@ const DesktopGroupFullViewModal = ({
                       <PackSelectIcon />
                       <span>{labels.select || 'Select'}</span>
                     </button>
-                    <div className="desktop-pack-page-toolbar-menu-anchor" ref={exportMenuRef}>
-                      <button
-                        type="button"
-                        className={`desktop-pack-page-toolbar-action desktop-pack-page-toolbar-text-action ${isExportMenuOpen ? 'is-active' : ''}`}
-                        aria-haspopup="menu"
-                        aria-expanded={isExportMenuOpen}
-                        onClick={() => {
-                          setIsExportMenuOpen((current) => !current);
-                        }}
-                      >
-                        <PackExportIcon />
-                        <span>{labels.exportPack || 'Export'}</span>
-                      </button>
-                      {isExportMenuOpen ? (
-                        <div className="desktop-pack-page-toolbar-menu" role="menu" aria-label="Export pack">
+                    <DropdownMenu.Root open={isExportMenuOpen} onOpenChange={setIsExportMenuOpen}>
+                      <div className="desktop-pack-page-toolbar-menu-anchor">
+                        <DropdownMenu.Trigger asChild>
+                          <button
+                            type="button"
+                            className={`desktop-pack-page-toolbar-action desktop-pack-page-toolbar-text-action ${isExportMenuOpen ? 'is-active' : ''}`}
+                          >
+                            <PackExportIcon />
+                            <span>{labels.exportPack || 'Export'}</span>
+                          </button>
+                        </DropdownMenu.Trigger>
+                      </div>
+                      <DropdownMenu.Portal container={getDesktopPortalContainer()}>
+                        <DropdownMenu.Content
+                          className="desktop-pack-page-toolbar-menu"
+                          aria-label="Export pack"
+                          side="bottom"
+                          align="end"
+                          sideOffset={10}
+                          collisionPadding={8}
+                        >
                           {exportMenuOptions.map(({ id, label }) => (
-                            <button
+                            <DropdownMenu.Item
                               key={id}
-                              type="button"
-                              role="menuitem"
                               className="desktop-pack-page-toolbar-menu-item"
-                              onClick={() => handleExportMenuAction(id)}
+                              onSelect={() => handleExportMenuAction(id)}
                             >
                               {label}
-                            </button>
+                            </DropdownMenu.Item>
                           ))}
-                        </div>
-                      ) : null}
-                    </div>
+                        </DropdownMenu.Content>
+                      </DropdownMenu.Portal>
+                    </DropdownMenu.Root>
                   </>
                 )}
               </div>
@@ -904,7 +864,7 @@ const DesktopGroupFullViewModal = ({
                     const { displayTitle } = getTaskCardPresentation(task, labels);
                     return (
                       <>
-                        <PackItemSourceIcon task={task} appearance={appearance} labels={labels} />
+                        <PackItemSourceIcon task={task} labels={labels} />
                         <button
                           type="button"
                           onClick={() => {
@@ -940,8 +900,9 @@ const DesktopGroupFullViewModal = ({
           onConfirm={confirmDeleteSelected}
         />
         </div>
-      </div>
-    </div>
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
   );
 };
 

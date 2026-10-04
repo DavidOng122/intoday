@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 
 export const useQuickAdd = ({ onCreateItem, onImportFiles }) => {
   const [open, setOpen] = useState(false);
@@ -12,21 +12,6 @@ export const useQuickAdd = ({ onCreateItem, onImportFiles }) => {
     setOpen(false);
     setComposerKind(null);
   }, []);
-
-  useEffect(() => {
-    const handlePointerDown = (event) => {
-      if (rootRef.current && !rootRef.current.contains(event.target)) close();
-    };
-    const handleKeyDown = (event) => {
-      if (event.key === 'Escape') close();
-    };
-    document.addEventListener('pointerdown', handlePointerDown);
-    window.addEventListener('keydown', handleKeyDown);
-    return () => {
-      document.removeEventListener('pointerdown', handlePointerDown);
-      window.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [close]);
 
   const openComposer = useCallback((kind) => {
     setOpen(false);

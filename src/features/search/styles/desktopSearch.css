@@ -1,4 +1,27 @@
 /* Custom scrollbar for desktop history modal */
+.desktop-search-dialog-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  background: transparent;
+}
+
+.desktop-search-accessible-title {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.desktop-search-pack-export-menu {
+  z-index: 500;
+}
+
 .desktop-history-scroll::-webkit-scrollbar {
   width: 6px;
 }
@@ -14,12 +37,4 @@
 
 .desktop-history-scroll::-webkit-scrollbar-thumb:hover {
   background: rgba(141, 134, 127, 0.45);
-}
-
-.desktop-app-dark .desktop-history-scroll::-webkit-scrollbar-thumb {
-  background: rgba(160, 160, 160, 0.25);
-}
-
-.desktop-app-dark .desktop-history-scroll::-webkit-scrollbar-thumb:hover {
-  background: rgba(160, 160, 160, 0.45);
 }

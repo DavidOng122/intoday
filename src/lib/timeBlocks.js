@@ -19,9 +19,6 @@ export const sections = [
     end: '12:00',
     pillBg: '#f7d8a5',
     pillColor: '#6b3f06',
-    darkPillBg: MOBILE_BLOCK_STYLES.Morning.color,
-    darkPillColor: MOBILE_BLOCK_STYLES.Morning.textColor,
-    darkPillBorder: MOBILE_BLOCK_STYLES.Morning.strokeColor,
   },
   {
     id: 'afternoon',
@@ -31,9 +28,6 @@ export const sections = [
     end: '18:00',
     pillBg: '#bfe3fb',
     pillColor: '#0d4c82',
-    darkPillBg: MOBILE_BLOCK_STYLES.Afternoon.color,
-    darkPillColor: MOBILE_BLOCK_STYLES.Afternoon.textColor,
-    darkPillBorder: MOBILE_BLOCK_STYLES.Afternoon.strokeColor,
   },
   {
     id: 'evening',
@@ -43,9 +37,6 @@ export const sections = [
     end: '22:00',
     pillBg: '#eadffd',
     pillColor: '#5f2d90',
-    darkPillBg: MOBILE_BLOCK_STYLES.Evening.color,
-    darkPillColor: MOBILE_BLOCK_STYLES.Evening.textColor,
-    darkPillBorder: MOBILE_BLOCK_STYLES.Evening.strokeColor,
   },
   {
     id: 'night',
@@ -55,8 +46,5 @@ export const sections = [
     end: '06:00',
     pillBg: '#dfe6ef',
     pillColor: '#213243',
-    darkPillBg: MOBILE_BLOCK_STYLES.Night.color,
-    darkPillColor: MOBILE_BLOCK_STYLES.Night.textColor,
-    darkPillBorder: MOBILE_BLOCK_STYLES.Night.strokeColor,
   },
 ];

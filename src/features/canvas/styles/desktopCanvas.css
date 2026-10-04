@@ -118,12 +118,6 @@
     var(--desktop-root-bg);
 }
 
-.desktop-canvas-content {
-  position: absolute;
-  left: 0;
-  top: 0;
-}
-
 .desktop-canvas-file-drop-indicator {
   position: absolute;
   inset: 20px;
@@ -153,24 +147,8 @@
   box-shadow: 0 12px 26px rgba(32, 41, 56, 0.08);
 }
 
-.desktop-app-dark .desktop-canvas-scroll.is-file-drag-active {
-  background:
-    radial-gradient(circle at top, rgba(84, 110, 168, 0.22), transparent 46%),
-    var(--desktop-root-bg);
-}
-
-.desktop-app-dark .desktop-canvas-file-drop-indicator {
-  border-color: rgba(124, 150, 214, 0.35);
-  background: rgba(20, 24, 33, 0.44);
-}
-
-.desktop-app-dark .desktop-canvas-file-drop-indicator span {
-  background: rgba(27, 31, 39, 0.88);
-  color: #d9e6ff;
-}
-
 .desktop-canvas-card-node {
-  position: absolute;
+  position: relative;
 }
 
 body.desktop-task-dragging .desktop-canvas-card-node {
@@ -181,12 +159,6 @@ body.desktop-task-dragging .desktop-canvas-card-shell,
 body.desktop-task-dragging .desktop-canvas-card-shell * {
   transition: none !important;
   animation: none !important;
-}
-
-.desktop-drag-source-hidden {
-  opacity: 0 !important;
-  visibility: hidden !important;
-  pointer-events: none !important;
 }
 
 .desktop-canvas-card-shell {
@@ -214,16 +186,13 @@ body.desktop-task-dragging .desktop-canvas-card-shell * {
   border-color: var(--desktop-accent-soft) !important;
 }
 
-.desktop-canvas-selection-rect {
-  position: absolute;
-  border-radius: 14px;
+.desktop-canvas-react-flow .react-flow__selection {
   border: 1.5px solid var(--desktop-selection-border);
+  border-radius: 14px;
   background: var(--desktop-selection-fill);
   box-shadow:
     inset 0 0 0 1px rgba(255, 255, 255, 0.16),
     0 10px 24px rgba(24, 19, 13, 0.06);
-  pointer-events: none;
-  z-index: 32;
 }
 
 .desktop-group-connector-handle {
@@ -239,6 +208,7 @@ body.desktop-task-dragging .desktop-canvas-card-shell * {
   cursor: crosshair;
   z-index: 40;
   opacity: 0;
+  pointer-events: all;
   transform: scale(0.8);
   transition: opacity 160ms ease, transform 160ms ease, background-color 160ms ease;
 }
@@ -251,10 +221,25 @@ body.desktop-task-dragging .desktop-canvas-card-shell * {
   right: -7px;
 }
 
-.desktop-canvas-card-node:hover .desktop-group-connector-handle,
+.desktop-canvas-flow-node:hover .desktop-group-connector-handle,
 .desktop-group-connector-handle:hover {
   opacity: 1;
   transform: scale(1.15);
+}
+
+.desktop-group-connector-handle.connectingfrom,
+.desktop-group-connector-handle.connectingto {
+  opacity: 1;
+}
+
+.desktop-group-connector-handle.connectingto.valid {
+  background: #16a34a;
+  box-shadow: 0 0 0 4px rgba(22, 163, 74, 0.2);
+}
+
+.desktop-group-connector-handle.connectingto.invalid {
+  background: #ef4444;
+  box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.2);
 }
 
 .desktop-group-connector-handle:hover {
@@ -262,9 +247,62 @@ body.desktop-task-dragging .desktop-canvas-card-shell * {
   box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.25);
 }
 
-.desktop-app-dark .desktop-group-connector-handle {
-  border-color: #1e1e1e;
-  background: var(--desktop-accent, #60a5fa);
+.desktop-canvas-flow,
+.desktop-canvas-react-flow {
+  background: transparent;
+}
+
+.desktop-canvas-react-flow .react-flow__pane {
+  cursor: default;
+}
+
+.desktop-canvas-react-flow .react-flow__node {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.desktop-canvas-react-flow .react-flow__attribution {
+  opacity: 0.45;
+  font-size: 8px;
+}
+
+.desktop-canvas-empty-state {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.desktop-connection-delete-control {
+  z-index: 3;
+  display: inline-flex;
+  width: 24px;
+  height: 24px;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: #3b82f6;
+  color: #ffffff;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  transform: translate(-50%, -50%);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.desktop-connection-delete-control:hover,
+.desktop-connection-delete-control:focus-visible {
+  background: #2563eb;
+}
+
+.desktop-connection-delete-control:focus-visible {
+  outline: 2px solid #ffffff;
+  outline-offset: 2px;
 }
 
 .desktop-task-group-card {
@@ -311,15 +349,6 @@ body.desktop-task-dragging .desktop-canvas-card-shell * {
   color: var(--desktop-root-text);
   background: rgba(17, 17, 17, 0.02);
   outline: none;
-}
-
-.desktop-app-dark .desktop-task-group-more-label {
-  border-top-color: rgba(255, 255, 255, 0.08);
-}
-
-.desktop-app-dark .desktop-task-group-more-label:hover,
-.desktop-app-dark .desktop-task-group-more-label:focus-visible {
-  background: rgba(255, 255, 255, 0.04);
 }
 
 .desktop-task-group-header {
@@ -507,10 +536,6 @@ body.desktop-task-dragging .desktop-canvas-card-shell * {
   height: 0;
 }
 
-.desktop-app-dark .desktop-task-group-list::-webkit-scrollbar-thumb {
-  background: rgba(213, 221, 232, 0.24);
-}
-
 .desktop-task-group-card:not(.is-expanded) .desktop-task-group-list::-webkit-scrollbar-thumb {
   background: transparent;
 }
@@ -544,12 +569,6 @@ body.desktop-task-dragging .desktop-canvas-card-shell * {
   outline: none;
 }
 
-.desktop-app-dark .desktop-task-group-row:hover,
-.desktop-app-dark .desktop-task-group-row:focus-visible {
-  background: rgba(255, 255, 255, 0.06);
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04);
-}
-
 /* Footer removed for scrollable list */
 
 .desktop-group-prompt-backdrop {
@@ -561,6 +580,7 @@ body.desktop-task-dragging .desktop-canvas-card-shell * {
 
 .desktop-group-prompt-panel {
   position: fixed;
+  z-index: 321;
   display: flex;
   flex-direction: column;
   gap: 22px;
@@ -739,21 +759,6 @@ body.desktop-task-dragging .desktop-canvas-card-shell * {
   font-size: 13px;
   font-weight: 500;
   line-height: 15px;
-}
-
-.desktop-app-dark .desktop-inbox-trigger {
-  border-color: #3a3a3a;
-  background: #1e1e1e;
-  color: #ffffff;
-}
-
-.desktop-app-dark .desktop-inbox-trigger:hover {
-  background: #272727;
-}
-
-.desktop-app-dark .desktop-inbox-trigger-count {
-  background: #343434;
-  color: #ffffff;
 }
 
 

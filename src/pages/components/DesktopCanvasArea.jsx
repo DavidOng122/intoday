@@ -1,47 +1,101 @@
 import {
   DESKTOP_CANVAS_CARD_WIDTH,
-  DESKTOP_CANVAS_TOP_PADDING,
   DesktopCanvas,
   GroupedTaskCard,
   TaskCard,
 } from '../../features/canvas';
 
 function DesktopCanvasArea({
-  appearance,
   canvasBounds,
+  canvasViewportSize,
   connections,
   desktopDragOverlapTargetId,
   desktopDragOverlayActive,
   desktopDragOverlayNodeRef,
   desktopDragOverlaySnapshot,
-  desktopSelectionRect,
-  draftConnection,
+  flowInstanceRef,
   dragSession,
   draggedTaskId,
-  getCanvasPointFromClient,
   handleCanvasFileDragEnter,
   handleCanvasFileDragLeave,
   handleCanvasFileDragOver,
   handleCanvasFileDrop,
-  handleDesktopCanvasPointerDown,
-  handleDesktopCanvasPointerEnd,
-  handleDesktopCanvasPointerMove,
   handleGroupCardOpen,
   handleTaskClick,
   handleTaskPointerCancel,
   handleTaskPointerDown,
   handleTaskPointerMove,
   handleTaskPointerUp,
+  handleFlowNodeDragStart,
+  handleFlowNodeDrag,
+  handleFlowNodeDragStop,
+  handleSelectionChange,
   isCanvasFileDragActive,
   isGroupDragActive,
   removeConnection,
-  selectedDayEntries,
+  canvasEntries,
   selectedTaskIds,
-  startConnectionDrag,
+  createConnectionFromFlow,
+  isValidConnection,
   t,
-  viewport,
   viewportContainerRef,
 }) {
+  const dragOverlay = desktopDragOverlayActive && desktopDragOverlaySnapshot ? (
+    <div
+      aria-hidden="true"
+      style={{
+        position: 'absolute',
+        inset: 0,
+        pointerEvents: 'none',
+        zIndex: 9999,
+      }}
+    >
+      <div
+        ref={desktopDragOverlayNodeRef}
+        className="desktop-canvas-card-node"
+        style={{
+          left: dragSession?.previewPositions?.[desktopDragOverlaySnapshot.taskId]?.x ?? desktopDragOverlaySnapshot.baseX,
+          top: dragSession?.previewPositions?.[desktopDragOverlaySnapshot.taskId]?.y ?? desktopDragOverlaySnapshot.baseY,
+          width: DESKTOP_CANVAS_CARD_WIDTH,
+        }}
+      >
+        <div className="desktop-canvas-card-shell is-dragging">
+          {desktopDragOverlaySnapshot.type === 'group' && Array.isArray(desktopDragOverlaySnapshot.tasks) ? (
+            <GroupedTaskCard
+              tasks={desktopDragOverlaySnapshot.tasks}
+              labels={t}
+              isDragging={true}
+              isGroupDragActive={true}
+              isSelected={false}
+              isGroupReady={false}
+              draggedTaskId={desktopDragOverlaySnapshot.taskId}
+              onOpenItem={null}
+              onOpenFullView={null}
+              onPointerDown={null}
+              onPointerMove={null}
+              onPointerUp={null}
+              onPointerCancel={null}
+            />
+          ) : desktopDragOverlaySnapshot.type === 'task' && desktopDragOverlaySnapshot.task ? (
+            <TaskCard
+              task={desktopDragOverlaySnapshot.task}
+              labels={t}
+              isDragging={true}
+              isSelected={false}
+              isGroupReady={false}
+              draggedTaskId={desktopDragOverlaySnapshot.taskId}
+              onClick={null}
+              onPointerDown={null}
+              onPointerMove={null}
+              onPointerUp={null}
+              onPointerCancel={null}
+            />
+          ) : null}
+        </div>
+      </div>
+    </div>
+  ) : null;
+
   return (
     <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
       <div
@@ -53,121 +107,44 @@ function DesktopCanvasArea({
           <main
             ref={viewportContainerRef}
             className={`desktop-canvas-scroll ${isCanvasFileDragActive ? 'is-file-drag-active' : ''}`}
-            onPointerDownCapture={handleDesktopCanvasPointerDown}
-            onPointerMove={(event) => {
-              handleDesktopCanvasPointerMove(event);
-            }}
-            onPointerUp={(event) => {
-              handleDesktopCanvasPointerEnd(event);
-            }}
-            onPointerCancel={handleDesktopCanvasPointerEnd}
             onDragEnter={handleCanvasFileDragEnter}
             onDragOver={handleCanvasFileDragOver}
             onDragLeave={handleCanvasFileDragLeave}
             onDrop={handleCanvasFileDrop}
             style={{ flex: 1, minHeight: 0, overflow: 'hidden', position: 'relative', background: 'var(--desktop-root-bg)' }}
           >
-            <div
-              className="desktop-canvas-content"
-              style={{
-                position: 'absolute',
-                top: 0,
-                left: 0,
-                width: canvasBounds.width,
-                transformOrigin: '0 0',
-                transform: `translate(${viewport.panX}px, ${viewport.panY}px) scale(${viewport.zoom})`,
-                paddingTop: DESKTOP_CANVAS_TOP_PADDING,
-              }}
-            >
-              <DesktopCanvas
-                entries={selectedDayEntries}
-                canvasHeight={canvasBounds.height}
-                appearance={appearance}
-                labels={t}
-                onTaskClick={handleTaskClick}
-                onGroupOpenFullView={handleGroupCardOpen}
-                onTaskPointerDown={handleTaskPointerDown}
-                onTaskPointerMove={handleTaskPointerMove}
-                onTaskPointerUp={handleTaskPointerUp}
-                onTaskPointerCancel={handleTaskPointerCancel}
-                draggedTaskId={draggedTaskId}
-                isGroupDragActive={isGroupDragActive}
-                dragSession={dragSession}
-                selectedTaskIds={selectedTaskIds}
-                selectionRect={desktopSelectionRect}
-                dragOverlapTargetId={desktopDragOverlapTargetId}
-                TaskCardComponent={TaskCard}
-                GroupedTaskCardComponent={GroupedTaskCard}
-                layoutWidth={canvasBounds.width}
-                connections={connections}
-                draftConnection={draftConnection}
-                getCanvasPointFromClient={getCanvasPointFromClient}
-                onStartConnectionDrag={startConnectionDrag}
-                onRemoveConnection={removeConnection}
-              />
-              {desktopDragOverlayActive && desktopDragOverlaySnapshot ? (
-                <div
-                  aria-hidden="true"
-                  style={{
-                    position: 'absolute',
-                    inset: 0,
-                    pointerEvents: 'none',
-                    zIndex: 9999,
-                  }}
-                >
-                  <div
-                    ref={desktopDragOverlayNodeRef}
-                    className="desktop-canvas-card-node"
-                    style={{
-                      left: dragSession?.previewPositions?.[desktopDragOverlaySnapshot.taskId]?.x ?? desktopDragOverlaySnapshot.baseX,
-                      top: dragSession?.previewPositions?.[desktopDragOverlaySnapshot.taskId]?.y ?? desktopDragOverlaySnapshot.baseY,
-                      width: DESKTOP_CANVAS_CARD_WIDTH,
-                    }}
-                  >
-                    <div className="desktop-canvas-card-shell is-dragging">
-                      {desktopDragOverlaySnapshot.type === 'group' && Array.isArray(desktopDragOverlaySnapshot.tasks) ? (
-                        <GroupedTaskCard
-                          tasks={desktopDragOverlaySnapshot.tasks}
-                          appearance={appearance}
-                          labels={t}
-                          isDragging={true}
-                          isGroupDragActive={true}
-                          isSelected={false}
-                          isGroupReady={false}
-                          draggedTaskId={desktopDragOverlaySnapshot.taskId}
-                          onOpenItem={null}
-                          onOpenFullView={null}
-                          onPointerDown={null}
-                          onPointerMove={null}
-                          onPointerUp={null}
-                          onPointerCancel={null}
-                        />
-                      ) : desktopDragOverlaySnapshot.type === 'task' && desktopDragOverlaySnapshot.task ? (
-                        <TaskCard
-                          task={desktopDragOverlaySnapshot.task}
-                          appearance={appearance}
-                          labels={t}
-                          isDragging={true}
-                          isSelected={false}
-                          isGroupReady={false}
-                          draggedTaskId={desktopDragOverlaySnapshot.taskId}
-                          onClick={null}
-                          onPointerDown={null}
-                          onPointerMove={null}
-                          onPointerUp={null}
-                          onPointerCancel={null}
-                        />
-                      ) : null}
-                    </div>
-                  </div>
-                </div>
-              ) : null}
-              {isCanvasFileDragActive ? (
-                <div className="desktop-canvas-file-drop-indicator">
-                  <span>{draggedTaskId ? 'Drop to place task' : 'Drop file to create card'}</span>
-                </div>
-              ) : null}
-            </div>
+            <DesktopCanvas
+              entries={canvasEntries}
+              canvasHeight={canvasBounds.height}
+              canvasViewportSize={canvasViewportSize}
+              dragOverlay={dragOverlay}
+              flowInstanceRef={flowInstanceRef}
+              labels={t}
+              onTaskClick={handleTaskClick}
+              onGroupOpenFullView={handleGroupCardOpen}
+              onTaskPointerDown={handleTaskPointerDown}
+              onTaskPointerMove={handleTaskPointerMove}
+              onTaskPointerUp={handleTaskPointerUp}
+              onTaskPointerCancel={handleTaskPointerCancel}
+              onFlowNodeDragStart={handleFlowNodeDragStart}
+              onFlowNodeDrag={handleFlowNodeDrag}
+              onFlowNodeDragStop={handleFlowNodeDragStop}
+              draggedTaskId={draggedTaskId}
+              isGroupDragActive={isGroupDragActive}
+              selectedTaskIds={selectedTaskIds}
+              onSelectionChange={handleSelectionChange}
+              dragOverlapTargetId={desktopDragOverlapTargetId}
+              layoutWidth={canvasBounds.width}
+              connections={connections}
+              onCreateConnection={createConnectionFromFlow}
+              isValidConnection={isValidConnection}
+              onRemoveConnection={removeConnection}
+            />
+            {isCanvasFileDragActive ? (
+              <div className="desktop-canvas-file-drop-indicator">
+                <span>{draggedTaskId ? 'Drop to place task' : 'Drop file to create card'}</span>
+              </div>
+            ) : null}
           </main>
         </div>
       </div>

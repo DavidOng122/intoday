@@ -9,13 +9,6 @@
   justify-content: center;
   padding: 28px;
   font-family: 'Manrope', 'Segoe UI', sans-serif;
-}
-
-.desktop-profile-page::before {
-  content: none;
-}
-
-.desktop-profile-page-light {
   --desktop-profile-surface: #fff;
   --desktop-profile-surface-strong: #fff;
   --desktop-profile-border: rgba(0, 0, 0, 0.1);
@@ -29,19 +22,8 @@
   --desktop-profile-signout-ink: #fffefb;
 }
 
-.desktop-profile-page-dark {
-  --desktop-profile-surface: #444444;
-  --desktop-profile-surface-strong: #1e1e1e;
-  --desktop-profile-border: #333333;
-  --desktop-profile-shadow: none;
-  --desktop-profile-ink: #ffffff;
-  --desktop-profile-muted: #a0a0a0;
-  --desktop-profile-chip: #2c2c2c;
-  --desktop-profile-chip-active: #3b82f6;
-  --desktop-profile-chip-active-ink: #ffffff;
-  --desktop-profile-signout: #2c2c2c;
-  --desktop-profile-signout-ink: #ffffff;
-  --desktop-profile-signout-ink: #ffffff;
+.desktop-profile-page::before {
+  content: none;
 }
 
 .desktop-profile-page-orb {
@@ -82,23 +64,16 @@
   border: 1px solid transparent;
 }
 
-.desktop-profile-page-dark .desktop-profile-page-close {
-  background: transparent;
-  color: #c0c0c0;
-  border-color: transparent;
-}
-
 .desktop-profile-page-close:hover {
   background: rgba(0, 0, 0, 0.05);
 }
 
-.desktop-profile-page-dark .desktop-profile-page-close:hover {
-  background: rgba(255, 255, 255, 0.05);
-}
-
 .desktop-profile-stage {
-  position: relative;
-  z-index: 1;
+  position: fixed;
+  z-index: 101;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
   width: min(100%, 400px);
   max-height: calc(100vh - 56px);
   background: var(--desktop-profile-surface-strong);
@@ -109,10 +84,6 @@
   align-items: center;
   overflow: hidden;
   border: 1px solid var(--desktop-profile-border);
-}
-
-.desktop-profile-page-dark .desktop-profile-stage {
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
 }
 
 .desktop-profile-content {
@@ -325,15 +296,6 @@
   color: #b45309;
 }
 
-.desktop-profile-setting-panel-popover {
-  position: absolute;
-  top: calc(100% - 2px);
-  right: 7px;
-  z-index: 40;
-  width: 298px;
-  padding: 0;
-}
-
 .desktop-profile-choice-grid {
   display: flex;
   flex-wrap: wrap;
@@ -373,50 +335,6 @@
   color: var(--desktop-profile-chip-active-ink);
 }
 
-.desktop-profile-appearance-menu {
-  width: 100%;
-  padding: 8px;
-  border-radius: 22px;
-  border: 1px solid rgba(17, 17, 17, 0.1);
-  background: #ffffff;
-  box-shadow: 0 20px 42px rgba(15, 23, 42, 0.14), 0 2px 8px rgba(15, 23, 42, 0.06);
-  color: #050505;
-}
-
-.desktop-profile-appearance-option {
-  width: 100%;
-  min-height: 48px;
-  padding: 0 17px;
-  border: 0;
-  border-radius: 13px;
-  background: transparent;
-  color: #050505;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 14px;
-  font-size: 1rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition:
-    background 0.16s ease,
-    color 0.16s ease;
-}
-
-.desktop-profile-appearance-option:hover {
-  background: #f4f4f4;
-}
-
-.desktop-profile-appearance-option.is-active {
-  background: #f4f4f4;
-  font-weight: 600;
-}
-
-.desktop-profile-appearance-option svg {
-  flex: 0 0 auto;
-  color: #111111;
-}
-
 .desktop-profile-signout {
   margin-top: 22px;
   min-width: 148px;
@@ -434,4 +352,3 @@
   font-weight: 800;
   cursor: pointer;
 }
-

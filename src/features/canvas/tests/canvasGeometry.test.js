@@ -1,8 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  doDesktopRectsIntersect,
-  getDesktopSelectionRect,
   getDesktopCanvasRectIntersectionArea,
   getRectCenterPoint,
   isDesktopCanvasPointInsideRect,
@@ -10,64 +8,6 @@ import {
   findDesktopDragOverlap,
 } from '../model/canvasGeometry.js';
 import { getCanvasEntryIdentity } from '../model/canvasEntryIdentity.js';
-
-// ---------------------------------------------------------------------------
-// doDesktopRectsIntersect
-// ---------------------------------------------------------------------------
-
-test('doDesktopRectsIntersect: overlapping rects', () => {
-  assert.equal(doDesktopRectsIntersect(
-    { x: 0, y: 0, width: 100, height: 100 },
-    { x: 50, y: 50, width: 100, height: 100 },
-  ), true);
-});
-
-test('doDesktopRectsIntersect: touching edge', () => {
-  assert.equal(doDesktopRectsIntersect(
-    { x: 0, y: 0, width: 100, height: 100 },
-    { x: 100, y: 0, width: 100, height: 100 },
-  ), true);
-});
-
-test('doDesktopRectsIntersect: separate rects horizontally', () => {
-  assert.equal(doDesktopRectsIntersect(
-    { x: 0, y: 0, width: 100, height: 100 },
-    { x: 200, y: 0, width: 100, height: 100 },
-  ), false);
-});
-
-test('doDesktopRectsIntersect: separate rects vertically', () => {
-  assert.equal(doDesktopRectsIntersect(
-    { x: 0, y: 0, width: 100, height: 100 },
-    { x: 0, y: 200, width: 100, height: 100 },
-  ), false);
-});
-
-// ---------------------------------------------------------------------------
-// getDesktopSelectionRect
-// ---------------------------------------------------------------------------
-
-test('getDesktopSelectionRect: top-left to bottom-right', () => {
-  const r = getDesktopSelectionRect({ x: 10, y: 20 }, { x: 110, y: 120 });
-  assert.equal(r.x, 10);
-  assert.equal(r.y, 20);
-  assert.equal(r.width, 100);
-  assert.equal(r.height, 100);
-});
-
-test('getDesktopSelectionRect: reversed drag', () => {
-  const r = getDesktopSelectionRect({ x: 110, y: 120 }, { x: 10, y: 20 });
-  assert.equal(r.x, 10);
-  assert.equal(r.y, 20);
-  assert.equal(r.width, 100);
-  assert.equal(r.height, 100);
-});
-
-test('getDesktopSelectionRect: zero-size selection', () => {
-  const r = getDesktopSelectionRect({ x: 50, y: 50 }, { x: 50, y: 50 });
-  assert.equal(r.width, 0);
-  assert.equal(r.height, 0);
-});
 
 // ---------------------------------------------------------------------------
 // getDesktopCanvasRectIntersectionArea

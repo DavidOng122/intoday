@@ -287,6 +287,11 @@
 }
 
 .desktop-inbox-add-confirm-dialog {
+  position: fixed;
+  z-index: 461;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
   width: min(395px, calc(100vw - 32px));
   max-height: calc(100vh - 48px);
   padding: 17px 19px;
@@ -508,34 +513,6 @@
   cursor: not-allowed;
 }
 
-.desktop-inbox-add-confirm-backdrop.is-dark {
-  background: rgba(0, 0, 0, 0.4);
-}
-
-.desktop-inbox-add-confirm-backdrop.is-dark .desktop-inbox-add-confirm-dialog,
-.desktop-inbox-add-confirm-backdrop.is-dark .desktop-inbox-add-preview-row {
-  border-color: #34373d;
-  background: #1c1c1e;
-  color: #f5f7fa;
-}
-
-.desktop-inbox-add-confirm-backdrop.is-dark .desktop-inbox-add-confirm-heading p,
-.desktop-inbox-add-confirm-backdrop.is-dark .desktop-inbox-add-preview-source,
-.desktop-inbox-add-confirm-backdrop.is-dark .desktop-inbox-add-preview-subtitle {
-  color: #a8adb7;
-}
-
-.desktop-inbox-add-confirm-backdrop.is-dark .desktop-inbox-add-preview-copy strong {
-  color: #f5f7fa;
-}
-
-.desktop-inbox-add-confirm-backdrop.is-dark .desktop-inbox-add-confirm-close,
-.desktop-inbox-add-confirm-backdrop.is-dark .desktop-inbox-add-preview-remove {
-  border-color: #34373d;
-  background: #29292c;
-  color: #f5f7fa;
-}
-
 .desktop-inbox-image-capture-backdrop {
   position: fixed;
   inset: 0;
@@ -549,6 +526,11 @@
 }
 
 .desktop-inbox-image-capture-dialog {
+  position: fixed;
+  z-index: 471;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
   width: min(520px, calc(100vw - 32px));
   padding: 18px;
   display: flex;
@@ -626,24 +608,6 @@
 .desktop-inbox-image-capture-actions button:disabled {
   cursor: not-allowed;
   opacity: 0.5;
-}
-
-.desktop-inbox-image-capture-backdrop.is-dark .desktop-inbox-image-capture-dialog {
-  border-color: #34373d;
-  background: #1c1c1e;
-}
-
-.desktop-inbox-image-capture-backdrop.is-dark .desktop-inbox-image-capture-heading h2,
-.desktop-inbox-image-capture-backdrop.is-dark .desktop-inbox-image-capture-note {
-  color: #f5f7fa;
-}
-
-.desktop-inbox-image-capture-backdrop.is-dark .desktop-inbox-image-capture-heading button,
-.desktop-inbox-image-capture-backdrop.is-dark .desktop-inbox-image-capture-note,
-.desktop-inbox-image-capture-backdrop.is-dark .desktop-inbox-image-capture-actions button:first-child {
-  border-color: #34373d;
-  background: #29292c;
-  color: #f5f7fa;
 }
 
 .desktop-inbox-content {
@@ -789,12 +753,10 @@
 }
 
 .desktop-inbox-move-control {
-  position: relative;
   flex-shrink: 0;
 }
 
 .desktop-inbox-pack-menu {
-  position: fixed;
   z-index: 120;
   width: 220px;
   max-height: 240px;
@@ -804,6 +766,11 @@
   border-radius: 10px;
   background: #ffffff;
   box-shadow: 0 12px 28px rgba(28, 23, 18, 0.14);
+  transform-origin: top left;
+}
+
+.desktop-inbox-pack-menu[data-side="left"] {
+  transform-origin: top right;
 }
 
 .desktop-inbox-pack-option {
@@ -862,92 +829,6 @@
   background: rgba(255, 59, 48, 0.1);
   color: #c9342c;
   font-size: 12px;
-}
-
-.desktop-app-dark .desktop-inbox-container {
-  border-color: #33363b;
-  background: #1c1c1e;
-  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.42), 0 8px 10px -6px rgba(0, 0, 0, 0.36);
-}
-
-.desktop-app-dark .desktop-inbox-header {
-  border-bottom: 0;
-}
-
-.desktop-app-dark .desktop-inbox-heading,
-.desktop-app-dark .desktop-inbox-item-title {
-  color: #f5f7fa;
-}
-
-.desktop-app-dark .desktop-inbox-heading-count {
-  background: #ffffff;
-  color: #101010;
-}
-
-.desktop-app-dark .desktop-inbox-search-container {
-  border-color: #33363b;
-  background: #252527;
-}
-
-.desktop-app-dark .desktop-inbox-search-input {
-  background: transparent;
-  color: #f5f7fa;
-}
-
-.desktop-app-dark .desktop-inbox-capture-container {
-  border-color: #3a3d42;
-  background: #252527;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.18);
-}
-
-.desktop-app-dark .desktop-inbox-capture-input {
-  color: #f5f7fa;
-}
-
-.desktop-app-dark .desktop-inbox-capture-input::placeholder,
-.desktop-app-dark .desktop-inbox-capture-status {
-  color: rgba(224, 226, 231, 0.58);
-}
-
-.desktop-app-dark .desktop-inbox-capture-error {
-  color: #ff8b84;
-}
-
-.desktop-app-dark .desktop-inbox-item {
-  border-bottom-color: #24262a;
-}
-
-.desktop-app-dark .desktop-inbox-item:hover {
-  background: #222326;
-}
-
-.desktop-app-dark .desktop-inbox-moveto-btn {
-  border-color: #3a3d42;
-  background: #1c1c1e;
-  color: #f1f3f5;
-}
-
-.desktop-app-dark .desktop-inbox-pack-menu,
-.desktop-inbox-pack-menu.is-dark {
-  border-color: rgba(255, 255, 255, 0.12);
-  background: #252527;
-  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.34);
-}
-
-.desktop-app-dark .desktop-inbox-pack-option,
-.desktop-inbox-pack-menu.is-dark .desktop-inbox-pack-option {
-  color: #f5f7fa;
-}
-
-.desktop-app-dark .desktop-inbox-pack-option:hover,
-.desktop-app-dark .desktop-inbox-pack-option:focus-visible,
-.desktop-inbox-pack-menu.is-dark .desktop-inbox-pack-option:hover,
-.desktop-inbox-pack-menu.is-dark .desktop-inbox-pack-option:focus-visible {
-  background: rgba(255, 255, 255, 0.07);
-}
-
-.desktop-app-dark .desktop-inbox-move-error {
-  color: #ff8a82;
 }
 
 @media (max-height: 680px) {

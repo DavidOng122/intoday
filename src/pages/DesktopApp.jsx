@@ -53,17 +53,16 @@ const LazyPackFullView = React.lazy(() => import('../features/pack/components/Pa
 // Root-level app window scale (OS density scaling) — unrelated to canvas zoom.
 // The entire desktop app wrapper is scaled down to 0.8 so the UI fits a typical
 // consumer monitor pixel density. Drag overlay positions must compensate for this.
-const GlobalStyles = ({ appearance }) => {
+const GlobalStyles = () => {
   useEffect(() => {
     const link = document.createElement('link');
     link.href = 'https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap';
     link.rel = 'stylesheet';
     document.head.appendChild(link);
     const style = document.createElement('style');
-    const shellBackground = appearance === 'dark' ? '#121212' : '#ffffff';
     style.textContent = `
       * { box-sizing: border-box; }
-      html, body, #root { margin: 0; min-height: 100%; background: ${shellBackground}; }
+      html, body, #root { margin: 0; min-height: 100%; background: #ffffff; }
       body { overflow: hidden; }
       button, input { font: inherit; }
       ::selection { background-color: #ef4444; color: white; }
@@ -73,19 +72,16 @@ const GlobalStyles = ({ appearance }) => {
       document.head.removeChild(link);
       document.head.removeChild(style);
     };
-  }, [appearance]);
+  }, []);
   return null;
 };
 
 function App({ session }) {
   const {
-    appearance,
-    appearancePreference,
     handleSignOut,
     language,
     loading,
     profileOpen,
-    setAppearancePreference,
     setLanguage,
     setProfileOpen,
     t,
@@ -151,24 +147,19 @@ function App({ session }) {
   const currentWorkspaceTasks = libraryItems;
   const selectedDateKey = dateKey(selectedDate);
   const {
-    selectedDayEntries,
-    selectedDayEntriesRef,
-  } = useCanvasEntries({
-    currentWorkspaceTasks,
-    selectedDateKey,
-  });
+    canvasEntries,
+    canvasEntriesRef,
+  } = useCanvasEntries({ currentWorkspaceTasks });
   const selectedDateRef = useRef(selectedDate);
   const tasksRef = useRef(currentWorkspaceTasks);
   const dragRuntime = useDesktopDragRuntime();
   const {
     desktopDragAnchorPointerOffsetRef,
     desktopDragAnchorSizeRef,
-    desktopDragContainerRectRef,
     desktopDragDetachedFromGroupRef,
     desktopDragModeRef,
     desktopDragOverlayNodeRef,
     desktopDragPointerRef,
-    desktopSelectionStateRef,
     selectedTaskIdsRef: dragSelectedTaskIdsRef,
     suppressAllTaskClicksUntilRef,
     suppressTaskClickRef,
@@ -196,15 +187,9 @@ function App({ session }) {
   });
   const {
     selectedTaskIds,
-    desktopSelectionRect,
     selectedTaskIdsRef,
-    setDesktopSelectionRect,
-    updateSelection,
-    clearSelection,
     handleSelectionChange,
-    updateMarqueeSelection,
   } = useCanvasSelection({
-    selectedDayEntriesRef,
     selectedTaskIdsRef: dragSelectedTaskIdsRef,
     suppressTaskClickTimeoutRef,
   });
@@ -292,25 +277,17 @@ function App({ session }) {
   }, [restoreWorkspace, setTasks, showStatus]);
   const canvasFileDragDepthRef = useRef(0);
   const {
-    viewport,
     viewportContainerRef,
+    flowInstanceRef,
     canvasBounds,
     canvasBoundsRef,
+    canvasViewportSize,
     clampCanvasPosition,
     getCanvasPointFromClient,
-    getDragCanvasPointFromClient,
     getDesktopDragAnchorPosition,
-    handleDesktopCanvasPointerDown,
-    handleDesktopCanvasPointerMove,
-    handleDesktopCanvasPointerEnd,
   } = useDesktopViewport({
     desktopDragAnchorPointerOffsetRef,
     desktopDragAnchorSizeRef,
-    desktopDragContainerRectRef,
-    desktopSelectionStateRef,
-    clearSelection,
-    updateMarqueeSelection,
-    setDesktopSelectionRect,
   });
   useEffect(() => {
     selectedDateRef.current = selectedDate;
@@ -343,25 +320,22 @@ function App({ session }) {
 
   const {
     startDesktopTaskDrag,
-    setDesktopDragSourceHidden,
     syncDesktopDraggedTaskPosition,
     handleTaskPointerDown,
     handleTaskPointerMove,
     handleTaskPointerUp,
     handleTaskPointerCancel,
+    handleFlowNodeDragStart,
+    handleFlowNodeDrag,
+    handleFlowNodeDragStop,
   } = useDesktopTaskDrag({
     canvas: {
       runtime: dragRuntime,
-      entriesRef: selectedDayEntriesRef,
+      entriesRef: canvasEntriesRef,
       viewport: {
         canvasBoundsRef,
         getCanvasPointFromClient,
         getDesktopDragAnchorPosition,
-        getDragCanvasPointFromClient,
-        viewportContainerRef,
-      },
-      selection: {
-        setDesktopSelectionRect,
       },
       presentation: {
         setDesktopDragOverlapTargetId,
@@ -393,25 +367,22 @@ function App({ session }) {
   });
   useLayoutEffect(() => {
     connectDragPresentation({
-      setDesktopDragSourceHidden,
       syncDesktopDraggedTaskPosition,
     });
     return () => connectDragPresentation(null);
   }, [
     connectDragPresentation,
-    setDesktopDragSourceHidden,
     syncDesktopDraggedTaskPosition,
   ]);
   const {
     connections,
-    draftConnection,
     removeConnection,
     removeGroupConnections,
     rewirePackConnections,
-    startConnectionDrag,
+    createConnectionFromFlow,
+    isValidConnection,
   } = useDesktopConnections({
-    entries: selectedDayEntries,
-    getCanvasPointFromClient,
+    entries: canvasEntries,
     onStatus: showStatus,
     tasks,
     userId: currentUser?.id || null,
@@ -458,7 +429,6 @@ function App({ session }) {
     confirmCanvasDeletion,
     cancelCanvasDeletion,
     handleTaskClick,
-    updateCanvasSelection,
   } = useDesktopTaskActions({
     cleanupDesktopGroupMetadata,
     openUploadedFileTask,
@@ -474,7 +444,6 @@ function App({ session }) {
     suppressTaskClickRef,
     tasksRef,
     t,
-    updateCanvasSelection: updateSelection,
     user: currentUser,
   });
 
@@ -504,7 +473,6 @@ function App({ session }) {
     setTasks,
     suppressAllTaskClicksUntilRef,
     tasksRef,
-    updateCanvasSelection,
     handleTaskClick,
     onPacksMerged: rewirePackConnections,
   });
@@ -540,8 +508,8 @@ function App({ session }) {
 
   if (loading) {
     return (
-      <div style={{ width: '100vw', height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: appearance === 'dark' ? '#121212' : '#ffffff' }}>
-        <div style={{ width: 42, height: 42, borderRadius: '50%', border: `4px solid ${appearance === 'dark' ? '#333333' : '#e8e0d6'}`, borderTop: '4px solid #ED1F1F', animation: 'desktop-spin 1s linear infinite' }} />
+      <div style={{ width: '100vw', height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#ffffff' }}>
+        <div style={{ width: 42, height: 42, borderRadius: '50%', border: '4px solid #e8e0d6', borderTop: '4px solid #ED1F1F', animation: 'desktop-spin 1s linear infinite' }} />
         <style>{`@keyframes desktop-spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}</style>
       </div>
     );
@@ -549,7 +517,7 @@ function App({ session }) {
   if (!currentUser) return <DesktopLogin />;
   return (
     <>
-      <GlobalStyles appearance={appearance} />
+      <GlobalStyles />
       <div
         style={{
           width: '100vw',
@@ -566,11 +534,10 @@ function App({ session }) {
             transformOrigin: 'top left',
           }}
         >
-      <div className={`desktop-app ${appearance === 'dark' ? 'desktop-app-dark' : 'desktop-app-light'}`} style={{ width: '100%', height: '100%', overflow: 'hidden', background: 'var(--desktop-root-bg)', color: 'var(--desktop-root-text)', fontFamily: 'Inter, sans-serif', display: 'flex', flexDirection: 'column' }}>
+      <div className="desktop-app" style={{ width: '100%', height: '100%', overflow: 'hidden', background: 'var(--desktop-root-bg)', color: 'var(--desktop-root-text)', fontFamily: 'Inter, sans-serif', display: 'flex', flexDirection: 'column' }}>
         <DesktopHeader
           activeWorkspace={activeWorkspace}
           activeWorkspaceId={activeWorkspaceId}
-          appearance={appearance}
           canAddWorkspace={canAddWorkspace}
           inboxCount={inboxCount}
           inboxEnabled
@@ -598,39 +565,38 @@ function App({ session }) {
         />
 
         <DesktopCanvasArea
-          appearance={appearance}
           canvasBounds={canvasBounds}
+          canvasViewportSize={canvasViewportSize}
           connections={connections}
           desktopDragOverlapTargetId={desktopDragOverlapTargetId}
           desktopDragOverlayActive={desktopDragOverlayActive}
           desktopDragOverlayNodeRef={desktopDragOverlayNodeRef}
           desktopDragOverlaySnapshot={desktopDragOverlaySnapshot}
-          desktopSelectionRect={desktopSelectionRect}
-          draftConnection={draftConnection}
+          flowInstanceRef={flowInstanceRef}
           dragSession={dragSession}
           draggedTaskId={draggedTaskId}
-          getCanvasPointFromClient={getCanvasPointFromClient}
           handleCanvasFileDragEnter={handleCanvasFileDragEnter}
           handleCanvasFileDragLeave={handleCanvasFileDragLeave}
           handleCanvasFileDragOver={handleCanvasFileDragOver}
           handleCanvasFileDrop={handleCanvasFileDrop}
-          handleDesktopCanvasPointerDown={handleDesktopCanvasPointerDown}
-          handleDesktopCanvasPointerEnd={handleDesktopCanvasPointerEnd}
-          handleDesktopCanvasPointerMove={handleDesktopCanvasPointerMove}
           handleGroupCardOpen={handleGroupCardOpen}
           handleTaskClick={handleTaskClick}
           handleTaskPointerCancel={handleTaskPointerCancel}
           handleTaskPointerDown={handleTaskPointerDown}
           handleTaskPointerMove={handleTaskPointerMove}
           handleTaskPointerUp={handleTaskPointerUp}
+          handleFlowNodeDragStart={handleFlowNodeDragStart}
+          handleFlowNodeDrag={handleFlowNodeDrag}
+          handleFlowNodeDragStop={handleFlowNodeDragStop}
+          handleSelectionChange={handleSelectionChange}
           isCanvasFileDragActive={isCanvasFileDragActive}
           isGroupDragActive={isGroupDragActive}
           removeConnection={removeConnection}
-          selectedDayEntries={selectedDayEntries}
+          canvasEntries={canvasEntries}
           selectedTaskIds={selectedTaskIds}
-          startConnectionDrag={startConnectionDrag}
+          createConnectionFromFlow={createConnectionFromFlow}
+          isValidConnection={isValidConnection}
           t={t}
-          viewport={viewport}
           viewportContainerRef={viewportContainerRef}
         />
 
@@ -640,8 +606,6 @@ function App({ session }) {
           PackFullViewComponent={LazyPackFullView}
           activeGroupView={activeGroupView}
           activeTextTask={activeTextTask}
-          appearance={appearance}
-          appearancePreference={appearancePreference}
           canRestoreWorkspace={canAddWorkspace}
           currentUser={currentUser}
           deletedWorkspaces={deletedWorkspaces}
@@ -682,7 +646,6 @@ function App({ session }) {
           onSearchTaskClick={handleSearchModalTaskClick}
           onSearchTaskLongPress={handleSearchModalTaskLongPress}
           onSearchTaskPointerDown={handleTaskPointerDown}
-          onSetAppearance={setAppearancePreference}
           onSetLanguage={setLanguage}
           onSignOut={handleSignOut}
           onTextTaskClose={closeTextTask}

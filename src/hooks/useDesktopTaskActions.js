@@ -22,7 +22,6 @@ export const useDesktopTaskActions = ({
   suppressTaskClickRef,
   tasksRef,
   t,
-  updateCanvasSelection,
   user,
 }) => {
   const deleteTasksByIds = useCallback((taskIds) => {
@@ -110,14 +109,14 @@ export const useDesktopTaskActions = ({
       return;
     }
 
-    updateCanvasSelection([task.id], event, openTaskFromCanvas);
-  }, [suppressAllTaskClicksUntilRef, suppressTaskClickRef, t, user, openUploadedFileTask, onOpenTextTask, setFullscreenImage, updateCanvasSelection]);
+    if (event.metaKey || event.ctrlKey) return;
+    openTaskFromCanvas();
+  }, [suppressAllTaskClicksUntilRef, suppressTaskClickRef, t, user, openUploadedFileTask, onOpenTextTask, setFullscreenImage]);
 
   return {
     deleteTasksByIds,
     confirmCanvasDeletion,
     cancelCanvasDeletion,
     handleTaskClick,
-    updateCanvasSelection,
   };
 };
