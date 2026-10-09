@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 export const useQuickAdd = ({ onCreateItem, onImportFiles }) => {
   const [open, setOpen] = useState(false);
@@ -7,16 +7,33 @@ export const useQuickAdd = ({ onCreateItem, onImportFiles }) => {
   const rootRef = useRef(null);
   const imageInputRef = useRef(null);
   const fileInputRef = useRef(null);
+  const composerFrameRef = useRef(null);
+
+  const cancelPendingComposer = useCallback(() => {
+    if (composerFrameRef.current === null) return;
+    window.cancelAnimationFrame(composerFrameRef.current);
+    composerFrameRef.current = null;
+  }, []);
 
   const close = useCallback(() => {
+    cancelPendingComposer();
     setOpen(false);
     setComposerKind(null);
-  }, []);
+  }, [cancelPendingComposer]);
+
+  useEffect(() => cancelPendingComposer, [cancelPendingComposer]);
 
   const openComposer = useCallback((kind) => {
+    cancelPendingComposer();
     setOpen(false);
-    setComposerKind(kind);
-  }, []);
+    // Let Radix finish closing the DropdownMenu before mounting another
+    // focus-managed layer. Opening both in the same select event can make the
+    // menu's dismiss/focus cleanup immediately close the new Popover.
+    composerFrameRef.current = window.requestAnimationFrame(() => {
+      composerFrameRef.current = null;
+      setComposerKind(kind);
+    });
+  }, [cancelPendingComposer]);
 
   const importFiles = useCallback(async (files) => {
     if (!files?.length || isImporting) return;

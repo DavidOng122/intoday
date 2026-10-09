@@ -35,7 +35,7 @@ const QuickAddMenu = ({ labels, onCreateItem, onImportFiles, renderTrigger }) =>
           if (!nextOpen) close();
         }}
       >
-        <DropdownMenu.Root open={open} onOpenChange={setOpen}>
+        <DropdownMenu.Root open={open} onOpenChange={setOpen} modal={false}>
           <Popover.Anchor asChild>
             <DropdownMenu.Trigger asChild>
               {renderTrigger?.({ open })}
