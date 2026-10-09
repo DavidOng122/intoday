@@ -317,7 +317,14 @@ const InboxPanel = ({
       }}
     >
     <div className={`desktop-inbox-overlay ${isDraggingOut ? 'is-dragging-out' : ''}`}>
-      <Dialog.Content asChild>
+      <Dialog.Content
+        asChild
+        onInteractOutside={(event) => {
+          if (event.target?.closest?.('[data-quick-add-layer]')) {
+            event.preventDefault();
+          }
+        }}
+      >
       <div
         ref={panelRef}
         className="desktop-inbox-container"

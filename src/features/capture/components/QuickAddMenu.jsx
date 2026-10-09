@@ -48,6 +48,7 @@ const QuickAddMenu = ({ labels, onCreateItem, onImportFiles, renderTrigger }) =>
       {open ? (
         <DropdownMenu.Portal container={getDesktopPortalContainer()}>
         <DropdownMenu.Content
+          data-quick-add-layer=""
           className="desktop-quick-add-popover"
           aria-label={labels.quickAddMenuLabel}
           side="bottom"
@@ -94,6 +95,7 @@ const QuickAddMenu = ({ labels, onCreateItem, onImportFiles, renderTrigger }) =>
       ) : composerKind ? (
         <Popover.Portal container={getDesktopPortalContainer()}>
           <Popover.Content
+            data-quick-add-layer=""
             className="desktop-quick-add-composer"
             side="bottom"
             align="end"
