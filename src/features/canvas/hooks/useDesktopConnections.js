@@ -21,17 +21,31 @@ import {
   executeConnectionOperation,
   isConnectionCloudSyncEnabled,
   loadCloudConnections,
+  loadCloudConnectionTombstones,
 } from '../data/connectionRepository.js';
+import { notifySessionVerificationRequired } from '../../session/model/sessionVerification.js';
+
+const createOperationId = () => (
+  globalThis.crypto?.randomUUID?.()
+  || 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (character) => {
+    const random = Math.floor(Math.random() * 16);
+    return (character === 'x' ? random : (random & 0x3) | 0x8).toString(16);
+  })
+);
+
+const getOperationConnectionId = (operation) => operation.connectionId || operation.connection?.id;
 
 export const useDesktopConnections = ({
   entries,
   onStatus,
+  readOnly = false,
   tasks,
   userId,
   workspaceId,
 }) => {
   const ownerId = userId || 'guest';
-  const cloudEnabled = Boolean(userId) && isConnectionCloudSyncEnabled();
+  const canWrite = !readOnly && (!userId || globalThis.navigator?.onLine !== false);
+  const cloudEnabled = canWrite && Boolean(userId) && isConnectionCloudSyncEnabled();
   const [connections, setConnections] = useState([]);
   const connectionsRef = useRef([]);
   const entriesRef = useRef(entries);
@@ -39,7 +53,12 @@ export const useDesktopConnections = ({
   const pendingOperationsByScopeRef = useRef(new Map());
   const syncInFlightByScopeRef = useRef(new Map());
   const hydratedScopeRef = useRef(null);
+  const cloudWriteScopeRef = useRef(null);
+  const connectionTombstonesRef = useRef(new Map());
   const syncErrorShownRef = useRef(false);
+  const scopeKey = `${ownerId}:${workspaceId}`;
+  const cloudScopeKey = `${userId || ''}:${workspaceId}`;
+  const hydrationKey = `${scopeKey}:${cloudEnabled ? 'cloud' : 'local'}`;
 
   useEffect(() => {
     entriesRef.current = entries;
@@ -49,6 +68,23 @@ export const useDesktopConnections = ({
     tasksRef.current = tasks;
   }, [tasks]);
 
+  const refreshCloudState = useCallback(async () => {
+    if (!userId) return;
+    try {
+      const [cloudConnections, tombstones] = await Promise.all([
+        loadCloudConnections(userId, workspaceId),
+        loadCloudConnectionTombstones(userId, workspaceId),
+      ]);
+      connectionTombstonesRef.current = tombstones;
+      connectionsRef.current = cloudConnections;
+      setConnections(cloudConnections);
+      writeWorkspaceConnections(ownerId, workspaceId, cloudConnections);
+    } catch (error) {
+      notifySessionVerificationRequired(error);
+      throw error;
+    }
+  }, [ownerId, userId, workspaceId]);
+
   const flushPendingOperations = useCallback(async () => {
     const scopeKey = `${ownerId}:${workspaceId}`;
     const getPendingOperations = () => (
@@ -56,8 +92,9 @@ export const useDesktopConnections = ({
       ?? readPendingConnectionOperations(ownerId, workspaceId)
     );
     const setPendingOperations = (operations) => {
+      if (!writePendingConnectionOperations(ownerId, workspaceId, operations)) return false;
       pendingOperationsByScopeRef.current.set(scopeKey, operations);
-      writePendingConnectionOperations(ownerId, workspaceId, operations);
+      return true;
     };
     if (!cloudEnabled || !userId) return { remaining: getPendingOperations(), error: null };
     const existingRun = syncInFlightByScopeRef.current.get(scopeKey);
@@ -68,11 +105,71 @@ export const useDesktopConnections = ({
         const queued = getPendingOperations();
         const result = await drainConnectionOperations(
           queued,
-          (operation) => executeConnectionOperation(userId, operation),
+          async (operation) => {
+            const outcome = await executeConnectionOperation(userId, operation);
+            if (Number.isSafeInteger(outcome.revision)) {
+              const connectionId = operation.connectionId || operation.connection?.id;
+              if (operation.type === 'delete') {
+                connectionTombstonesRef.current.set(connectionId, outcome.revision);
+              } else {
+                connectionTombstonesRef.current.delete(connectionId);
+                const nextConnections = connectionsRef.current.map((connection) => (
+                  connection.id === connectionId
+                    ? { ...connection, revision: outcome.revision }
+                    : connection
+                ));
+                connectionsRef.current = nextConnections;
+                setConnections(nextConnections);
+                writeWorkspaceConnections(ownerId, workspaceId, nextConnections);
+              }
+            }
+            return outcome;
+          },
         );
         const appended = getPendingOperations().slice(queued.length);
-        const remaining = [...result.remaining, ...appended];
-        setPendingOperations(remaining);
+        let remaining = [...result.remaining, ...appended];
+        if (result.error?.code === 'CONNECTION_CONFLICT') {
+          const conflictingOperation = result.remaining[0];
+          const conflictId = getOperationConnectionId(conflictingOperation);
+          try {
+            await refreshCloudState();
+          } catch (error) {
+            onStatus?.('Connection conflict detected, but the server state could not be refreshed.');
+            return { ...result, error, remaining };
+          }
+          const currentConnection = connectionsRef.current.find((connection) => connection.id === conflictId);
+          if (
+            conflictingOperation?.type === 'delete'
+            && currentConnection
+            && (conflictingOperation.rebaseCount || 0) < 2
+          ) {
+            const rebasedDelete = {
+              ...conflictingOperation,
+              operationId: createOperationId(),
+              expectedRevision: currentConnection.revision,
+              rebaseCount: (conflictingOperation.rebaseCount || 0) + 1,
+            };
+            remaining = [rebasedDelete, ...remaining.slice(1)];
+            onStatus?.('A concurrent Connection update was found; the deletion is being retried.');
+          } else {
+            remaining = remaining.filter((operation) => (
+              getOperationConnectionId(operation) !== conflictId
+            ));
+            onStatus?.('A Connection changed on another device. Its server version was kept; retry your change if needed.');
+          }
+          if (!setPendingOperations(remaining)) {
+            const error = new Error('Connection changes remain queued because the local journal could not be updated.');
+            onStatus?.(error.message);
+            return { ...result, error, remaining: queued };
+          }
+          syncErrorShownRef.current = false;
+          continue;
+        }
+        if (!setPendingOperations(remaining)) {
+          const error = new Error('Connection changes remain queued because the local journal could not be updated.');
+          onStatus?.(error.message);
+          return { ...result, error, remaining: queued };
+        }
         if (result.error) {
           if (!syncErrorShownRef.current) {
             syncErrorShownRef.current = true;
@@ -90,23 +187,27 @@ export const useDesktopConnections = ({
     });
     syncInFlightByScopeRef.current.set(scopeKey, runPromise);
     return runPromise;
-  }, [cloudEnabled, onStatus, ownerId, userId, workspaceId]);
+  }, [cloudEnabled, onStatus, ownerId, refreshCloudState, userId, workspaceId]);
 
   const enqueueOperations = useCallback((operations) => {
-    if (!cloudEnabled || operations.length === 0) return;
+    if (!cloudEnabled || operations.length === 0) return true;
     const scopeKey = `${ownerId}:${workspaceId}`;
     const pending = pendingOperationsByScopeRef.current.get(scopeKey)
       ?? readPendingConnectionOperations(ownerId, workspaceId);
     const nextPending = [...pending, ...operations];
+    if (!writePendingConnectionOperations(ownerId, workspaceId, nextPending)) {
+      onStatus?.('Connection change was not applied because its local journal could not be saved.');
+      return false;
+    }
     pendingOperationsByScopeRef.current.set(scopeKey, nextPending);
-    writePendingConnectionOperations(ownerId, workspaceId, nextPending);
     void flushPendingOperations();
-  }, [cloudEnabled, flushPendingOperations, ownerId, workspaceId]);
+    return true;
+  }, [cloudEnabled, flushPendingOperations, onStatus, ownerId, workspaceId]);
 
   useEffect(() => {
-    const scopeKey = `${ownerId}:${workspaceId}`;
-    if (hydratedScopeRef.current === scopeKey) return undefined;
-    hydratedScopeRef.current = scopeKey;
+    if (hydratedScopeRef.current === hydrationKey) return undefined;
+    hydratedScopeRef.current = hydrationKey;
+    cloudWriteScopeRef.current = null;
     let cancelled = false;
 
     if (!userId || !cloudEnabled) {
@@ -138,12 +239,15 @@ export const useDesktopConnections = ({
 
     const hydrateCloud = async () => {
       try {
+        connectionTombstonesRef.current = await loadCloudConnectionTombstones(userId, workspaceId);
+        if (cancelled) return;
         const cloudConnections = await loadCloudConnections(userId, workspaceId);
         if (cancelled) return;
 
         const migrationCompleted = hasCompletedConnectionMigration(ownerId, workspaceId);
         if (cloudConnections.length === 0 && !migrationCompleted && stored.length > 0) {
           for (const connection of stored) {
+            if (connectionTombstonesRef.current.has(connection.id)) continue;
             await executeConnectionOperation(userId, { type: 'upsert', connection });
           }
           markConnectionMigrationComplete(ownerId, workspaceId);
@@ -152,12 +256,17 @@ export const useDesktopConnections = ({
         }
 
         const finalConnections = await loadCloudConnections(userId, workspaceId);
+        const finalTombstones = await loadCloudConnectionTombstones(userId, workspaceId);
         if (cancelled) return;
 
+        connectionTombstonesRef.current = finalTombstones;
         connectionsRef.current = finalConnections;
         setConnections(finalConnections);
         writeWorkspaceConnections(ownerId, workspaceId, finalConnections);
-      } catch {
+        cloudWriteScopeRef.current = cloudScopeKey;
+        void flushPendingOperations();
+      } catch (error) {
+        notifySessionVerificationRequired(error);
         if (!cancelled && !syncErrorShownRef.current) {
           syncErrorShownRef.current = true;
           onStatus?.('Connection cloud data is unavailable. Using local data.');
@@ -169,18 +278,28 @@ export const useDesktopConnections = ({
     return () => {
       cancelled = true;
     };
-  }, [cloudEnabled, flushPendingOperations, onStatus, ownerId, userId, workspaceId]);
+  }, [cloudEnabled, cloudScopeKey, flushPendingOperations, hydrationKey, onStatus, ownerId, scopeKey, userId, workspaceId]);
 
   const replaceConnections = useCallback((updater) => {
     const previous = connectionsRef.current;
+    if (!canWrite) return previous;
+    if (cloudEnabled && cloudWriteScopeRef.current !== cloudScopeKey) {
+      onStatus?.('Connections are still being verified. Please retry in a moment.');
+      return previous;
+    }
     const next = typeof updater === 'function' ? updater(previous) : updater;
-    const operations = createConnectionOperationsForReplacement(previous, next, workspaceId);
+    const operations = createConnectionOperationsForReplacement(
+      previous,
+      next,
+      workspaceId,
+      connectionTombstonesRef.current,
+    );
+    if (cloudEnabled && operations.length > 0 && !enqueueOperations(operations)) return previous;
     connectionsRef.current = next;
     setConnections(next);
     writeWorkspaceConnections(ownerId, workspaceId, next);
-    enqueueOperations(operations);
     return next;
-  }, [enqueueOperations, ownerId, workspaceId]);
+  }, [canWrite, cloudEnabled, cloudScopeKey, enqueueOperations, onStatus, ownerId, workspaceId]);
 
   useEffect(() => {
     if (!cloudEnabled || !userId) return undefined;
@@ -188,10 +307,7 @@ export const useDesktopConnections = ({
       const result = await flushPendingOperations();
       if (result.error || result.remaining.length > 0) return;
       try {
-        const cloudConnections = await loadCloudConnections(userId, workspaceId);
-        connectionsRef.current = cloudConnections;
-        setConnections(cloudConnections);
-        writeWorkspaceConnections(ownerId, workspaceId, cloudConnections);
+        await refreshCloudState();
       } catch {
         // Keep the local snapshot; the next focus/online event will retry.
       }
@@ -204,7 +320,7 @@ export const useDesktopConnections = ({
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('focus', handleFocus);
     };
-  }, [cloudEnabled, flushPendingOperations, ownerId, userId, workspaceId]);
+  }, [cloudEnabled, flushPendingOperations, refreshCloudState, userId]);
 
   const removeConnection = useCallback((connectionId) => {
     replaceConnections((current) => current.filter((connection) => connection.id !== connectionId));

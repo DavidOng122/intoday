@@ -109,3 +109,17 @@ test('cloud refresh is reconciled with pending local mutations', () => {
     [localConnection],
   );
 });
+
+test('recreating a deleted Connection uses its tombstone revision', () => {
+  const recreated = makeConnection('a', 'b', { now: 3000 });
+  const operations = createConnectionOperationsForReplacement(
+    [],
+    [recreated],
+    'workspace-a',
+    new Map([[recreated.id, 7]]),
+  );
+
+  assert.equal(operations.length, 1);
+  assert.equal(operations[0].type, 'upsert');
+  assert.equal(operations[0].expectedRevision, 7);
+});

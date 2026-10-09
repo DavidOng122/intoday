@@ -154,6 +154,52 @@ test('Create, Update, and Delete use per-task revisions and tombstones prevent I
   engine.dispose();
 });
 
+test('confirmed Task snapshots exclude pending creates and preserve confirmed values during edits', async () => {
+  const repository = new MemoryRepository();
+  repository.rows.set(15, { todo: { id: 15, text: 'cloud' }, revision: 0, deleted: false });
+  const createGate = deferred();
+  const updateGate = deferred();
+  const deleteGate = deferred();
+  const apply = repository.apply.bind(repository);
+  repository.apply = (mutation) => {
+    const gate = mutation.todoId === 16
+      ? createGate
+      : mutation.todoId === 15 && mutation.kind === 'update'
+        ? updateGate
+        : mutation.todoId === 15 && mutation.kind === 'delete'
+          ? deleteGate
+          : null;
+    return gate ? gate.promise.then(() => apply(mutation)) : apply(mutation);
+  };
+  const engine = makeEngine({ repository }).engine;
+  await engine.hydrate();
+
+  const original = engine.getConfirmedTodos();
+  const create = engine.mutate((todos) => [...todos, { id: 16, text: 'pending create' }]);
+  await tick();
+  assert.deepEqual(engine.getConfirmedTodos(), original);
+  createGate.resolve();
+  await create;
+  assert.equal(engine.getConfirmedTodos().some((todo) => todo.id === 16), true);
+
+  const update = engine.mutate((todos) => todos.map((todo) => (
+    todo.id === 15 ? { ...todo, text: 'pending update' } : todo
+  )));
+  await tick();
+  assert.equal(engine.getConfirmedTodos().find((todo) => todo.id === 15).text, 'cloud');
+  updateGate.resolve();
+  await update;
+  assert.equal(engine.getConfirmedTodos().find((todo) => todo.id === 15).text, 'pending update');
+
+  const remove = engine.mutate((todos) => todos.filter((todo) => todo.id !== 15));
+  await tick();
+  assert.equal(engine.getConfirmedTodos().some((todo) => todo.id === 15), true);
+  deleteGate.resolve();
+  await remove;
+  assert.equal(engine.getConfirmedTodos().some((todo) => todo.id === 15), false);
+  engine.dispose();
+});
+
 test('mutations invoked during initial hydration run against the complete cloud state', async () => {
   const repository = new MemoryRepository();
   repository.rows.set(151, { todo: { id: 151, text: 'existing' }, revision: 0, deleted: false });

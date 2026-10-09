@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { getClipboardImageFile, isEditableClipboardTarget } from './clipboardUtils.js';
+import { createUploadedFileStorageKey } from './uploadUtils.js';
+import { createUploadedFilePath } from './uploadStorage.js';
 
 test('getClipboardImageFile returns the first clipboard image file', () => {
   const imageFile = { name: 'capture.png', type: 'image/png' };
@@ -25,4 +27,23 @@ test('isEditableClipboardTarget ignores input, textarea, and contenteditable tar
   assert.equal(isEditableClipboardTarget({ tagName: 'TEXTAREA' }), true);
   assert.equal(isEditableClipboardTarget({ isContentEditable: true }), true);
   assert.equal(isEditableClipboardTarget({ tagName: 'main' }), false);
+});
+
+test('uploaded file keys are scoped by account', () => {
+  const firstAccountKey = createUploadedFileStorageKey('report.pdf', 'account-1');
+  const secondAccountKey = createUploadedFileStorageKey('report.pdf', 'account-2');
+
+  assert.match(firstAccountKey, /^upload:account-1:/);
+  assert.match(secondAccountKey, /^upload:account-2:/);
+  assert.notEqual(firstAccountKey, secondAccountKey);
+});
+
+test('remote upload paths are bound to the owning account and Task', () => {
+  const storagePath = createUploadedFilePath('account-1', 42, 'Quarterly Report.pdf');
+  const segments = storagePath.split('/');
+
+  assert.equal(segments[0], 'account-1');
+  assert.equal(segments[1], '42');
+  assert.match(segments[2], /quarterly-report\.pdf$/);
+  assert.throws(() => createUploadedFilePath('account-1', 'not-a-task', 'report.pdf'));
 });

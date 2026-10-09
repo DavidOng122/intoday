@@ -27,10 +27,12 @@ export const useDesktopCapture = ({
   activeWorkspaceId,
   canvasFileDragDepthRef,
   clampCanvasPosition,
+  commitTodos,
   draggedTaskId,
   getCanvasPointFromClient,
   inboxEnabled,
   isCanvasFileDragActive,
+  readOnly = false,
   selectedDateKey,
   selectedDateRef,
   setFullscreenImage,
@@ -166,8 +168,12 @@ export const useDesktopCapture = ({
     fileTasks.forEach((task, index) => {
       const file = sourceFiles[index];
       if (!file) return;
-      uploadFileToStorage({ file, userId }).then((uploadedFileStoragePath) => {
-        setTasks((currentTasks) => currentTasks.map((currentTask) => (
+      if (!userId || !task.uploadedFileStoragePath) return;
+      uploadFileToStorage({
+        file,
+        userId,
+        storagePath: task.uploadedFileStoragePath,
+      }).then((uploadedFileStoragePath) => commitTodos((currentTasks) => currentTasks.map((currentTask) => (
           currentTask.id === task.id
             ? normalizeTask({
               ...currentTask,
@@ -179,14 +185,15 @@ export const useDesktopCapture = ({
               updatedAt: new Date().toISOString(),
             })
             : currentTask
-        )));
-      }).catch((error) => {
+        )))).catch((error) => {
         console.error('Failed to upload file to Supabase Storage:', error);
-        setTasks((currentTasks) => currentTasks.map((currentTask) => (
+        void commitTodos((currentTasks) => currentTasks.map((currentTask) => (
           currentTask.id === task.id
             ? normalizeTask({ ...currentTask, uploadState: 'failed' })
             : currentTask
-        )));
+        ))).catch((commitError) => {
+          console.error('Failed to record the upload failure on its Task:', commitError);
+        });
         showToast('Upload failed. The file is kept on this device.');
       });
     });
@@ -195,6 +202,10 @@ export const useDesktopCapture = ({
   const importFiles = async (files, { dropBasePosition = null, destination = inboxEnabled ? 'inbox' : 'canvas', note = '' } = {}) => {
     const supportedFiles = Array.from(files || []).filter((file) => isSupportedUploadFile(file));
     if (!supportedFiles.length) return;
+    if (readOnly || (userId && globalThis.navigator?.onLine === false)) {
+      showToast('Uploads are unavailable until your account is verified and online.');
+      return;
+    }
   
     const droppedDateKey = selectedDateRef.current ? dateKey(selectedDateRef.current) : selectedDateKey;
   
@@ -203,9 +214,10 @@ export const useDesktopCapture = ({
         workspaceId: activeWorkspaceId,
         dateString: droppedDateKey,
         note,
+        userId,
       });
   
-      setTasks((prev) => {
+      await commitTodos((prev) => {
         let nextTasks = [...prev];
         fileTasks.forEach((task, index) => {
           if (destination === 'inbox') {
@@ -240,8 +252,8 @@ export const useDesktopCapture = ({
         return nextTasks;
       });
 
-      // Rendering and interaction are local-first. The binary transfer runs
-      // independently so a slow network never blocks the Canvas or Inbox.
+      // The Task and exact Storage path are committed before upload starts,
+      // satisfying Storage RLS and preventing late orphan uploads after delete.
       uploadCreatedFiles(fileTasks, supportedFiles);
 
       showToast(supportedFiles.length === 1 ? 'File added — uploading…' : `${supportedFiles.length} files added — uploading…`);

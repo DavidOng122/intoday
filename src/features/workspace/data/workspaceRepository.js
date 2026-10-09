@@ -2,6 +2,13 @@ import { supabase } from '../../../supabase.js';
 import { getUserScopedStorageKey } from '../../../shared/storage/userScopedStorage.js';
 
 const WORKSPACES_TABLE = 'workspaces';
+const createOperationId = () => (
+  globalThis.crypto?.randomUUID?.()
+  || 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (character) => {
+    const random = Math.floor(Math.random() * 16);
+    return (character === 'x' ? random : (random & 0x3) | 0x8).toString(16);
+  })
+);
 
 export const getWorkspaceMigrationKey = (userId) => getUserScopedStorageKey('intoday_workspaces_cloud_migrated', userId);
 
@@ -84,13 +91,26 @@ export const updateCloudWorkspace = async (userId, workspace) => {
 };
 
 export const deleteCloudWorkspace = async (userId, workspaceId) => {
-  if (!userId || !supabase || !workspaceId) return null;
-  const { error } = await supabase
-    .from(WORKSPACES_TABLE)
-    .update({ is_deleted: true, updated_at: new Date().toISOString() })
-    .eq('user_id', userId)
-    .eq('workspace_id', workspaceId);
+  if (!userId || !workspaceId) return null;
+  if (!supabase) throw new Error('Supabase is not configured; Workspace deletion is unavailable.');
+  const { data, error } = await supabase.rpc('delete_workspace_cascade', {
+    p_workspace_id: workspaceId,
+    p_operation_id: createOperationId(),
+  });
 
   if (error) throw error;
+  if (data?.status === 'last_workspace') {
+    const lastWorkspaceError = new Error('At least one active Workspace must remain.');
+    lastWorkspaceError.code = 'LAST_WORKSPACE';
+    throw lastWorkspaceError;
+  }
+  if (data?.status === 'not_found') {
+    const missingWorkspaceError = new Error('This Workspace is no longer active on the server.');
+    missingWorkspaceError.code = 'WORKSPACE_NOT_FOUND';
+    throw missingWorkspaceError;
+  }
+  if (data?.status !== 'deleted') {
+    throw new Error(`Workspace deletion returned unexpected status "${data?.status}".`);
+  }
   return workspaceId;
 };

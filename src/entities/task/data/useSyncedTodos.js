@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { supabase } from '../../../supabase';
 import { getUserScopedStorageKey } from '../../../shared/storage/userScopedStorage';
+import { notifySessionVerificationRequired } from '../../../features/session/model/sessionVerification.js';
 import { taskMutationJournal } from './todoMutationJournal';
 import { createTodoMutationRepository } from './todoMutationRepository';
 import { TodoMutationEngine } from './todoMutationEngine';
 
 export const TODOS_STORAGE_KEY = 'todos';
 export const LEGACY_DESKTOP_TODOS_STORAGE_KEY = 'desktop_tasks';
+export const CONFIRMED_TODOS_STORAGE_KEY = 'confirmed_todos_v1';
 
 const readStorageList = (key) => {
   try {
@@ -38,14 +40,24 @@ const mergeById = (...lists) => {
 };
 
 const readLocalTodos = (userId, normalizeTodo) => {
-  if (userId) return [];
-  const scopedTodos = readStorageList(getUserScopedStorageKey(TODOS_STORAGE_KEY, userId)).map(normalizeTodo);
+  const scopedTodos = readStorageList(getUserScopedStorageKey(
+    userId ? CONFIRMED_TODOS_STORAGE_KEY : TODOS_STORAGE_KEY,
+    userId,
+  )).map(normalizeTodo);
+  if (userId) return scopedTodos;
   const legacyTodos = readStorageList(LEGACY_DESKTOP_TODOS_STORAGE_KEY).map(normalizeTodo);
   return mergeById(scopedTodos, legacyTodos);
 };
 
 const emitTaskSyncError = (error, details = {}) => {
   console.error('Task synchronization failed:', error);
+  if (
+    error?.status === 401
+    || error?.status === 403
+    || error?.name === 'TypeError'
+  ) {
+    notifySessionVerificationRequired(error);
+  }
   if (typeof window !== 'undefined' && typeof CustomEvent !== 'undefined') {
     window.dispatchEvent(new CustomEvent('intoday:task-sync-error', {
       detail: {
@@ -57,7 +69,7 @@ const emitTaskSyncError = (error, details = {}) => {
   }
 };
 
-export const useSyncedTodos = ({ userId, normalizeTodo }) => {
+export const useSyncedTodos = ({ userId, normalizeTodo, readOnly = false }) => {
   const [todoState, setTodoState] = useState(() => ({
     userId,
     todos: readLocalTodos(userId, normalizeTodo),
@@ -112,13 +124,18 @@ export const useSyncedTodos = ({ userId, normalizeTodo }) => {
       normalizeTodo,
       repository: createTodoMutationRepository({ normalizeTodo }),
       journal: taskMutationJournal,
-      onChange: (nextTodos, nextConflicts) => {
+      onChange: (nextTodos, nextConflicts, confirmedTodos) => {
         if (!cancelled && engineRef.current === engine) {
           updateTodos(nextTodos, userId);
           updateConflicts(nextConflicts, userId);
+          writeStorageList(
+            getUserScopedStorageKey(CONFIRMED_TODOS_STORAGE_KEY, userId),
+            confirmedTodos,
+          );
         }
       },
       onError: emitTaskSyncError,
+      isOnline: () => !readOnly && globalThis.navigator?.onLine !== false,
     });
     engineRef.current = engine;
 
@@ -141,9 +158,13 @@ export const useSyncedTodos = ({ userId, normalizeTodo }) => {
       engine.dispose();
       if (engineRef.current === engine) engineRef.current = null;
     };
-  }, [normalizeTodo, updateConflicts, updateTodos, userId]);
+  }, [normalizeTodo, readOnly, updateConflicts, updateTodos, userId]);
 
   const setTodos = useCallback((valueOrUpdater) => {
+    if (readOnly) {
+      emitTaskSyncError(new Error('Task changes are unavailable while session data is unverified.'));
+      return;
+    }
     if (userId) {
       const engine = engineRef.current;
       if (!engine || engine.userId !== userId || !supabase) {
@@ -165,9 +186,12 @@ export const useSyncedTodos = ({ userId, normalizeTodo }) => {
       return;
     }
     updateTodos(nextTodos.map(normalizeTodo), userId);
-  }, [normalizeTodo, updateTodos, userId]);
+  }, [normalizeTodo, readOnly, updateTodos, userId]);
 
   const commitTodos = useCallback((valueOrUpdater) => {
+    if (readOnly) {
+      return Promise.reject(new Error('Task changes are unavailable while session data is unverified.'));
+    }
     if (userId) {
       const engine = engineRef.current;
       if (!engine || engine.userId !== userId || !supabase) {
@@ -191,15 +215,23 @@ export const useSyncedTodos = ({ userId, normalizeTodo }) => {
     }
     updateTodos(nextTodos, userId);
     return Promise.resolve(nextTodos);
-  }, [normalizeTodo, updateTodos, userId]);
+  }, [normalizeTodo, readOnly, updateTodos, userId]);
 
   const resolveConflict = useCallback((todoId, choice, newTodoId, workspaceId) => {
+    if (readOnly) {
+      return Promise.reject(new Error('Task conflict resolution is unavailable while session data is unverified.'));
+    }
     const engine = engineRef.current;
     if (!engine || engine.userId !== userId) {
       return Promise.reject(new Error('Task sync is not ready to resolve conflicts.'));
     }
     return engine.resolveConflict(todoId, choice, newTodoId, workspaceId);
-  }, [userId]);
+  }, [readOnly, userId]);
+
+  const refresh = useCallback(async () => {
+    if (readOnly) return;
+    await engineRef.current?.refresh();
+  }, [readOnly]);
 
   useEffect(() => {
     if (userId) return;
@@ -209,5 +241,5 @@ export const useSyncedTodos = ({ userId, normalizeTodo }) => {
     );
   }, [normalizeTodo, todos, userId]);
 
-  return [todos, setTodos, commitTodos, { conflicts, resolveConflict }];
+  return [todos, setTodos, commitTodos, { conflicts, refresh, resolveConflict }];
 };

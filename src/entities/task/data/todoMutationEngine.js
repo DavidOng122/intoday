@@ -89,6 +89,13 @@ export class TodoMutationEngine {
     return todos;
   }
 
+  getConfirmedTodos() {
+    return [...this.entries.values()].flatMap((entry) => {
+      const todo = entry.confirmed;
+      return entry.serverPresent && todo ? [todo] : [];
+    });
+  }
+
   getConflicts() {
     return [...this.entries.values()]
       .filter((entry) => entry.blocked)
@@ -105,7 +112,7 @@ export class TodoMutationEngine {
 
   publish() {
     if (this.disposed) return;
-    this.onChange?.(this.getTodos(), this.getConflicts());
+    this.onChange?.(this.getTodos(), this.getConflicts(), this.getConfirmedTodos());
   }
 
   async hydrate() {
@@ -133,6 +140,7 @@ export class TodoMutationEngine {
         entry.confirmed = deleted ? null : this.normalizeTodo(todo);
         entry.revision = revision;
         entry.tombstoneIntent = deleted;
+        entry.serverPresent = !deleted;
       }
     });
     const activeIds = cloudRecords
@@ -188,6 +196,7 @@ export class TodoMutationEngine {
       pending: [],
       blocked: null,
       tombstoneIntent: false,
+      serverPresent: false,
     };
   }
 
@@ -414,6 +423,7 @@ export class TodoMutationEngine {
     }
     entry.confirmed = result.is_deleted ? null : this.normalizeTodo(result.todo);
     entry.revision = result.revision;
+    entry.serverPresent = !result.is_deleted;
     if (mutation.kind === 'delete') {
       entry.tombstoneIntent = true;
       this.order = this.order.filter((id) => id !== mutation.todoId);
@@ -482,6 +492,7 @@ export class TodoMutationEngine {
       entry.revision = currentRevision;
       entry.blocked = null;
       entry.tombstoneIntent = !currentTodo;
+      entry.serverPresent = Boolean(currentTodo);
       this.stateVersion += 1;
       if (currentTodo && !this.order.includes(entry.todoId)) this.order.push(entry.todoId);
       if (!currentTodo) this.order = this.order.filter((id) => id !== entry.todoId);
@@ -548,6 +559,7 @@ export class TodoMutationEngine {
       entry.confirmed = null;
       entry.revision = null;
       entry.tombstoneIntent = true;
+      entry.serverPresent = false;
       this.order = this.order.filter((id) => id !== entry.todoId);
       const newEntry = this.getOrCreateEntry(targetTodoId);
       newEntry.pending.push(mutation);
@@ -556,6 +568,7 @@ export class TodoMutationEngine {
       entry.confirmed = currentTodo;
       entry.revision = currentRevision;
       entry.tombstoneIntent = choice === 'delete';
+      entry.serverPresent = Boolean(currentTodo);
       entry.pending.push(mutation);
       if (choice === 'delete') this.order = this.order.filter((id) => id !== entry.todoId);
     }
@@ -647,6 +660,9 @@ export class TodoMutationEngine {
       return;
     }
     const activeIds = [];
+    this.entries.forEach((entry) => {
+      entry.serverPresent = false;
+    });
     cloudRecords.forEach(({ todo, revision, deleted }) => {
       const todoId = taskIdOf(todo);
       let entry = this.entries.get(todoId);
@@ -654,6 +670,7 @@ export class TodoMutationEngine {
         entry = this.createEntry(todoId);
         this.entries.set(todoId, entry);
       }
+      entry.serverPresent = !deleted;
       if (entry.pending.length || this.pumping.has(todoId)) return;
       entry.confirmed = deleted ? null : this.normalizeTodo(todo);
       entry.revision = revision;

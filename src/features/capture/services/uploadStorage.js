@@ -13,14 +13,21 @@ const createObjectId = () => (
   || `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
 );
 
-export const createUploadedFilePath = (userId, fileName) => {
+export const createUploadedFilePath = (userId, todoId, fileName) => {
   if (!userId) throw new Error('A signed-in user is required to upload files.');
-  return `${userId}/${createObjectId()}-${safeFileName(fileName)}`;
+  const taskId = Number(todoId);
+  if (!Number.isSafeInteger(taskId) || taskId <= 0) {
+    throw new Error('A valid Task ID is required to upload files.');
+  }
+  return `${userId}/${taskId}/${createObjectId()}-${safeFileName(fileName)}`;
 };
 
-export const uploadFileToStorage = async ({ file, userId }) => {
+export const uploadFileToStorage = async ({ file, userId, storagePath }) => {
   if (!supabase) throw new Error('Supabase is not configured.');
-  const storagePath = createUploadedFilePath(userId, file?.name);
+  if (!userId) throw new Error('A signed-in user is required to upload files.');
+  if (!storagePath || !storagePath.startsWith(`${userId}/`)) {
+    throw new Error('A user-owned, Task-registered Storage path is required.');
+  }
   const { error } = await supabase.storage
     .from(UPLOADS_BUCKET)
     .upload(storagePath, file, {

@@ -103,13 +103,14 @@ export const loadImageElement = (src) => new Promise((resolve, reject) => {
 
 export const createUploadAttachmentId = () => `${Date.now()}-${Math.round(Math.random() * 100000)}`;
 
-export const createUploadedFileStorageKey = (fileName = 'file') => {
+export const createUploadedFileStorageKey = (fileName = 'file', userId = null) => {
   const normalizedName = String(fileName || 'file')
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '')
     || 'file';
-  return `upload:${Date.now()}:${Math.random().toString(36).slice(2, 10)}:${normalizedName}`;
+  const owner = userId ? encodeURIComponent(userId) : 'guest';
+  return `upload:${owner}:${Date.now()}:${Math.random().toString(36).slice(2, 10)}:${normalizedName}`;
 };
 
 export const serializeDroppedImageFile = async (file) => {

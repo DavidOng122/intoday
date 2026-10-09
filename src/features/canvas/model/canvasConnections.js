@@ -3,6 +3,13 @@ export const CONNECTION_SIDE_VALUES = new Set(['left', 'right']);
 
 const normalizeId = (value) => (typeof value === 'string' ? value.trim() : String(value || '').trim());
 const normalizeSide = (value, fallback) => (CONNECTION_SIDE_VALUES.has(value) ? value : fallback);
+const createOperationId = () => (
+  globalThis.crypto?.randomUUID?.()
+  || 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (character) => {
+    const random = Math.floor(Math.random() * 16);
+    return (character === 'x' ? random : (random & 0x3) | 0x8).toString(16);
+  })
+);
 const toIsoTimestamp = (value = Date.now()) => {
   const date = value instanceof Date ? value : new Date(value);
   return Number.isNaN(date.getTime()) ? new Date().toISOString() : date.toISOString();
@@ -46,12 +53,14 @@ export const normalizeDesktopConnection = (value, fallbackWorkspaceId = null) =>
     : null;
   if (!workspaceId || !endpoints || !id) return null;
   const createdAt = toIsoTimestamp(value.createdAt);
+  const revision = Number(value.revision);
   return {
     id,
     workspaceId,
     ...endpoints,
     createdAt,
     updatedAt: toIsoTimestamp(value.updatedAt || createdAt),
+    revision: Number.isSafeInteger(revision) && revision >= 0 ? revision : 0,
   };
 };
 
@@ -148,16 +157,37 @@ export const applyConnectionOperations = (connections, operations, workspaceId) 
   return [...byId.values()];
 };
 
-export const createConnectionOperationsForReplacement = (previous, next, workspaceId) => {
+export const createConnectionOperationsForReplacement = (
+  previous,
+  next,
+  workspaceId,
+  tombstoneRevisions = new Map(),
+) => {
   const previousById = new Map(getWorkspaceConnections(previous, workspaceId).map((connection) => [connection.id, connection]));
   const nextById = new Map(getWorkspaceConnections(next, workspaceId).map((connection) => [connection.id, connection]));
   const operations = [];
   previousById.forEach((connection, id) => {
-    if (!nextById.has(id)) operations.push({ type: 'delete', workspaceId, connectionId: id });
+    if (!nextById.has(id)) {
+      operations.push({
+        type: 'delete',
+        operationId: createOperationId(),
+        workspaceId,
+        connectionId: id,
+        expectedRevision: connection.revision ?? 0,
+      });
+    }
   });
   nextById.forEach((connection, id) => {
     if (previousById.get(id)?.updatedAt !== connection.updatedAt) {
-      operations.push({ type: 'upsert', workspaceId, connection });
+      operations.push({
+        type: 'upsert',
+        operationId: createOperationId(),
+        workspaceId,
+        expectedRevision: previousById.get(id)?.revision
+          ?? tombstoneRevisions.get(id)
+          ?? null,
+        connection,
+      });
     }
   });
   return operations;

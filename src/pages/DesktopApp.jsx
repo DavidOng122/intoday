@@ -28,7 +28,6 @@ import { useTextTaskDetail, useTextTaskPersistence } from '../features/task-deta
 import { useDesktopWorkspaces, useWorkspaceControl } from '../features/workspace';
 import {
   cleanupDesktopGroupMetadata,
-  createUpdatedTimestamp,
   usePackActions,
 } from '../features/pack';
 import { getLogicalToday } from '../lib/dateHelpers';
@@ -76,7 +75,7 @@ const GlobalStyles = () => {
   return null;
 };
 
-function App({ session }) {
+function App({ session, readOnly = false }) {
   const {
     handleSignOut,
     language,
@@ -99,7 +98,7 @@ function App({ session }) {
     selectWorkspace,
     setActiveWorkspace,
     workspaces,
-  } = useDesktopWorkspaces({ userId: currentUser?.id || null });
+  } = useDesktopWorkspaces({ userId: currentUser?.id || null, readOnly });
   const {
     workspaceMenuOpen,
     isWorkspaceNameEditing,
@@ -128,6 +127,7 @@ function App({ session }) {
   const [tasks, setTasks, commitTodos, taskSync] = useSyncedTodos({
     userId: currentUser?.id || null,
     normalizeTodo: normalizeTask,
+    readOnly,
   });
   const { activeTextTask, closeTextTask, openTextTask } = useTextTaskDetail({ tasks });
   // The feature flag stays off until the Inbox UI is ready. Once enabled, the
@@ -253,27 +253,21 @@ function App({ session }) {
     setIsInboxDragActive(false);
     openInbox();
   }, [openInbox]);
-  const confirmWorkspaceDeletion = useCallback(() => {
+  const confirmWorkspaceDeletion = useCallback(async () => {
     if (!pendingWorkspaceDeletion || workspaces.length <= 1) {
       setPendingWorkspaceDeletion(null);
       return;
     }
-    const deletedAt = createUpdatedTimestamp();
-    setTasks((currentTasks) => currentTasks.map((task) => (
-      taskBelongsToWorkspace(task, pendingWorkspaceDeletion.id)
-        ? normalizeTask({
-          ...task,
-          desktopWorkspaceDeletedAt: deletedAt,
-          desktopWorkspaceDeletedName: pendingWorkspaceDeletion.name,
-          updatedAt: deletedAt,
-        })
-        : task
-    )));
-    deleteWorkspace(pendingWorkspaceDeletion.id);
-    setActiveGroupView(null);
-    setPendingWorkspaceDeletion(null);
-    showStatus('Workspace deleted.');
-  }, [deleteWorkspace, pendingWorkspaceDeletion, setActiveGroupView, setPendingWorkspaceDeletion, setTasks, showStatus, workspaces]);
+    try {
+      await deleteWorkspace(pendingWorkspaceDeletion.id);
+      await taskSync.refresh();
+      setActiveGroupView(null);
+      setPendingWorkspaceDeletion(null);
+      showStatus('Workspace deleted.');
+    } catch (error) {
+      showStatus(error?.message || 'Unable to delete Workspace.');
+    }
+  }, [deleteWorkspace, pendingWorkspaceDeletion, setActiveGroupView, showStatus, taskSync, workspaces]);
   const canvasFileDragDepthRef = useRef(0);
   const {
     viewportContainerRef,
@@ -294,7 +288,7 @@ function App({ session }) {
   useEffect(() => {
     tasksRef.current = currentWorkspaceTasks;
   }, [currentWorkspaceTasks]);
-  useUploadedFileLifecycle({ tasks });
+  useUploadedFileLifecycle({ tasks, userId: currentUser?.id || null });
   useEffect(() => {
     const existingIds = new Set(currentWorkspaceTasks.map((task) => task.id));
     handleSelectionChange((current) => {
@@ -383,6 +377,7 @@ function App({ session }) {
   } = useDesktopConnections({
     entries: canvasEntries,
     onStatus: showStatus,
+    readOnly,
     tasks,
     userId: currentUser?.id || null,
     workspaceId: activeWorkspaceId,
@@ -404,11 +399,13 @@ function App({ session }) {
     clampCanvasPosition,
     inboxEnabled: true,
     isCanvasFileDragActive,
+    readOnly,
     selectedDateKey,
     selectedDateRef,
     setFullscreenImage,
     setIsCanvasFileDragActive,
     setTasks,
+    commitTodos,
     setToastMessage,
     userId: currentUser?.id || null,
   });
@@ -534,6 +531,11 @@ function App({ session }) {
           }}
         >
       <div className="desktop-app" style={{ width: '100%', height: '100%', overflow: 'hidden', background: 'var(--desktop-root-bg)', color: 'var(--desktop-root-text)', fontFamily: 'Inter, sans-serif', display: 'flex', flexDirection: 'column' }}>
+        {readOnly && (
+          <div role="status" style={{ padding: '6px 12px', background: '#fff7ed', color: '#9a3412', textAlign: 'center', fontSize: 12 }}>
+            Offline or unable to verify your session. Data is read-only until your account is revalidated.
+          </div>
+        )}
         <DesktopHeader
           activeWorkspace={activeWorkspace}
           activeWorkspaceId={activeWorkspaceId}

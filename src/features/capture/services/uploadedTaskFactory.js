@@ -4,10 +4,11 @@ import { CARD_TYPES } from '../../../entities/task/model/taskCardPresentation';
 import { createUpdatedTimestamp } from '../../pack/model/packMetadata';
 import { UPLOADED_FILE_SOURCE_LABEL } from '../config/uploadConstants';
 import { createUploadedFileStorageKey, getSupportedUploadKind, getUploadedFileTitle } from './uploadUtils';
+import { createUploadedFilePath } from './uploadStorage';
 
 // This is deliberately UI-free. Every upload entry point must create the same
 // local blob record and task payload before a hook decides where it appears.
-export const createUploadedTasks = async (files, { workspaceId, dateString, note = '' }) => {
+export const createUploadedTasks = async (files, { workspaceId, dateString, note = '', userId = null }) => {
   const operationUpdatedAt = createUpdatedTimestamp();
   const noteText = String(note || '').trim();
 
@@ -26,7 +27,11 @@ export const createUploadedTasks = async (files, { workspaceId, dateString, note
       size: Number.isFinite(file.size) ? file.size : 0,
       createdAt: operationUpdatedAt,
     };
-    const storageKey = createUploadedFileStorageKey(attachment.originalFileName);
+    const taskId = Date.now() + index + Math.floor(Math.random() * 1000);
+    const storageKey = createUploadedFileStorageKey(attachment.originalFileName, userId);
+    const storagePath = userId
+      ? createUploadedFilePath(userId, taskId, attachment.originalFileName)
+      : null;
     // IndexedDB is an offline fallback, never the source of truth. Its quota
     // must not prevent a cloud upload from being queued.
     try {
@@ -47,7 +52,7 @@ export const createUploadedTasks = async (files, { workspaceId, dateString, note
     }
 
     return normalizeTask({
-      id: Date.now() + index + Math.floor(Math.random() * 1000),
+      id: taskId,
       text: noteText || attachment.title,
       title: noteText || attachment.title,
       completed: false,
@@ -71,8 +76,8 @@ export const createUploadedTasks = async (files, { workspaceId, dateString, note
       // They make a selected photo appear immediately while its binary upload
       // happens in the background.
       localPreviewUrl: isImageAttachment ? URL.createObjectURL(attachment.file) : null,
-      uploadState: 'uploading',
-      uploadedFileStoragePath: null,
+      uploadState: userId ? 'uploading' : null,
+      uploadedFileStoragePath: storagePath,
       redirectUrl: null,
       photoUrl: null,
       photoTitle: isImageAttachment ? attachment.title : null,
