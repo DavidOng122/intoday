@@ -37,7 +37,6 @@ export const fromWorkspaceRow = (row) => ({
   name: row?.name || 'Untitled',
   createdAt: row?.created_at,
   updatedAt: row?.updated_at,
-  deletedAt: row?.is_deleted ? (row.updated_at || row.created_at) : null,
 });
 
 export const toCloudWorkspaceRow = (userId, workspace) => ({
@@ -60,23 +59,6 @@ export const loadCloudWorkspaces = async (userId) => {
 
   if (error) throw error;
   return (data || []).map(fromWorkspaceRow).filter((workspace) => workspace?.id);
-};
-
-export const loadDeletedCloudWorkspaces = async (userId) => {
-  if (!userId || !supabase) return [];
-  const { data, error } = await supabase
-    .from(WORKSPACES_TABLE)
-    .select('workspace_id, name, is_deleted, created_at, updated_at')
-    .eq('user_id', userId)
-    .eq('is_deleted', true)
-    .order('updated_at', { ascending: false });
-
-  if (error) throw error;
-  return (data || []).map((row) => ({
-    id: row.workspace_id,
-    name: row.name || 'Untitled',
-    deletedAt: row.updated_at || row.created_at,
-  }));
 };
 
 export const createCloudWorkspace = async (userId, workspace) => {
@@ -106,18 +88,6 @@ export const deleteCloudWorkspace = async (userId, workspaceId) => {
   const { error } = await supabase
     .from(WORKSPACES_TABLE)
     .update({ is_deleted: true, updated_at: new Date().toISOString() })
-    .eq('user_id', userId)
-    .eq('workspace_id', workspaceId);
-
-  if (error) throw error;
-  return workspaceId;
-};
-
-export const restoreCloudWorkspace = async (userId, workspaceId) => {
-  if (!userId || !supabase || !workspaceId) return null;
-  const { error } = await supabase
-    .from(WORKSPACES_TABLE)
-    .update({ is_deleted: false, updated_at: new Date().toISOString() })
     .eq('user_id', userId)
     .eq('workspace_id', workspaceId);
 

@@ -96,8 +96,6 @@ function App({ session }) {
     addWorkspace,
     canAddWorkspace,
     deleteWorkspace,
-    deletedWorkspaces,
-    restoreWorkspace,
     selectWorkspace,
     setActiveWorkspace,
     workspaces,
@@ -255,25 +253,8 @@ function App({ session }) {
     deleteWorkspace(pendingWorkspaceDeletion.id);
     setActiveGroupView(null);
     setPendingWorkspaceDeletion(null);
-    showStatus('Workspace deleted. Restore it later from Settings.');
+    showStatus('Workspace deleted.');
   }, [deleteWorkspace, pendingWorkspaceDeletion, setActiveGroupView, setPendingWorkspaceDeletion, setTasks, showStatus, workspaces]);
-  const handleRestoreWorkspace = useCallback((workspaceId) => {
-    const restoredWorkspace = restoreWorkspace(workspaceId);
-    if (!restoredWorkspace) return false;
-    const restoredAt = createUpdatedTimestamp();
-    setTasks((currentTasks) => currentTasks.map((task) => (
-      task.desktopWorkspaceId === workspaceId && task.desktopWorkspaceDeletedAt
-        ? normalizeTask({
-          ...task,
-          desktopWorkspaceDeletedAt: null,
-          desktopWorkspaceDeletedName: null,
-          updatedAt: restoredAt,
-        })
-        : task
-    )));
-    showStatus(`${restoredWorkspace.name} restored.`);
-    return true;
-  }, [restoreWorkspace, setTasks, showStatus]);
   const canvasFileDragDepthRef = useRef(0);
   const {
     viewportContainerRef,
@@ -604,9 +585,7 @@ function App({ session }) {
           PackFullViewComponent={LazyPackFullView}
           activeGroupView={activeGroupView}
           activeTextTask={activeTextTask}
-          canRestoreWorkspace={canAddWorkspace}
           currentUser={currentUser}
-          deletedWorkspaces={deletedWorkspaces}
           fullscreenImage={fullscreenImage}
           historyOpen={historyOpen}
           inboxAnchorRef={inboxTriggerRef}
@@ -637,7 +616,6 @@ function App({ session }) {
           onInboxTaskPointerMove={handleTaskPointerMove}
           onInboxTaskPointerUp={handleTaskPointerUp}
           onMoveInboxItemToPack={handleMoveInboxItemToPack}
-          onRestoreWorkspace={handleRestoreWorkspace}
           onSaveTextTask={handleSaveTextTask}
           onSearchPackClick={handleHistoryPackOpen}
           onSearchPackItemClick={handleHistoryPackItemOpen}

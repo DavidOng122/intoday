@@ -13,9 +13,7 @@ function DesktopModalLayer({
   PackFullViewComponent,
   activeGroupView,
   activeTextTask,
-  canRestoreWorkspace,
   currentUser,
-  deletedWorkspaces,
   fullscreenImage,
   historyOpen,
   inboxAnchorRef,
@@ -46,7 +44,6 @@ function DesktopModalLayer({
   onInboxTaskPointerMove,
   onInboxTaskPointerUp,
   onMoveInboxItemToPack,
-  onRestoreWorkspace,
   onSaveTextTask,
   onSearchPackClick,
   onSearchPackItemClick,
@@ -76,9 +73,6 @@ function DesktopModalLayer({
             user: currentUser,
             language,
             setLanguage: onSetLanguage,
-            deletedWorkspaces,
-            canRestoreWorkspace,
-            onRestoreWorkspace,
             onSignOut,
           })}
         </React.Suspense>

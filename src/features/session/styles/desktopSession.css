@@ -1,14 +1,4 @@
-.desktop-profile-page {
-  position: fixed;
-  inset: 0;
-  z-index: 100;
-  background: var(--desktop-modal-backdrop);
-  backdrop-filter: blur(8px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 28px;
-  font-family: 'Manrope', 'Segoe UI', sans-serif;
+.desktop-app {
   --desktop-profile-surface: #fff;
   --desktop-profile-surface-strong: #fff;
   --desktop-profile-border: rgba(0, 0, 0, 0.1);
@@ -20,6 +10,19 @@
   --desktop-profile-chip-active-ink: #fffaf4;
   --desktop-profile-signout: #181511;
   --desktop-profile-signout-ink: #fffefb;
+}
+
+.desktop-profile-page {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: var(--desktop-modal-backdrop);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 28px;
+  font-family: 'Manrope', 'Segoe UI', sans-serif;
 }
 
 .desktop-profile-page::before {
@@ -238,62 +241,6 @@
 
 .desktop-profile-setting-panel {
   padding: 0 14px 14px;
-}
-
-.desktop-profile-restore-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.desktop-profile-restore-item {
-  min-height: 42px;
-  padding: 7px 8px 7px 12px;
-  border-radius: 12px;
-  background: var(--desktop-profile-chip);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.desktop-profile-restore-name {
-  min-width: 0;
-  overflow: hidden;
-  color: var(--desktop-profile-ink);
-  font-family: "DM Serif Display", serif;
-  font-size: 0.84rem;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.desktop-profile-restore-button {
-  min-height: 28px;
-  padding: 0 11px;
-  border: 0;
-  border-radius: 999px;
-  background: var(--desktop-profile-chip-active);
-  color: var(--desktop-profile-chip-active-ink);
-  font-size: 0.7rem;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.desktop-profile-restore-button:disabled {
-  opacity: 0.36;
-  cursor: not-allowed;
-}
-
-.desktop-profile-restore-empty,
-.desktop-profile-restore-limit {
-  padding: 9px 3px 2px;
-  color: var(--desktop-profile-muted);
-  font-size: 0.72rem;
-  line-height: 1.4;
-}
-
-.desktop-profile-restore-limit {
-  color: #b45309;
 }
 
 .desktop-profile-choice-grid {
