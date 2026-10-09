@@ -125,7 +125,7 @@ function App({ session }) {
   const [activeGroupView, setActiveGroupView] = useState(null);
   const [pendingCanvasDeletion, setPendingCanvasDeletion] = useState(null);
   const [fullscreenImage, setFullscreenImage] = useState(null);
-  const [tasks, setTasks, commitTodos] = useSyncedTodos({
+  const [tasks, setTasks, commitTodos, taskSync] = useSyncedTodos({
     userId: currentUser?.id || null,
     normalizeTodo: normalizeTask,
   });
@@ -215,6 +215,25 @@ function App({ session }) {
       setToastMessage((current) => (current === message ? null : current));
     }, 2200);
   }, [setToastMessage]);
+  const handleResolveTaskConflict = useCallback(async (taskId, choice, newTaskId, workspaceId) => {
+    try {
+      if (choice === 'save_as_new' && !workspaces.some((workspace) => workspace.id === workspaceId)) {
+        throw new Error('Choose an active Workspace before saving this Task as new.');
+      }
+      await taskSync.resolveConflict(taskId, choice, newTaskId, workspaceId);
+      showStatus('Task sync conflict resolved.');
+    } catch (error) {
+      showStatus(error?.message || 'Unable to resolve Task sync conflict.');
+      throw error;
+    }
+  }, [showStatus, taskSync, workspaces]);
+  useEffect(() => {
+    const handleTaskSyncError = (event) => {
+      showStatus(event.detail?.message || 'Task synchronization failed.');
+    };
+    window.addEventListener('intoday:task-sync-error', handleTaskSyncError);
+    return () => window.removeEventListener('intoday:task-sync-error', handleTaskSyncError);
+  }, [showStatus]);
   const {
     commitInboxPlacement,
     handleMoveInboxItemToPack,
@@ -580,6 +599,7 @@ function App({ session }) {
         />
 
         <DesktopModalLayer
+          activeWorkspaceId={activeWorkspaceId}
           ProfilePageComponent={LazyDesktopProfilePage}
           SearchModalComponent={LazyDesktopSearchModal}
           PackFullViewComponent={LazyPackFullView}
@@ -616,6 +636,7 @@ function App({ session }) {
           onInboxTaskPointerMove={handleTaskPointerMove}
           onInboxTaskPointerUp={handleTaskPointerUp}
           onMoveInboxItemToPack={handleMoveInboxItemToPack}
+          onResolveTaskConflict={handleResolveTaskConflict}
           onSaveTextTask={handleSaveTextTask}
           onSearchPackClick={handleHistoryPackOpen}
           onSearchPackItemClick={handleHistoryPackItemOpen}
@@ -633,7 +654,9 @@ function App({ session }) {
           profileOpen={profileOpen}
           searchTasks={currentWorkspaceTasks}
           t={t}
+          taskSyncConflicts={taskSync.conflicts}
           toastMessage={toastMessage}
+          workspaces={workspaces}
         />
       </div>
       </div>

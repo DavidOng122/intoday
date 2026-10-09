@@ -2,6 +2,7 @@ import React from 'react';
 import { X } from 'lucide-react';
 import * as Dialog from '@radix-ui/react-dialog';
 import { getDesktopPortalContainer } from '../../shared/ui/desktopPortal';
+import TaskSyncConflictDialog from '../../entities/task/components/TaskSyncConflictDialog';
 import { InboxPanel } from '../../features/inbox';
 import { PackPrompt } from '../../features/pack';
 import { TextTaskDetailModal } from '../../features/task-detail';
@@ -12,6 +13,7 @@ function DesktopModalLayer({
   SearchModalComponent,
   PackFullViewComponent,
   activeGroupView,
+  activeWorkspaceId,
   activeTextTask,
   currentUser,
   fullscreenImage,
@@ -44,6 +46,7 @@ function DesktopModalLayer({
   onInboxTaskPointerMove,
   onInboxTaskPointerUp,
   onMoveInboxItemToPack,
+  onResolveTaskConflict,
   onSaveTextTask,
   onSearchPackClick,
   onSearchPackItemClick,
@@ -61,7 +64,9 @@ function DesktopModalLayer({
   profileOpen,
   searchTasks,
   t,
+  taskSyncConflicts,
   toastMessage,
+  workspaces,
 }) {
   return (
     <>
@@ -155,6 +160,15 @@ function DesktopModalLayer({
         confirmLabel={t.delete}
         onCancel={onCancelCanvasDeletion}
         onConfirm={onConfirmCanvasDeletion}
+      />
+      <TaskSyncConflictDialog
+        key={taskSyncConflicts?.[0]
+          ? `${taskSyncConflicts[0].todoId}:${taskSyncConflicts[0].currentRevision}:${taskSyncConflicts[0].deleted}:${taskSyncConflicts[0].workspaceInvalid}`
+          : 'no-conflict'}
+        conflict={taskSyncConflicts?.[0] || null}
+        activeWorkspaceId={activeWorkspaceId}
+        onResolve={onResolveTaskConflict}
+        workspaces={workspaces}
       />
       {toastMessage && (
         <div style={{
