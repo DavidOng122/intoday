@@ -56,7 +56,8 @@ export const toCloudWorkspaceRow = (userId, workspace) => ({
 });
 
 export const loadCloudWorkspaces = async (userId) => {
-  if (!userId || !supabase) return [];
+  if (!userId) return [];
+  if (!supabase) throw new Error('Supabase is not configured; cloud Workspaces are unavailable.');
   const { data, error } = await supabase
     .from(WORKSPACES_TABLE)
     .select('workspace_id, name, is_deleted, created_at, updated_at')
@@ -69,7 +70,8 @@ export const loadCloudWorkspaces = async (userId) => {
 };
 
 export const createCloudWorkspace = async (userId, workspace) => {
-  if (!userId || !supabase || !workspace?.id) return null;
+  if (!userId || !workspace?.id) return null;
+  if (!supabase) throw new Error('Supabase is not configured; Workspace creation is unavailable.');
   const row = toCloudWorkspaceRow(userId, workspace);
   const { error } = await supabase
     .from(WORKSPACES_TABLE)
@@ -80,7 +82,8 @@ export const createCloudWorkspace = async (userId, workspace) => {
 };
 
 export const updateCloudWorkspace = async (userId, workspace) => {
-  if (!userId || !supabase || !workspace?.id) return null;
+  if (!userId || !workspace?.id) return null;
+  if (!supabase) throw new Error('Supabase is not configured; Workspace updates are unavailable.');
   const row = toCloudWorkspaceRow(userId, workspace);
   const { error } = await supabase
     .from(WORKSPACES_TABLE)

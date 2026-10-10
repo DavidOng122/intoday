@@ -82,14 +82,32 @@ export const createTodoMutationRepository = ({ client = supabase, normalizeTodo 
 
   async apply(mutation) {
     if (!client) throw new Error('Supabase is not configured.');
-    const { data, error } = await client.rpc('apply_todo_mutation', {
-      p_operation_id: mutation.operationId,
-      p_protocol_version: TODO_SYNC_PROTOCOL_VERSION,
-      p_operation: mutation.kind,
-      p_todo_id: mutation.todoId,
-      p_payload: mutation.payload ? toCloudPayload(mutation.payload) : null,
-      p_expected_revision: mutation.expectedRevision,
-    });
+    let data;
+    let error;
+    try {
+      ({ data, error } = await client.rpc('apply_todo_mutation', {
+        p_operation_id: mutation.operationId,
+        p_protocol_version: TODO_SYNC_PROTOCOL_VERSION,
+        p_operation: mutation.kind,
+        p_todo_id: mutation.todoId,
+        p_payload: mutation.payload ? toCloudPayload(mutation.payload) : null,
+        p_expected_revision: mutation.expectedRevision,
+      }));
+    } catch (rpcError) {
+      if (
+        rpcError?.code === '23503'
+        && rpcError?.constraint === 'todos_workspace_active_fkey'
+      ) {
+        return { status: 'workspace_invalid', todo_id: mutation.todoId };
+      }
+      throw rpcError;
+    }
+    if (
+      error?.code === '23503'
+      && error?.constraint === 'todos_workspace_active_fkey'
+    ) {
+      return { status: 'workspace_invalid', todo_id: mutation.todoId };
+    }
     if (error) throw error;
     return this.parseResult(data);
   },

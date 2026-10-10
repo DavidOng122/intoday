@@ -2,6 +2,10 @@ begin;
 
 select plan(19);
 
+update app_private.todo_sync_config
+   set legacy_writes_allowed = true
+ where singleton = true;
+
 insert into auth.users (
   id, aud, role, email, encrypted_password, email_confirmed_at,
   raw_app_meta_data, raw_user_meta_data, created_at, updated_at
@@ -38,11 +42,16 @@ values (
 )
 on conflict (id) do nothing;
 
+insert into public.workspaces (user_id, workspace_id, name, is_deleted)
+values
+  ('a1000000-0000-4000-8000-000000000001', 'legacy-default', 'Legacy default', false),
+  ('a1000000-0000-4000-8000-000000000002', 'legacy-default-other', 'Other default', false);
+
 insert into public.todos (user_id, todo_id, payload)
 values (
   'a1000000-0000-4000-8000-000000000002',
   910000020,
-  '{"text":"belongs to another account"}'::jsonb
+  '{"text":"belongs to another account","desktopWorkspaceId":"legacy-default-other"}'::jsonb
 )
 on conflict (user_id, todo_id) do nothing;
 
@@ -68,9 +77,13 @@ select is(
 );
 
 insert into public.todos (user_id, todo_id, payload)
-values ('a1000000-0000-4000-8000-000000000001', 910000010, '{"text":"legacy"}'::jsonb);
+values (
+  'a1000000-0000-4000-8000-000000000001',
+  910000010,
+  '{"text":"legacy","desktopWorkspaceId":"legacy-default"}'::jsonb
+);
 update public.todos
-   set payload = '{"text":"legacy update"}'::jsonb
+   set payload = '{"text":"legacy update","desktopWorkspaceId":"legacy-default"}'::jsonb
  where user_id = 'a1000000-0000-4000-8000-000000000001'
    and todo_id = 910000010;
 select is(
@@ -98,7 +111,7 @@ reset role;
 
 select is(
   pg_temp.todo_test_payload('a1000000-0000-4000-8000-000000000002', 910000020),
-  '{"text":"belongs to another account"}'::jsonb,
+  '{"text":"belongs to another account","desktopWorkspaceId":"legacy-default-other"}'::jsonb,
   'RLS prevents updating another account Task'
 );
 
@@ -113,7 +126,11 @@ select is(
 
 select throws_ok(
   $$insert into public.todos (user_id, todo_id, payload)
-    values ('a1000000-0000-4000-8000-000000000002', 910000021, '{"text":"cross-account"}'::jsonb)$$,
+    values (
+      'a1000000-0000-4000-8000-000000000002',
+      910000021,
+      '{"text":"cross-account","desktopWorkspaceId":"legacy-default-other"}'::jsonb
+    )$$,
   '42501',
   null,
   'RLS rejects inserting a Task for another account'
@@ -151,7 +168,7 @@ select is(
 select is(
   public.apply_todo_mutation(
     'a2000000-0000-4000-8000-000000000001', 1, 'create', 910000001,
-    '{"text":"created"}'::jsonb, null
+    '{"text":"created","desktopWorkspaceId":"active-workspace"}'::jsonb, null
   )->>'status',
   'applied',
   'Create registers a never-seen Task ID'
@@ -160,7 +177,7 @@ select is(
 select is(
   (public.apply_todo_mutation(
     'a2000000-0000-4000-8000-000000000001', 1, 'create', 910000001,
-    '{"text":"created"}'::jsonb, null
+    '{"text":"created","desktopWorkspaceId":"active-workspace"}'::jsonb, null
   )->>'revision')::integer,
   0,
   'Retrying the same operation ID returns its original revision'
@@ -169,7 +186,7 @@ select is(
 select is(
   public.apply_todo_mutation(
     'a2000000-0000-4000-8000-000000000002', 1, 'update', 910000001,
-    '{"text":"updated"}'::jsonb, 0
+    '{"text":"updated","desktopWorkspaceId":"active-workspace"}'::jsonb, 0
   )->>'status',
   'applied',
   'Update with the current revision succeeds'
@@ -178,7 +195,7 @@ select is(
 select is(
   public.apply_todo_mutation(
     'a2000000-0000-4000-8000-000000000003', 1, 'update', 910000001,
-    '{"text":"stale"}'::jsonb, 0
+    '{"text":"stale","desktopWorkspaceId":"active-workspace"}'::jsonb, 0
   )->>'status',
   'conflict',
   'Stale Update is rejected without replacing the current Task'
@@ -196,7 +213,7 @@ select is(
 select is(
   public.apply_todo_mutation(
     'a2000000-0000-4000-8000-000000000005', 1, 'update', 910000001,
-    '{"text":"resurrect"}'::jsonb, 2
+    '{"text":"resurrect","desktopWorkspaceId":"active-workspace"}'::jsonb, 2
   )->>'status',
   'deleted',
   'Update cannot revive a tombstoned Task'
@@ -205,7 +222,7 @@ select is(
 select is(
   public.apply_todo_mutation(
     'a2000000-0000-4000-8000-000000000006', 1, 'create', 910000001,
-    '{"text":"reuse"}'::jsonb, null
+    '{"text":"reuse","desktopWorkspaceId":"active-workspace"}'::jsonb, null
   )->>'status',
   'deleted',
   'Create cannot reuse a registered deleted Task ID'
@@ -237,7 +254,11 @@ select set_config('app.todo_mutation_rpc', 'enabled', true);
 
 select throws_ok(
   $$insert into public.todos (user_id, todo_id, payload)
-    values ('a1000000-0000-4000-8000-000000000001', 910000004, '{"text":"legacy"}'::jsonb)$$,
+    values (
+      'a1000000-0000-4000-8000-000000000001',
+      910000004,
+      '{"text":"legacy","desktopWorkspaceId":"active-workspace"}'::jsonb
+    )$$,
   '55000',
   null,
   'Legacy direct writes remain blocked even if a client spoofs the former RPC GUC'
@@ -246,7 +267,7 @@ select throws_ok(
 select is(
   public.apply_todo_mutation(
     'a2000000-0000-4000-8000-000000000009', 1, 'create', 910000005,
-    '{"text":"protocol"}'::jsonb, null
+    '{"text":"protocol","desktopWorkspaceId":"active-workspace"}'::jsonb, null
   )->>'status',
   'applied',
   'Protocol RPC remains usable while legacy direct writes are blocked'

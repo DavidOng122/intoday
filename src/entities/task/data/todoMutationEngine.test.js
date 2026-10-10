@@ -587,9 +587,11 @@ test('invalid Workspace drafts can only be retried in an explicitly selected Wor
     engine.mutate([{ id: 601, text: 'draft', desktopWorkspaceId: 'deleted-workspace' }]),
     /Workspace is no longer available/,
   );
+  assert.equal((await engine.journal.list('user-1')).length, 1);
   assert.equal(engine.getConflicts()[0].workspaceInvalid, true);
   await engine.resolveConflict(601, 'save_as_new', 602, 'active-workspace');
 
+  assert.equal((await engine.journal.list('user-1')).length, 0);
   assert.equal(repository.rows.get(602).todo.desktopWorkspaceId, 'active-workspace');
   assert.equal(engine.getTodos()[0].id, 602);
   engine.dispose();
