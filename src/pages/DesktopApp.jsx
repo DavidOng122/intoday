@@ -75,19 +75,17 @@ const GlobalStyles = () => {
   return null;
 };
 
-function App({ session, readOnly = false }) {
+function DesktopApp({ session, readOnly = false }) {
+  const currentUser = session?.user || null;
   const {
     handleSignOut,
     language,
-    loading,
     profileOpen,
     setLanguage,
     setProfileOpen,
     t,
-    user,
     userProfile,
-  } = useDesktopSession();
-  const currentUser = user || session?.user || null;
+  } = useDesktopSession({ user: currentUser });
   const selectedDate = getLogicalToday();
   const {
     activeWorkspace,
@@ -502,14 +500,6 @@ function App({ session, readOnly = false }) {
   };
 
 
-  if (loading) {
-    return (
-      <div style={{ width: '100vw', height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#ffffff' }}>
-        <div style={{ width: 42, height: 42, borderRadius: '50%', border: '4px solid #e8e0d6', borderTop: '4px solid #ED1F1F', animation: 'desktop-spin 1s linear infinite' }} />
-        <style>{`@keyframes desktop-spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}</style>
-      </div>
-    );
-  }
   if (!currentUser) return <DesktopLogin />;
   return (
     <>
@@ -667,4 +657,4 @@ function App({ session, readOnly = false }) {
   );
 }
 
-export default App;
+export default DesktopApp;

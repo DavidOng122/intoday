@@ -5,15 +5,12 @@ import { translations } from '../../../shared/i18n/translations';
 import { supabase } from '../../../supabase';
 import { getUserProfile } from '../../../userProfile';
 
-export const useDesktopSession = () => {
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
+export const useDesktopSession = ({ user }) => {
   const [profileOpen, setProfileOpenState] = useState(false);
   const [language, setLanguage] = useState(getInitialLanguage);
 
   const setProfileOpen = useCallback((value) => {
     const open = Boolean(value);
-    window.sessionStorage.setItem('shared_profile_open', String(open));
     setProfileOpenState(open);
   }, []);
 
@@ -29,10 +26,6 @@ export const useDesktopSession = () => {
   }, [setProfileOpen]);
 
   useEffect(() => {
-    window.sessionStorage.setItem('shared_profile_open', 'false');
-  }, []);
-
-  useEffect(() => {
     if (user?.id) {
       trackUserEvent(user.id, 'app_opened', { platform: 'desktop' });
     }
@@ -42,43 +35,13 @@ export const useDesktopSession = () => {
     window.localStorage.setItem(LANGUAGE_STORAGE_KEY, language);
   }, [language]);
 
-  useEffect(() => {
-    const timeoutId = window.setTimeout(() => setLoading(false), 5000);
-    if (!supabase) {
-      setLoading(false);
-      window.clearTimeout(timeoutId);
-      return undefined;
-    }
-
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null);
-      setLoading(false);
-      window.clearTimeout(timeoutId);
-    }).catch(() => {
-      setLoading(false);
-      window.clearTimeout(timeoutId);
-    });
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
-      setLoading(false);
-    });
-
-    return () => {
-      subscription.unsubscribe();
-      window.clearTimeout(timeoutId);
-    };
-  }, []);
-
   return {
     handleSignOut,
     language,
-    loading,
     profileOpen,
     setLanguage,
     setProfileOpen,
     t,
-    user,
     userProfile,
   };
 };
