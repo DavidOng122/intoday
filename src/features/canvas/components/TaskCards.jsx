@@ -145,7 +145,11 @@ const TaskCard = (props) => {
   const isPhotoCard = normalizeCardType(task?.cardType) === CARD_TYPES.PHOTO;
 
   return (
-      <div id={`desktop-task-wrapper-${task.id}`} className={`desktop-task-wrapper ${isDragging ? 'is-dragging' : ''} ${isSelected ? 'is-selected' : ''}`}
+    <div
+      id={`desktop-task-wrapper-${task.id}`}
+      className={`desktop-task-wrapper ${isDragging ? 'is-dragging' : ''} ${isSelected ? 'is-selected' : ''}`}
+    >
+      <button
         id={`desktop-task-card-${task.id}`}
         type="button"
         className={`desktop-task-card ${isDragging ? 'is-dragging' : ''}`}
