@@ -69,6 +69,10 @@ declare
   v_legacy_writes_allowed boolean;
   v_rpc_authorized boolean;
 begin
+  if tg_op = 'DELETE' and pg_trigger_depth() > 1 then
+    return old;
+  end if;
+
   select legacy_writes_allowed
     into v_legacy_writes_allowed
     from app_private.todo_sync_config

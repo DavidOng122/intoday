@@ -4,8 +4,6 @@ import TaskPhotoImage from '../../../shared/ui/TaskPhotoImage';
 import { hasTaskPhotoPreview } from '../../../shared/storage/taskPhotoPreview';
 
 import { getTaskCardPresentation, normalizeCardType, CARD_TYPES } from '../../../entities/task/model/taskCardPresentation';
-import { getLogicalToday } from '../../../lib/dateHelpers';
-import { dateKey } from '../../../lib/dateUtils';
 import { getPackMetadataTextFromItems } from '../../pack';
 import { getPackItemSourceMeta } from '../../pack';
 import {
@@ -144,12 +142,10 @@ const TaskCard = (props) => {
   } = props;
   const taskCardLabels = props?.labels;
 
-  const isPast = task.dateString < dateKey(getLogicalToday());
   const isPhotoCard = normalizeCardType(task?.cardType) === CARD_TYPES.PHOTO;
 
   return (
-      <div id={`desktop-task-wrapper-${task.id}`} className={`desktop-task-wrapper ${isDragging ? 'is-dragging' : ''} ${isSelected ? 'is-selected' : ''} ${isPast ? 'is-past' : ''}`}>
-      <button
+      <div id={`desktop-task-wrapper-${task.id}`} className={`desktop-task-wrapper ${isDragging ? 'is-dragging' : ''} ${isSelected ? 'is-selected' : ''}`}
         id={`desktop-task-card-${task.id}`}
         type="button"
         className={`desktop-task-card ${isDragging ? 'is-dragging' : ''}`}
@@ -210,10 +206,10 @@ const GroupedTaskCard = ({
   const groupChips = getDesktopGroupDisplayTags(tasks);
   const groupIcon = getDesktopGroupIcon(tasks);
   // A child being dragged out of a Pack is represented by the drag overlay.
-  // Hide only that child in the source Pack; keep the Pack itself visible as
-  // a legitimate possible drop target.
+  // Keep its row mounted so it retains pointer capture until the drag ends.
+  // Hide only that child; the Pack remains a legitimate possible drop target.
   const isDraggingGroup = isDragging && isGroupDragActive;
-  const filteredTasks = tasks.filter((task) => isDraggingGroup || task.id !== draggedTaskId);
+  const filteredTasks = tasks;
   const collapsedVisibleCount = getDesktopVisibleGroupTaskCount(filteredTasks, DESKTOP_GROUP_CARD_COLLAPSED_LIST_MAX_HEIGHT);
   const expandedVisibleCount = getDesktopVisibleGroupTaskCount(filteredTasks, DESKTOP_GROUP_CARD_EXPANDED_LIST_MAX_HEIGHT);
   const visibleItemCount = isExpanded ? expandedVisibleCount : collapsedVisibleCount;

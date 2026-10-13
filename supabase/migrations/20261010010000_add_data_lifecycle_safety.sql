@@ -234,6 +234,10 @@ declare
   v_legacy_writes_allowed boolean;
   v_rpc_authorized boolean;
 begin
+  if tg_op = 'DELETE' and pg_trigger_depth() > 1 then
+    return old;
+  end if;
+
   select legacy_writes_allowed into v_legacy_writes_allowed
     from app_private.todo_sync_config where singleton = true;
 
@@ -331,6 +335,10 @@ declare
   v_legacy_writes_allowed boolean;
   v_active_count bigint;
 begin
+  if tg_op = 'DELETE' and pg_trigger_depth() > 1 then
+    return old;
+  end if;
+
   if tg_op = 'UPDATE' and old.is_deleted and not new.is_deleted then
     raise exception 'Workspace restore is not supported; create a new Workspace instead'
       using errcode = '55000';

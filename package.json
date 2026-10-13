@@ -11,6 +11,7 @@
     "lint": "eslint .",
     "test": "npm run test:logic",
     "test:logic": "node --test src/lib/*.test.js src/features/*/tests/*.test.js src/entities/task/data/*.test.js",
+    "test:e2e": "playwright test",
     "preview": "npm run preview:web",
     "preview:web": "vite preview --host 127.0.0.1 --port 4173"
   },
@@ -33,6 +34,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",
+    "@playwright/test": "^1.64.0",
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^5.1.1",

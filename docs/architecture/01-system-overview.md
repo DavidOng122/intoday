@@ -36,7 +36,7 @@ IntoDay 是一个以 Desktop Workspace 为主界面的个人信息捕获与组�
 | 日期处理 | `date-fns` | 日期格式化与计算 |
 | Export | JSZip | Pack 内容导出 |
 | Icons / UI | Lucide React、项目内 SVG | UI 图标与品牌资源 |
-| Analytics | Vercel Analytics、PostHog、自定义 Supabase Event | 使用情况记录 |
+| Analytics | Vercel Analytics、PostHog | 使用情况记录 |
 | Tests | Node.js `node:test` | 当前主要覆盖纯 Domain Logic |
 
 依赖及脚本的权威来源是 `package.json`。Vite 的 React、PWA 和本地 Link Preview Middleware 配置位于 `vite.config.js`。
@@ -62,7 +62,7 @@ IntoDay 当前是一个浏览器端 Single Page Application：
 当前代码使用 Supabase 的范围包括：
 
 - **Auth**：Google OAuth、Email/Password、Session 查询、Auth State Subscription；
-- **PostgreSQL**：`todos`、`workspaces`、`canvas_connections` 和 `user_analytics`；
+- **PostgreSQL**：`todos`、`workspaces` 和 `canvas_connections`；
 - **Storage**：私有 `uploads` Bucket，Object Path 以用户 ID 开头；
 - **RLS**：仓库内 Migration 为 Todos、Workspaces、Canvas Connections 和 Upload Objects 配置了用户级访问策略。
 
@@ -97,7 +97,7 @@ IntoDay 当前是一个浏览器端 Single Page Application：
    - `React.StrictMode`
    - `ErrorBoundary`
    - `App`
-4. `src/App.jsx` 中的 `App()` 初始化 Analytics 和 Authentication State。
+4. `src/App.jsx` 中的 `App()` 初始化 PostHog 和 Authentication State。
 5. Authentication 尚未完成时渲染 `DesktopAuthLoading`。
 6. 没有 Session 时渲染 `DesktopLoginPage`；它重新导出 `DesktopLogin`。
 7. 有 Session 时渲染 `<DesktopApp key={session.user.id} session={session} />`。
@@ -358,14 +358,14 @@ intoday-main/
 
 - 配置常量；
 - 国际化文案；
-- Analytics；
+- PostHog；
 - User-scoped Storage；
 - 通用 UI、Icon 和 Portal；
 - IndexedDB 文件存储。
 
 #### `hooks/`
 
-根级 `hooks/` 当前只有 `useDesktopTaskActions.js`，承担跨 Task、Upload、Task Detail、Analytics 和 Canvas Selection 的应用级操作。它与 Feature Hook 的区别主要是跨 Feature，而不是技术形式不同。
+根级 `hooks/` 当前只有 `useDesktopTaskActions.js`，承担跨 Task、Upload、Task Detail 和 Canvas Selection 的应用级操作。它与 Feature Hook 的区别主要是跨 Feature，而不是技术形式不同。
 
 #### `lib/`
 
@@ -494,7 +494,7 @@ Supabase Client 从 `src/supabase.js` 导出。主要调用点为：
 - Workspace：`workspaceRepository.js`；
 - Connection：`connectionRepository.js`；
 - File：`uploadStorage.js`；
-- Analytics：`shared/lib/analytics.js`。
+- Analytics：Vercel Analytics 在 `App.jsx` 中挂载，PostHog 在 `shared/lib/posthogClient.js` 中管理。
 
 UI Component 通常不直接查询数据库；主要例外是 Login Component 直接调用 Auth，这是 Authentication UI 的当前实现方式。
 

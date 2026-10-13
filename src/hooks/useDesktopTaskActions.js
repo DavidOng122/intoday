@@ -1,5 +1,4 @@
 import { useCallback } from 'react';
-import { trackUserEvent } from '../shared/lib/analytics';
 import { createUpdatedTimestamp } from '../features/pack';
 import { normalizeTask } from '../lib/taskNormalize';
 import {
@@ -22,7 +21,6 @@ export const useDesktopTaskActions = ({
   suppressTaskClickRef,
   tasksRef,
   t,
-  user,
 }) => {
   const deleteTasksByIds = useCallback((taskIds) => {
     if (!Array.isArray(taskIds) || taskIds.length === 0) return;
@@ -79,10 +77,6 @@ export const useDesktopTaskActions = ({
 
       const { redirectUrl, isPlain } = getTaskCardPresentation(task, t);
 
-      if (user?.id) {
-        trackUserEvent(user.id, 'task_clicked', { action: 'card_click', platform: 'desktop', isPlain, hasRedirect: !!redirectUrl });
-      }
-
       if (task.uploadedFileStorageKey || task.uploadedFileStoragePath) {
         void openUploadedFileTask(task);
         return;
@@ -111,7 +105,7 @@ export const useDesktopTaskActions = ({
 
     if (event.metaKey || event.ctrlKey) return;
     openTaskFromCanvas();
-  }, [suppressAllTaskClicksUntilRef, suppressTaskClickRef, t, user, openUploadedFileTask, onOpenTextTask, setFullscreenImage]);
+  }, [suppressAllTaskClicksUntilRef, suppressTaskClickRef, t, openUploadedFileTask, onOpenTextTask, setFullscreenImage]);
 
   return {
     deleteTasksByIds,

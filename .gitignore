@@ -17,6 +17,8 @@ dist
 dist-ssr
 dev-dist
 *.local
+.playwright/
+test-results/
 
 # Editor & System Files
 .vscode/*

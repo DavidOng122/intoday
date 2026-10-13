@@ -438,7 +438,6 @@ function DesktopApp({ session, readOnly = false }) {
     suppressTaskClickRef,
     tasksRef,
     t,
-    user: currentUser,
   });
 
   const {

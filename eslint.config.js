@@ -5,7 +5,7 @@ import reactRefresh from 'eslint-plugin-react-refresh'
 
 export default [
   {
-    ignores: ['**/.venv/**', '**/.vercel/**', '**/node_modules/**', 'dist/**', 'dev-dist/**', 'scratch/**', 'scripts/**', '*.log', '*.txt'],
+    ignores: ['**/.venv/**', '**/.vercel/**', '**/node_modules/**', 'dist/**', 'dev-dist/**', 'test-results/**', 'scratch/**', 'scripts/**', '*.log', '*.txt'],
   },
   js.configs.recommended,
   {
@@ -27,6 +27,12 @@ export default [
       ...reactHooks.configs.recommended.rules,
       'react-refresh/only-export-components': ['warn', { allowConstantExport: true }],
       'no-unused-vars': ['error', { varsIgnorePattern: '^[A-Z_]', ignoreRestSiblings: true }],
+    },
+  },
+  {
+    files: ['e2e/**/*.js', 'playwright.config.js'],
+    languageOptions: {
+      globals: globals.node,
     },
   },
 ]

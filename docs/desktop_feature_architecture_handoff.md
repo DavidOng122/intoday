@@ -70,7 +70,7 @@ shared
 - `pages`：页面总装，只组合功能。
 - `features`：用户能够感知的业务能力，例如 Inbox、Pack、Capture、Canvas。
 - `entities`：跨 feature 使用的稳定业务实体，例如 Task、Pack 数据模型。
-- `shared`：无业务归属的 UI、基础工具、i18n、analytics、日期等。
+- `shared`：无业务归属的 UI、基础工具、i18n、日期等。
 
 禁止反向依赖：
 
@@ -239,7 +239,6 @@ src/
     │   ├── DeleteConfirmModal.jsx
     │   └── IntoDayLogo.jsx
     ├── lib/
-    │   ├── analytics.js
     │   ├── dateUtils.js
     │   ├── domUtils.js
     │   └── language.js
@@ -279,8 +278,6 @@ src/
 | `src/components/icons/DesktopIcons.jsx` | `shared/ui/icons/DesktopIcons.jsx` | 无业务状态，归 shared |
 | `src/components/desktop/DesktopDeleteConfirmModal.jsx` | `shared/ui/DeleteConfirmModal.jsx` | 若仅 Desktop 使用，也可暂留原位 |
 | `src/lib/translations.js` | `shared/i18n/translations.js` | 全局共享，不放 feature |
-| `src/lib/analytics.js` | `shared/lib/analytics.js` | 全局共享 |
-
 ### 不应直接搬运的文件
 
 `src/hooks/useDesktopTaskActions.js` 当前包含多个责任，不能整文件放进某一个 feature。应先拆成：

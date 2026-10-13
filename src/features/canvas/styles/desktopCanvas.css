@@ -24,11 +24,6 @@
   z-index: 18;
 }
 
-.desktop-task-wrapper.is-past {
-  filter: grayscale(100%);
-  opacity: 0.7;
-}
-
 .desktop-task-card {
   user-select: none !important;
   -webkit-user-select: none !important;

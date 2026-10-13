@@ -1,6 +1,6 @@
 begin;
 
-select plan(32);
+select plan(33);
 
 insert into auth.users (
   id, aud, role, email, encrypted_password, email_confirmed_at,
@@ -369,6 +369,43 @@ select is(
   (select count(*)::integer from public.claim_storage_cleanup_jobs(2)),
   0,
   'Acknowledged jobs cannot be claimed again'
+);
+
+reset role;
+insert into auth.users (
+  id, aud, role, email, encrypted_password, email_confirmed_at,
+  raw_app_meta_data, raw_user_meta_data, created_at, updated_at
+)
+values (
+  'a3000000-0000-4000-8000-000000000002',
+  'authenticated',
+  'authenticated',
+  'account-cascade-test@example.invalid',
+  '',
+  timezone('utc', now()),
+  '{}'::jsonb,
+  '{}'::jsonb,
+  timezone('utc', now()),
+  timezone('utc', now())
+);
+insert into public.workspaces (user_id, workspace_id, name, is_deleted)
+values ('a3000000-0000-4000-8000-000000000002', 'account-cascade', 'Account cascade', false);
+select set_config('request.jwt.claim.sub', 'a3000000-0000-4000-8000-000000000002', true);
+select public.apply_todo_mutation(
+  'a3100000-0000-4000-8000-000000000004',
+  1,
+  'create',
+  930000099,
+  '{"text":"Account deletion cascade","desktopWorkspaceId":"account-cascade"}'::jsonb,
+  null
+);
+delete from auth.users where id = 'a3000000-0000-4000-8000-000000000002';
+
+select is(
+  (select count(*)::integer from public.workspaces
+    where user_id = 'a3000000-0000-4000-8000-000000000002'),
+  0,
+  'Auth account deletion cascades through the last-Workspace guard'
 );
 
 select * from finish();
